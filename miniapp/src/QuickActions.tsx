@@ -7,13 +7,13 @@ import type { Tab } from './App';
 // Tezkor amallar — istalgan ekrandan ikki bosishda:
 // suzuvchi tugma → uchta asosiy amal (sotuv, qarz yozish, tovar kirimi).
 
-const ACTIONS: { tab: Tab; glyph: string; key: string }[] = [
-  { tab: 'kassa', glyph: 'cart', key: 'modeSale' },
+const ACTIONS: { tab: Tab; glyph: string; key: string; mode?: 'sale' | 'intake' }[] = [
+  { tab: 'kassa', glyph: 'cart', key: 'modeSale', mode: 'sale' },
   { tab: 'add', glyph: 'note', key: 'tabAdd' },
-  { tab: 'kassa', glyph: 'boxes', key: 'modeIntake' },
+  { tab: 'kassa', glyph: 'boxes', key: 'modeIntake', mode: 'intake' },
 ];
 
-export default function QuickActions({ onPick }: { onPick: (tab: Tab) => void }) {
+export default function QuickActions({ onPick }: { onPick: (tab: Tab, mode?: 'sale' | 'intake') => void }) {
   const [open, setOpen] = useState(false);
   const { t } = useT();
 
@@ -30,7 +30,7 @@ export default function QuickActions({ onPick }: { onPick: (tab: Tab) => void })
               onClick={() => {
                 haptic.tap();
                 setOpen(false);
-                onPick(a.tab);
+                onPick(a.tab, a.mode);
               }}
             >
               <AppIcon glyph={a.glyph} size={38} />

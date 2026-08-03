@@ -25,9 +25,24 @@ function ProductThumb({ product, size = 44 }: { product: Product; size?: number 
   return <AppIcon glyph="box" color="gray" size={size} />;
 }
 
-export default function Kassa({ onDone, isEmployee = false }: { onDone: () => void; isEmployee?: boolean }) {
-  const [mode, setMode] = useState<'sale' | 'intake' | 'history'>('sale');
+export type KassaMode = 'sale' | 'intake' | 'history';
+
+export default function Kassa({
+  onDone,
+  isEmployee = false,
+  initialMode = 'sale',
+}: {
+  onDone: () => void;
+  isEmployee?: boolean;
+  initialMode?: KassaMode;
+}) {
+  const [mode, setMode] = useState<KassaMode>(initialMode);
   const { t } = useT();
+
+  // Tezkor amallardan "Tovar kirimi" tanlansa — o'sha bo'lim ochiladi
+  useEffect(() => {
+    setMode(isEmployee && initialMode === 'intake' ? 'sale' : initialMode);
+  }, [initialMode, isEmployee]);
 
   return (
     <div className="screen">
@@ -205,18 +220,21 @@ function SaleMode({ onDone }: { onDone: () => void }) {
       setPendingCode(null);
     }
     const inCart = cart.find((l) => l.product.id === p.id);
-    const qty = (inCart?.qty ?? 0) + 1;
+    const want = (inCart?.qty ?? 0) + 1;
+
+    // Qoldiqdan oshib ketmaydi: savatdagi son omborda borichadan ko'p bo'lmaydi
+    if (want > p.stock) {
+      toast.error(p.name, `${t('stockShort')}: ${p.stock} ${p.unit}`);
+      if (!inCart && p.stock <= 0) return;   // umuman yo'q — savatga tushmaydi
+      return;
+    }
+
     setCart((prev) => {
       const existing = prev.find((l) => l.product.id === p.id);
-      if (existing) return prev.map((l) => (l.product.id === p.id ? { ...l, qty } : l));
+      if (existing) return prev.map((l) => (l.product.id === p.id ? { ...l, qty: want } : l));
       return [...prev, { product: p, qty: 1 }];
     });
-    // Omborda yetarli emasmi — darhol aytamiz, lekin sotishni to'smaymiz
-    if (qty > p.stock) {
-      toast.error(p.name, `${t('stockShort')}: ${p.stock} ${p.unit}`);
-    } else {
-      toast.success(p.name, `${qty} ${t('pcs')} · ${fmt(p.sell_price * qty)}`);
-    }
+    toast.success(p.name, `${want} ${t('pcs')} · ${fmt(p.sell_price * want)}`);
     setQuery('');
     setResults([]);
   }
@@ -226,10 +244,12 @@ function SaleMode({ onDone }: { onDone: () => void }) {
     const line = cart.find((l) => l.product.id === id);
     if (!line) return;
     const qty = line.qty + delta;
-    if (qty <= 0) toast.info(line.product.name, t('toastRemoved'));
-    else if (delta > 0 && qty > line.product.stock) {
+    // Qoldiqdan oshirib bo'lmaydi
+    if (delta > 0 && qty > line.product.stock) {
       toast.error(line.product.name, `${t('stockShort')}: ${line.product.stock} ${line.product.unit}`);
+      return;
     }
+    if (qty <= 0) toast.info(line.product.name, t('toastRemoved'));
     setCart((prev) =>
       prev.map((l) => (l.product.id === id ? { ...l, qty } : l)).filter((l) => l.qty > 0)
     );

@@ -6,7 +6,7 @@ import Login from './screens/Login';
 import Dashboard from './screens/Dashboard';
 import Customers from './screens/Customers';
 import AddDebt from './screens/AddDebt';
-import Kassa from './screens/Kassa';
+import Kassa, { type KassaMode } from './screens/Kassa';
 import Profile from './screens/Profile';
 import Suppliers from './screens/Suppliers';
 import Reports from './screens/Reports';
@@ -28,6 +28,7 @@ export default function App() {
   const [sub, setSub] = useState<SubScreen>(null);
   const [profileView, setProfileView] = useState<string>('main');
   const [shop, setShop] = useState<Shop | null>(null);
+  const [kassaMode, setKassaMode] = useState<KassaMode>('sale');
   const { t, lang, setLang } = useT();
 
   // Telegram'ning o'z "orqaga" tugmasi ichki ekranlarda ko'rinadi
@@ -88,7 +89,7 @@ export default function App() {
           }}
         />
       )}
-      {!sub && tab === 'kassa' && <Kassa onDone={refresh} isEmployee={isEmployee} />}
+      {!sub && tab === 'kassa' && <Kassa onDone={refresh} isEmployee={isEmployee} initialMode={kassaMode} />}
       {!sub && tab === 'profile' && (
         <Profile
           key={profileView + refreshKey}
@@ -103,8 +104,9 @@ export default function App() {
 
       {!sub && (
         <QuickActions
-          onPick={(target) => {
+          onPick={(target, mode) => {
             setSub(null);
+            if (mode) setKassaMode(mode);
             setTab(target);
           }}
         />
@@ -115,6 +117,7 @@ export default function App() {
         active={!sub}
         onNavigate={(target: NavTarget) => {
           setSub(target.sub ?? null);
+          if (target.tab === 'kassa') setKassaMode('sale');
           if (target.tab) setTab(target.tab);
           setProfileView(target.profileView ?? 'main');
         }}
