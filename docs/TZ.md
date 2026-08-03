@@ -5,7 +5,8 @@
 
 > **Muhim prinsip:** Mobil ilova va Telegram bot — **teng huquqli ikkita mijoz platformasi**. Do'konchi qaysi biri qulay bo'lsa o'shani ishlataveradi (yoki ikkalasini birga), hamma ma'lumot bitta hisobda sinxron turadi. Qarz kiritish ham ikki usulda teng ishlaydi: **ovoz orqali** va **qo'lda** — ikkalasi ham asosiy usul.
 **Brend:** ARABIC.ONE
-**Versiya:** 1.0 (qoralama)
+**Ilova nomi (do'konlarda):** "Arabic.One — Do'kon Daftari" ✅ (tasdiqlangan)
+**Versiya:** 1.1
 
 ---
 
@@ -100,7 +101,7 @@ Do'konchining o'zi ham postavshiklardan qarzga tovar oladi — shu tomonini ham 
 Do'konchi har bir mijoz/qarz uchun rejimni tanlaydi:
 1. **Yumshoq:** muddatdan 1 kun oldin SMS/Telegram xabar — "Ertaga qarz muddati keladi".
 2. **O'rta:** muddat kuni va keyin har 3 kunda takroriy xabar.
-3. **AI qo'ng'iroq:** kechikkanda tizim qarzdorga o'zbek tilida ovozli qo'ng'iroq qiladi — muloyim matn: *"Assalomu alaykum, [do'kon nomi] do'konidan eslatma: [summa] qarzingizning muddati o'tdi, iltimos to'lab qo'ying"*.
+3. **AI qo'ng'iroq:** kechikkanda tizim qarzdorga ovozli qo'ng'iroq qiladi — **o'zbek yoki rus tilida** (mijoz kartochkasida do'konchi qaysi tilni belgilagan bo'lsa, o'shanda; standart — o'zbek). Muloyim matn: *"Assalomu alaykum, [do'kon nomi] do'konidan eslatma: [summa] qarzingizning muddati o'tdi, iltimos to'lab qo'ying"*.
 4. **Qo'ng'iroqdan keyingi SMS (rekvizitlar bilan):** AI qo'ng'iroq tugagach (ko'tarilgan bo'lsa ham, ko'tarilmagan bo'lsa ham) qarzdorga avtomatik SMS ketadi — qarzdor og'zaki eshitganini unutmasligi va to'lashi oson bo'lishi uchun:
 
    > *"[Do'kon nomi] do'koniga qarzingiz: 120 000 so'm. To'lash uchun karta: 8600 **** **** 1234 ([do'konchi ismi]). Savollar uchun: +998 90 123 45 67"*
@@ -330,12 +331,14 @@ Logo: ko'k doira ichida oq "A" — ilova ikonkasi va splash-ekranda ishlatiladi.
 
 ---
 
-## 10. Ochiq savollar (kelishib olish kerak)
+## 10. Qarorlar va ochiq savollar
 
-1. Ilova nomi do'konlarda qanday chiqadi — "ARABIC.ONE" o'zими, yoki qo'shimcha nom bilan (masalan "Arabic.One — Qarz Daftari")?
-2. AI qo'ng'iroq qaysi til(lar)da — faqat o'zbekmi, rus ham kerakmi?
-3. SMS provayderi bilan shartnoma kim nomiga bo'ladi (Eskiz.uz yuridik shaxs talab qiladi)?
-4. Bepul tarif chegaralari qanday bo'lsin (nechta yozuv, nechta mijoz)?
-5. Birinchi bosqichda faqat Android (APK) chiqarib, iOS ni 2-bosqichga qoldiramizmi? (App Store nashri ko'proq vaqt va Apple hisob talab qiladi — yiliga $99.)
-6. Ombor/kassa moduli qaysi tarifga kiradi — Premium ichidami yoki alohida "Biznes" tarifmi?
-7. Rasmiy fiskal chek (soliq) integratsiyasi kerakmi, yoki POS faqat ichki hisob-kitob uchunmi? (Fiskal modul alohida litsenziya va provayder shartnomasini talab qiladi.)
+| # | Savol | Holat | Qaror |
+|---|---|---|---|
+| 1 | Ilova nomi | ✅ **Hal qilindi** | **"Arabic.One — Do'kon Daftari"**. Play Market tavsifi va kalit so'zlarga: "qarz daftari, sklad, kassa, shtrix kod, do'kon programmasi" qo'shiladi. |
+| 2 | AI qo'ng'iroq tili | ✅ **Hal qilindi** | **O'zbek + Rus**. Mijoz kartochkasida til belgilanadi, standart — o'zbek. |
+| 3 | SMS/to'lov shartnomalari uchun yuridik shaxs | ⏳ **Jarayonda** | Asoschilar o'zlari hal qilishadi (MChJ/YaTT). Eskiz.uz, Payme, Click shartnomalari shu nomga bo'ladi. Backend ishlariga to'siq emas — test rejimda boshlayveramiz. |
+| 4 | Bepul tarif chegaralari | 🔜 **Keyinroq** | Tariflar keyin o'ylanadi. Ishchi taklif (o'zgarishi mumkin): 20 mijoz, cheksiz yozuv, faqat qo'lda kiritish. |
+| 5 | Android birinchi, iOS keyin | ✅ **Tavsiya qabul** | Birinchi bosqich — Android (APK + Play Market). iOS Flutter tufayli tayyor turadi, 2-bosqichda nashr qilinadi. |
+| 6 | POS qaysi tarifda | 🔜 **Keyinroq** | Tariflar bilan birga hal qilinadi. Ishchi taklif: alohida "Biznes" tarif (Premium + POS + xodimlar + AI maslahatchi). |
+| 7 | Fiskal chek integratsiyasi | ✅ **Tavsiya qabul** | MVP'da yo'q — POS ichki hisob-kitob uchun. Talab bo'lsa 5-bosqichda qo'shiladi. |
