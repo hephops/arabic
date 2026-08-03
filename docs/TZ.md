@@ -1,7 +1,7 @@
 # ARABIC.ONE — Texnik Topshiriq (TZ)
 
-**Loyiha:** Do'konchilar uchun raqamli qarz daftari — ovozli va qo'lda kiritish, avtomatik eslatmalar va AI qo'ng'iroq bilan.
-**Platformalar:** Android (APK / Google Play), iOS (App Store), **Telegram bot**, Web Admin Panel.
+**Loyiha:** Do'konchilar uchun raqamli qarz daftari va savdo hisobi — ovozli va qo'lda kiritish, shtrix-kodli ombor/kassa (POS), avtomatik eslatmalar va AI qo'ng'iroq bilan.
+**Platformalar:** Android (APK / Google Play), iOS (App Store), **Telegram Mini App**, Web Admin Panel.
 
 > **Muhim prinsip:** Mobil ilova va Telegram bot — **teng huquqli ikkita mijoz platformasi**. Do'konchi qaysi biri qulay bo'lsa o'shani ishlataveradi (yoki ikkalasini birga), hamma ma'lumot bitta hisobda sinxron turadi. Qarz kiritish ham ikki usulda teng ishlaydi: **ovoz orqali** va **qo'lda** — ikkalasi ham asosiy usul.
 **Brend:** ARABIC.ONE
@@ -15,7 +15,8 @@ Do'konchi (savdogar) qog'oz qarz daftarini telefoniga ko'chiradi:
 
 1. Qarzni **ovoz bilan** kiritadi — "Akmalga 50 ming so'mlik mahsulot berdim, oyning o'nigacha" — tizim buni avtomatik yozuvga aylantiradi.
 2. Muddat kelganda tizim qarzdorga **avtomatik eslatma** yuboradi (SMS / Telegram), kerak bo'lsa **AI ovozli qo'ng'iroq** qiladi.
-3. Do'konchi oylik **obuna** to'laydi (Payme / Click / Uzum orqali).
+3. Do'kon savdosini ham yuritadi: **shtrix-kod skaneri** bilan tovar kirimi, ombor qoldig'i va kassa (sotuv) — "qarzga sotish" bitta tugma bilan qarz daftariga tushadi.
+4. Do'konchi oylik **obuna** to'laydi (Payme / Click / Uzum orqali).
 
 ---
 
@@ -149,42 +150,80 @@ Mini App ichida mobil ilovaning barcha asosiy ekranlari bo'ladi:
 
 ---
 
-## 5. Admin panel (Web)
+## 5. Ombor va kassa (POS) moduli — shtrix-kod bilan
+
+> Qarz daftari bilan bir ilovada ishlaydigan to'liq savdo hisobi: do'konga tovar kirishi, ombor qoldig'i, narxlar va sotuv — hammasi telefon kamerasi orqali **shtrix-kod skaneri** bilan. Alohida qurilma kerak emas.
+
+### 5.1. Tovar kirimi (prixod)
+- Tovar keldi → do'konchi telefon kamerasi bilan shtrix-kodni skaner qiladi.
+- Mahsulot bazada bo'lsa — nomi avtomatik chiqadi; bo'lmasa — bir marta qo'lda kiritadi (nomi, birligi: dona/kg/litr), keyingi safar avtomatik tanildi.
+- Kirim narxi (olib kelingan narx) va sotuv narxini kiritadi, sonini yozadi.
+- Umumiy shtrix-kod katalogi: mashhur mahsulotlar (ichimliklar, shirinliklar, kir yuvish vositalari...) markaziy bazada bo'ladi — bir do'konchi kiritgan mahsulot nomi boshqa do'konchilarga ham avtomatik chiqadi (vaqt tejaydi).
+- Shtrix-kodsiz mahsulotlar (non, go'sht, tarozida sotiladiganlar) uchun qo'lda tez tanlov tugmalari.
+
+### 5.2. Ombor (sklad)
+- Har bir mahsulot: nomi, shtrix-kod, kirim narxi, sotuv narxi, qoldiq soni.
+- Qoldiq avtomatik hisoblanadi: kirim (+) va sotuv (−).
+- **Kam qolgan tovar ogohlantirishi:** qoldiq belgilangan chegaradan tushsa, do'konchiga bildirishnoma — "Coca-Cola 1.5L — 3 dona qoldi, buyurtma bering".
+- Qidiruv: nomi bo'yicha yoki skaner orqali.
+- Inventarizatsiya rejimi: do'konchi javonlarni skaner qilib chiqadi, tizim haqiqiy qoldiq bilan bazadagini solishtirib farqni ko'rsatadi.
+
+### 5.3. Kassa (sotuv rejimi)
+- Katta "Sotuv" tugmasi → skaner ochiladi → mahsulotlarni ketma-ket skaner qiladi (supermarket kassasi kabi).
+- Savat: mahsulotlar ro'yxati, soni (+/− bilan o'zgartirish), umumiy summa.
+- To'lov turlari: **Naqd / Karta / QARZGA**.
+- **Qarz daftari bilan integratsiya (asosiy kuch):** mijoz "yozib qo'ying" desa — do'konchi "Qarzga" tugmasini bosadi → mijozni tanlaydi → savdo avtomatik qarz yozuviga aylanadi (mahsulotlar ro'yxati izohda saqlanadi, muddat qo'yiladi). Qo'lda hech narsa yozish kerak emas.
+- Chek: sotuv tarixida saqlanadi; xohlasa mijozga SMS/Telegram orqali ro'yxatini yuboradi.
+
+### 5.4. Savdo hisobotlari
+- Kunlik/haftalik/oylik savdo: tushum, sotilgan mahsulotlar soni.
+- **Foyda hisobi:** sotuv narxi − kirim narxi = har bir mahsulotdan qancha foyda ko'rilgani.
+- Eng ko'p sotiladigan mahsulotlar (top-10), sekin ketayotgan tovarlar.
+- Naqd / karta / qarzga sotuvlar nisbati.
+
+### 5.5. Texnik jihatlar
+- Skaner: telefon kamerasi orqali (ML Kit / ZXing kutubxonasi) — EAN-13, EAN-8, QR formatlarini o'qiydi, sekundiga tanidi, internetisiz ham ishlaydi.
+- Telegram Mini App'da ham skaner ishlaydi (Telegram kamera API orqali).
+- Eslatma: bu **ichki hisob-kitob vositasi** — rasmiy fiskal kassa (soliq cheki) o'rnini bosmaydi. Rasmiy chek kerak bo'lsa, keyingi bosqichda fiskal modul provayderlari bilan integratsiya qilinadi.
+
+---
+
+## 6. Admin panel (Web)
 
 > Texnologiya: React + REST API. Faqat admin/super-admin kiradi (login + parol + 2FA).
 
-### 4.1. Dashboard
+### 6.1. Dashboard
 - Jami foydalanuvchilar, faol obunalar, oylik tushum (MRR).
 - Bugungi ro'yxatdan o'tishlar, to'lovlar, qo'ng'iroqlar soni.
 - Grafiklar: o'sish dinamikasi, churn (obunani to'xtatganlar).
 
-### 4.2. Foydalanuvchilar boshqaruvi
+### 6.2. Foydalanuvchilar boshqaruvi
 - Do'konchilar ro'yxati: qidiruv, filtr (viloyat, tarif, holat).
 - Profil: ma'lumotlar, obuna tarixi, faollik (oxirgi kirish, yozuvlar soni).
 - Bloklash / blokdan chiqarish, obunani qo'lda uzaytirish (sovg'a).
 
-### 4.3. Obuna va to'lovlar
+### 6.3. Obuna va to'lovlar
 - Tariflarni boshqarish: narx, muddat, funksiyalar to'plami.
 - To'lovlar jurnali: kim, qachon, qancha, qaysi tizim orqali (Payme/Click/Uzum).
 - Promo-kodlar va chegirmalar yaratish.
 
-### 4.4. AI qo'ng'iroq va xabarlar monitoringi
+### 6.4. AI qo'ng'iroq va xabarlar monitoringi
 - Qo'ng'iroqlar jurnali: kimga, qachon, natija (ko'tardi / ko'tarmadi / band), yozib olingan audio.
 - SMS/Telegram yuborilganlar statistikasi va xarajati.
 - Qo'ng'iroq matnlari (skriptlar) shablonlarini tahrirlash.
 
-### 4.5. Kontent va xabarnomalar
+### 6.5. Kontent va xabarnomalar
 - Barcha yoki tanlangan foydalanuvchilarga push/SMS yuborish (yangilik, aksiya).
 - FAQ / yordam bo'limini tahrirlash.
 
-### 4.6. Super-admin
+### 6.6. Super-admin
 - Admin hisoblarini yaratish, rollarni belgilash.
 - Tizim sozlamalari: STT provayder, SMS-shlyuz, telefoniya sozlamalari.
 - Audit-log: qaysi admin nima qilgani.
 
 ---
 
-## 6. Backend arxitektura
+## 7. Backend arxitektura
 
 ```
 Mobil ilova (Flutter)        ──┐
@@ -205,7 +244,7 @@ Admin panel (React)          ──┘            │
 
 ---
 
-## 7. Dizayn tizimi (logodan kelib chiqqan)
+## 8. Dizayn tizimi (logodan kelib chiqqan)
 
 | Element | Qiymat |
 |---|---|
@@ -221,21 +260,24 @@ Logo: ko'k doira ichida oq "A" — ilova ikonkasi va splash-ekranda ishlatiladi.
 
 ---
 
-## 8. Bosqichlar (roadmap)
+## 9. Bosqichlar (roadmap)
 
 | Bosqich | Muddat (taxminiy) | Nima chiqadi |
 |---|---|---|
 | **1. MVP** | 4–6 hafta | Telegram Mini App + mobil ilova (Android): ro'yxatdan o'tish, qarz daftari (qo'lda + ovozli kiritish), SMS/Telegram eslatma. Oddiy admin panel. |
 | **2. Monetizatsiya** | +3 hafta | Payme/Click/Uzum obuna, tariflar, to'liq admin panel. |
 | **3. AI qo'ng'iroq** | +4 hafta | Telefoniya integratsiyasi, TTS, qo'ng'iroq skriptlari, monitoring. |
-| **4. Kengaytirish** | doimiy | Hisobotlar, eksport, qarzdor uchun web-sahifa, iOS App Store nashri. |
+| **4. Ombor va kassa (POS)** | +5–6 hafta | Shtrix-kod skaneri, tovar kirimi, ombor qoldig'i, sotuv rejimi, "qarzga sotish" integratsiyasi, foyda hisobotlari. |
+| **5. Kengaytirish** | doimiy | Hisobotlar, eksport, qarzdor uchun web-sahifa, iOS App Store nashri, fiskal modul integratsiyasi. |
 
 ---
 
-## 9. Ochiq savollar (kelishib olish kerak)
+## 10. Ochiq savollar (kelishib olish kerak)
 
 1. Ilova nomi do'konlarda qanday chiqadi — "ARABIC.ONE" o'zими, yoki qo'shimcha nom bilan (masalan "Arabic.One — Qarz Daftari")?
 2. AI qo'ng'iroq qaysi til(lar)da — faqat o'zbekmi, rus ham kerakmi?
 3. SMS provayderi bilan shartnoma kim nomiga bo'ladi (Eskiz.uz yuridik shaxs talab qiladi)?
 4. Bepul tarif chegaralari qanday bo'lsin (nechta yozuv, nechta mijoz)?
 5. Birinchi bosqichda faqat Android (APK) chiqarib, iOS ni 2-bosqichga qoldiramizmi? (App Store nashri ko'proq vaqt va Apple hisob talab qiladi — yiliga $99.)
+6. Ombor/kassa moduli qaysi tarifga kiradi — Premium ichidami yoki alohida "Biznes" tarifmi?
+7. Rasmiy fiskal chek (soliq) integratsiyasi kerakmi, yoki POS faqat ichki hisob-kitob uchunmi? (Fiskal modul alohida litsenziya va provayder shartnomasini talab qiladi.)
