@@ -24,8 +24,10 @@ Do'konchi (savdogar) qog'oz qarz daftarini telefoniga ko'chiradi:
 
 | Rol | Tavsif |
 |---|---|
-| **Do'konchi** | Asosiy foydalanuvchi. Mobil ilovada qarzlarni yuritadi, obuna to'laydi. |
+| **Do'konchi (ega)** | Asosiy foydalanuvchi. Qarzlar, ombor, kassa, hisobotlar — to'liq huquq. Obuna to'laydi. |
+| **Sotuvchi (xodim)** | Ega qo'shadi, alohida PIN bilan kiradi. Sotadi, qarz yozadi — lekin o'chirish/tahrirlash va hisobotlar yopiq. Har amali logda. |
 | **Qarzdor (mijoz)** | Ilova o'rnatishi shart emas. SMS/Telegram/qo'ng'iroq orqali eslatma oladi. Ixtiyoriy: havola orqali o'z qarzini ko'radi. |
+| **Postavshik (ta'minotchi)** | Do'konchi unga qarzdor bo'lishi mumkin — "Men qarzdorman" bo'limida yuritiladi, to'lov eslatmasi do'konchiga keladi. |
 | **Admin** | Web-panelda foydalanuvchilar, obunalar, to'lovlar, qo'ng'iroqlarni boshqaradi. |
 | **Super-admin** | Tariflar, admin hisoblari, tizim sozlamalari. |
 
@@ -85,6 +87,15 @@ Qo'shimcha import usullari:
 - Qidiruv va filtr (ism bo'yicha, muddati bo'yicha, kechikkanlar).
 - Kontaktlar kitobidan mijoz import qilish.
 
+### 3.4.1. Ta'minotchilar (postavshik) daftari — "Men qarzdorman"
+Do'konchining o'zi ham postavshiklardan qarzga tovar oladi — shu tomonini ham yuritamiz, butun pul aylanmasi bitta ilovada bo'ladi:
+- Ikki bo'lim: **"Menga qarzdorlar"** (mijozlar) va **"Men qarzdorman"** (postavshiklar).
+- Postavshik yozuvi: nomi/firma, telefon, olingan tovar (izoh), summa, to'lash muddati.
+- Muddat yaqinlashganda **do'konchining o'ziga eslatma** keladi: *"Ertaga 'Anvar aka postavshik'ka 2 500 000 so'm to'lash kerak"*.
+- Qisman to'lovlar, to'lov tarixi — mijozlar daftari bilan bir xil mexanika.
+- Dashboard'da umumiy balans ko'rinadi: menga qarzdorlar jami / men qarzdorman jami / sof holat.
+- Kiritish usullari ham bir xil: ovoz orqali (*"Anvar akadan 2 million lik tovar oldim, oyning oxirigacha"*) yoki qo'lda.
+
 ### 3.5. Eslatmalar tizimi (eskalatsiya zinasi)
 Do'konchi har bir mijoz/qarz uchun rejimni tanlaydi:
 1. **Yumshoq:** muddatdan 1 kun oldin SMS/Telegram xabar — "Ertaga qarz muddati keladi".
@@ -105,10 +116,35 @@ Do'konchi har bir mijoz/qarz uchun rejimni tanlaydi:
 - Top qarzdorlar ro'yxati.
 - Excel/PDF eksport.
 
+### 3.6.1. AI biznes-maslahatchi (ovozli savol-javob)
+Do'konchi hisobotlarni titkilamasdan, savolini **ovoz bilan (yoki yozib)** so'raydi — AI do'konning o'z ma'lumotlari asosida javob beradi:
+- *"Bu oy qancha foyda qildim?"* → *"Iyul oyida sof foyda 4 200 000 so'm — o'tgan oydan 12% ko'p."*
+- *"Eng katta qarzdorim kim?"* → *"Karim aka — 850 000 so'm, oxirgi to'lovi 2 hafta oldin."*
+- *"Qaysi tovar yaxshi ketyapti?"* → *"Bu hafta eng ko'p sotilgani: Coca-Cola 1.5L (48 dona)."*
+- *"Kimga qo'ng'iroq qildirishim kerak?"* → kechikkan qarzdorlar ro'yxati va tavsiya.
+- AI **faqat shu do'konning ma'lumotlariga** tayanadi (boshqa do'konlar ma'lumotini ko'rmaydi), javoblari raqamlar bilan asoslanadi.
+- Mobil ilovada ham, Telegram'da ham ishlaydi (botga ovozli savol tashlasa ham bo'ladi).
+- Texnologiya: mavjud STT + LLM (Claude API) — qo'shimcha infratuzilma kerak emas.
+
 ### 3.7. Obuna va to'lov
 - Tarif rejalar (masalan): **Bepul** — cheklangan yozuvlar, faqat qo'lda kiritish; **Premium (99 000 so'm/oy)** — cheksiz yozuvlar, ovozli kiritish, SMS + AI qo'ng'iroq.
 - To'lov: **Payme, Click, Uzum Bank** integratsiyasi.
 - Obuna holati, tugash sanasi, avtomatik uzaytirish.
+
+**Referal dastur (o'sish kanali):**
+- Har do'konchining o'z **taklif havolasi / promo-kodi** bor (ilova ichida "Do'stingni taklif qil" bo'limi).
+- Taklif qilingan do'konchi ro'yxatdan o'tib obuna bo'lsa — **ikkalasiga ham 1 oy bepul** obuna qo'shiladi.
+- Do'konchi o'z referallarini ko'radi: nechta taklif qildi, nechtasi ulandi, qancha bonus yig'di.
+- Cheklovlar admin panelda sozlanadi (masalan oyiga maksimal bonus), suiiste'molga qarshi tekshiruv.
+
+### 3.7.1. Xodim (sotuvchi) rejimi
+Ko'p do'konda kassada egasi emas, yollangan sotuvchi o'tiradi — ruxsatlar bo'linishi shart:
+- Ega o'z hisobiga **xodim qo'shadi**: ism + alohida PIN-kod (yoki telefon raqam).
+- **Sotuvchi qila oladi:** sotuv (kassa), qarz yozish, to'lov qabul qilish, tovar kirimi.
+- **Faqat ega qila oladi:** narx o'zgartirish, qarz/sotuvni o'chirish yoki tahrirlash, hisobotlar va foyda ko'rish, karta rekvizitlari, obuna, xodim boshqaruvi.
+- **Har bir amaliyotda kim qilgani yozib boriladi** — ega kechqurun ko'radi: qaysi sotuvchi qancha sotdi, nima yozdi, nimani o'zgartirmoqchi bo'ldi.
+- Sotuvchi smenasi hisoboti: smena davomidagi savdo, naqd/karta/qarzga bo'linishi.
+- Ruxsatlar to'plamini ega o'zi sozlay oladi (masalan ishonchli xodimga hisobotlarni ochish).
 
 ### 3.8. Qo'shimcha
 - **Offline rejim:** internet yo'q bo'lsa ham yozuvlar saqlanadi, ulanish qaytganda sinxronlanadi.
@@ -227,6 +263,7 @@ Srok kiritilgan mahsulotlar bo'yicha tizim avtomatik kuzatib boradi:
 - Tariflarni boshqarish: narx, muddat, funksiyalar to'plami.
 - To'lovlar jurnali: kim, qachon, qancha, qaysi tizim orqali (Payme/Click/Uzum).
 - Promo-kodlar va chegirmalar yaratish.
+- **Referal dastur boshqaruvi:** bonus miqdori va shartlarini sozlash, referal statistikasi (kim nechta olib keldi), suiiste'molni aniqlash va bloklash.
 
 ### 6.4. AI qo'ng'iroq va xabarlar monitoringi
 - Qo'ng'iroqlar jurnali: kimga, qachon, natija (ko'tardi / ko'tarmadi / band), yozib olingan audio.
@@ -289,7 +326,7 @@ Logo: ko'k doira ichida oq "A" — ilova ikonkasi va splash-ekranda ishlatiladi.
 | **2. Monetizatsiya** | +3 hafta | Payme/Click/Uzum obuna, tariflar, to'liq admin panel. |
 | **3. AI qo'ng'iroq** | +4 hafta | Telefoniya integratsiyasi, TTS, qo'ng'iroq skriptlari, monitoring. |
 | **4. Ombor va kassa (POS)** | +5–6 hafta | Shtrix-kod skaneri, tovar kirimi, ombor qoldig'i, sotuv rejimi, "qarzga sotish" integratsiyasi, foyda hisobotlari. |
-| **5. Kengaytirish** | doimiy | Hisobotlar, eksport, qarzdor uchun web-sahifa, iOS App Store nashri, fiskal modul integratsiyasi. |
+| **5. Kengaytirish** | doimiy | Postavshik daftari, xodim rejimi, AI biznes-maslahatchi, referal dastur, qarzdor uchun web-sahifa, iOS App Store nashri, fiskal modul integratsiyasi. |
 
 ---
 
