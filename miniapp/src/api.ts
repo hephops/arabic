@@ -232,6 +232,4 @@ export interface Report {
   top_products: { name: string; sold: number; revenue: number }[];
 }
 
-export function fmt(n: number): string {
-  return new Intl.NumberFormat('uz-UZ').format(n) + " so'm";
-}
+export { fmt } from './i18n';

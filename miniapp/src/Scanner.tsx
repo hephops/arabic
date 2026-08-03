@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Glyph } from './icons';
+import { useT } from './i18n';
 
 // Kamera orqali shtrix-kod skaneri.
 // Brauzerning o'zidagi BarcodeDetector API ishlatiladi (Android/Chrome, Telegram webview).
@@ -8,6 +9,7 @@ import { Glyph } from './icons';
 export default function Scanner({ onScan, onClose }: { onScan: (code: string) => void; onClose: () => void }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [error, setError] = useState('');
+  const { t } = useT();
 
   useEffect(() => {
     let stream: MediaStream | null = null;
@@ -16,7 +18,7 @@ export default function Scanner({ onScan, onClose }: { onScan: (code: string) =>
     async function start() {
       const BD = (window as any).BarcodeDetector;
       if (!BD) {
-        setError("Bu qurilma kamera skanerini qo'llamaydi — kodni qo'lda tering");
+        setError(t('scanNoSupport'));
         return;
       }
       try {
@@ -24,7 +26,7 @@ export default function Scanner({ onScan, onClose }: { onScan: (code: string) =>
           video: { facingMode: 'environment' },
         });
       } catch {
-        setError("Kameraga ruxsat berilmadi — kodni qo'lda tering");
+        setError(t('scanNoPermission'));
         return;
       }
       const video = videoRef.current!;
@@ -73,7 +75,7 @@ export default function Scanner({ onScan, onClose }: { onScan: (code: string) =>
         }}
       />
       <p style={{ position: 'absolute', bottom: 110, width: '100%', textAlign: 'center', color: '#fff', fontSize: 14 }}>
-        {error || "Shtrix-kodni ramka ichiga keltiring"}
+        {error || t('scanHint')}
       </p>
       <button
         onClick={onClose}
@@ -83,7 +85,7 @@ export default function Scanner({ onScan, onClose }: { onScan: (code: string) =>
           borderRadius: 24, display: 'flex', alignItems: 'center', gap: 8, fontSize: 15,
         }}
       >
-<Glyph name="close" size={18} /> Yopish
+<Glyph name="close" size={18} /> {t('close')}
       </button>
     </div>
   );

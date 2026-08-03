@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { api, fmt, Product, BASE } from '../api';
 import { AppIcon } from '../icons';
 import { SubHeader } from '../ui';
+import { useT } from '../i18n';
 
 // Ombor: barcha mahsulotlar, qoldiq, srok analitikasi
 
@@ -13,6 +14,7 @@ export default function Inventory({ onBack }: { onBack: () => void }) {
   const [products, setProducts] = useState<Product[]>([]);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<'all' | 'low' | 'expiry'>('all');
+  const { t } = useT();
 
   useEffect(() => {
     api.products().then(setProducts).catch(() => {});
@@ -29,20 +31,20 @@ export default function Inventory({ onBack }: { onBack: () => void }) {
 
   return (
     <div className="screen">
-      <SubHeader title="Ombor" onBack={onBack} />
+      <SubHeader title={t('navInventory')} onBack={onBack} />
       <div className="card" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
         <AppIcon glyph="boxes" size={44} />
         <div>
-          <div className="hint" style={{ margin: 0 }}>{products.length} xil mahsulot · ombor qiymati</div>
+          <div className="hint" style={{ margin: 0 }}>{products.length} {t('productsCount')}</div>
           <div style={{ fontSize: 20, fontWeight: 800 }}>{fmt(totalValue)}</div>
         </div>
       </div>
 
-      <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Qidirish..." />
+      <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t('search')} />
       <div className="chip-row">
-        <button className={`chip ${filter === 'all' ? 'selected' : ''}`} onClick={() => setFilter('all')}>Hammasi</button>
-        <button className={`chip ${filter === 'low' ? 'selected' : ''}`} onClick={() => setFilter('low')}>Kam qolgan</button>
-        <button className={`chip ${filter === 'expiry' ? 'selected' : ''}`} onClick={() => setFilter('expiry')}>Srogi yaqin</button>
+        <button className={`chip ${filter === 'all' ? 'selected' : ''}`} onClick={() => setFilter('all')}>{t('filterAll')}</button>
+        <button className={`chip ${filter === 'low' ? 'selected' : ''}`} onClick={() => setFilter('low')}>{t('filterLow')}</button>
+        <button className={`chip ${filter === 'expiry' ? 'selected' : ''}`} onClick={() => setFilter('expiry')}>{t('filterExpiry')}</button>
       </div>
 
       <div className="list-group">
@@ -62,7 +64,7 @@ export default function Inventory({ onBack }: { onBack: () => void }) {
                     {fmt(p.sell_price)}
                     {expDays !== null && (
                       <span style={{ color: expDays < 0 ? 'var(--red)' : expDays <= 7 ? 'var(--yellow)' : undefined }}>
-                        {' '}· srok: {expDays < 0 ? `${-expDays} kun o'tgan!` : `${expDays} kun qoldi`}
+                        {' '}· {t('expiry')}: {expDays < 0 ? `${-expDays} ${t('daysPassed')}` : `${expDays} ${t('daysLeft')}`}
                       </span>
                     )}
                   </div>
@@ -75,7 +77,7 @@ export default function Inventory({ onBack }: { onBack: () => void }) {
           );
         })}
       </div>
-      {filtered.length === 0 && <div className="empty">Mahsulot topilmadi</div>}
+      {filtered.length === 0 && <div className="empty">{t('noProducts')}</div>}
     </div>
   );
 }

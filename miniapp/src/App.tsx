@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { getToken } from './api';
+import { useEffect, useState } from 'react';
+import { api, getToken } from './api';
 import Dock, { NavTarget } from './Dock';
 import { NavBar } from './ui';
 import Login from './screens/Login';
@@ -12,6 +12,7 @@ import Suppliers from './screens/Suppliers';
 import Reports from './screens/Reports';
 import Inventory from './screens/Inventory';
 import Reminders from './screens/Reminders';
+import { useT } from './i18n';
 
 export type Tab = 'home' | 'customers' | 'add' | 'kassa' | 'profile';
 export type SubScreen = 'suppliers' | 'reports' | 'inventory' | 'reminders' | null;
@@ -22,17 +23,30 @@ export default function App() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [sub, setSub] = useState<SubScreen>(null);
   const [profileView, setProfileView] = useState<string>('main');
+  const { t, lang, setLang } = useT();
+
+  // Do'kon profilidagi til ilovaga qo'llanadi
+  useEffect(() => {
+    if (authed) {
+      api
+        .me()
+        .then((s) => {
+          if (s.language && s.language !== lang) setLang(s.language as any);
+        })
+        .catch(() => {});
+    }
+  }, [authed]);
 
   if (!authed) return <Login onLogin={() => setAuthed(true)} />;
 
   const refresh = () => setRefreshKey((k) => k + 1);
 
   const TITLES: Record<Tab, string> = {
-    home: 'Asosiy',
-    customers: 'Mijozlar',
-    add: 'Qarz yozish',
-    kassa: 'Kassa',
-    profile: 'Profil',
+    home: t('tabHome'),
+    customers: t('tabCustomers'),
+    add: t('tabAdd'),
+    kassa: t('tabKassa'),
+    profile: t('tabProfile'),
   };
 
   return (

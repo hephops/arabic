@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { api, fmt, Supplier, SupplierDetail } from '../api';
 import { AppIcon, Glyph } from '../icons';
 import { SubHeader } from '../ui';
+import { useT } from '../i18n';
 
 // "Men qarzdorman" — postavshiklar (ta'minotchilar) daftari
 
@@ -14,6 +15,7 @@ export default function Suppliers({ onBack }: { onBack: () => void }) {
 
   const [form, setForm] = useState({ name: '', amount: '', note: '', due: '' });
   const [error, setError] = useState('');
+  const { t } = useT();
 
   const load = () => api.suppliers().then(setSuppliers).catch(() => {});
   useEffect(() => {
@@ -25,7 +27,7 @@ export default function Suppliers({ onBack }: { onBack: () => void }) {
   async function addDebt() {
     const amount = parseInt(form.amount.replace(/\D/g, ''), 10);
     if (!form.name.trim() || !amount) {
-      setError('Nomi va summa majburiy');
+      setError(t('nameAmountRequiredShort'));
       return;
     }
     setError('');
@@ -55,10 +57,10 @@ export default function Suppliers({ onBack }: { onBack: () => void }) {
       <div className="screen">
         <SubHeader title={selected.name} onBack={() => setSelected(null)} />
         <div className="card center">
-          <div className="hint">Qarzim</div>
+          <div className="hint">{t('myDebt')}</div>
           <div style={{ fontSize: 28, fontWeight: 800, color: 'var(--red)' }}>{fmt(selected.balance)}</div>
         </div>
-        <div className="section-title">Qarzlar tarixi</div>
+        <div className="section-title">{t('debtHistory')}</div>
         <div className="list-group">
           {selected.debts.map((d) => (
             <div key={d.id}>
@@ -67,18 +69,18 @@ export default function Suppliers({ onBack }: { onBack: () => void }) {
                   <div className="name">
                     {fmt(d.amount)}
                     <span className={`badge ${d.status}`}>
-                      {d.status === 'paid' ? "to'langan" : d.status === 'overdue' ? 'kechikkan' : 'faol'}
+                      {d.status === 'paid' ? t('statusPaid') : d.status === 'overdue' ? t('statusOverdue') : t('statusActive')}
                     </span>
                   </div>
                   <div className="sub">
-                    {d.note ?? ''} {d.due_date ? `· muddat: ${d.due_date}` : ''}
-                    {d.paid_amount > 0 && d.status !== 'paid' ? ` · to'landi: ${fmt(d.paid_amount)}` : ''}
+                    {d.note ?? ''} {d.due_date ? `· ${t('dueDate')}: ${d.due_date}` : ''}
+                    {d.paid_amount > 0 && d.status !== 'paid' ? ` · ${t('paidLabel')}: ${fmt(d.paid_amount)}` : ''}
                   </div>
                 </div>
               </div>
               {payFor === d.id && d.status !== 'paid' && (
                 <div className="card">
-                  <label>To'lov summasi</label>
+                  <label>{t('paymentAmount')}</label>
                   <input
                     value={payAmount}
                     onChange={(e) => setPayAmount(e.target.value)}
@@ -86,52 +88,52 @@ export default function Suppliers({ onBack }: { onBack: () => void }) {
                     placeholder={String(d.amount - d.paid_amount)}
                   />
                   <button className="btn-primary" onClick={() => pay(d.id)}>
-                    To'lov qilindi deb belgilash
+                    {t('markPaid')}
                   </button>
                 </div>
               )}
             </div>
           ))}
         </div>
-        {selected.debts.length === 0 && <div className="empty">Qarzlar yo'q</div>}
+        {selected.debts.length === 0 && <div className="empty">{t('noDebts')}</div>}
       </div>
     );
   }
 
   return (
     <div className="screen">
-      <SubHeader title="Postavshiklar" onBack={onBack} />
+      <SubHeader title={t('navSuppliers')} onBack={onBack} />
       <div className="card" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
         <AppIcon glyph="truck" size={44} />
         <div style={{ flex: 1 }}>
-          <div className="hint" style={{ margin: 0 }}>Jami qarzim (postavshiklarga)</div>
+          <div className="hint" style={{ margin: 0 }}>{t('myTotalDebt')}</div>
           <div style={{ fontSize: 22, fontWeight: 800 }}>{fmt(total)}</div>
         </div>
       </div>
 
       {!adding ? (
         <button className="btn-primary" onClick={() => setAdding(true)}>
-          <Glyph name="plus" size={18} color="#fff" /> Qarz yozish (tovar oldim)
+          <Glyph name="plus" size={18} color="#fff" /> {t('addSupplierDebt')}
         </button>
       ) : (
         <div className="card">
-          <label>Postavshik nomi</label>
+          <label>{t('supplierName')}</label>
           <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Anvar aka (ulgurji)" />
-          <label>Summa</label>
+          <label>{t('amount')}</label>
           <input value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} inputMode="numeric" placeholder="2 500 000" />
-          <label>Izoh (qanday tovar)</label>
+          <label>{t('whatGoods')}</label>
           <input value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} placeholder="ichimliklar, shirinliklar..." />
-          <label>To'lash muddati</label>
+          <label>{t('payDeadline')}</label>
           <input type="date" value={form.due} onChange={(e) => setForm({ ...form, due: e.target.value })} />
           <button className="btn-primary" onClick={addDebt}>
-            <Glyph name="check" size={18} color="#fff" /> Saqlash
+            <Glyph name="check" size={18} color="#fff" /> {t('save')}
           </button>
-          <button className="btn-ghost" onClick={() => setAdding(false)}>Bekor qilish</button>
+          <button className="btn-ghost" onClick={() => setAdding(false)}>{t('cancel')}</button>
           {error && <p className="error">{error}</p>}
         </div>
       )}
 
-      <div className="section-title">Postavshiklar</div>
+      <div className="section-title">{t('navSuppliers')}</div>
       <div className="list-group">
         {suppliers.map((s) => (
           <div className="list-item" key={s.id} onClick={async () => setSelected(await api.supplier(s.id))}>
@@ -149,7 +151,7 @@ export default function Suppliers({ onBack }: { onBack: () => void }) {
           </div>
         ))}
       </div>
-      {suppliers.length === 0 && <div className="empty">Hozircha postavshiklar yo'q</div>}
+      {suppliers.length === 0 && <div className="empty">{t('noSuppliers')}</div>}
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, fmt, Customer, CustomerDetail } from '../api';
 import { AppIcon, Glyph } from '../icons';
+import { useT } from '../i18n';
 
 export default function Customers() {
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -10,6 +11,7 @@ export default function Customers() {
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState('');
   const [newPhone, setNewPhone] = useState('');
+  const { t } = useT();
 
   const load = () => api.customers().then(setCustomers).catch(() => {});
   useEffect(() => {
@@ -34,15 +36,15 @@ export default function Customers() {
     return (
       <div className="screen">
         <button className="btn-ghost" onClick={() => setSelected(null)}>
-          ← Orqaga
+          ← {t('back')}
         </button>
         <h2 style={{ margin: '14px 0 2px' }}>{selected.name}</h2>
         {selected.phone && <p className="hint">{selected.phone}</p>}
         <div className="card balance-card" style={{ margin: '12px 0' }}>
-          <div className="label">Umumiy qarz</div>
+          <div className="label">{t('totalDebt')}</div>
           <div className="value red">{fmt(selected.balance)}</div>
         </div>
-        <div className="section-title">Qarzlar tarixi</div>
+        <div className="section-title">{t('debtHistory')}</div>
         {selected.debts.map((d) => (
           <div key={d.id}>
             <div className="list-item" onClick={() => setPayFor(payFor === d.id ? null : d.id)}>
@@ -50,18 +52,18 @@ export default function Customers() {
                 <div className="name">
                   {fmt(d.amount)}
                   <span className={`badge ${d.status}`}>
-                    {d.status === 'paid' ? "to'langan" : d.status === 'overdue' ? 'kechikkan' : 'faol'}
+                    {d.status === 'paid' ? t('statusPaid') : d.status === 'overdue' ? t('statusOverdue') : t('statusActive')}
                   </span>
                 </div>
                 <div className="sub">
-                  {d.note ?? ''} {d.due_date ? `· muddat: ${d.due_date}` : ''}
-                  {d.paid_amount > 0 && d.status !== 'paid' ? ` · to'landi: ${fmt(d.paid_amount)}` : ''}
+                  {d.note ?? ''} {d.due_date ? `· ${t('dueDate')}: ${d.due_date}` : ''}
+                  {d.paid_amount > 0 && d.status !== 'paid' ? ` · ${t('paidLabel')}: ${fmt(d.paid_amount)}` : ''}
                 </div>
               </div>
             </div>
             {payFor === d.id && d.status !== 'paid' && (
               <div className="card">
-                <label>To'lov summasi</label>
+                <label>{t('paymentAmount')}</label>
                 <input
                   value={payAmount}
                   onChange={(e) => setPayAmount(e.target.value)}
@@ -69,29 +71,29 @@ export default function Customers() {
                   placeholder={String(d.amount - d.paid_amount)}
                 />
                 <button className="btn-primary" onClick={() => submitPayment(d.id)}>
-                  To'lov qabul qilish
+                  {t('acceptPayment')}
                 </button>
               </div>
             )}
           </div>
         ))}
-        {selected.debts.length === 0 && <div className="empty">Qarzlar yo'q</div>}
+        {selected.debts.length === 0 && <div className="empty">{t('noDebts')}</div>}
       </div>
     );
   }
 
   return (
     <div className="screen">
-      <div className="section-title">Mijozlar</div>
+      <div className="section-title">{t('tabCustomers')}</div>
       {!adding ? (
         <button className="btn-primary" style={{ marginBottom: 12 }} onClick={() => setAdding(true)}>
-          <Glyph name="plus" size={18} color="#fff" /> Mijoz qo'shish
+          <Glyph name="plus" size={18} color="#fff" /> {t('addCustomer')}
         </button>
       ) : (
         <div className="card">
-          <label>Ismi</label>
+          <label>{t('name')}</label>
           <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Karim aka" />
-          <label>Telefon (eslatmalar uchun)</label>
+          <label>{t('phoneForReminders')}</label>
           <input value={newPhone} onChange={(e) => setNewPhone(e.target.value)} inputMode="tel" placeholder="+998 90 123 45 67" />
           <button
             className="btn-primary"
@@ -104,9 +106,9 @@ export default function Customers() {
               load();
             }}
           >
-            <Glyph name="check" size={18} color="#fff" /> Saqlash
+            <Glyph name="check" size={18} color="#fff" /> {t('save')}
           </button>
-          <button className="btn-ghost" onClick={() => setAdding(false)}>Bekor qilish</button>
+          <button className="btn-ghost" onClick={() => setAdding(false)}>{t('cancel')}</button>
         </div>
       )}
       <div className="list-group">
@@ -122,7 +124,7 @@ export default function Customers() {
         </div>
       ))}
       </div>
-      {customers.length === 0 && <div className="empty">Hozircha mijozlar yo'q</div>}
+      {customers.length === 0 && <div className="empty">{t('noCustomers')}</div>}
     </div>
   );
 }

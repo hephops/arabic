@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { AppIcon, Glyph } from './icons';
 import type { Tab, SubScreen } from './App';
+import { useT } from './i18n';
 
 // Suzuvchi dock + to'liq ekran menyu (launcher).
 // Dock'dagi chiziqcha bosilsa — barcha bo'limlar grid bo'lib ochiladi.
@@ -19,23 +20,23 @@ const DOCK_ITEMS: { id: Tab; glyph: string }[] = [
   { id: 'profile', glyph: 'gear' },
 ];
 
-const LAUNCHER_ITEMS: { label: string; glyph: string; target: NavTarget }[] = [
-  { label: 'Asosiy', glyph: 'house', target: { tab: 'home' } },
-  { label: 'Mijozlar', glyph: 'people', target: { tab: 'customers' } },
-  { label: 'Qarz yozish', glyph: 'note', target: { tab: 'add' } },
-  { label: 'Kassa', glyph: 'cart', target: { tab: 'kassa' } },
-  { label: 'Skaner', glyph: 'scan', target: { tab: 'kassa' } },
-  { label: 'Postavshiklar', glyph: 'truck', target: { sub: 'suppliers' } },
-  { label: 'Eslatmalar', glyph: 'calendar', target: { sub: 'reminders' } },
-  { label: 'Hisobotlar', glyph: 'chart', target: { sub: 'reports' } },
-  { label: 'Ombor', glyph: 'boxes', target: { sub: 'inventory' } },
-  { label: 'Balans', glyph: 'banknote', target: { tab: 'profile', profileView: 'balance' } },
-  { label: 'Obuna', glyph: 'crown', target: { tab: 'profile', profileView: 'plan' } },
-  { label: 'Xodimlar', glyph: 'employee', target: { tab: 'profile', profileView: 'employees' } },
-  { label: 'Taklif qilish', glyph: 'gift', target: { tab: 'profile', profileView: 'referral' } },
-  { label: 'Do\'kon', glyph: 'card', target: { tab: 'profile', profileView: 'shop' } },
-  { label: 'Til', glyph: 'globe', target: { tab: 'profile', profileView: 'language' } },
-  { label: 'Sozlamalar', glyph: 'gear', target: { tab: 'profile' } },
+const LAUNCHER_ITEMS: { key: string; glyph: string; target: NavTarget }[] = [
+  { key: 'tabHome', glyph: 'house', target: { tab: 'home' } },
+  { key: 'tabCustomers', glyph: 'people', target: { tab: 'customers' } },
+  { key: 'tabAdd', glyph: 'note', target: { tab: 'add' } },
+  { key: 'tabKassa', glyph: 'cart', target: { tab: 'kassa' } },
+  { key: 'navScanner', glyph: 'scan', target: { tab: 'kassa' } },
+  { key: 'navSuppliers', glyph: 'truck', target: { sub: 'suppliers' } },
+  { key: 'navReminders', glyph: 'calendar', target: { sub: 'reminders' } },
+  { key: 'navReports', glyph: 'chart', target: { sub: 'reports' } },
+  { key: 'navInventory', glyph: 'boxes', target: { sub: 'inventory' } },
+  { key: 'navBalance', glyph: 'banknote', target: { tab: 'profile', profileView: 'balance' } },
+  { key: 'navPlan', glyph: 'crown', target: { tab: 'profile', profileView: 'plan' } },
+  { key: 'navEmployees', glyph: 'employee', target: { tab: 'profile', profileView: 'employees' } },
+  { key: 'navReferral', glyph: 'gift', target: { tab: 'profile', profileView: 'referral' } },
+  { key: 'navShop', glyph: 'card', target: { tab: 'profile', profileView: 'shop' } },
+  { key: 'navLanguage', glyph: 'globe', target: { tab: 'profile', profileView: 'language' } },
+  { key: 'navSettings', glyph: 'gear', target: { tab: 'profile' } },
 ];
 
 export default function Dock({
@@ -48,6 +49,7 @@ export default function Dock({
   onNavigate: (t: NavTarget) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const { t } = useT();
 
   return (
     <>
@@ -73,7 +75,7 @@ export default function Dock({
           <div className="launcher-grid">
             {LAUNCHER_ITEMS.map((item) => (
               <button
-                key={item.label}
+                key={item.key}
                 className="launcher-item"
                 onClick={() => {
                   setOpen(false);
@@ -81,7 +83,7 @@ export default function Dock({
                 }}
               >
                 <AppIcon glyph={item.glyph} size={58} />
-                {item.label}
+                {t(item.key)}
               </button>
             ))}
           </div>

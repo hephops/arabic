@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { Glyph } from './icons';
+import { useT } from './i18n';
 
 // iOS navigatsiya paneli: 44px balandlik, markazda 17px sarlavha,
 // chapda "‹ Orqaga", fon blur bilan yopishib turadi.
@@ -7,7 +8,7 @@ import { Glyph } from './icons';
 export function NavBar({
   title,
   onBack,
-  backLabel = 'Orqaga',
+  backLabel,
   right,
 }: {
   title: string;
@@ -15,6 +16,8 @@ export function NavBar({
   backLabel?: string;
   right?: ReactNode;
 }) {
+  const { t } = useT();
+  const label = backLabel ?? t('back');
   return (
     <div className="navbar">
       <div className="nav-left">
@@ -23,7 +26,7 @@ export function NavBar({
             <span style={{ display: 'inline-flex', transform: 'rotate(180deg)', marginRight: 1 }}>
               <Glyph name="chevron" size={19} />
             </span>
-            {backLabel}
+            {label}
           </button>
         )}
       </div>

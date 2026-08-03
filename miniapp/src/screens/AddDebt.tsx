@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { api } from '../api';
 import { Glyph } from '../icons';
+import { useT } from '../i18n';
 
 // Ovozli kiritish: brauzer SpeechRecognition (Telegram webview'da bor/yo'qligiga qarab)
 // bo'lmasa — matn yozib parse qilinadi. PROD: audio -> backend -> Mohir.ai STT.
@@ -17,11 +18,12 @@ export default function AddDebt({ onDone }: { onDone: () => void }) {
   const [dueDate, setDueDate] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const { t } = useT();
 
   function startListening() {
     const SR = (window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition;
     if (!SR) {
-      setError("Bu qurilmada ovoz tanish yo'q — matn yozing yoki qo'lda kiriting");
+      setError(t('noSpeechSupport'));
       return;
     }
     const rec = new SR();
@@ -43,7 +45,7 @@ export default function AddDebt({ onDone }: { onDone: () => void }) {
       const res = await api.parseVoice(text);
       setParsed(res);
     } catch {
-      setError("Tushunolmadim — qo'lda kiriting yoki boshqacha ayting");
+      setError(t('couldNotParse'));
     }
   }
 
@@ -60,7 +62,7 @@ export default function AddDebt({ onDone }: { onDone: () => void }) {
       });
       onDone();
     } catch (e: any) {
-      setError('Xatolik: ' + e.message);
+      setError(t('error') + ': ' + e.message);
     } finally {
       setBusy(false);
     }
@@ -69,7 +71,7 @@ export default function AddDebt({ onDone }: { onDone: () => void }) {
   async function saveManual() {
     const amt = parseInt(amount.replace(/\D/g, ''), 10);
     if (!name.trim() || !amt) {
-      setError('Ism va summa majburiy');
+      setError(t('nameAmountRequired'));
       return;
     }
     setBusy(true);
@@ -83,7 +85,7 @@ export default function AddDebt({ onDone }: { onDone: () => void }) {
       });
       onDone();
     } catch (e: any) {
-      setError('Xatolik: ' + e.message);
+      setError(t('error') + ': ' + e.message);
     } finally {
       setBusy(false);
     }
@@ -95,55 +97,55 @@ export default function AddDebt({ onDone }: { onDone: () => void }) {
     <div className="screen">
       <div className="chip-row">
         <button className={`chip ${mode === 'voice' ? 'selected' : ''}`} onClick={() => setMode('voice')}>
-          <Glyph name="mic" size={16} /> Ovoz bilan
+          <Glyph name="mic" size={16} /> {t('byVoice')}
         </button>
         <button className={`chip ${mode === 'manual' ? 'selected' : ''}`} onClick={() => setMode('manual')}>
-          <Glyph name="pencil" size={16} /> Qo'lda
+          <Glyph name="pencil" size={16} /> {t('byHand')}
         </button>
       </div>
 
       {mode === 'voice' ? (
         <>
           <div className="card center">
-            <p className="hint">Masalan: "Karim akaga 120 ming so'm, shanbagacha"</p>
+            <p className="hint">{t('voiceExample')}</p>
             <button
               className="btn-primary"
               style={{ background: listening ? 'var(--red)' : 'var(--accent)' }}
               onClick={startListening}
             >
-              {listening ? 'Eshityapman...' : <><Glyph name="mic" size={18} color="#fff" strokeWidth={2.2} /> Gapiring</>}
+              {listening ? t('listening') : <><Glyph name="mic" size={18} color="#fff" strokeWidth={2.2} /> {t('speak')}</>}
             </button>
           </div>
-          <label>Yoki yozing</label>
+          <label>{t('orType')}</label>
           <input
             value={voiceText}
             onChange={(e) => setVoiceText(e.target.value)}
             placeholder="Karim akaga 120 ming shanbagacha"
           />
           <button className="btn-ghost" onClick={() => parseText(voiceText)} disabled={!voiceText.trim()}>
-            Tahlil qilish
+            {t('analyze')}
           </button>
 
           {parsed && (
             <div className="card" style={{ marginTop: 12 }}>
-              <div className="section-title">Tasdiqlang</div>
+              <div className="section-title">{t('confirm')}</div>
               <div className="list-item" style={{ background: 'var(--bg)', borderRadius: 10 }}>
                 <div className="name">{parsed.customer_name}</div>
               </div>
               <div className="big-amount">{new Intl.NumberFormat('uz-UZ').format(parsed.amount)} so'm</div>
-              {parsed.due_date && <p className="center hint">Muddat: {parsed.due_date}</p>}
-              {parsed.note && <p className="center hint">Izoh: {parsed.note}</p>}
+              {parsed.due_date && <p className="center hint">{t('dueDate')}: {parsed.due_date}</p>}
+              {parsed.note && <p className="center hint">{t('note')}: {parsed.note}</p>}
               <button className="btn-primary" onClick={saveParsed} disabled={busy}>
-                <Glyph name="check" size={18} color="#fff" strokeWidth={2.4} /> Saqlash
+                <Glyph name="check" size={18} color="#fff" strokeWidth={2.4} /> {t('save')}
               </button>
             </div>
           )}
         </>
       ) : (
         <>
-          <label>Mijoz ismi</label>
+          <label>{t('customerName')}</label>
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Karim aka" />
-          <label>Summa</label>
+          <label>{t('amount')}</label>
           <input value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="numeric" placeholder="120 000" />
           <div className="chip-row">
             {quickAmounts.map((a) => (
@@ -152,12 +154,12 @@ export default function AddDebt({ onDone }: { onDone: () => void }) {
               </button>
             ))}
           </div>
-          <label>Izoh (ixtiyoriy)</label>
+          <label>{t('note')} ({t('optional')})</label>
           <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="un, yog'..." />
-          <label>Muddat (ixtiyoriy)</label>
+          <label>{t('dueDate')} ({t('optional')})</label>
           <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
           <button className="btn-primary" onClick={saveManual} disabled={busy}>
-            <Glyph name="check" size={18} color="#fff" strokeWidth={2.4} /> Qarz yozish
+            <Glyph name="check" size={18} color="#fff" strokeWidth={2.4} /> {t('addDebtBtn')}
           </button>
         </>
       )}

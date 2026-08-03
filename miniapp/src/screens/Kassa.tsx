@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { api, fmt, Product, BASE } from '../api';
 import { AppIcon, Glyph } from '../icons';
 import Scanner from '../Scanner';
+import { useT } from '../i18n';
 
 interface CartLine {
   product: Product;
@@ -23,15 +24,16 @@ function ProductThumb({ product, size = 44 }: { product: Product; size?: number 
 
 export default function Kassa({ onDone }: { onDone: () => void }) {
   const [mode, setMode] = useState<'sale' | 'intake'>('sale');
+  const { t } = useT();
 
   return (
     <div className="screen">
       <div className="chip-row">
         <button className={`chip ${mode === 'sale' ? 'selected' : ''}`} onClick={() => setMode('sale')}>
-          <Glyph name="cart" size={16} /> Sotuv
+          <Glyph name="cart" size={16} /> {t('modeSale')}
         </button>
         <button className={`chip ${mode === 'intake' ? 'selected' : ''}`} onClick={() => setMode('intake')}>
-          <Glyph name="box" size={16} /> Tovar kirimi
+          <Glyph name="box" size={16} /> {t('modeIntake')}
         </button>
       </div>
       {mode === 'sale' ? <SaleMode onDone={onDone} /> : <IntakeMode onDone={onDone} />}
@@ -48,6 +50,7 @@ function SaleMode({ onDone }: { onDone: () => void }) {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [scanning, setScanning] = useState(false);
+  const { t } = useT();
 
   async function search(q: string) {
     setQuery(q);
@@ -83,7 +86,7 @@ function SaleMode({ onDone }: { onDone: () => void }) {
   async function checkout() {
     setError('');
     if (payment === 'debt' && !customerName.trim()) {
-      setError('Qarzga sotishda mijoz ismi kerak');
+      setError(t('debtNeedsCustomer'));
       return;
     }
     try {
@@ -92,12 +95,12 @@ function SaleMode({ onDone }: { onDone: () => void }) {
         payment_type: payment,
         customer_name: payment === 'debt' ? customerName.trim() : undefined,
       });
-      setMessage(`Sotuv saqlandi: ${fmt(total)}${payment === 'debt' ? ' (qarz daftariga yozildi)' : ''}`);
+      setMessage(`${t('saleSaved')}: ${fmt(total)}${payment === 'debt' ? ` (${t('writtenToDebts')})` : ''}`);
       setCart([]);
       setCustomerName('');
       onDone();
     } catch (e: any) {
-      setError('Xatolik: ' + e.message);
+      setError(t('error') + ': ' + e.message);
     }
   }
 
@@ -107,7 +110,7 @@ function SaleMode({ onDone }: { onDone: () => void }) {
         <input
           value={query}
           onChange={(e) => search(e.target.value)}
-          placeholder="Mahsulot nomi yoki shtrix-kod..."
+          placeholder={t('searchProduct')}
           style={{ flex: 1 }}
         />
         <button
@@ -117,7 +120,7 @@ function SaleMode({ onDone }: { onDone: () => void }) {
           title="Skaner"
         >
           <Glyph name="scan" size={20} />
-          Skaner
+          {t('scanner')}
         </button>
       </div>
       {scanning && (
@@ -137,7 +140,7 @@ function SaleMode({ onDone }: { onDone: () => void }) {
                 <ProductThumb product={p} />
                 <div>
                   <div className="name">{p.name}</div>
-                  <div className="sub">qoldiq: {p.stock} {p.unit}</div>
+                  <div className="sub">{t('stock')}: {p.stock} {p.unit}</div>
                 </div>
               </div>
               <div className="amount">{fmt(p.sell_price)}</div>
@@ -148,7 +151,7 @@ function SaleMode({ onDone }: { onDone: () => void }) {
 
       {cart.length > 0 && (
         <>
-          <div className="section-title">Savat</div>
+          <div className="section-title">{t('cart')}</div>
           <div className="list-group">
             {cart.map((l) => (
               <div className="list-item" key={l.product.id}>
@@ -171,17 +174,17 @@ function SaleMode({ onDone }: { onDone: () => void }) {
           <div className="chip-row">
             {(
               [
-                ['cash', 'banknote', 'Naqd'],
-                ['card', 'card', 'Karta'],
-                ['debt', 'book', 'Qarzga'],
+                ['cash', 'banknote', 'payCash'],
+                ['card', 'card', 'payCard'],
+                ['debt', 'book', 'payDebt'],
               ] as const
-            ).map(([id, glyph, label]) => (
+            ).map(([id, glyph, key]) => (
               <button
                 key={id}
                 className={`chip ${payment === id ? 'selected' : ''}`}
                 onClick={() => setPayment(id)}
               >
-                <Glyph name={glyph} size={16} /> {label}
+                <Glyph name={glyph} size={16} /> {t(key)}
               </button>
             ))}
           </div>
@@ -189,15 +192,15 @@ function SaleMode({ onDone }: { onDone: () => void }) {
             <input
               value={customerName}
               onChange={(e) => setCustomerName(e.target.value)}
-              placeholder="Mijoz ismi (qarz daftariga yoziladi)"
+              placeholder={t('debtCustomerPlaceholder')}
             />
           )}
           <button className="btn-primary" onClick={checkout}>
-            <Glyph name="check" size={18} color="#fff" strokeWidth={2.4} /> Sotuvni yakunlash
+            <Glyph name="check" size={18} color="#fff" strokeWidth={2.4} /> {t('finishSale')}
           </button>
         </>
       )}
-      {cart.length === 0 && !results.length && <div className="empty">Mahsulot qidiring yoki skaner qiling</div>}
+      {cart.length === 0 && !results.length && <div className="empty">{t('searchOrScan')}</div>}
       {message && <p className="hint center">{message}</p>}
       {error && <p className="error">{error}</p>}
     </>
@@ -217,6 +220,7 @@ function IntakeMode({ onDone }: { onDone: () => void }) {
   const [busy, setBusy] = useState(false);
   const [scanning, setScanning] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const { t } = useT();
 
   async function lookupBarcode(code: string) {
     setBarcode(code);
@@ -249,7 +253,7 @@ function IntakeMode({ onDone }: { onDone: () => void }) {
   async function save() {
     setError('');
     if (!name.trim()) {
-      setError('Mahsulot nomi majburiy');
+      setError(t('productNameRequired'));
       return;
     }
     setBusy(true);
@@ -263,11 +267,11 @@ function IntakeMode({ onDone }: { onDone: () => void }) {
         expiry_date: expiry || undefined,
         image: image ?? undefined,
       });
-      setMessage(`"${product.name}" saqlandi — qoldiq: ${product.stock}`);
+      setMessage(`"${product.name}" — ${t('stock')}: ${product.stock}`);
       setBarcode(''); setName(''); setCostPrice(''); setSellPrice(''); setQty(''); setExpiry(''); setImage(null);
       onDone();
     } catch (e: any) {
-      setError('Xatolik: ' + e.message);
+      setError(t('error') + ': ' + e.message);
     } finally {
       setBusy(false);
     }
@@ -275,7 +279,7 @@ function IntakeMode({ onDone }: { onDone: () => void }) {
 
   return (
     <>
-      <label>Shtrix-kod (skaner yoki qo'lda; bo'sh qoldirsa ham bo'ladi)</label>
+      <label>{t('barcodeLabel')}</label>
       <div style={{ display: 'flex', gap: 8 }}>
         <input
           value={barcode}
@@ -286,7 +290,7 @@ function IntakeMode({ onDone }: { onDone: () => void }) {
         />
         <button className="chip" style={{ height: 48, marginBottom: 10 }} onClick={() => setScanning(true)}>
           <Glyph name="scan" size={20} />
-          Skaner
+          {t('scanner')}
         </button>
       </div>
       {scanning && (
@@ -298,10 +302,10 @@ function IntakeMode({ onDone }: { onDone: () => void }) {
           onClose={() => setScanning(false)}
         />
       )}
-      <label>Mahsulot nomi</label>
+      <label>{t('productName')}</label>
       <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Coca-Cola 1.5L" />
 
-      <label>Mahsulot rasmi (ixtiyoriy)</label>
+      <label>{t('productImage')} ({t('optional')})</label>
       <input
         ref={fileRef}
         type="file"
@@ -312,7 +316,7 @@ function IntakeMode({ onDone }: { onDone: () => void }) {
       />
       <div className="chip-row">
         <button className="chip" onClick={() => fileRef.current?.click()}>
-          <Glyph name="plus" size={15} /> {image ? 'Rasmni almashtirish' : 'Rasm olish / tanlash'}
+          <Glyph name="plus" size={15} /> {image ? t('changePhoto') : t('takePhoto')}
         </button>
         {image && (
           <img src={image} alt="" style={{ width: 44, height: 44, borderRadius: 10, objectFit: 'cover' }} />
@@ -321,26 +325,26 @@ function IntakeMode({ onDone }: { onDone: () => void }) {
 
       <div style={{ display: 'flex', gap: 10 }}>
         <div style={{ flex: 1 }}>
-          <label>Kirim narxi</label>
+          <label>{t('costPrice')}</label>
           <input value={costPrice} onChange={(e) => setCostPrice(e.target.value)} inputMode="numeric" placeholder="10 000" />
         </div>
         <div style={{ flex: 1 }}>
-          <label>Sotuv narxi</label>
+          <label>{t('sellPrice')}</label>
           <input value={sellPrice} onChange={(e) => setSellPrice(e.target.value)} inputMode="numeric" placeholder="13 000" />
         </div>
       </div>
       <div style={{ display: 'flex', gap: 10 }}>
         <div style={{ flex: 1 }}>
-          <label>Soni</label>
+          <label>{t('qty')}</label>
           <input value={qty} onChange={(e) => setQty(e.target.value)} inputMode="decimal" placeholder="24" />
         </div>
         <div style={{ flex: 1 }}>
-          <label>Srok (ixtiyoriy)</label>
+          <label>{t('expiry')} ({t('optional')})</label>
           <input type="date" value={expiry} onChange={(e) => setExpiry(e.target.value)} />
         </div>
       </div>
       <button className="btn-primary" onClick={save} disabled={busy}>
-        <Glyph name="check" size={18} color="#fff" strokeWidth={2.4} /> Kirimni saqlash
+        <Glyph name="check" size={18} color="#fff" strokeWidth={2.4} /> {t('saveIntake')}
       </button>
       {message && <p className="hint center">{message}</p>}
       {error && <p className="error">{error}</p>}
