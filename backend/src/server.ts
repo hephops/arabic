@@ -8,6 +8,7 @@ import { signToken, requireAuth } from './auth.js';
 import { parseDebtText } from './voice.js';
 import { runReminders, startReminderScheduler } from './reminders.js';
 import { handleUpdate, verifyInitData, telegramEnabled, setWebhook } from './telegram.js';
+import { registerAdminRoutes, seedAdmin } from './admin.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const UPLOADS_DIR = join(__dirname, '..', 'uploads');
@@ -55,9 +56,13 @@ app.post<{ Body: { phone: string; code: string; shop_name?: string; ref?: string
       shop = db.prepare('SELECT * FROM shops WHERE id = ?').get(shop.id);
     }
   }
+  if (shop.is_blocked) return reply.code(403).send({ error: 'blocked', reason: shop.blocked_reason });
   return { token: signToken(shop.id), shop };
   }
 );
+
+// ---------- ADMIN PANEL ----------
+registerAdminRoutes(app);
 
 // ---------- TELEGRAM ----------
 // Mini App Telegram ichida ochilganda initData orqali kirish
@@ -99,14 +104,17 @@ app.patch<{ Body: Record<string, unknown> }>('/me', { preHandler: requireAuth },
 });
 
 // ---------- BALANS VA OBUNA ----------
-const PLANS: Record<string, { price: number; title: string }> = {
-  premium: { price: 99_000, title: 'Premium' },
-  business: { price: 199_000, title: 'Biznes' },
-};
-
 function getSetting(key: string, fallback: string): string {
   const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(key) as any;
   return row?.value ?? fallback;
+}
+
+// Tarif narxlari admin panelning sozlamalaridan olinadi — kodda qotib qolmagan.
+function getPlans(): Record<string, { price: number; title: string }> {
+  return {
+    premium: { price: Number(getSetting('price_premium', '99000')), title: 'Premium' },
+    business: { price: Number(getSetting('price_business', '199000')), title: 'Biznes' },
+  };
 }
 
 app.get('/balance', { preHandler: requireAuth }, async (req) => {
@@ -114,7 +122,7 @@ app.get('/balance', { preHandler: requireAuth }, async (req) => {
   const transactions = db
     .prepare('SELECT * FROM balance_transactions WHERE shop_id = ? ORDER BY created_at DESC LIMIT 50')
     .all(req.shopId);
-  return { ...shop, transactions, plans: PLANS, min_topup: Number(getSetting('min_topup_amount', '10000')) };
+  return { ...shop, transactions, plans: getPlans(), min_topup: Number(getSetting('min_topup_amount', '10000')) };
 });
 
 // DEV: to'ldirish darhol o'tadi. PROD: Payme/Click/Uzum to'lov oqimi orqali.
@@ -134,7 +142,7 @@ app.post<{ Body: { amount: number } }>('/balance/topup', { preHandler: requireAu
 
 // Obunani balansdan yechib faollashtirish (1 oy)
 app.post<{ Body: { plan: 'premium' | 'business' } }>('/balance/subscribe', { preHandler: requireAuth }, async (req, reply) => {
-  const plan = PLANS[req.body.plan];
+  const plan = getPlans()[req.body.plan];
   if (!plan) return reply.code(400).send({ error: 'invalid_plan' });
   const shop = db.prepare('SELECT balance FROM shops WHERE id = ?').get(req.shopId) as any;
   if (shop.balance < plan.price) return reply.code(400).send({ error: 'insufficient_balance' });
@@ -878,6 +886,7 @@ app.get<{ Querystring: { period?: string } }>('/reports/export', { preHandler: r
 
 const port = Number(process.env.PORT ?? 3000);
 app.listen({ port, host: '0.0.0.0' }).then(() => {
+  seedAdmin();
   markOverdueDebts();
   runReminders();
   startReminderScheduler();

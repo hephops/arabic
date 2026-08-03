@@ -33,6 +33,8 @@ for (const sql of [
   "ALTER TABLE shops ADD COLUMN default_reminder_mode TEXT NOT NULL DEFAULT 'soft'",
   'ALTER TABLE reminder_logs ADD COLUMN customer_id INTEGER',
   'ALTER TABLE reminder_logs ADD COLUMN kind TEXT',
+  'ALTER TABLE shops ADD COLUMN is_blocked INTEGER NOT NULL DEFAULT 0',
+  'ALTER TABLE shops ADD COLUMN blocked_reason TEXT',
 ]) {
   try {
     db.exec(sql);

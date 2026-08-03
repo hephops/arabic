@@ -17,12 +17,43 @@ CREATE TABLE IF NOT EXISTS shops (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- Adminlar (web-panel foydalanuvchilari)
+CREATE TABLE IF NOT EXISTS admins (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  username TEXT NOT NULL UNIQUE,
+  password_hash TEXT NOT NULL,                   -- scrypt: salt:hash
+  name TEXT,
+  role TEXT NOT NULL DEFAULT 'admin',            -- admin | super
+  is_active INTEGER NOT NULL DEFAULT 1,
+  last_login_at TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Audit: qaysi admin nima qilgani
+CREATE TABLE IF NOT EXISTS admin_logs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  admin_id INTEGER REFERENCES admins(id),
+  action TEXT NOT NULL,
+  target TEXT,
+  details TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 -- Tizim sozlamalari (admin panel boshqaradi)
 CREATE TABLE IF NOT EXISTS settings (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL
 );
-INSERT OR IGNORE INTO settings (key, value) VALUES ('min_topup_amount', '10000');
+INSERT OR IGNORE INTO settings (key, value) VALUES
+  ('min_topup_amount', '10000'),      -- balansni to'ldirishning eng kam summasi
+  ('price_premium', '99000'),         -- Premium tarif narxi (30 kun)
+  ('price_business', '199000'),       -- Biznes tarif narxi (30 kun)
+  ('trial_days', '14'),               -- yangi do'kon uchun sinov muddati
+  ('referral_bonus', '20000'),        -- taklif qilgan do'konga bonus
+  ('sms_price', '150'),               -- 1 ta SMS tannarxi
+  ('call_price', '900'),              -- 1 ta AI qo'ng'iroq tannarxi
+  ('support_phone', '+998 90 000 00 00'),
+  ('support_telegram', '@arabicone_support');
 
 -- Balans harakatlari: to'ldirish va obuna yechimlari
 CREATE TABLE IF NOT EXISTS balance_transactions (

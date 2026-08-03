@@ -280,36 +280,65 @@ Srok kiritilgan mahsulotlar bo'yicha tizim avtomatik kuzatib boradi:
 
 > Texnologiya: React + REST API. Faqat admin/super-admin kiradi (login + parol + 2FA).
 
-### 6.1. Dashboard
+### 7.1. Dashboard
 - Jami foydalanuvchilar, faol obunalar, oylik tushum (MRR).
 - Bugungi ro'yxatdan o'tishlar, to'lovlar, qo'ng'iroqlar soni.
 - Grafiklar: o'sish dinamikasi, churn (obunani to'xtatganlar).
 
-### 6.2. Foydalanuvchilar boshqaruvi
+### 7.2. Foydalanuvchilar boshqaruvi
 - Do'konchilar ro'yxati: qidiruv, filtr (viloyat, tarif, holat).
 - Profil: ma'lumotlar, obuna tarixi, faollik (oxirgi kirish, yozuvlar soni).
 - Bloklash / blokdan chiqarish, obunani qo'lda uzaytirish (sovg'a).
 
-### 6.3. Obuna va to'lovlar
+### 7.3. Obuna va to'lovlar
 - Tariflarni boshqarish: narx, muddat, funksiyalar to'plami.
 - To'lovlar jurnali: kim, qachon, qancha, qaysi tizim orqali (Payme/Click/Uzum).
 - Promo-kodlar va chegirmalar yaratish.
 - **Referal dastur boshqaruvi:** bonus miqdori va shartlarini sozlash, referal statistikasi (kim nechta olib keldi), suiiste'molni aniqlash va bloklash.
 - **Balans sozlamalari:** minimal to'ldirish summasini belgilash (do'konchi ilovada shu chegaradan kam summa kirita olmaydi), balans harakatlari monitoringi.
 
-### 6.4. AI qo'ng'iroq va xabarlar monitoringi
+### 7.4. AI qo'ng'iroq va xabarlar monitoringi
 - Qo'ng'iroqlar jurnali: kimga, qachon, natija (ko'tardi / ko'tarmadi / band), yozib olingan audio.
 - SMS/Telegram yuborilganlar statistikasi va xarajati.
 - Qo'ng'iroq matnlari (skriptlar) shablonlarini tahrirlash.
 
-### 6.5. Kontent va xabarnomalar
+### 7.5. Kontent va xabarnomalar
 - Barcha yoki tanlangan foydalanuvchilarga push/SMS yuborish (yangilik, aksiya).
 - FAQ / yordam bo'limini tahrirlash.
 
-### 6.6. Super-admin
+### 7.6. Super-admin
 - Admin hisoblarini yaratish, rollarni belgilash.
 - Tizim sozlamalari: STT provayder, SMS-shlyuz, telefoniya sozlamalari.
 - Audit-log: qaysi admin nima qilgani.
+
+### 7.7. Amalga oshirilgan (v1)
+
+Admin panel React'da yozildi va backendga ulandi (`/admin/*` API, alohida token turi — do'konchi tokeni bilan kirib bo'lmaydi).
+
+| Bo'lim | Nima qiladi |
+|---|---|
+| Panel | Do'konlar soni, faol obunalar, bugungi ro'yxatdan o'tishlar, bloklanganlar, MRR, 14 kunlik grafik |
+| Do'konlar | Qidiruv/filtr, do'kon kartochkasi: statistika, obuna sovg'a qilish, balansni tuzatish, bloklash |
+| To'lovlar | To'ldirish va obuna yechimlari jurnali, CSV yuklab olish |
+| Eslatmalar | SMS / Telegram / AI qo'ng'iroq tarixi, yuborilgan matnni ko'rish |
+| Referallar | Kim nechta do'kon olib kelgan |
+| Sozlamalar | Tizim qiymatlari (pastdagi jadval) |
+| Adminlar | Admin yaratish, parolni almashtirish, bloklash (faqat super-admin) |
+| Audit jurnali | Har bir admin harakati yozib boriladi |
+
+**Sozlamalar kalitlari** (`settings` jadvali). Bu yerda o'zgartirilgan qiymat darhol mijoz ilovasiga tatbiq bo'ladi — kodda qotib qolmagan:
+
+| Kalit | Ma'nosi | Boshlang'ich |
+|---|---|---|
+| `min_topup_amount` | **Minimal to'ldirish summasi** — ilova bundan kam summani qabul qilmaydi | 10 000 |
+| `price_premium` | Premium tarif narxi (30 kun) | 99 000 |
+| `price_business` | Biznes tarif narxi (30 kun) | 199 000 |
+| `trial_days` | Yangi do'kon uchun sinov muddati | 14 |
+| `referral_bonus` | Taklif uchun bonus | 20 000 |
+| `sms_price` / `call_price` | 1 ta SMS / AI qo'ng'iroq tannarxi | 150 / 900 |
+| `support_phone` / `support_telegram` | Ilovada ko'rsatiladigan yordam kontakti | — |
+
+> Birinchi ishga tushirishda `admin / admin123` hisobi avtomatik yaratiladi. Ishlab chiqarishga chiqarishdan oldin `.env` dagi `ADMIN_PASSWORD` ni albatta o'zgartirish kerak.
 
 ---
 

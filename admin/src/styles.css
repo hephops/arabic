@@ -1,0 +1,182 @@
+/* ARABIC.ONE admin panel — desktop, brend ranglarida */
+:root {
+  --bg: #f5f6f8;
+  --sidebar: #0f1b33;
+  --sidebar-2: #16264a;
+  --card: #ffffff;
+  --accent: #0a6be8;
+  --text: #16181d;
+  --muted: #6f7683;
+  --border: #e6e8ec;
+  --green: #1cb33f;
+  --red: #e5372a;
+  --yellow: #f5a300;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Tuzilma ── */
+.layout { display: flex; min-height: 100vh; }
+
+.sidebar {
+  width: 232px; flex-shrink: 0;
+  background: linear-gradient(180deg, var(--sidebar), var(--sidebar-2));
+  color: #fff; padding: 18px 12px; position: sticky; top: 0; height: 100vh;
+  display: flex; flex-direction: column;
+}
+.brand { display: flex; align-items: center; gap: 10px; padding: 0 8px 18px; }
+.brand-logo {
+  width: 34px; height: 34px; border-radius: 9px;
+  background: linear-gradient(180deg, #3e97f7, #0a6be8);
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 800; font-size: 19px;
+}
+.brand-name { font-weight: 700; font-size: 15px; letter-spacing: 0.2px; }
+.brand-sub { font-size: 11px; opacity: 0.6; }
+
+.nav { display: flex; flex-direction: column; gap: 2px; flex: 1; }
+.nav button {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 10px; border-radius: 9px; border: none; cursor: pointer;
+  background: transparent; color: rgba(255, 255, 255, 0.75);
+  font-size: 14px; font-family: inherit; text-align: left; width: 100%;
+}
+.nav button:hover { background: rgba(255, 255, 255, 0.07); color: #fff; }
+.nav button.active { background: rgba(255, 255, 255, 0.14); color: #fff; font-weight: 600; }
+.nav .ico { width: 18px; text-align: center; opacity: 0.9; }
+
+.sidebar-foot { border-top: 1px solid rgba(255, 255, 255, 0.12); padding-top: 12px; font-size: 12px; }
+.sidebar-foot .who { opacity: 0.75; margin-bottom: 8px; }
+.sidebar-foot button {
+  background: rgba(255, 255, 255, 0.1); color: #fff; border: none; border-radius: 8px;
+  padding: 7px 10px; cursor: pointer; font-family: inherit; font-size: 13px; width: 100%;
+}
+
+.main { flex: 1; min-width: 0; padding: 22px 26px 40px; }
+.page-title { font-size: 22px; font-weight: 700; letter-spacing: -0.3px; margin-bottom: 4px; }
+.page-sub { color: var(--muted); margin-bottom: 18px; font-size: 13.5px; }
+
+/* ── Kartochkalar ── */
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin-bottom: 20px; }
+.stat {
+  background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px;
+}
+.stat .k { font-size: 12.5px; color: var(--muted); margin-bottom: 6px; }
+.stat .v { font-size: 22px; font-weight: 700; letter-spacing: -0.4px; }
+.stat .v.green { color: var(--green); }
+.stat .v.red { color: var(--red); }
+.stat .v.accent { color: var(--accent); }
+
+.panel {
+  background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+  padding: 16px 18px; margin-bottom: 16px;
+}
+.panel h3 { font-size: 15px; font-weight: 650; margin-bottom: 12px; }
+
+/* ── Jadval ── */
+table { width: 100%; border-collapse: collapse; }
+th {
+  text-align: left; font-size: 12px; font-weight: 600; color: var(--muted);
+  text-transform: uppercase; letter-spacing: 0.4px; padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+}
+td { padding: 10px; border-bottom: 1px solid var(--border); font-size: 13.5px; vertical-align: middle; }
+tbody tr:hover { background: #fafbfc; }
+tbody tr.clickable { cursor: pointer; }
+.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.muted { color: var(--muted); }
+
+/* ── Boshqaruv elementlari ── */
+.toolbar { display: flex; gap: 8px; align-items: center; margin-bottom: 14px; flex-wrap: wrap; }
+input, select {
+  font-family: inherit; font-size: 14px; padding: 8px 11px;
+  border: 1px solid var(--border); border-radius: 9px; background: #fff; color: var(--text);
+  outline: none;
+}
+input:focus, select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(10, 107, 232, 0.12); }
+label { display: block; font-size: 12.5px; color: var(--muted); margin-bottom: 5px; }
+.field { margin-bottom: 12px; }
+
+button.btn {
+  font-family: inherit; font-size: 14px; font-weight: 600; padding: 8px 15px;
+  border-radius: 9px; border: none; cursor: pointer;
+  background: var(--accent); color: #fff;
+}
+button.btn:hover { filter: brightness(1.06); }
+button.btn:disabled { opacity: 0.45; cursor: default; }
+button.btn.ghost { background: #eef0f3; color: var(--text); }
+button.btn.danger { background: var(--red); }
+button.btn.sm { padding: 5px 11px; font-size: 13px; }
+
+.badge {
+  display: inline-block; padding: 2px 9px; border-radius: 20px; font-size: 12px; font-weight: 600;
+}
+.badge.free { background: #eef0f3; color: var(--muted); }
+.badge.premium { background: rgba(10, 107, 232, 0.1); color: var(--accent); }
+.badge.business { background: rgba(139, 61, 219, 0.12); color: #8b3ddb; }
+.badge.blocked { background: rgba(229, 55, 42, 0.12); color: var(--red); }
+.badge.ok { background: rgba(28, 179, 63, 0.12); color: var(--green); }
+
+/* ── Grafik ── */
+.chart { display: flex; align-items: flex-end; gap: 5px; height: 110px; padding-top: 6px; }
+.chart .col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 5px; }
+.chart .bar { width: 100%; background: var(--accent); border-radius: 4px 4px 0 0; min-height: 2px; opacity: 0.85; }
+.chart .bar:hover { opacity: 1; }
+.chart .lbl { font-size: 10px; color: var(--muted); }
+
+/* ── Kirish sahifasi ── */
+.login-page {
+  min-height: 100vh; display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, #0f1b33, #16264a 60%, #1d3a72);
+}
+.login-box {
+  background: #fff; border-radius: 16px; padding: 30px 28px; width: 360px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
+}
+.login-box .brand-logo { width: 52px; height: 52px; border-radius: 13px; font-size: 27px; margin: 0 auto 14px; color: #fff; }
+.login-box h2 { text-align: center; font-size: 19px; margin-bottom: 3px; }
+.login-box p.sub { text-align: center; color: var(--muted); font-size: 13px; margin-bottom: 20px; }
+.login-box input { width: 100%; margin-bottom: 10px; }
+.login-box button { width: 100%; margin-top: 4px; }
+
+/* Saqlash paneli — sahifa pastida yopishib turadi */
+.save-bar {
+  position: sticky; bottom: 0; z-index: 20;
+  display: flex; gap: 10px; align-items: center;
+  background: #fff; border: 1px solid var(--border); border-radius: 12px;
+  padding: 12px 16px; margin-top: 4px;
+  box-shadow: 0 -6px 18px rgba(15, 27, 51, 0.06);
+}
+.save-bar .error, .save-bar .ok-msg { margin-top: 0; }
+
+.error { color: var(--red); font-size: 13px; margin-top: 8px; }
+.ok-msg { color: var(--green); font-size: 13px; margin-top: 8px; }
+.empty { text-align: center; color: var(--muted); padding: 30px 0; }
+
+/* ── Modal ── */
+.modal-back {
+  position: fixed; inset: 0; background: rgba(15, 27, 51, 0.45); z-index: 100;
+  display: flex; align-items: center; justify-content: center; padding: 20px;
+}
+.modal {
+  background: #fff; border-radius: 14px; padding: 20px 22px; width: 460px; max-width: 100%;
+  max-height: 88vh; overflow-y: auto;
+}
+.modal h3 { font-size: 17px; margin-bottom: 4px; }
+.modal .sub { color: var(--muted); font-size: 13px; margin-bottom: 16px; }
+.modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+
+@media (max-width: 860px) {
+  .sidebar { width: 62px; padding: 14px 8px; }
+  .brand-name, .brand-sub, .nav button span:not(.ico), .sidebar-foot .who { display: none; }
+  .nav button { justify-content: center; }
+  .main { padding: 16px; }
+}
