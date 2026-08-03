@@ -11,6 +11,17 @@ CREATE TABLE IF NOT EXISTS shops (
   telegram_user_id INTEGER,
   plan TEXT NOT NULL DEFAULT 'free',             -- free | premium | business
   plan_expires_at TEXT,
+  balance INTEGER NOT NULL DEFAULT 0,            -- obuna balansi (so'm)
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Balans harakatlari: to'ldirish va obuna yechimlari
+CREATE TABLE IF NOT EXISTS balance_transactions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  shop_id INTEGER NOT NULL REFERENCES shops(id),
+  type TEXT NOT NULL,                            -- topup | subscription
+  amount INTEGER NOT NULL,                       -- + to'ldirish, - yechim
+  note TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 

@@ -127,10 +127,14 @@ Do'konchi hisobotlarni titkilamasdan, savolini **ovoz bilan (yoki yozib)** so'ra
 - Mobil ilovada ham, Telegram'da ham ishlaydi (botga ovozli savol tashlasa ham bo'ladi).
 - Texnologiya: mavjud STT + LLM (Claude API) — qo'shimcha infratuzilma kerak emas.
 
-### 3.7. Obuna va to'lov
-- Tarif rejalar (masalan): **Bepul** — cheklangan yozuvlar, faqat qo'lda kiritish; **Premium (99 000 so'm/oy)** — cheksiz yozuvlar, ovozli kiritish, SMS + AI qo'ng'iroq.
-- To'lov: **Payme, Click, Uzum Bank** integratsiyasi.
-- Obuna holati, tugash sanasi, avtomatik uzaytirish.
+### 3.7. Obuna va to'lov — balansli model
+Obuna **balans orqali** ishlaydi (telefon hisobi kabi):
+- Do'konchi **balansiga pul tashlaydi** (Payme / Click / Uzum orqali, istalgan summa).
+- Obuna haqi (oylik) **balansdan avtomatik yechiladi**; balans yetmasa — to'ldirishni so'raydi.
+- **Balans doim ko'rinib turadi:** ilova yuqorisida (header'da) va kabinetda.
+- Kabinetda balans tarixi: har bir to'ldirish (+) va yechim (−) sanasi bilan.
+- Tarif rejalar (masalan): **Bepul** — cheklangan; **Premium (99 000/oy)** — qarz daftari to'liq; **Biznes (199 000/oy)** — + ombor/kassa/xodimlar (narxlar keyin aniqlanadi).
+- Obuna holati, tugash sanasi, avtomatik uzaytirish (balansdan).
 
 **Referal dastur (o'sish kanali):**
 - Har do'konchining o'z **taklif havolasi / promo-kodi** bor (ilova ichida "Do'stingni taklif qil" bo'limi).

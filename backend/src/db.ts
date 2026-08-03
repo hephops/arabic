@@ -18,6 +18,11 @@ try {
 } catch {
   /* ustun allaqachon bor */
 }
+try {
+  db.exec('ALTER TABLE shops ADD COLUMN balance INTEGER NOT NULL DEFAULT 0');
+} catch {
+  /* ustun allaqachon bor */
+}
 
 // Kechikkan qarzlarni belgilash (har so'rovda emas, startda va cron'da chaqiriladi)
 export function markOverdueDebts() {

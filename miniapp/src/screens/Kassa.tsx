@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { api, fmt, Product, BASE } from '../api';
 import { AppIcon, Glyph } from '../icons';
+import Scanner from '../Scanner';
 
 interface CartLine {
   product: Product;
@@ -46,6 +47,7 @@ function SaleMode({ onDone }: { onDone: () => void }) {
   const [customerName, setCustomerName] = useState('');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [scanning, setScanning] = useState(false);
 
   async function search(q: string) {
     setQuery(q);
@@ -101,7 +103,32 @@ function SaleMode({ onDone }: { onDone: () => void }) {
 
   return (
     <>
-      <input value={query} onChange={(e) => search(e.target.value)} placeholder="Mahsulot nomi yoki shtrix-kod..." />
+      <div style={{ display: 'flex', gap: 8 }}>
+        <input
+          value={query}
+          onChange={(e) => search(e.target.value)}
+          placeholder="Mahsulot nomi yoki shtrix-kod..."
+          style={{ flex: 1 }}
+        />
+        <button
+          className="chip"
+          style={{ height: 48, marginBottom: 10 }}
+          onClick={() => setScanning(true)}
+          title="Skaner"
+        >
+          <Glyph name="search" size={20} strokeWidth={2} />
+          Skaner
+        </button>
+      </div>
+      {scanning && (
+        <Scanner
+          onScan={(code) => {
+            setScanning(false);
+            search(code);
+          }}
+          onClose={() => setScanning(false)}
+        />
+      )}
       {results.length > 0 && (
         <div className="list-group">
           {results.map((p) => (
@@ -190,6 +217,7 @@ function IntakeMode({ onDone }: { onDone: () => void }) {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [scanning, setScanning] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   async function lookupBarcode(code: string) {
@@ -250,7 +278,28 @@ function IntakeMode({ onDone }: { onDone: () => void }) {
   return (
     <>
       <label>Shtrix-kod (skaner yoki qo'lda; bo'sh qoldirsa ham bo'ladi)</label>
-      <input value={barcode} onChange={(e) => lookupBarcode(e.target.value)} inputMode="numeric" placeholder="4780000123456" />
+      <div style={{ display: 'flex', gap: 8 }}>
+        <input
+          value={barcode}
+          onChange={(e) => lookupBarcode(e.target.value)}
+          inputMode="numeric"
+          placeholder="4780000123456"
+          style={{ flex: 1 }}
+        />
+        <button className="chip" style={{ height: 48, marginBottom: 10 }} onClick={() => setScanning(true)}>
+          <Glyph name="search" size={20} strokeWidth={2} />
+          Skaner
+        </button>
+      </div>
+      {scanning && (
+        <Scanner
+          onScan={(code) => {
+            setScanning(false);
+            lookupBarcode(code);
+          }}
+          onClose={() => setScanning(false)}
+        />
+      )}
       <label>Mahsulot nomi</label>
       <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Coca-Cola 1.5L" />
 

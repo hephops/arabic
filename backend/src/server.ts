@@ -60,6 +60,50 @@ app.patch<{ Body: Record<string, unknown> }>('/me', { preHandler: requireAuth },
   return db.prepare('SELECT * FROM shops WHERE id = ?').get(req.shopId);
 });
 
+// ---------- BALANS VA OBUNA ----------
+const PLANS: Record<string, { price: number; title: string }> = {
+  premium: { price: 99_000, title: 'Premium' },
+  business: { price: 199_000, title: 'Biznes' },
+};
+
+app.get('/balance', { preHandler: requireAuth }, async (req) => {
+  const shop = db.prepare('SELECT balance, plan, plan_expires_at FROM shops WHERE id = ?').get(req.shopId) as any;
+  const transactions = db
+    .prepare('SELECT * FROM balance_transactions WHERE shop_id = ? ORDER BY created_at DESC LIMIT 50')
+    .all(req.shopId);
+  return { ...shop, transactions, plans: PLANS };
+});
+
+// DEV: to'ldirish darhol o'tadi. PROD: Payme/Click/Uzum to'lov oqimi orqali.
+app.post<{ Body: { amount: number } }>('/balance/topup', { preHandler: requireAuth }, async (req, reply) => {
+  const amount = Math.round(req.body.amount);
+  if (!amount || amount <= 0) return reply.code(400).send({ error: 'amount_required' });
+  db.prepare('UPDATE shops SET balance = balance + ? WHERE id = ?').run(amount, req.shopId);
+  db.prepare("INSERT INTO balance_transactions (shop_id, type, amount, note) VALUES (?, 'topup', ?, ?)").run(
+    req.shopId,
+    amount,
+    "Balans to'ldirildi"
+  );
+  return db.prepare('SELECT balance FROM shops WHERE id = ?').get(req.shopId);
+});
+
+// Obunani balansdan yechib faollashtirish (1 oy)
+app.post<{ Body: { plan: 'premium' | 'business' } }>('/balance/subscribe', { preHandler: requireAuth }, async (req, reply) => {
+  const plan = PLANS[req.body.plan];
+  if (!plan) return reply.code(400).send({ error: 'invalid_plan' });
+  const shop = db.prepare('SELECT balance FROM shops WHERE id = ?').get(req.shopId) as any;
+  if (shop.balance < plan.price) return reply.code(400).send({ error: 'insufficient_balance' });
+  db.prepare(
+    "UPDATE shops SET balance = balance - ?, plan = ?, plan_expires_at = date('now', '+30 days') WHERE id = ?"
+  ).run(plan.price, req.body.plan, req.shopId);
+  db.prepare("INSERT INTO balance_transactions (shop_id, type, amount, note) VALUES (?, 'subscription', ?, ?)").run(
+    req.shopId,
+    -plan.price,
+    `${plan.title} obuna — 30 kun`
+  );
+  return db.prepare('SELECT balance, plan, plan_expires_at FROM shops WHERE id = ?').get(req.shopId);
+});
+
 // ---------- DASHBOARD ----------
 app.get('/dashboard', { preHandler: requireAuth }, async (req) => {
   markOverdueDebts();

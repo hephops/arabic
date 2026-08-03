@@ -63,14 +63,37 @@ export const api = {
   createSale: (data: { items: { product_id: number; qty: number }[]; payment_type: 'cash' | 'card' | 'debt'; customer_id?: number; customer_name?: string; due_date?: string }) =>
     request<Sale>('/sales', { method: 'POST', body: JSON.stringify(data) }),
   reports: (period: 'day' | 'week' | 'month') => request<Report>(`/reports/summary?period=${period}`),
+  updateMe: (data: Partial<Pick<Shop, 'name' | 'owner_name' | 'address' | 'language' | 'card_number'>>) =>
+    request<Shop>('/me', { method: 'PATCH', body: JSON.stringify(data) }),
+  balance: () => request<BalanceInfo>('/balance'),
+  topup: (amount: number) =>
+    request<{ balance: number }>('/balance/topup', { method: 'POST', body: JSON.stringify({ amount }) }),
+  subscribe: (plan: 'premium' | 'business') =>
+    request<{ balance: number; plan: string; plan_expires_at: string }>('/balance/subscribe', {
+      method: 'POST',
+      body: JSON.stringify({ plan }),
+    }),
 };
 
 export interface Shop {
   id: number;
   phone: string;
   name: string;
+  owner_name: string | null;
+  address: string | null;
+  language: string;
   card_number: string | null;
   plan: string;
+  plan_expires_at: string | null;
+  balance: number;
+}
+
+export interface BalanceInfo {
+  balance: number;
+  plan: string;
+  plan_expires_at: string | null;
+  transactions: { id: number; type: string; amount: number; note: string | null; created_at: string }[];
+  plans: Record<string, { price: number; title: string }>;
 }
 
 export interface Customer {
