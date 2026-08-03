@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { api, fmt, Product, StocktakeRow, BASE } from '../api';
 import { AppIcon, Glyph } from '../icons';
-import { NavBar } from '../ui';
+import { NavBar, Summary, EmptyState, Segmented } from '../ui';
 import { useT } from '../i18n';
 import Scanner from '../Scanner';
 import { formatAmount } from '../format';
@@ -72,28 +72,33 @@ export default function Inventory({ onBack }: { onBack: () => void }) {
         }
       />
       <div className="screen">
-        <div className="card" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <AppIcon glyph="boxes" size={44} />
-          <div>
-            <div className="hint" style={{ margin: 0 }}>
-              {products.length} {t('productsCount')}
-            </div>
-            <div style={{ fontSize: 20, fontWeight: 800 }}>{fmt(totalValue)}</div>
+        <Summary
+          icon="boxes"
+          label={`${products.length} ${t('productsCount')}`}
+          value={fmt(totalValue)}
+        />
+
+        <div className="search-row">
+          <div className="search-field">
+            <Glyph name="search" size={17} color="#8a8a8e" />
+            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t('search')} />
+            {query && (
+              <button className="search-clear" onClick={() => setQuery('')}>
+                <Glyph name="close" size={15} color="#8a8a8e" />
+              </button>
+            )}
           </div>
         </div>
 
-        <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t('search')} />
-        <div className="chip-row">
-          <button className={`chip ${filter === 'all' ? 'selected' : ''}`} onClick={() => setFilter('all')}>
-            {t('filterAll')}
-          </button>
-          <button className={`chip ${filter === 'low' ? 'selected' : ''}`} onClick={() => setFilter('low')}>
-            {t('filterLow')}
-          </button>
-          <button className={`chip ${filter === 'expiry' ? 'selected' : ''}`} onClick={() => setFilter('expiry')}>
-            {t('filterExpiry')}
-          </button>
-        </div>
+        <Segmented
+          value={filter}
+          onChange={setFilter}
+          items={[
+            { id: 'all', label: t('filterAll') },
+            { id: 'low', label: t('filterLow') },
+            { id: 'expiry', label: t('filterExpiry') },
+          ]}
+        />
 
         <div className="list-group">
           {filtered.map((p) => {
@@ -125,7 +130,13 @@ export default function Inventory({ onBack }: { onBack: () => void }) {
             );
           })}
         </div>
-        {filtered.length === 0 && <div className="empty">{t('noProducts')}</div>}
+        {filtered.length === 0 && (
+          <EmptyState
+            icon="boxes"
+            title={t('noProducts')}
+            sub={query || filter !== 'all' ? t('noProductsFilter') : t('noProductsSub')}
+          />
+        )}
       </div>
     </>
   );

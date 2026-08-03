@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, fmt, Customer, ReminderMode, RemindersInfo } from '../api';
 import { AppIcon, Glyph } from '../icons';
-import { NavBar } from '../ui';
+import { NavBar, EmptyState, Segmented } from '../ui';
 import { useT } from '../i18n';
 
 // Eslatmalar: rejim sozlamalari va yuborilganlar jurnali
@@ -100,14 +100,14 @@ export default function Reminders({ onBack }: { onBack: () => void }) {
     <>
       <NavBar title={t('navReminders')} onBack={onBack} />
       <div className="screen">
-        <div className="chip-row">
-          <button className={`chip ${tab === 'settings' ? 'selected' : ''}`} onClick={() => setTab('settings')}>
-            {t('tabSettings')}
-          </button>
-          <button className={`chip ${tab === 'log' ? 'selected' : ''}`} onClick={() => setTab('log')}>
-            {t('tabLog')} {info.stats.total > 0 && `(${info.stats.total})`}
-          </button>
-        </div>
+        <Segmented
+          value={tab}
+          onChange={setTab}
+          items={[
+            { id: 'settings', label: t('tabSettings'), icon: 'gear' },
+            { id: 'log', label: info.stats.total > 0 ? `${t('tabLog')} (${info.stats.total})` : t('tabLog'), icon: 'clock' },
+          ]}
+        />
 
         {tab === 'settings' ? (
           <>
@@ -126,9 +126,18 @@ export default function Reminders({ onBack }: { onBack: () => void }) {
                 </div>
               ))}
             </div>
-            <button className="btn-ghost" onClick={() => setDefault(info.default_mode, true)}>
-              {t('applyToAll')}
-            </button>
+            <div className="list-group">
+              <div className="list-item" onClick={() => setDefault(info.default_mode, true)}>
+                <div className="lead">
+                  <AppIcon glyph="people" size={29} />
+                  <div>
+                    <div className="name" style={{ color: 'var(--accent)' }}>{t('applyToAll')}</div>
+                    <div className="sub">{t('applyToAllSub')}</div>
+                  </div>
+                </div>
+                <Glyph name="chevron" size={15} color="#c7c7cc" />
+              </div>
+            </div>
 
             <div className="section-title">{t('byCustomer')}</div>
             <div className="list-group">
@@ -151,10 +160,12 @@ export default function Reminders({ onBack }: { onBack: () => void }) {
                 );
               })}
             </div>
-            {customers.length === 0 && <div className="empty">{t('noCustomers')}</div>}
+            {customers.length === 0 && (
+              <EmptyState icon="people" title={t('noCustomers')} sub={t('noCustomersSub')} />
+            )}
 
-            <button className="btn-primary" onClick={checkNow}>
-              <Glyph name="check" size={17} color="#fff" /> {t('checkNow')}
+            <button className="btn-primary btn-lg" onClick={checkNow}>
+              <Glyph name="check" size={19} color="#fff" /> {t('checkNow')}
             </button>
             <p className="hint center">
               {t('reminderHint')}
@@ -162,22 +173,22 @@ export default function Reminders({ onBack }: { onBack: () => void }) {
           </>
         ) : (
           <>
-            <div className="card split-card">
-              <div className="split">
-                <div className="label">{t('sent')}</div>
-                <div className="value green">{info.stats.sent ?? 0}</div>
+            <div className="duo">
+              <div>
+                <div className="k">{t('sent')}</div>
+                <div className="v green">{info.stats.sent ?? 0}</div>
               </div>
-              <div className="split">
-                <div className="label">{t('calls')}</div>
-                <div className="value">{info.stats.calls ?? 0}</div>
+              <div>
+                <div className="k">{t('calls')}</div>
+                <div className="v">{info.stats.calls ?? 0}</div>
               </div>
-              <div className="split">
-                <div className="label">{t('failed')}</div>
-                <div className="value red">{info.stats.failed ?? 0}</div>
+              <div>
+                <div className="k">{t('failed')}</div>
+                <div className="v red">{info.stats.failed ?? 0}</div>
               </div>
             </div>
 
-            <div className="section-title">{t('tabLog')}</div>
+            {info.logs.length > 0 && <div className="section-title">{t('tabLog')}</div>}
             <div className="list-group">
               {info.logs.map((l) => {
                 const ch = CHANNEL[l.channel] ?? CHANNEL.sms;
@@ -206,7 +217,7 @@ export default function Reminders({ onBack }: { onBack: () => void }) {
               })}
             </div>
             {info.logs.length === 0 && (
-              <div className="empty">{t('noReminders')}</div>
+              <EmptyState icon="calendar" title={t('noReminders')} sub={t('noRemindersSub')} />
             )}
           </>
         )}

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, fmt, getToken, Report } from '../api';
 import { AppIcon, Glyph } from '../icons';
-import { SubHeader } from '../ui';
+import { SubHeader, EmptyState, Segmented } from '../ui';
 import { useT } from '../i18n';
 
 type Period = 'day' | 'week' | 'month';
@@ -23,26 +23,24 @@ export default function Reports({ onBack }: { onBack: () => void }) {
   return (
     <div className="screen">
       <SubHeader title={t('navReports')} onBack={onBack} />
-      <div className="chip-row">
-        {PERIODS.map(([id, key]) => (
-          <button key={id} className={`chip ${period === id ? 'selected' : ''}`} onClick={() => setPeriod(id)}>
-            {t(key)}
-          </button>
-        ))}
-      </div>
+      <Segmented
+        value={period}
+        onChange={setPeriod}
+        items={PERIODS.map(([id, key]) => ({ id, label: t(key) }))}
+      />
 
       {!data ? (
         <div className="empty">{t('loading')}</div>
       ) : (
         <>
-          <div className="card split-card">
-            <div className="split">
-              <div className="label">{t('revenue')} ({data.count})</div>
-              <div className="value">{fmt(data.revenue)}</div>
+          <div className="duo">
+            <div>
+              <div className="k">{t('revenue')} ({data.count})</div>
+              <div className="v">{fmt(data.revenue)}</div>
             </div>
-            <div className="split">
-              <div className="label">{t('profit')}</div>
-              <div className="value green">{fmt(data.profit)}</div>
+            <div>
+              <div className="k">{t('profit')}</div>
+              <div className="v green">{fmt(data.profit)}</div>
             </div>
           </div>
 
@@ -82,11 +80,11 @@ export default function Reports({ onBack }: { onBack: () => void }) {
             </>
           )}
 
-          {data.count === 0 && <div className="empty">{t('noSalesPeriod')}</div>}
+          {data.count === 0 && <EmptyState icon="chart" title={t('noSalesPeriod')} sub={t('noSalesPeriodSub')} />}
 
           {data.count > 0 && (
             <button
-              className="btn-primary"
+              className="btn-primary btn-lg"
               onClick={async () => {
                 // token bilan yuklab olamiz va faylni saqlaymiz
                 const res = await fetch(api.exportUrl(period), {

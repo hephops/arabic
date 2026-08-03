@@ -84,6 +84,13 @@ const UZ: Record<string, string> = {
   setupCardHint: "Qarzdorlarga SMS'da shu karta yuboriladi",
   cardInvalid: 'Karta raqami 16 xonadan iborat',
   optionalField: 'ixtiyoriy',
+  noSalesPeriodSub: 'Kassadan sotuv qilsangiz, hisobot shu yerda chiqadi',
+  noSuppliersSub: "Tovar olganingizda qarzni shu yerga yozib qo'ying",
+  noCustomersSub: "Mijoz qo'shsangiz, eslatma rejimini shu yerdan boshqarasiz",
+  noRemindersSub: 'Muddat yaqinlashganda tizim o‘zi eslatma yuboradi',
+  applyToAllSub: 'Barcha mijozlar tanlangan rejimga o‘tadi',
+  noProductsSub: "Kassadagi \"Tovar kirimi\" orqali mahsulot qo'shing",
+  noProductsFilter: 'Bu shart bo‘yicha mahsulot topilmadi',
 
   // Asosiy ekran
   owedToMe: 'Menga qarzdorlar',
@@ -403,6 +410,13 @@ const RU: Record<string, string> = {
   setupCardHint: 'Эту карту должники увидят в SMS',
   cardInvalid: 'Номер карты состоит из 16 цифр',
   optionalField: 'необязательно',
+  noSalesPeriodSub: 'Проведите продажу через кассу — отчёт появится здесь',
+  noSuppliersSub: 'Взяли товар — запишите долг здесь',
+  noCustomersSub: 'Добавьте клиента — режим напоминаний настроите отсюда',
+  noRemindersSub: 'Система сама напомнит, когда подойдёт срок',
+  applyToAllSub: 'Все клиенты перейдут на выбранный режим',
+  noProductsSub: 'Добавьте товар через «Приход товара» в кассе',
+  noProductsFilter: 'По этому условию товаров нет',
 
   owedToMe: 'Мне должны',
   iOwe: 'Я должен',
