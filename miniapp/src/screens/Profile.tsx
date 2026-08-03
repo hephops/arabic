@@ -18,7 +18,7 @@ function Row({
   onClick,
 }: {
   icon: string;
-  color: any;
+  color?: any;
   label: string;
   value?: string;
   danger?: boolean;
@@ -27,7 +27,7 @@ function Row({
   return (
     <div className="list-item" onClick={onClick}>
       <div className="lead">
-        <AppIcon glyph={icon} color={color} size={30} />
+        <AppIcon glyph={icon} color={color} size={29} />
         <div className="name" style={danger ? { color: 'var(--red)' } : undefined}>{label}</div>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -109,23 +109,23 @@ export default function Profile({
       </div>
 
       <div className="list-group" style={{ marginTop: 14 }}>
-        <Row icon="banknote" color="green" label="Balans" value={fmt(shop.balance)} onClick={() => setView('balance')} />
-        <Row icon="star" color="orange" label="Obuna" value={planTitle} onClick={() => setView('plan')} />
+        <Row icon="banknote" label="Balans" value={fmt(shop.balance)} onClick={() => setView('balance')} />
+        <Row icon="crown" label="Obuna" value={planTitle} onClick={() => setView('plan')} />
       </div>
 
       <div className="list-group">
-        <Row icon="person" color="blue" label="Do'kon ma'lumotlari" onClick={() => setView('shop')} />
-        <Row icon="globe" color="teal" label="Til" value={LANGS[shop.language] ?? shop.language} onClick={() => setView('language')} />
-        <Row icon="card" color="purple" label="Karta raqami" value={shop.card_number ? '•• ' + shop.card_number.replace(/\s/g, '').slice(-4) : 'kiritilmagan'} onClick={() => setView('shop')} />
+        <Row icon="house" label="Do'kon ma'lumotlari" onClick={() => setView('shop')} />
+        <Row icon="globe" label="Til" value={LANGS[shop.language] ?? shop.language} onClick={() => setView('language')} />
+        <Row icon="card" label="Karta raqami" value={shop.card_number ? '•• ' + shop.card_number.replace(/\s/g, '').slice(-4) : 'kiritilmagan'} onClick={() => setView('shop')} />
       </div>
 
       <div className="list-group">
-        <Row icon="people" color="gray" label="Xodimlar (sotuvchilar)" onClick={() => setView('employees')} />
-        <Row icon="star" color="yellow" label="Do'stingni taklif qil" onClick={() => setView('referral')} />
+        <Row icon="employee" label="Xodimlar (sotuvchilar)" onClick={() => setView('employees')} />
+        <Row icon="gift" label="Do'stingni taklif qil" onClick={() => setView('referral')} />
       </div>
 
       <div className="list-group">
-        <Row icon="logout" color="red" label="Chiqish" danger onClick={() => { logout(); onLogout(); }} />
+        <Row icon="logout" label="Chiqish" danger onClick={() => { logout(); onLogout(); }} />
       </div>
     </div>
   );
@@ -158,7 +158,7 @@ function BalanceView({ shop, balance, onBack, reload }: { shop: Shop; balance: B
     <div className="screen">
       <SubHeader title="Balans" onBack={onBack} />
       <div className="card center" style={{ padding: '22px 16px' }}>
-        <AppIcon glyph="banknote" color="green" size={44} />
+        <AppIcon glyph="banknote" size={52} />
         <div style={{ fontSize: 32, fontWeight: 800, letterSpacing: -1, margin: '10px 0 2px' }}>{fmt(shop.balance)}</div>
         <div className="hint">Obuna haqi shu balansdan yechiladi</div>
       </div>
@@ -373,7 +373,7 @@ function EmployeesView({ onBack }: { onBack: () => void }) {
         {employees.map((e) => (
           <div className="list-item" key={e.id}>
             <div className="lead">
-              <AppIcon glyph="person" color={e.is_active ? 'blue' : 'gray'} size={30} />
+              <AppIcon glyph="employee" color={e.is_active ? undefined : 'gray'} size={30} />
               <div>
                 <div className="name">{e.name}</div>
                 <div className="sub">{e.is_active ? 'Faol' : 'Bloklangan'} · sotuvchi</div>
@@ -409,7 +409,7 @@ function ReferralView({ onBack }: { onBack: () => void }) {
     <div className="screen">
       <SubHeader title="Do'stingni taklif qil" onBack={onBack} />
       <div className="card center" style={{ padding: '24px 16px' }}>
-        <AppIcon glyph="star" color="yellow" size={44} />
+        <AppIcon glyph="gift" size={52} />
         <div className="hint" style={{ marginTop: 10 }}>Sizning promo-kodingiz</div>
         <div style={{ fontSize: 30, fontWeight: 800, letterSpacing: 2 }}>{data.code}</div>
         <p className="hint">{data.reward_text}</p>

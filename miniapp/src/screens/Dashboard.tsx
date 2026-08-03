@@ -37,13 +37,13 @@ export default function Dashboard({
       <div className="tile-row">
         {(
           [
-            ['suppliers', 'box', 'Postavshiklar'],
-            ['reports', 'star', 'Hisobotlar'],
-            ['inventory', 'search', 'Ombor'],
+            ['suppliers', 'truck', 'Postavshiklar'],
+            ['reports', 'chart', 'Hisobotlar'],
+            ['inventory', 'boxes', 'Ombor'],
           ] as [SubScreen, string, string][]
         ).map(([id, glyph, label]) => (
           <div key={label} className="tile" onClick={() => onNavigate(id)}>
-            <AppIcon glyph={glyph} color="blue" size={29} />
+            <AppIcon glyph={glyph} size={34} />
             <div className="label">{label}</div>
           </div>
         ))}

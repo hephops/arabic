@@ -102,7 +102,7 @@ export default function Suppliers({ onBack }: { onBack: () => void }) {
     <div className="screen">
       <SubHeader title="Postavshiklar" onBack={onBack} />
       <div className="card" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        <AppIcon glyph="arrowUp" color="red" size={38} />
+        <AppIcon glyph="truck" size={44} />
         <div style={{ flex: 1 }}>
           <div className="hint" style={{ margin: 0 }}>Jami qarzim (postavshiklarga)</div>
           <div style={{ fontSize: 22, fontWeight: 800 }}>{fmt(total)}</div>
@@ -136,7 +136,7 @@ export default function Suppliers({ onBack }: { onBack: () => void }) {
         {suppliers.map((s) => (
           <div className="list-item" key={s.id} onClick={async () => setSelected(await api.supplier(s.id))}>
             <div className="lead">
-              <AppIcon glyph="box" color="orange" size={30} />
+              <AppIcon glyph="truck" size={30} />
               <div>
                 <div className="name">{s.name}</div>
                 {s.phone && <div className="sub">{s.phone}</div>}

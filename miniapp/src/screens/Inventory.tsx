@@ -31,7 +31,7 @@ export default function Inventory({ onBack }: { onBack: () => void }) {
     <div className="screen">
       <SubHeader title="Ombor" onBack={onBack} />
       <div className="card" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        <AppIcon glyph="box" color="blue" size={38} />
+        <AppIcon glyph="boxes" size={44} />
         <div>
           <div className="hint" style={{ margin: 0 }}>{products.length} xil mahsulot · ombor qiymati</div>
           <div style={{ fontSize: 20, fontWeight: 800 }}>{fmt(totalValue)}</div>
@@ -54,7 +54,7 @@ export default function Inventory({ onBack }: { onBack: () => void }) {
                 {p.image_url ? (
                   <img src={`${BASE}${p.image_url}`} alt="" style={{ width: 42, height: 42, borderRadius: 10, objectFit: 'cover' }} />
                 ) : (
-                  <AppIcon glyph="box" color="gray" size={42} />
+                  <AppIcon glyph="boxes" color="gray" size={42} />
                 )}
                 <div>
                   <div className="name">{p.name}</div>

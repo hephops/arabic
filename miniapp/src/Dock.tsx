@@ -11,27 +11,30 @@ export interface NavTarget {
   profileView?: string;
 }
 
-const DOCK_ITEMS: { id: Tab; glyph: string; color: any }[] = [
-  { id: 'home', glyph: 'house', color: 'blue' },
-  { id: 'customers', glyph: 'people', color: 'teal' },
-  { id: 'add', glyph: 'plus', color: 'green' },
-  { id: 'kassa', glyph: 'cart', color: 'orange' },
-  { id: 'profile', glyph: 'person', color: 'gray' },
+const DOCK_ITEMS: { id: Tab; glyph: string }[] = [
+  { id: 'home', glyph: 'house' },
+  { id: 'customers', glyph: 'people' },
+  { id: 'add', glyph: 'note' },
+  { id: 'kassa', glyph: 'cart' },
+  { id: 'profile', glyph: 'gear' },
 ];
 
-const LAUNCHER_ITEMS: { label: string; glyph: string; color: any; target: NavTarget }[] = [
-  { label: 'Asosiy', glyph: 'house', color: 'blue', target: { tab: 'home' } },
-  { label: 'Mijozlar', glyph: 'people', color: 'teal', target: { tab: 'customers' } },
-  { label: 'Qarz yozish', glyph: 'plus', color: 'green', target: { tab: 'add' } },
-  { label: 'Kassa', glyph: 'cart', color: 'orange', target: { tab: 'kassa' } },
-  { label: 'Postavshiklar', glyph: 'box', color: 'orange', target: { sub: 'suppliers' } },
-  { label: 'Hisobotlar', glyph: 'star', color: 'purple', target: { sub: 'reports' } },
-  { label: 'Ombor', glyph: 'search', color: 'teal', target: { sub: 'inventory' } },
-  { label: 'Balans', glyph: 'banknote', color: 'green', target: { tab: 'profile', profileView: 'balance' } },
-  { label: 'Obuna', glyph: 'star', color: 'yellow', target: { tab: 'profile', profileView: 'plan' } },
-  { label: 'Xodimlar', glyph: 'people', color: 'gray', target: { tab: 'profile', profileView: 'employees' } },
-  { label: 'Taklif qilish', glyph: 'star', color: 'red', target: { tab: 'profile', profileView: 'referral' } },
-  { label: 'Sozlamalar', glyph: 'gear', color: 'gray', target: { tab: 'profile' } },
+const LAUNCHER_ITEMS: { label: string; glyph: string; target: NavTarget }[] = [
+  { label: 'Asosiy', glyph: 'house', target: { tab: 'home' } },
+  { label: 'Mijozlar', glyph: 'people', target: { tab: 'customers' } },
+  { label: 'Qarz yozish', glyph: 'note', target: { tab: 'add' } },
+  { label: 'Kassa', glyph: 'cart', target: { tab: 'kassa' } },
+  { label: 'Skaner', glyph: 'scan', target: { tab: 'kassa' } },
+  { label: 'Postavshiklar', glyph: 'truck', target: { sub: 'suppliers' } },
+  { label: 'Hisobotlar', glyph: 'chart', target: { sub: 'reports' } },
+  { label: 'Ombor', glyph: 'boxes', target: { sub: 'inventory' } },
+  { label: 'Balans', glyph: 'banknote', target: { tab: 'profile', profileView: 'balance' } },
+  { label: 'Obuna', glyph: 'crown', target: { tab: 'profile', profileView: 'plan' } },
+  { label: 'Xodimlar', glyph: 'employee', target: { tab: 'profile', profileView: 'employees' } },
+  { label: 'Taklif qilish', glyph: 'gift', target: { tab: 'profile', profileView: 'referral' } },
+  { label: 'Do\'kon', glyph: 'card', target: { tab: 'profile', profileView: 'shop' } },
+  { label: 'Til', glyph: 'globe', target: { tab: 'profile', profileView: 'language' } },
+  { label: 'Sozlamalar', glyph: 'gear', target: { tab: 'profile' } },
 ];
 
 export default function Dock({
@@ -55,7 +58,7 @@ export default function Dock({
             className={`dock-item ${tab === item.id && active ? 'active' : ''}`}
             onClick={() => onNavigate({ tab: item.id })}
           >
-            <AppIcon glyph={item.glyph} color={item.color} size={44} />
+            <AppIcon glyph={item.glyph} size={46} />
             <span className="dot" />
           </button>
         ))}
@@ -76,7 +79,7 @@ export default function Dock({
                   onNavigate(item.target);
                 }}
               >
-                <AppIcon glyph={item.glyph} color={item.color} size={58} />
+                <AppIcon glyph={item.glyph} size={58} />
                 {item.label}
               </button>
             ))}
