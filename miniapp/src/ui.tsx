@@ -1,23 +1,39 @@
+import type { ReactNode } from 'react';
 import { Glyph } from './icons';
 
-// Umumiy UI bo'laklari
+// iOS navigatsiya paneli: 44px balandlik, markazda 17px sarlavha,
+// chapda "‹ Orqaga", fon blur bilan yopishib turadi.
 
-export function SubHeader({ title, onBack }: { title: string; onBack: () => void }) {
+export function NavBar({
+  title,
+  onBack,
+  backLabel = 'Orqaga',
+  right,
+}: {
+  title: string;
+  onBack?: () => void;
+  backLabel?: string;
+  right?: ReactNode;
+}) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 4, margin: '2px 0 12px' }}>
-      <button
-        onClick={onBack}
-        style={{
-          background: 'none', color: 'var(--accent)', display: 'flex', alignItems: 'center',
-          fontSize: 16, padding: '4px 8px 4px 0',
-        }}
-      >
-        <span style={{ display: 'inline-flex', transform: 'rotate(180deg)' }}>
-          <Glyph name="chevron" size={20} />
-        </span>
-        Orqaga
-      </button>
-      <div style={{ fontSize: 17, fontWeight: 700, flex: 1, textAlign: 'center', marginRight: 70 }}>{title}</div>
+    <div className="navbar">
+      <div className="nav-left">
+        {onBack && (
+          <button className="nav-btn" onClick={onBack}>
+            <span style={{ display: 'inline-flex', transform: 'rotate(180deg)', marginRight: 1 }}>
+              <Glyph name="chevron" size={19} />
+            </span>
+            {backLabel}
+          </button>
+        )}
+      </div>
+      <div className="nav-title">{title}</div>
+      <div className="nav-right">{right}</div>
     </div>
   );
+}
+
+// Eski nom bilan moslik
+export function SubHeader({ title, onBack }: { title: string; onBack: () => void }) {
+  return <NavBar title={title} onBack={onBack} />;
 }

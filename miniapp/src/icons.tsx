@@ -49,18 +49,18 @@ const SQUIRCLE =
   'C0,22.4 0,11.1 5.6,5.6 C11.1,0 22.4,0 50,0 Z';
 
 const PALETTE = {
-  blue: ['#63ADFF', '#0A5FE0'],
-  teal: ['#5FD8F2', '#0C93CE'],
-  green: ['#63E183', '#12A33C'],
-  mint: ['#6FE3C4', '#12A186'],
-  orange: ['#FFC15C', '#F08402'],
-  amber: ['#F3AE6E', '#C06A1E'],
-  yellow: ['#FFD84A', '#F0A200'],
-  purple: ['#C58BFF', '#8324D6'],
-  indigo: ['#8B93FA', '#3A42C8'],
-  pink: ['#FF8FA3', '#E03352'],
-  red: ['#FF7C6E', '#E02D1E'],
-  gray: ['#AEB4C0', '#5E6674'],
+  blue: ['#3E97F7', '#0A6BE8'],
+  teal: ['#41C6EC', '#0E9BD6'],
+  green: ['#4CD766', '#1CB33F'],
+  mint: ['#4FD9BC', '#12AE92'],
+  orange: ['#FFB33D', '#F58A0C'],
+  amber: ['#E8A063', '#C4762C'],
+  yellow: ['#FFD02E', '#F5AE06'],
+  purple: ['#B672F5', '#8B3DDB'],
+  indigo: ['#7A82F0', '#4149D1'],
+  pink: ['#FF7B93', '#EA3B5E'],
+  red: ['#FF6A5C', '#E5372A'],
+  gray: ['#B4B9C2', '#6B717C'],
 } as const;
 
 export type IconColor = keyof typeof PALETTE;
@@ -392,7 +392,7 @@ export function AppIcon({
       viewBox="0 0 100 100"
       style={{
         flexShrink: 0,
-        filter: `drop-shadow(0 ${size > 40 ? 2 : 1}px ${size > 40 ? 5 : 2}px rgba(0,0,0,0.16))`,
+        filter: `drop-shadow(0 ${size > 40 ? 1.5 : 0.8}px ${size > 40 ? 3 : 1.6}px rgba(0,0,0,0.13))`,
       }}
     >
       <defs>
@@ -401,8 +401,8 @@ export function AppIcon({
           <stop offset="1" stopColor={to} />
         </linearGradient>
         <linearGradient id={`${id}g`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#fff" stopOpacity="0.3" />
-          <stop offset="0.45" stopColor="#fff" stopOpacity="0.07" />
+          <stop offset="0" stopColor="#fff" stopOpacity="0.17" />
+          <stop offset="0.5" stopColor="#fff" stopOpacity="0.04" />
           <stop offset="1" stopColor="#fff" stopOpacity="0" />
         </linearGradient>
         <clipPath id={`${id}c`}>
@@ -412,9 +412,9 @@ export function AppIcon({
       <g clipPath={`url(#${id}c)`}>
         <path d={SQUIRCLE} fill={`url(#${id}b)`} />
         <path d={SQUIRCLE} fill={`url(#${id}g)`} />
-        {ART[name](`${id}b`)}
+        <g transform="translate(50 50) scale(0.66) translate(-50 -50)">{ART[name](`${id}b`)}</g>
       </g>
-      <path d={SQUIRCLE} fill="none" stroke="rgba(0,0,0,0.07)" strokeWidth="1.2" />
+      <path d={SQUIRCLE} fill="none" stroke="rgba(0,0,0,0.05)" strokeWidth="1" />
     </svg>
   );
 }

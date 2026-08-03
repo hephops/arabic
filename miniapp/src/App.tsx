@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { getToken } from './api';
 import Dock, { NavTarget } from './Dock';
+import { NavBar } from './ui';
 import Login from './screens/Login';
 import Dashboard from './screens/Dashboard';
 import Customers from './screens/Customers';
@@ -35,8 +36,8 @@ export default function App() {
 
   return (
     <>
-      {/* iOS large-title: ichki ekranlarda o'z sarlavhasi bor */}
-      {!sub && <div className="large-title">{TITLES[tab]}</div>}
+      {/* Ichki ekranlar o'z navigatsiya panelini chizadi */}
+      {!sub && <NavBar title={TITLES[tab]} />}
 
       {sub === 'suppliers' && <Suppliers onBack={() => setSub(null)} />}
       {sub === 'reports' && <Reports onBack={() => setSub(null)} />}

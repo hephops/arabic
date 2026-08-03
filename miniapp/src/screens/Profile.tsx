@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, fmt, logout, Shop, BalanceInfo, Employee } from '../api';
 import { AppIcon, Glyph } from '../icons';
+import { SubHeader } from '../ui';
 
 // iOS Sozlamalar uslubidagi kabinet: asosiy ekranda qatorlar,
 // har biri o'z ichki ekraniga ochiladi.
@@ -34,23 +35,6 @@ function Row({
         {value && <span className="sub" style={{ marginTop: 0 }}>{value}</span>}
         <Glyph name="chevron" size={16} color="#c7c7cc" strokeWidth={2.2} />
       </div>
-    </div>
-  );
-}
-
-function SubHeader({ title, onBack }: { title: string; onBack: () => void }) {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 4, margin: '2px 0 12px' }}>
-      <button
-        onClick={onBack}
-        style={{ background: 'none', color: 'var(--accent)', display: 'flex', alignItems: 'center', fontSize: 16, padding: '4px 8px 4px 0' }}
-      >
-        <span style={{ display: 'inline-flex', transform: 'rotate(180deg)' }}>
-          <Glyph name="chevron" size={20} strokeWidth={2.2} />
-        </span>
-        Orqaga
-      </button>
-      <div style={{ fontSize: 17, fontWeight: 700, flex: 1, textAlign: 'center', marginRight: 70 }}>{title}</div>
     </div>
   );
 }
