@@ -1,8 +1,15 @@
 import { useEffect, useState } from 'react';
 import { api, fmt, Dashboard as DashboardData } from '../api';
 import { AppIcon, Glyph } from '../icons';
+import type { SubScreen } from '../App';
 
-export default function Dashboard({ onOpenAdd }: { onOpenAdd: () => void }) {
+export default function Dashboard({
+  onOpenAdd,
+  onNavigate,
+}: {
+  onOpenAdd: () => void;
+  onNavigate: (s: SubScreen) => void;
+}) {
   const [data, setData] = useState<DashboardData | null>(null);
   const [error, setError] = useState('');
 
@@ -21,11 +28,32 @@ export default function Dashboard({ onOpenAdd }: { onOpenAdd: () => void }) {
           <div className="label">Menga qarzdorlar</div>
           <div className="value green">{fmt(data.owed_to_me)}</div>
         </div>
-        <div className="card balance-card">
+        <div className="card balance-card" onClick={() => onNavigate('suppliers')} style={{ cursor: 'pointer' }}>
           <AppIcon glyph="arrowUp" color="red" />
-          <div className="label">Men qarzdorman</div>
+          <div className="label">Men qarzdorman ›</div>
           <div className="value red">{fmt(data.i_owe)}</div>
         </div>
+      </div>
+
+      {/* Tez kirish */}
+      <div className="balance-row" style={{ marginTop: 10 }}>
+        {(
+          [
+            ['suppliers', 'box', 'orange', 'Postavshiklar'],
+            ['reports', 'star', 'purple', 'Hisobotlar'],
+            ['inventory', 'search', 'teal', 'Ombor'],
+          ] as [SubScreen, string, any, string][]
+        ).map(([id, glyph, color, label]) => (
+          <div
+            key={label}
+            className="card balance-card center"
+            style={{ cursor: 'pointer', alignItems: 'center', gap: 4, padding: '12px 8px' }}
+            onClick={() => onNavigate(id)}
+          >
+            <AppIcon glyph={glyph} color={color} size={34} />
+            <div className="label">{label}</div>
+          </div>
+        ))}
       </div>
 
       {data.overdue.length > 0 && (

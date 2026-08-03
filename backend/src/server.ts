@@ -31,15 +31,15 @@ app.post<{ Body: { phone: string } }>('/auth/request-otp', async (req) => {
   return { ok: true, dev_hint: process.env.NODE_ENV === 'production' ? undefined : code };
 });
 
-app.post<{ Body: { phone: string; code: string; shop_name?: string } }>('/auth/verify', async (req, reply) => {
-  const { phone, code, shop_name } = req.body;
+app.post<{ Body: { phone: string; code: string; shop_name?: string; ref?: string } }>('/auth/verify', async (req, reply) => {
+  const { phone, code, shop_name, ref } = req.body;
   if (otpStore.get(phone) !== code) return reply.code(400).send({ error: 'invalid_code' });
   otpStore.delete(phone);
   let shop = db.prepare('SELECT * FROM shops WHERE phone = ?').get(phone) as any;
   if (!shop) {
     const info = db
-      .prepare('INSERT INTO shops (phone, name) VALUES (?, ?)')
-      .run(phone, shop_name ?? 'Mening do‘konim');
+      .prepare('INSERT INTO shops (phone, name, referred_by) VALUES (?, ?, ?)')
+      .run(phone, shop_name ?? 'Mening do‘konim', ref ?? null);
     shop = db.prepare('SELECT * FROM shops WHERE id = ?').get(info.lastInsertRowid);
   }
   return { token: signToken(shop.id), shop };
@@ -276,6 +276,74 @@ app.post<{ Body: { supplier_id?: number; supplier_name?: string; amount: number;
     return db.prepare('SELECT * FROM supplier_debts WHERE id = ?').get(info.lastInsertRowid);
   }
 );
+
+app.get<{ Params: { id: string } }>('/suppliers/:id', { preHandler: requireAuth }, async (req, reply) => {
+  const supplier = db
+    .prepare('SELECT * FROM suppliers WHERE id = ? AND shop_id = ?')
+    .get(req.params.id, req.shopId);
+  if (!supplier) return reply.code(404).send({ error: 'not_found' });
+  const debts = db
+    .prepare('SELECT * FROM supplier_debts WHERE supplier_id = ? ORDER BY created_at DESC')
+    .all(req.params.id);
+  return { ...supplier, debts };
+});
+
+app.post<{ Params: { id: string }; Body: { amount: number } }>(
+  '/supplier-debts/:id/payments',
+  { preHandler: requireAuth },
+  async (req, reply) => {
+    const debt = db
+      .prepare('SELECT * FROM supplier_debts WHERE id = ? AND shop_id = ?')
+      .get(req.params.id, req.shopId) as any;
+    if (!debt) return reply.code(404).send({ error: 'not_found' });
+    const amount = Math.round(req.body.amount);
+    if (!amount || amount <= 0) return reply.code(400).send({ error: 'amount_required' });
+    const newPaid = debt.paid_amount + amount;
+    const status = newPaid >= debt.amount ? 'paid' : debt.status;
+    db.prepare('UPDATE supplier_debts SET paid_amount = ?, status = ? WHERE id = ?').run(newPaid, status, debt.id);
+    return db.prepare('SELECT * FROM supplier_debts WHERE id = ?').get(debt.id);
+  }
+);
+
+// ---------- XODIMLAR ----------
+app.get('/employees', { preHandler: requireAuth }, async (req) => {
+  return db
+    .prepare('SELECT id, name, role, is_active, created_at FROM employees WHERE shop_id = ? ORDER BY created_at')
+    .all(req.shopId);
+});
+
+app.post<{ Body: { name: string; pin: string } }>('/employees', { preHandler: requireAuth }, async (req, reply) => {
+  const { name, pin } = req.body;
+  if (!name?.trim() || !/^\d{4}$/.test(pin ?? '')) return reply.code(400).send({ error: 'name_and_4digit_pin_required' });
+  const info = db
+    .prepare("INSERT INTO employees (shop_id, name, pin, role) VALUES (?, ?, ?, 'seller')")
+    .run(req.shopId, name.trim(), pin);
+  return db.prepare('SELECT id, name, role, is_active FROM employees WHERE id = ?').get(info.lastInsertRowid);
+});
+
+app.patch<{ Params: { id: string }; Body: { is_active?: number } }>(
+  '/employees/:id',
+  { preHandler: requireAuth },
+  async (req, reply) => {
+    const emp = db.prepare('SELECT * FROM employees WHERE id = ? AND shop_id = ?').get(req.params.id, req.shopId);
+    if (!emp) return reply.code(404).send({ error: 'not_found' });
+    if (req.body.is_active !== undefined) {
+      db.prepare('UPDATE employees SET is_active = ? WHERE id = ?').run(req.body.is_active ? 1 : 0, req.params.id);
+    }
+    return db.prepare('SELECT id, name, role, is_active FROM employees WHERE id = ?').get(req.params.id);
+  }
+);
+
+// ---------- REFERAL ----------
+app.get('/referral', { preHandler: requireAuth }, async (req) => {
+  const code = `ARABIC${req.shopId}`;
+  const invited = db.prepare("SELECT COUNT(*) AS c FROM shops WHERE referred_by = ?").get(code) as any;
+  return {
+    code,
+    invited_count: invited.c,
+    reward_text: "Har ulangan do'kon uchun ikkalangizga 1 oy bepul obuna",
+  };
+});
 
 // ---------- OMBOR ----------
 app.get<{ Querystring: { q?: string; barcode?: string } }>('/products', { preHandler: requireAuth }, async (req) => {

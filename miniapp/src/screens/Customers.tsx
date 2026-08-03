@@ -1,12 +1,15 @@
 import { useEffect, useState } from 'react';
 import { api, fmt, Customer, CustomerDetail } from '../api';
-import { AppIcon } from '../icons';
+import { AppIcon, Glyph } from '../icons';
 
 export default function Customers() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [selected, setSelected] = useState<CustomerDetail | null>(null);
   const [payFor, setPayFor] = useState<number | null>(null);
   const [payAmount, setPayAmount] = useState('');
+  const [adding, setAdding] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [newPhone, setNewPhone] = useState('');
 
   const load = () => api.customers().then(setCustomers).catch(() => {});
   useEffect(() => {
@@ -82,6 +85,32 @@ export default function Customers() {
       <div className="section-title">
         <AppIcon glyph="people" color="blue" size={22} /> Mijozlar
       </div>
+      {!adding ? (
+        <button className="btn-primary" style={{ marginBottom: 12 }} onClick={() => setAdding(true)}>
+          <Glyph name="plus" size={18} color="#fff" /> Mijoz qo'shish
+        </button>
+      ) : (
+        <div className="card">
+          <label>Ismi</label>
+          <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Karim aka" />
+          <label>Telefon (eslatmalar uchun)</label>
+          <input value={newPhone} onChange={(e) => setNewPhone(e.target.value)} inputMode="tel" placeholder="+998 90 123 45 67" />
+          <button
+            className="btn-primary"
+            onClick={async () => {
+              if (!newName.trim()) return;
+              await api.createCustomer({ name: newName.trim(), phone: newPhone.trim() || undefined });
+              setNewName('');
+              setNewPhone('');
+              setAdding(false);
+              load();
+            }}
+          >
+            <Glyph name="check" size={18} color="#fff" /> Saqlash
+          </button>
+          <button className="btn-ghost" onClick={() => setAdding(false)}>Bekor qilish</button>
+        </div>
+      )}
       <div className="list-group">
       {customers.map((c) => (
         <div className="list-item" key={c.id} onClick={() => openCustomer(c.id)}>

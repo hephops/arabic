@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
-import { api, fmt, logout, Shop, BalanceInfo } from '../api';
+import { api, fmt, logout, Shop, BalanceInfo, Employee } from '../api';
 import { AppIcon, Glyph } from '../icons';
 
 // iOS Sozlamalar uslubidagi kabinet: asosiy ekranda qatorlar,
 // har biri o'z ichki ekraniga ochiladi.
 
-type View = 'main' | 'balance' | 'plan' | 'shop' | 'language';
+type View = 'main' | 'balance' | 'plan' | 'shop' | 'language' | 'employees' | 'referral';
 
 const LANGS: Record<string, string> = { uz: "O'zbekcha (lotin)", uz_cyrl: 'Ўзбекча (кирилл)', ru: 'Русский' };
 
@@ -78,6 +78,8 @@ export default function Profile({ onLogout }: { onLogout: () => void }) {
   if (view === 'plan') return <PlanView shop={shop} balance={balance} onBack={() => setView('main')} reload={load} />;
   if (view === 'shop') return <ShopView shop={shop} onBack={() => setView('main')} reload={load} />;
   if (view === 'language') return <LanguageView shop={shop} onBack={() => setView('main')} reload={load} />;
+  if (view === 'employees') return <EmployeesView onBack={() => setView('main')} />;
+  if (view === 'referral') return <ReferralView onBack={() => setView('main')} />;
 
   return (
     <div className="screen">
@@ -109,6 +111,11 @@ export default function Profile({ onLogout }: { onLogout: () => void }) {
         <Row icon="person" color="blue" label="Do'kon ma'lumotlari" onClick={() => setView('shop')} />
         <Row icon="globe" color="teal" label="Til" value={LANGS[shop.language] ?? shop.language} onClick={() => setView('language')} />
         <Row icon="card" color="purple" label="Karta raqami" value={shop.card_number ? '•• ' + shop.card_number.replace(/\s/g, '').slice(-4) : 'kiritilmagan'} onClick={() => setView('shop')} />
+      </div>
+
+      <div className="list-group">
+        <Row icon="people" color="gray" label="Xodimlar (sotuvchilar)" onClick={() => setView('employees')} />
+        <Row icon="star" color="yellow" label="Do'stingni taklif qil" onClick={() => setView('referral')} />
       </div>
 
       <div className="list-group">
@@ -302,6 +309,121 @@ function LanguageView({ shop, onBack, reload }: { shop: Shop; onBack: () => void
             {shop.language === id && <Glyph name="check" size={18} color="var(--accent)" strokeWidth={2.4} />}
           </div>
         ))}
+      </div>
+    </div>
+  );
+}
+
+function EmployeesView({ onBack }: { onBack: () => void }) {
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [name, setName] = useState('');
+  const [pin, setPin] = useState('');
+  const [adding, setAdding] = useState(false);
+  const [error, setError] = useState('');
+
+  const load = () => api.employees().then(setEmployees).catch(() => {});
+  useEffect(() => {
+    load();
+  }, []);
+
+  async function add() {
+    setError('');
+    if (!name.trim() || !/^\d{4}$/.test(pin)) {
+      setError('Ism va 4 xonali PIN kerak');
+      return;
+    }
+    await api.createEmployee({ name: name.trim(), pin });
+    setName('');
+    setPin('');
+    setAdding(false);
+    load();
+  }
+
+  return (
+    <div className="screen">
+      <SubHeader title="Xodimlar" onBack={onBack} />
+      <p className="hint">
+        Sotuvchi o'z PIN-kodi bilan kiradi: sotadi va qarz yozadi, lekin narx o'zgartirish,
+        o'chirish va hisobotlar faqat sizda qoladi. Har amaliyot kim qilgani yozib boriladi.
+      </p>
+      {!adding ? (
+        <button className="btn-primary" onClick={() => setAdding(true)}>
+          <Glyph name="plus" size={18} color="#fff" /> Xodim qo'shish
+        </button>
+      ) : (
+        <div className="card">
+          <label>Ismi</label>
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Jasur" />
+          <label>PIN-kod (4 raqam)</label>
+          <input value={pin} onChange={(e) => setPin(e.target.value)} inputMode="numeric" maxLength={4} placeholder="1234" />
+          <button className="btn-primary" onClick={add}>
+            <Glyph name="check" size={18} color="#fff" /> Saqlash
+          </button>
+          <button className="btn-ghost" onClick={() => setAdding(false)}>Bekor qilish</button>
+          {error && <p className="error">{error}</p>}
+        </div>
+      )}
+      <div className="list-group" style={{ marginTop: 12 }}>
+        {employees.map((e) => (
+          <div className="list-item" key={e.id}>
+            <div className="lead">
+              <AppIcon glyph="person" color={e.is_active ? 'blue' : 'gray'} size={30} />
+              <div>
+                <div className="name">{e.name}</div>
+                <div className="sub">{e.is_active ? 'Faol' : 'Bloklangan'} · sotuvchi</div>
+              </div>
+            </div>
+            <button
+              className="chip"
+              onClick={() => api.updateEmployee(e.id, { is_active: e.is_active ? 0 : 1 }).then(load)}
+            >
+              {e.is_active ? 'Bloklash' : 'Faollashtirish'}
+            </button>
+          </div>
+        ))}
+      </div>
+      {employees.length === 0 && <div className="empty">Hozircha xodimlar yo'q</div>}
+    </div>
+  );
+}
+
+function ReferralView({ onBack }: { onBack: () => void }) {
+  const [data, setData] = useState<{ code: string; invited_count: number; reward_text: string } | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    api.referral().then(setData).catch(() => {});
+  }, []);
+
+  if (!data) return <div className="screen empty">Yuklanmoqda...</div>;
+
+  const shareText = `Arabic.One — Do'kon Daftari ilovasiga qo'shiling! Promo-kodim: ${data.code}. ${data.reward_text}.`;
+
+  return (
+    <div className="screen">
+      <SubHeader title="Do'stingni taklif qil" onBack={onBack} />
+      <div className="card center" style={{ padding: '24px 16px' }}>
+        <AppIcon glyph="star" color="yellow" size={44} />
+        <div className="hint" style={{ marginTop: 10 }}>Sizning promo-kodingiz</div>
+        <div style={{ fontSize: 30, fontWeight: 800, letterSpacing: 2 }}>{data.code}</div>
+        <p className="hint">{data.reward_text}</p>
+        <button
+          className="btn-primary"
+          onClick={() => {
+            navigator.clipboard?.writeText(shareText);
+            setCopied(true);
+            const tg = (window as any).Telegram?.WebApp;
+            tg?.openTelegramLink?.(
+              `https://t.me/share/url?url=${encodeURIComponent('https://t.me/ArabicOneBot')}&text=${encodeURIComponent(shareText)}`
+            );
+          }}
+        >
+          {copied ? 'Nusxalandi!' : 'Ulashish'}
+        </button>
+      </div>
+      <div className="card center">
+        <div className="hint">Taklif qilganlaringiz</div>
+        <div style={{ fontSize: 26, fontWeight: 800 }}>{data.invited_count} ta do'kon</div>
       </div>
     </div>
   );

@@ -63,6 +63,18 @@ export const api = {
   createSale: (data: { items: { product_id: number; qty: number }[]; payment_type: 'cash' | 'card' | 'debt'; customer_id?: number; customer_name?: string; due_date?: string }) =>
     request<Sale>('/sales', { method: 'POST', body: JSON.stringify(data) }),
   reports: (period: 'day' | 'week' | 'month') => request<Report>(`/reports/summary?period=${period}`),
+  suppliers: () => request<Supplier[]>('/suppliers'),
+  supplier: (id: number) => request<SupplierDetail>(`/suppliers/${id}`),
+  createSupplierDebt: (data: { supplier_id?: number; supplier_name?: string; amount: number; note?: string; due_date?: string }) =>
+    request<SupplierDebt>('/supplier-debts', { method: 'POST', body: JSON.stringify(data) }),
+  paySupplierDebt: (id: number, amount: number) =>
+    request<SupplierDebt>(`/supplier-debts/${id}/payments`, { method: 'POST', body: JSON.stringify({ amount }) }),
+  employees: () => request<Employee[]>('/employees'),
+  createEmployee: (data: { name: string; pin: string }) =>
+    request<Employee>('/employees', { method: 'POST', body: JSON.stringify(data) }),
+  updateEmployee: (id: number, data: { is_active: number }) =>
+    request<Employee>(`/employees/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  referral: () => request<{ code: string; invited_count: number; reward_text: string }>('/referral'),
   updateMe: (data: Partial<Pick<Shop, 'name' | 'owner_name' | 'address' | 'language' | 'card_number'>>) =>
     request<Shop>('/me', { method: 'PATCH', body: JSON.stringify(data) }),
   balance: () => request<BalanceInfo>('/balance'),
@@ -95,6 +107,35 @@ export interface BalanceInfo {
   plan_expires_at: string | null;
   transactions: { id: number; type: string; amount: number; note: string | null; created_at: string }[];
   plans: Record<string, { price: number; title: string }>;
+}
+
+export interface Supplier {
+  id: number;
+  name: string;
+  phone: string | null;
+  balance: number;
+}
+
+export interface SupplierDebt {
+  id: number;
+  supplier_id: number;
+  amount: number;
+  paid_amount: number;
+  note: string | null;
+  due_date: string | null;
+  status: 'active' | 'overdue' | 'paid';
+  created_at: string;
+}
+
+export interface SupplierDetail extends Supplier {
+  debts: SupplierDebt[];
+}
+
+export interface Employee {
+  id: number;
+  name: string;
+  role: string;
+  is_active: number;
 }
 
 export interface Customer {

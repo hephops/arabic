@@ -23,6 +23,11 @@ try {
 } catch {
   /* ustun allaqachon bor */
 }
+try {
+  db.exec('ALTER TABLE shops ADD COLUMN referred_by TEXT');
+} catch {
+  /* ustun allaqachon bor */
+}
 
 // Kechikkan qarzlarni belgilash (har so'rovda emas, startda va cron'da chaqiriladi)
 export function markOverdueDebts() {
