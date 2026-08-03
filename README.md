@@ -76,6 +76,18 @@ curl "https://api.telegram.org/bot<TOKEN>/setWebhook?url=https://api.domen/teleg
 > Ovozli xabarni matnga aylantirish (Mohir.ai STT) hali ulanmagan —
 > bot hozircha matn ko'rinishida yuborishni so'raydi.
 
+## PWA — brauzerdan ilova sifatida
+
+Mini App oddiy brauzerda ham ishlaydi va **PWA** qilib rasmiylashtirilgan:
+
+- `public/manifest.webmanifest` — ilova nomi, ranglari, ikonkalari, tez havolalar
+- `public/sw.js` — service worker: ilova qobig'i keshlanadi (API keshlanmaydi)
+- `InstallPrompt.tsx` — "Ekranga qo'shish" banneri (iOS Safari uchun alohida ko'rsatma)
+
+**Shart:** PWA faqat **HTTPS** da ishlaydi (localhost bundan mustasno).
+Domenga qo'yilgach do'konchi saytni ochib "Ekranga qo'shish" bosadi —
+telefonida ikonka paydo bo'ladi va ilova alohida oynada ochiladi.
+
 ## Hozirgi holat
 
 MVP skelet: auth, qarz daftari (ovozli parse + qo'lda), mijozlar, ombor kirimi,
