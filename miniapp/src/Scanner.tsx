@@ -35,15 +35,27 @@ export default function Scanner({
 
   useEffect(() => {
     let stream: MediaStream | null = null;
+    let zxing: any = null;
     let stopped = false;
 
+    let lastCode = '';
+    let lastAt = 0;
+    /** Topilgan kodni qayta ishlaydi; true qaytsa — skanerlashni to'xtatamiz */
+    function handleCode(code: string): boolean {
+      const now = Date.now();
+      // bitta kodni ketma-ket qayta o'qib yubormaslik uchun 1.2s pauza
+      if (code === lastCode && now - lastAt < 1200) return false;
+      lastCode = code;
+      lastAt = now;
+      navigator.vibrate?.(60);
+      setFlash(true);
+      setTimeout(() => setFlash(false), 260);
+      onScanRef.current(code);
+      return !continuous;
+    }
+
     async function start() {
-      const BD = (window as any).BarcodeDetector;
-      if (!BD) {
-        setReason(t('scanNoSupport'));
-        setPhase('manual');
-        return;
-      }
+      // 1-qadam: kamera. Ruxsat bo'lmasa — qo'lda kiritishga o'tamiz.
       try {
         stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
       } catch {
@@ -63,38 +75,55 @@ export default function Scanner({
       setHasTorch(!!(track.getCapabilities?.() as any)?.torch);
       setPhase('live');
 
-      const detector = new BD({ formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'qr_code'] });
-      let lastCode = '';
-      let lastAt = 0;
-      const tick = async () => {
-        if (stopped) return;
-        try {
-          const codes = await detector.detect(video);
-          if (codes.length > 0) {
-            const code = codes[0].rawValue;
-            const now = Date.now();
-            // bitta kodni ketma-ket qayta o'qib yubormaslik uchun 1.2s pauza
-            if (code !== lastCode || now - lastAt > 1200) {
-              lastCode = code;
-              lastAt = now;
-              navigator.vibrate?.(60);
-              setFlash(true);
-              setTimeout(() => setFlash(false), 260);
-              onScanRef.current(code);
-              if (!continuous) return;
-            }
+      // 2-qadam: o'qish dvigateli.
+      // Android/Chrome'da brauzerning o'z BarcodeDetector'i — eng tez yo'l.
+      const BD = (window as any).BarcodeDetector;
+      if (BD) {
+        const detector = new BD({ formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39', 'itf', 'qr_code'] });
+        const tick = async () => {
+          if (stopped) return;
+          try {
+            const codes = await detector.detect(video);
+            if (codes.length > 0 && handleCode(codes[0].rawValue)) return;
+          } catch {
+            /* kadr tayyor emas — davom etamiz */
           }
-        } catch {
-          /* kadr tayyor emas — davom etamiz */
-        }
-        requestAnimationFrame(tick);
-      };
-      tick();
+          requestAnimationFrame(tick);
+        };
+        tick();
+        return;
+      }
+
+      // iPhone/Safari'da BarcodeDetector yo'q — ZXing kutubxonasi yuklanadi.
+      // Faqat shu holatda yuklanadi, shuning uchun asosiy paketni og'irlashtirmaydi.
+      try {
+        const { BrowserMultiFormatReader, DecodeHintType, BarcodeFormat } = await import('@zxing/library');
+        if (stopped) return;
+        const hints = new Map();
+        hints.set(DecodeHintType.POSSIBLE_FORMATS, [
+          BarcodeFormat.EAN_13, BarcodeFormat.EAN_8, BarcodeFormat.UPC_A, BarcodeFormat.UPC_E,
+          BarcodeFormat.CODE_128, BarcodeFormat.CODE_39, BarcodeFormat.ITF, BarcodeFormat.QR_CODE,
+        ]);
+        const reader = new BrowserMultiFormatReader(hints as any, 250);
+        zxing = reader;
+        reader.decodeFromStream(stream, video, (result: any) => {
+          if (stopped || !result) return;
+          if (handleCode(result.getText())) {
+            reader.reset();
+          }
+        });
+      } catch {
+        setReason(t('scanNoSupport'));
+        setPhase('manual');
+      }
     }
 
     start();
     return () => {
       stopped = true;
+      try {
+        zxing?.reset();
+      } catch { /* allaqachon to'xtagan */ }
       stream?.getTracks().forEach((tr) => tr.stop());
       trackRef.current = null;
     };
