@@ -3,6 +3,7 @@ import { api, fmt, Customer, ReminderMode, RemindersInfo } from '../api';
 import { AppIcon, Glyph } from '../icons';
 import { NavBar, EmptyState, Segmented } from '../ui';
 import { useT } from '../i18n';
+import { toast } from '../toast';
 
 // Eslatmalar: rejim sozlamalari va yuborilganlar jurnali
 
@@ -47,7 +48,7 @@ export default function Reminders({ onBack }: { onBack: () => void }) {
 
   async function setDefault(mode: ReminderMode, applyToAll: boolean) {
     await api.setReminderDefault(mode, applyToAll);
-    setMessage(applyToAll ? t('appliedToAll') : t('defaultSaved'));
+    toast.success(applyToAll ? t('appliedToAll') : t('defaultSaved'));
     load();
   }
 
@@ -59,7 +60,8 @@ export default function Reminders({ onBack }: { onBack: () => void }) {
 
   async function checkNow() {
     const res = await api.runReminders();
-    setMessage(res.created > 0 ? `${res.created} ${t('remindersQueued')}` : t('noRemindersNow'));
+    if (res.created > 0) toast.success(`${res.created} ${t('remindersQueued')}`);
+    else toast.info(t('noRemindersNow'));
     load();
   }
 

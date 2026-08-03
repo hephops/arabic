@@ -4,6 +4,7 @@ import { AppIcon, Glyph } from '../icons';
 import { SubHeader, EmptyState } from '../ui';
 import { useT, LANG_NAMES, group, type Lang } from '../i18n';
 import { formatCard, cardDigits, formatPhone, maskCard, formatAmount, amountValue } from '../format';
+import { toast } from '../toast';
 
 // iOS Sozlamalar uslubidagi kabinet: asosiy ekranda qatorlar,
 // har biri o'z ichki ekraniga ochiladi.
@@ -169,7 +170,7 @@ function BalanceView({ shop, balance, onBack, reload }: { shop: Shop; balance: B
     }
     try {
       await api.topup(value);
-      setMessage(`${t('topup')}: +${fmt(value)}`);
+      toast.success(t('topup'), `+${fmt(value)}`);
       setAmount('');
       reload();
     } catch (e: any) {
@@ -229,7 +230,7 @@ function PlanView({ shop, balance, onBack, reload }: { shop: Shop; balance: Bala
     setMessage('');
     try {
       await api.subscribe(plan);
-      setMessage(t('planActivated'));
+      toast.success(t('planActivated'));
       reload();
     } catch (e: any) {
       setError(e.message === 'insufficient_balance' ? t('insufficientBalance') : t('error') + ': ' + e.message);
@@ -294,7 +295,7 @@ function ShopView({ shop, onBack, reload }: { shop: Shop; onBack: () => void; re
     setError('');
     try {
       await api.updateMe(form);
-      setMessage(t('saved'));
+      toast.success(t('saved'));
       reload();
     } catch (e: any) {
       setError(t('error') + ': ' + e.message);
@@ -408,6 +409,7 @@ function EmployeesView({ shopPhone, onBack }: { shopPhone: string; onBack: () =>
       return;
     }
     await api.createEmployee({ name: name.trim(), pin });
+    toast.success(t('toastEmployeeAdded'), name.trim());
     setName('');
     setPin('');
     setAdding(false);
@@ -533,6 +535,7 @@ function EmployeeCard({
                 onClick={() => {
                   navigator.clipboard?.writeText(employee.pin!);
                   setCopied(true);
+                  toast.info(t('toastCopied'), employee.pin);
                 }}
               >
                 {copied ? t('copied') : t('copy')}

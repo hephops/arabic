@@ -4,6 +4,7 @@ import { AppIcon, Glyph } from '../icons';
 import { SubHeader, Summary, EmptyState } from '../ui';
 import { useT } from '../i18n';
 import { formatAmount } from '../format';
+import { toast } from '../toast';
 
 // "Men qarzdorman" — postavshiklar (ta'minotchilar) daftari
 
@@ -38,6 +39,7 @@ export default function Suppliers({ onBack }: { onBack: () => void }) {
       note: form.note || undefined,
       due_date: form.due || undefined,
     });
+    toast.success(t('toastSupplierSaved'), `${form.name.trim()} · ${fmt(amount)}`);
     setForm({ name: '', amount: '', note: '', due: '' });
     setAdding(false);
     load();
@@ -47,6 +49,7 @@ export default function Suppliers({ onBack }: { onBack: () => void }) {
     const amount = parseInt(payAmount.replace(/\D/g, ''), 10);
     if (!amount) return;
     await api.paySupplierDebt(debtId, amount);
+    toast.success(t('toastPaymentSaved'), fmt(amount));
     setPayFor(null);
     setPayAmount('');
     if (selected) setSelected(await api.supplier(selected.id));

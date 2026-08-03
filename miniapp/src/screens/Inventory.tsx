@@ -5,6 +5,7 @@ import { NavBar, Summary, EmptyState, Segmented } from '../ui';
 import { useT } from '../i18n';
 import Scanner from '../Scanner';
 import { formatAmount } from '../format';
+import { toast } from '../toast';
 
 // Ombor: mahsulotlar ro'yxati, tahrirlash va inventarizatsiya
 
@@ -172,6 +173,7 @@ function ProductEdit({ product, onBack, onSaved }: { product: Product; onBack: (
     setError('');
     try {
       await api.attachBarcode(product.id!, clean);
+      toast.success(t('toastCodeAdded'), clean);
       setNewCode('');
       loadCodes();
     } catch (e: any) {
@@ -204,6 +206,7 @@ function ProductEdit({ product, onBack, onSaved }: { product: Product; onBack: (
       expiry_date: form.expiry_date || null,
       image: image ?? undefined,
     } as any);
+    toast.success(t('toastProductSaved'), form.name.trim());
     onSaved();
   }
 
@@ -211,9 +214,10 @@ function ProductEdit({ product, onBack, onSaved }: { product: Product; onBack: (
     if (!confirm(t('deleteConfirm'))) return;
     try {
       await api.deleteProduct(product.id!);
+      toast.info(t('toastProductDeleted'), product.name);
       onSaved();
     } catch (e: any) {
-      setError(e.message === 'has_sales' ? t('hasSales') : t('error'));
+      toast.error(e.message === 'has_sales' ? t('hasSales') : t('error'));
     }
   }
 
@@ -251,6 +255,7 @@ function ProductEdit({ product, onBack, onSaved }: { product: Product; onBack: (
                 className="chip"
                 onClick={async () => {
                   await api.removeBarcode(product.id!, c.barcode).catch(() => {});
+                  toast.info(t('toastCodeRemoved'), c.barcode);
                   loadCodes();
                 }}
               >

@@ -14,6 +14,7 @@ import Inventory from './screens/Inventory';
 import Reminders from './screens/Reminders';
 import QuickActions from './QuickActions';
 import InstallPrompt from './InstallPrompt';
+import { ToastHost } from './toast';
 import { useT } from './i18n';
 import { setBackButton, haptic } from './telegram';
 
@@ -67,6 +68,7 @@ export default function App() {
     <>
       {/* Ichki ekranlar o'z navigatsiya panelini chizadi */}
       {!sub && <NavBar title={TITLES[tab]} />}
+      <ToastHost />
       <InstallPrompt />
 
       {sub === 'suppliers' && <Suppliers onBack={() => setSub(null)} />}

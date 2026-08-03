@@ -5,6 +5,7 @@ import { NavBar } from '../ui';
 import { useT, LANG_NAMES, type Lang } from '../i18n';
 import { MODES } from './Reminders';
 import { formatAmount, formatPhoneSoft, phoneStore } from '../format';
+import { toast } from '../toast';
 
 export default function Customers() {
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -44,6 +45,7 @@ export default function Customers() {
     const amount = parseInt(payAmount.replace(/\D/g, ''), 10);
     if (!amount) return;
     await api.payDebt(debtId, amount);
+    toast.success(t('toastPaymentSaved'), fmt(amount));
     setPayFor(null);
     setPayAmount('');
     if (selected) openCustomer(selected.id);
@@ -64,6 +66,7 @@ export default function Customers() {
       note: debtForm.note || undefined,
       due_date: debtForm.due || undefined,
     });
+    toast.success(t('toastDebtSaved'), `${selected.name} · ${fmt(amount)}`);
     setDebtForm({ amount: '', note: '', due: '' });
     setMode('view');
     openCustomer(selected.id);
@@ -79,6 +82,7 @@ export default function Customers() {
       language: editForm.language,
       reminder_mode: editForm.reminder_mode as ReminderMode,
     } as any);
+    toast.success(t('saved'), editForm.name.trim());
     setMode('view');
     openCustomer(selected.id);
     load();
@@ -88,11 +92,13 @@ export default function Customers() {
     if (!selected) return;
     if (!confirm(t('deleteConfirm'))) return;
     try {
+      const name = selected.name;
       await api.deleteCustomer(selected.id);
+      toast.info(t('toastCustomerDeleted'), name);
       setSelected(null);
       load();
     } catch (e: any) {
-      setError(e.message === 'has_open_debts' ? t('hasOpenDebts') : t('error'));
+      toast.error(e.message === 'has_open_debts' ? t('hasOpenDebts') : t('error'));
     }
   }
 
@@ -273,6 +279,7 @@ export default function Customers() {
             onClick={async () => {
               if (!newName.trim()) return;
               await api.createCustomer({ name: newName.trim(), phone: newPhone.trim() || undefined });
+              toast.success(t('toastCustomerAdded'), newName.trim());
               setNewName('');
               setNewPhone('');
               setAdding(false);

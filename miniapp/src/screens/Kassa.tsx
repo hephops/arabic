@@ -5,6 +5,7 @@ import Scanner from '../Scanner';
 import { haptic } from '../telegram';
 import { useT } from '../i18n';
 import { formatAmount, amountValue } from '../format';
+import { toast } from '../toast';
 
 interface CartLine {
   product: Product;
@@ -56,21 +57,17 @@ function HistoryMode() {
   const { t } = useT();
   const [sales, setSales] = useState<SaleRow[]>([]);
   const [detail, setDetail] = useState<SaleDetail | null>(null);
-  const [message, setMessage] = useState('');
-  const [error, setError] = useState('');
 
   useEffect(() => {
     api.sales(50).then(setSales).catch(() => {});
   }, []);
 
   async function sendReceipt(id: number) {
-    setError('');
-    setMessage('');
     try {
       await api.sendReceipt(id);
-      setMessage(t('receiptSent'));
+      toast.success(t('receiptSent'));
     } catch (e: any) {
-      setError(
+      toast.error(
         e.message === 'no_customer' ? t('receiptNoCustomer') : e.message === 'no_phone' ? t('receiptNoPhone') : t('error')
       );
     }
@@ -107,8 +104,6 @@ function HistoryMode() {
           <button className="btn-primary" onClick={() => sendReceipt(detail.id)}>
             <Glyph name="note" size={17} color="#fff" /> {t('sendReceipt')}
           </button>
-          {message && <p className="hint center">{message}</p>}
-          {error && <p className="error">{error}</p>}
         </div>
       </>
     );
@@ -154,8 +149,6 @@ function SaleMode({ onDone }: { onDone: () => void }) {
   const [cart, setCart] = useState<CartLine[]>([]);
   const [payment, setPayment] = useState<'cash' | 'card' | 'debt'>('cash');
   const [customerName, setCustomerName] = useState('');
-  const [message, setMessage] = useState('');
-  const [error, setError] = useState('');
   const [scanning, setScanning] = useState(false);
   // Skanerda topilmagan kod: mahsulot tanlansa, kod o'shanga biriktiriladi
   const [pendingCode, setPendingCode] = useState<string | null>(null);
@@ -178,7 +171,6 @@ function SaleMode({ onDone }: { onDone: () => void }) {
 
   /** Skaner yoki qo'lda kiritilgan kod: topilsa savatga, topilmasa biriktirishga taklif */
   async function handleCode(code: string) {
-    setError('');
     try {
       const res = await api.lookupBarcode(code);
       if (res.product) {
@@ -187,7 +179,7 @@ function SaleMode({ onDone }: { onDone: () => void }) {
         return;
       }
       // Topilmadi — kodni eslab qolamiz va nom bo'yicha qidirishga o'tkazamiz
-      haptic.error();
+      toast.error(t('toastNotFound'), res.code);
       setPendingCode(res.code);
       setQuery('');
       if (res.catalog) {
@@ -197,45 +189,51 @@ function SaleMode({ onDone }: { onDone: () => void }) {
         setResults([]);
       }
     } catch (e: any) {
-      setError(t('error') + ': ' + e.message);
+      toast.error(t('error'), e.message);
     }
   }
 
   async function addToCart(p: Product) {
-    haptic.tap();
     // Kod topilmay, foydalanuvchi mahsulotni o'zi tanlagan bo'lsa — kodni biriktiramiz
     if (pendingCode && p.id) {
       try {
         await api.attachBarcode(p.id, pendingCode);
-        setMessage(t('barcodeAttached').replace('{name}', p.name));
+        toast.success(t('barcodeAttached').replace('{name}', p.name), pendingCode);
       } catch (e: any) {
-        if (e.message === 'barcode_taken') setError(t('barcodeTaken'));
+        if (e.message === 'barcode_taken') toast.error(t('barcodeTaken'));
       }
       setPendingCode(null);
     }
+    let qty = 1;
     setCart((prev) => {
       const existing = prev.find((l) => l.product.id === p.id);
-      if (existing) return prev.map((l) => (l.product.id === p.id ? { ...l, qty: l.qty + 1 } : l));
+      if (existing) {
+        qty = existing.qty + 1;
+        return prev.map((l) => (l.product.id === p.id ? { ...l, qty } : l));
+      }
       return [...prev, { product: p, qty: 1 }];
     });
+    toast.success(p.name, `${qty} ${t('pcs')} · ${fmt(p.sell_price * qty)}`);
     setQuery('');
     setResults([]);
   }
 
   function changeQty(id: number, delta: number) {
+    haptic.tap();
+    const line = cart.find((l) => l.product.id === id);
+    if (!line) return;
+    const qty = line.qty + delta;
+    if (qty <= 0) toast.info(line.product.name, t('toastRemoved'));
     setCart((prev) =>
-      prev
-        .map((l) => (l.product.id === id ? { ...l, qty: l.qty + delta } : l))
-        .filter((l) => l.qty > 0)
+      prev.map((l) => (l.product.id === id ? { ...l, qty } : l)).filter((l) => l.qty > 0)
     );
   }
 
   const total = cart.reduce((s, l) => s + l.product.sell_price * l.qty, 0);
 
   async function checkout() {
-    setError('');
     if (payment === 'debt' && !customerName.trim()) {
-      setError(t('debtNeedsCustomer'));
+      toast.error(t('debtNeedsCustomer'));
       return;
     }
     try {
@@ -244,14 +242,12 @@ function SaleMode({ onDone }: { onDone: () => void }) {
         payment_type: payment,
         customer_name: payment === 'debt' ? customerName.trim() : undefined,
       });
-      haptic.success();
-      setMessage(`${t('saleSaved')}: ${fmt(total)}${payment === 'debt' ? ` (${t('writtenToDebts')})` : ''}`);
+      toast.success(t('saleSaved'), `${fmt(total)}${payment === 'debt' ? ` · ${t('writtenToDebts')}` : ''}`);
       setCart([]);
       setCustomerName('');
       onDone();
     } catch (e: any) {
-      haptic.error();
-      setError(t('error') + ': ' + e.message);
+      toast.error(t('error'), e.message);
     }
   }
 
@@ -393,8 +389,6 @@ function SaleMode({ onDone }: { onDone: () => void }) {
           </button>
         </div>
       )}
-      {message && <p className="hint center">{message}</p>}
-      {error && <p className="error center">{error}</p>}
     </>
   );
 }
@@ -407,8 +401,6 @@ function IntakeMode({ onDone }: { onDone: () => void }) {
   const [qty, setQty] = useState('');
   const [expiry, setExpiry] = useState('');
   const [image, setImage] = useState<string | null>(null);
-  const [message, setMessage] = useState('');
-  const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [codeWarning, setCodeWarning] = useState('');
@@ -447,9 +439,8 @@ function IntakeMode({ onDone }: { onDone: () => void }) {
   }
 
   async function save() {
-    setError('');
     if (!name.trim()) {
-      setError(t('productNameRequired'));
+      toast.error(t('productNameRequired'));
       return;
     }
     setBusy(true);
@@ -463,13 +454,12 @@ function IntakeMode({ onDone }: { onDone: () => void }) {
         expiry_date: expiry || undefined,
         image: image ?? undefined,
       });
-      haptic.success();
-      setMessage(`✓ "${product.name}" — ${t('stock')}: ${product.stock}`);
+      toast.success(t('toastIntakeSaved'), `${product.name} · ${t('toastStockLeft')}: ${product.stock} ${product.unit}`);
       // forma yopilmaydi — keyingi tovarga tayyor turadi
       setBarcode(''); setName(''); setCostPrice(''); setSellPrice(''); setQty(''); setExpiry(''); setImage(null);
       onDone();
     } catch (e: any) {
-      setError(t('error') + ': ' + e.message);
+      toast.error(t('error'), e.message);
     } finally {
       setBusy(false);
     }
@@ -570,8 +560,6 @@ function IntakeMode({ onDone }: { onDone: () => void }) {
       <button className="btn-primary btn-lg" onClick={save} disabled={busy || !name.trim()}>
         <Glyph name="check" size={19} color="#fff" /> {t('saveIntake')}
       </button>
-      {message && <p className="hint center">{message}</p>}
-      {error && <p className="error center">{error}</p>}
     </>
   );
 }

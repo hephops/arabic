@@ -4,6 +4,7 @@ import { Glyph } from '../icons';
 import { haptic } from '../telegram';
 import { useT } from '../i18n';
 import { formatAmount, amountValue } from '../format';
+import { toast } from '../toast';
 
 // Qarz yozishning ikki yo'li teng: ovoz bilan va qo'lda.
 // Ovoz: brauzer SpeechRecognition. Ishlamasa — sabab aniq aytiladi va
@@ -145,7 +146,7 @@ function VoiceMode({ onDone }: { onDone: () => void }) {
         due_date: parsed.due_date ?? undefined,
         source: 'voice',
       });
-      haptic.success();
+      toast.success(t('toastDebtSaved'), `${parsed.customer_name} · ${fmt(parsed.amount)}`);
       onDone();
     } catch (e: any) {
       setError(t('error') + ': ' + e.message);
@@ -253,7 +254,7 @@ function ManualMode({ onDone }: { onDone: () => void }) {
         due_date: dueDate || undefined,
         source: 'manual',
       });
-      haptic.success();
+      toast.success(t('toastDebtSaved'), `${name.trim()} · ${fmt(value)}`);
       onDone();
     } catch (e: any) {
       setError(t('error') + ': ' + e.message);
