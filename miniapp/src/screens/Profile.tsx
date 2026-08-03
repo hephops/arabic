@@ -127,6 +127,10 @@ function BalanceView({ shop, balance, onBack, reload }: { shop: Shop; balance: B
     const value = parseInt(amount.replace(/\D/g, ''), 10);
     if (!value) return;
     setError('');
+    if (value < balance.min_topup) {
+      setError(`Minimal to'ldirish summasi: ${fmt(balance.min_topup)}`);
+      return;
+    }
     try {
       await api.topup(value);
       setMessage(`Balans to'ldirildi: +${fmt(value)}`);
@@ -148,14 +152,8 @@ function BalanceView({ shop, balance, onBack, reload }: { shop: Shop; balance: B
 
       <div className="section-title">To'ldirish</div>
       <div className="card">
-        <input value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="numeric" placeholder="Summa (so'm)" />
-        <div className="chip-row">
-          {[50000, 99000, 199000, 500000].map((a) => (
-            <button key={a} className={`chip ${amount === String(a) ? 'selected' : ''}`} onClick={() => setAmount(String(a))}>
-              {new Intl.NumberFormat('uz-UZ').format(a)}
-            </button>
-          ))}
-        </div>
+        <input value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="numeric" placeholder="Summani yozing (so'm)" />
+        <p className="hint" style={{ marginTop: 0 }}>Minimal summa: {fmt(balance.min_topup)}</p>
         <button className="btn-primary" onClick={doTopup} disabled={!amount}>
           To'ldirish — Payme / Click / Uzum
         </button>

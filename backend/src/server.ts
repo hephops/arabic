@@ -66,18 +66,25 @@ const PLANS: Record<string, { price: number; title: string }> = {
   business: { price: 199_000, title: 'Biznes' },
 };
 
+function getSetting(key: string, fallback: string): string {
+  const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(key) as any;
+  return row?.value ?? fallback;
+}
+
 app.get('/balance', { preHandler: requireAuth }, async (req) => {
   const shop = db.prepare('SELECT balance, plan, plan_expires_at FROM shops WHERE id = ?').get(req.shopId) as any;
   const transactions = db
     .prepare('SELECT * FROM balance_transactions WHERE shop_id = ? ORDER BY created_at DESC LIMIT 50')
     .all(req.shopId);
-  return { ...shop, transactions, plans: PLANS };
+  return { ...shop, transactions, plans: PLANS, min_topup: Number(getSetting('min_topup_amount', '10000')) };
 });
 
 // DEV: to'ldirish darhol o'tadi. PROD: Payme/Click/Uzum to'lov oqimi orqali.
 app.post<{ Body: { amount: number } }>('/balance/topup', { preHandler: requireAuth }, async (req, reply) => {
   const amount = Math.round(req.body.amount);
   if (!amount || amount <= 0) return reply.code(400).send({ error: 'amount_required' });
+  const minTopup = Number(getSetting('min_topup_amount', '10000'));
+  if (amount < minTopup) return reply.code(400).send({ error: 'below_minimum', min: minTopup });
   db.prepare('UPDATE shops SET balance = balance + ? WHERE id = ?').run(amount, req.shopId);
   db.prepare("INSERT INTO balance_transactions (shop_id, type, amount, note) VALUES (?, 'topup', ?, ?)").run(
     req.shopId,

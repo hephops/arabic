@@ -129,7 +129,7 @@ Do'konchi hisobotlarni titkilamasdan, savolini **ovoz bilan (yoki yozib)** so'ra
 
 ### 3.7. Obuna va to'lov — balansli model
 Obuna **balans orqali** ishlaydi (telefon hisobi kabi):
-- Do'konchi **balansiga pul tashlaydi** (Payme / Click / Uzum orqali, istalgan summa).
+- Do'konchi **balansiga pul tashlaydi** (Payme / Click / Uzum orqali) — summani **o'zi yozadi** (tayyor variantlar yo'q); **minimal to'ldirish summasi admin panelda belgilanadi** va tizim shu chegarani talab qiladi.
 - Obuna haqi (oylik) **balansdan avtomatik yechiladi**; balans yetmasa — to'ldirishni so'raydi.
 - **Balans doim ko'rinib turadi:** ilova yuqorisida (header'da) va kabinetda.
 - Kabinetda balans tarixi: har bir to'ldirish (+) va yechim (−) sanasi bilan.
@@ -270,6 +270,7 @@ Srok kiritilgan mahsulotlar bo'yicha tizim avtomatik kuzatib boradi:
 - To'lovlar jurnali: kim, qachon, qancha, qaysi tizim orqali (Payme/Click/Uzum).
 - Promo-kodlar va chegirmalar yaratish.
 - **Referal dastur boshqaruvi:** bonus miqdori va shartlarini sozlash, referal statistikasi (kim nechta olib keldi), suiiste'molni aniqlash va bloklash.
+- **Balans sozlamalari:** minimal to'ldirish summasini belgilash (do'konchi ilovada shu chegaradan kam summa kirita olmaydi), balans harakatlari monitoringi.
 
 ### 6.4. AI qo'ng'iroq va xabarlar monitoringi
 - Qo'ng'iroqlar jurnali: kimga, qachon, natija (ko'tardi / ko'tarmadi / band), yozib olingan audio.

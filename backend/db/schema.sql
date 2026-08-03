@@ -15,6 +15,13 @@ CREATE TABLE IF NOT EXISTS shops (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- Tizim sozlamalari (admin panel boshqaradi)
+CREATE TABLE IF NOT EXISTS settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+INSERT OR IGNORE INTO settings (key, value) VALUES ('min_topup_amount', '10000');
+
 -- Balans harakatlari: to'ldirish va obuna yechimlari
 CREATE TABLE IF NOT EXISTS balance_transactions (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

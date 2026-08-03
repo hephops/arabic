@@ -90,6 +90,7 @@ export interface Shop {
 
 export interface BalanceInfo {
   balance: number;
+  min_topup: number;
   plan: string;
   plan_expires_at: string | null;
   transactions: { id: number; type: string; amount: number; note: string | null; created_at: string }[];
