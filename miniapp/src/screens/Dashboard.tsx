@@ -85,6 +85,61 @@ export default function Dashboard({
         </>
       )}
 
+      {data.recent_sales.length > 0 && (
+        <>
+          <div className="section-title">{t('recentSales')}</div>
+          <div className="list-group">
+            {data.recent_sales.map((s) => (
+              <div className="list-item" key={s.id} onClick={() => onNavigate('reports')}>
+                <div className="lead">
+                  <AppIcon
+                    glyph={s.payment_type === 'debt' ? 'note' : s.payment_type === 'card' ? 'card' : 'banknote'}
+                    color={s.payment_type === 'debt' ? 'yellow' : s.payment_type === 'card' ? 'indigo' : 'green'}
+                    size={29}
+                  />
+                  <div style={{ minWidth: 0 }}>
+                    <div className="name" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {s.items ?? '—'}
+                    </div>
+                    <div className="sub">
+                      {s.created_at.slice(5, 16)} ·{' '}
+                      {s.payment_type === 'cash' ? t('payCash') : s.payment_type === 'card' ? t('payCard') : t('payDebt')}
+                      {s.customer_name ? ` · ${s.customer_name}` : ''}
+                    </div>
+                  </div>
+                </div>
+                <div className="amount">{fmt(s.total)}</div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {data.supplier_due.length > 0 && (
+        <>
+          <div className="section-title">{t('myDebtsSection')}</div>
+          <div className="list-group">
+            {data.supplier_due.map((s) => (
+              <div className="list-item" key={s.id} onClick={() => onNavigate('suppliers')}>
+                <div className="lead">
+                  <AppIcon glyph="truck" color={s.status === 'overdue' ? 'red' : 'amber'} size={29} />
+                  <div>
+                    <div className="name">{s.supplier_name}</div>
+                    <div className="sub">
+                      {s.note ? `${s.note} · ` : ''}
+                      {s.due_date ? `${t('dueDate')}: ${s.due_date}` : ''}
+                    </div>
+                  </div>
+                </div>
+                <div className="amount" style={{ color: s.status === 'overdue' ? 'var(--red)' : undefined }}>
+                  {fmt(s.amount - s.paid_amount)}
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
       {data.low_stock.length > 0 && (
         <>
           <div className="section-title">{t('lowStock')}</div>
@@ -115,9 +170,10 @@ export default function Dashboard({
         </>
       )}
 
-      {data.overdue.length === 0 && data.due_today.length === 0 && (
-        <div className="empty">{t('noDueToday')}</div>
-      )}
+      {data.overdue.length === 0 &&
+        data.due_today.length === 0 &&
+        data.recent_sales.length === 0 &&
+        data.supplier_due.length === 0 && <div className="empty">{t('noDueToday')}</div>}
 
       <button className="fab-voice" onClick={onOpenAdd} title="Qarz qo'shish">
         <Glyph name="mic" size={26} color="#fff" strokeWidth={2} />

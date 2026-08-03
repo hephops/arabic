@@ -80,6 +80,10 @@ const UZ: Record<string, string> = {
   lowStock: 'Kam qolgan tovarlar',
   expiringSoon: 'Srogi yaqin',
   noDueToday: "Bugun muddati keladigan qarz yo'q",
+  recentSales: 'Oxirgi sotuvlar',
+  myDebtsSection: 'Postavshiklarga qarzim',
+  noSalesYet: "Hozircha sotuv yo'q",
+  allSales: 'Barchasi',
 
   // Mijozlar
   addCustomer: "Mijoz qo'shish",
@@ -320,6 +324,10 @@ const RU: Record<string, string> = {
   lowStock: 'Заканчивается товар',
   expiringSoon: 'Скоро истекает срок',
   noDueToday: 'На сегодня сроков нет',
+  recentSales: 'Последние продажи',
+  myDebtsSection: 'Мой долг поставщикам',
+  noSalesYet: 'Продаж пока нет',
+  allSales: 'Все',
 
   addCustomer: 'Добавить клиента',
   phoneForReminders: 'Телефон (для напоминаний)',

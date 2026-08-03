@@ -212,6 +212,25 @@ export interface Sale {
   payment_type: string;
 }
 
+export interface RecentSale {
+  id: number;
+  total: number;
+  payment_type: 'cash' | 'card' | 'debt';
+  created_at: string;
+  customer_name: string | null;
+  items: string | null;
+}
+
+export interface SupplierDue {
+  id: number;
+  amount: number;
+  paid_amount: number;
+  due_date: string | null;
+  status: string;
+  note: string | null;
+  supplier_name: string;
+}
+
 export interface Dashboard {
   owed_to_me: number;
   i_owe: number;
@@ -220,6 +239,8 @@ export interface Dashboard {
   overdue: (Debt & { customer_name: string })[];
   low_stock: Product[];
   expiring_soon: Product[];
+  recent_sales: RecentSale[];
+  supplier_due: SupplierDue[];
 }
 
 export interface Report {

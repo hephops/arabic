@@ -142,6 +142,27 @@ app.get('/dashboard', { preHandler: requireAuth }, async (req) => {
        AND expiry_date <= date('now', '+7 days') ORDER BY expiry_date ASC LIMIT 10`
     )
     .all(req.shopId);
+  // Oxirgi sotuvlar — mahsulot nomlari bilan
+  const recentSales = db
+    .prepare(
+      `SELECT s.id, s.total, s.payment_type, s.created_at, c.name AS customer_name,
+              (SELECT GROUP_CONCAT(p.name || ' ×' || CAST(si.qty AS INTEGER), ', ')
+               FROM sale_items si JOIN products p ON p.id = si.product_id
+               WHERE si.sale_id = s.id) AS items
+       FROM sales s LEFT JOIN customers c ON c.id = s.customer_id
+       WHERE s.shop_id = ? ORDER BY s.created_at DESC, s.id DESC LIMIT 5`
+    )
+    .all(req.shopId);
+  // Men qarzdorman — postavshiklarga to'lanmagan qarzlar (muddati yaqinlari birinchi)
+  const supplierDue = db
+    .prepare(
+      `SELECT sd.id, sd.amount, sd.paid_amount, sd.due_date, sd.status, sd.note,
+              sup.name AS supplier_name
+       FROM supplier_debts sd JOIN suppliers sup ON sup.id = sd.supplier_id
+       WHERE sd.shop_id = ? AND sd.status != 'paid'
+       ORDER BY (sd.due_date IS NULL), sd.due_date ASC LIMIT 5`
+    )
+    .all(req.shopId);
   return {
     owed_to_me: owedToMe.s,
     i_owe: iOwe.s,
@@ -150,6 +171,8 @@ app.get('/dashboard', { preHandler: requireAuth }, async (req) => {
     overdue,
     low_stock: lowStock,
     expiring_soon: expiringSoon,
+    recent_sales: recentSales,
+    supplier_due: supplierDue,
   };
 });
 
