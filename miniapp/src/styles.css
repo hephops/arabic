@@ -23,7 +23,7 @@ body {
   font-size: 15px;
 }
 
-#root { max-width: 480px; margin: 0 auto; padding-bottom: 84px; }
+#root { max-width: 480px; margin: 0 auto; padding-bottom: 118px; }
 
 .screen { padding: 6px 16px 12px; }
 
@@ -110,22 +110,66 @@ input:focus { box-shadow: 0 0 0 1.5px var(--accent); }
 input::placeholder { color: #b9b9be; }
 label { font-size: 13px; color: var(--muted); display: block; margin: 6px 4px 5px; }
 
-.tabbar {
-  position: fixed; bottom: 0; left: 0; right: 0; max-width: 480px; margin: 0 auto;
-  display: flex;
-  background: rgba(249, 249, 251, 0.97);
-  backdrop-filter: blur(24px) saturate(180%); -webkit-backdrop-filter: blur(24px) saturate(180%);
-  border-top: 0.5px solid var(--separator);
-  padding: 5px 0 max(7px, env(safe-area-inset-bottom));
+/* Suzuvchi dock — iOS uslubida yumaloq panel */
+.dock {
+  position: fixed; bottom: max(12px, env(safe-area-inset-bottom)); left: 50%;
+  transform: translateX(-50%);
+  display: flex; align-items: center; gap: 6px;
+  background: rgba(248, 248, 250, 0.88);
+  backdrop-filter: blur(28px) saturate(180%); -webkit-backdrop-filter: blur(28px) saturate(180%);
+  border-radius: 30px; padding: 14px 16px 10px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.18), 0 0 0 0.5px rgba(0, 0, 0, 0.06);
+  z-index: 50;
 }
-.tabbar button {
-  flex: 1; background: none; color: #999aa0; font-size: 10px; font-weight: 500;
-  padding: 3px 0; display: flex; flex-direction: column; align-items: center; gap: 2px;
+.dock-handle {
+  position: absolute; top: 6px; left: 50%; transform: translateX(-50%);
+  width: 40px; height: 4px; border-radius: 2px; background: #c6c6cb;
+  cursor: pointer; padding: 0;
 }
-.tabbar button.active { color: var(--accent); }
+.dock-handle::before {
+  /* bosish maydonini kengaytirish */
+  content: ''; position: absolute; inset: -8px -20px;
+}
+.dock button.dock-item {
+  background: none; padding: 0 6px;
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+}
+.dock .dot {
+  width: 4px; height: 4px; border-radius: 50%; background: transparent;
+}
+.dock button.active .dot { background: var(--accent); }
+
+/* To'liq ekran menyu (launcher) */
+.launcher {
+  position: fixed; inset: 0; z-index: 200;
+  background: rgba(18, 21, 32, 0.93);
+  backdrop-filter: blur(30px); -webkit-backdrop-filter: blur(30px);
+  overflow-y: auto;
+  padding: 64px 22px 40px;
+  animation: launcherIn 0.18s ease-out;
+}
+@keyframes launcherIn {
+  from { opacity: 0; transform: scale(1.04); }
+  to { opacity: 1; transform: scale(1); }
+}
+.launcher-close {
+  position: absolute; top: 16px; right: 16px;
+  width: 38px; height: 38px; border-radius: 50%;
+  background: rgba(255, 255, 255, 0.18); color: #fff;
+  display: flex; align-items: center; justify-content: center;
+}
+.launcher-grid {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px 10px;
+  max-width: 420px; margin: 0 auto;
+}
+.launcher-item {
+  background: none; display: flex; flex-direction: column; align-items: center; gap: 7px;
+  color: #fff; font-size: 12px; font-weight: 400; text-align: center;
+}
+.launcher-item:active { opacity: 0.6; }
 
 .fab-voice {
-  position: fixed; bottom: 86px; right: calc(50% - 222px); width: 52px; height: 52px;
+  position: fixed; bottom: 118px; right: calc(50% - 222px); width: 52px; height: 52px;
   border-radius: 50%; background: var(--accent); color: #fff;
   box-shadow: 0 4px 14px rgba(0, 122, 255, 0.35);
   display: flex; align-items: center; justify-content: center;

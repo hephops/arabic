@@ -55,8 +55,14 @@ function SubHeader({ title, onBack }: { title: string; onBack: () => void }) {
   );
 }
 
-export default function Profile({ onLogout }: { onLogout: () => void }) {
-  const [view, setView] = useState<View>('main');
+export default function Profile({
+  onLogout,
+  initialView = 'main',
+}: {
+  onLogout: () => void;
+  initialView?: string;
+}) {
+  const [view, setView] = useState<View>(initialView as View);
   const [shop, setShop] = useState<Shop | null>(null);
   const [balance, setBalance] = useState<BalanceInfo | null>(null);
 

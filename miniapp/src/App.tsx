@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { getToken } from './api';
-import { Glyph } from './icons';
+import Dock, { NavTarget } from './Dock';
 import Login from './screens/Login';
 import Dashboard from './screens/Dashboard';
 import Customers from './screens/Customers';
@@ -19,6 +19,7 @@ export default function App() {
   const [tab, setTab] = useState<Tab>('home');
   const [refreshKey, setRefreshKey] = useState(0);
   const [sub, setSub] = useState<SubScreen>(null);
+  const [profileView, setProfileView] = useState<string>('main');
 
   if (!authed) return <Login onLogin={() => setAuthed(true)} />;
 
@@ -54,24 +55,19 @@ export default function App() {
         />
       )}
       {!sub && tab === 'kassa' && <Kassa onDone={refresh} />}
-      {!sub && tab === 'profile' && <Profile onLogout={() => setAuthed(false)} />}
+      {!sub && tab === 'profile' && (
+        <Profile key={profileView + refreshKey} initialView={profileView} onLogout={() => setAuthed(false)} />
+      )}
 
-      <nav className="tabbar">
-        {(
-          [
-            ['home', 'house', 'houseFill', 'Bosh'],
-            ['customers', 'people', 'peopleFill', 'Mijozlar'],
-            ['add', 'plusCircle', 'plusCircleFill', 'Qarz'],
-            ['kassa', 'cart', 'cartFill', 'Kassa'],
-            ['profile', 'person', 'personFill', 'Profil'],
-          ] as [Tab, string, string, string][]
-        ).map(([id, glyph, glyphActive, label]) => (
-          <button key={id} className={tab === id && !sub ? 'active' : ''} onClick={() => { setSub(null); setTab(id); }}>
-            <Glyph name={tab === id ? glyphActive : glyph} size={25} />
-            {label}
-          </button>
-        ))}
-      </nav>
+      <Dock
+        tab={tab}
+        active={!sub}
+        onNavigate={(target: NavTarget) => {
+          setSub(target.sub ?? null);
+          if (target.tab) setTab(target.tab);
+          setProfileView(target.profileView ?? 'main');
+        }}
+      />
     </>
   );
 }
