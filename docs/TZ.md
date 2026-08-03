@@ -155,11 +155,23 @@ Mini App ichida mobil ilovaning barcha asosiy ekranlari bo'ladi:
 > Qarz daftari bilan bir ilovada ishlaydigan to'liq savdo hisobi: do'konga tovar kirishi, ombor qoldig'i, narxlar va sotuv — hammasi telefon kamerasi orqali **shtrix-kod skaneri** bilan. Alohida qurilma kerak emas.
 
 ### 5.1. Tovar kirimi (prixod)
-- Tovar keldi → do'konchi telefon kamerasi bilan shtrix-kodni skaner qiladi.
-- Mahsulot bazada bo'lsa — nomi avtomatik chiqadi; bo'lmasa — bir marta qo'lda kiritadi (nomi, birligi: dona/kg/litr), keyingi safar avtomatik tanildi.
-- Kirim narxi (olib kelingan narx) va sotuv narxini kiritadi, sonini yozadi.
-- Umumiy shtrix-kod katalogi: mashhur mahsulotlar (ichimliklar, shirinliklar, kir yuvish vositalari...) markaziy bazada bo'ladi — bir do'konchi kiritgan mahsulot nomi boshqa do'konchilarga ham avtomatik chiqadi (vaqt tejaydi).
-- Shtrix-kodsiz mahsulotlar (non, go'sht, tarozida sotiladiganlar) uchun qo'lda tez tanlov tugmalari.
+
+**Shtrix-kod qanday ishlaydi (muhim tushuntirish):** shtrix-kodning o'zida mahsulot nomi YO'Q — u faqat raqam (masalan `4780000123456`). Nom har doim **bazadan** olinadi:
+
+1. Do'konchi kodni skaner qiladi → tizim raqamni **bazadan qidiradi**.
+2. Topilsa (o'zi oldin kiritgan yoki markaziy katalogda bor) → nomi va narxi avtomatik chiqadi.
+3. Topilmasa → do'konchi nomini **bir marta qo'lda yozadi** (nomi, birligi: dona/kg/litr) → shu koddan keyingi barcha skanerlashda avtomatik chiqadi.
+
+**Markaziy katalog:** bir do'konchi kiritgan mahsulot (kod + nom) umumiy bazaga tushadi — boshqa do'konchi o'sha kodni skaner qilsa, nom tayyor chiqadi. Vaqt o'tgan sari katalog o'zi boyib boradi, yangi do'konchilarga deyarli hamma narsa tayyor bo'ladi.
+
+**Kirim jarayoni:**
+- Skaner (yoki qo'lda) → mahsulot aniqlanadi → kirim narxi, sotuv narxi, soni kiritiladi.
+- **Yaroqlilik muddati (srok) — ixtiyoriy maydon:** mahsulotning srogi bo'lsa (sut, kolbasa, dori...) do'konchi kiritadi; srogi yo'q bo'lsa (sovun, daftar...) — shunchaki o'tkazib yuboradi. Majburiy emas.
+
+**Skaner ishlatishni xohlamasa — hammasi qo'lda ham bo'ladi:**
+- Kod raqamini qo'lda terish (kamera ishlamasa yoki kod yirtilgan bo'lsa).
+- Umuman kodsiz — mahsulotni faqat nomi bilan kiritish.
+- Shtrix-kodsiz mahsulotlar (non, go'sht, tarozida sotiladiganlar) uchun tez tanlov tugmalari.
 
 ### 5.2. Ombor (sklad)
 - Har bir mahsulot: nomi, shtrix-kod, kirim narxi, sotuv narxi, qoldiq soni.
@@ -167,6 +179,15 @@ Mini App ichida mobil ilovaning barcha asosiy ekranlari bo'ladi:
 - **Kam qolgan tovar ogohlantirishi:** qoldiq belgilangan chegaradan tushsa, do'konchiga bildirishnoma — "Coca-Cola 1.5L — 3 dona qoldi, buyurtma bering".
 - Qidiruv: nomi bo'yicha yoki skaner orqali.
 - Inventarizatsiya rejimi: do'konchi javonlarni skaner qilib chiqadi, tizim haqiqiy qoldiq bilan bazadagini solishtirib farqni ko'rsatadi.
+
+### 5.2.1. Yaroqlilik muddati (srok) nazorati
+Srok kiritilgan mahsulotlar bo'yicha tizim avtomatik kuzatib boradi:
+- **Ogohlantirishlar:** srok tugashiga belgilangan kun qolganda (masalan 7 / 3 / 1 kun — sozlanadi) do'konchiga bildirishnoma: *"Sut 'Musaffo' 1L — srogi 3 kundan keyin tugaydi, 12 dona qoldiqda"*.
+- **Srok analitikasi (alohida ekran):**
+  - Srogi yaqinlashgan mahsulotlar ro'yxati (kun bo'yicha saralangan, rang bilan: sariq — yaqin, qizil — o'tgan).
+  - Srogi o'tgan mahsulotlar — javondan olish kerak bo'lganlar.
+  - Srok tufayli hisobdan chiqarilgan tovarlar va ulardan ko'rilgan **zarar summasi** (oylik hisobotda).
+- Maqsad: do'konchi srogi yaqin tovarni chegirma bilan tezroq sotib yuborishi yoki keyingi safar kamroq olib kelishi mumkin — pul yo'qotmaydi.
 
 ### 5.3. Kassa (sotuv rejimi)
 - Katta "Sotuv" tugmasi → skaner ochiladi → mahsulotlarni ketma-ket skaner qiladi (supermarket kassasi kabi).
