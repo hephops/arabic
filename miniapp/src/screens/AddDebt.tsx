@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { api } from '../api';
+import { Glyph } from '../icons';
 
 // Ovozli kiritish: brauzer SpeechRecognition (Telegram webview'da bor/yo'qligiga qarab)
 // bo'lmasa — matn yozib parse qilinadi. PROD: audio -> backend -> Mohir.ai STT.
@@ -94,10 +95,10 @@ export default function AddDebt({ onDone }: { onDone: () => void }) {
     <div className="screen">
       <div className="chip-row">
         <button className={`chip ${mode === 'voice' ? 'selected' : ''}`} onClick={() => setMode('voice')}>
-          🎤 Ovoz bilan
+          <Glyph name="mic" size={16} /> Ovoz bilan
         </button>
         <button className={`chip ${mode === 'manual' ? 'selected' : ''}`} onClick={() => setMode('manual')}>
-          ✍️ Qo'lda
+          <Glyph name="pencil" size={16} /> Qo'lda
         </button>
       </div>
 
@@ -110,7 +111,7 @@ export default function AddDebt({ onDone }: { onDone: () => void }) {
               style={{ background: listening ? 'var(--red)' : 'var(--accent)' }}
               onClick={startListening}
             >
-              {listening ? '🔴 Eshityapman...' : '🎤 Gapiring'}
+              {listening ? 'Eshityapman...' : <><Glyph name="mic" size={18} color="#fff" strokeWidth={2.2} /> Gapiring</>}
             </button>
           </div>
           <label>Yoki yozing</label>
@@ -126,14 +127,14 @@ export default function AddDebt({ onDone }: { onDone: () => void }) {
           {parsed && (
             <div className="card" style={{ marginTop: 12 }}>
               <div className="section-title">Tasdiqlang</div>
-              <div className="list-item" style={{ background: 'var(--bg2)' }}>
-                <div className="name">👤 {parsed.customer_name}</div>
+              <div className="list-item" style={{ background: 'var(--bg)', borderRadius: 10 }}>
+                <div className="name">{parsed.customer_name}</div>
               </div>
               <div className="big-amount">{new Intl.NumberFormat('uz-UZ').format(parsed.amount)} so'm</div>
               {parsed.due_date && <p className="center hint">Muddat: {parsed.due_date}</p>}
               {parsed.note && <p className="center hint">Izoh: {parsed.note}</p>}
               <button className="btn-primary" onClick={saveParsed} disabled={busy}>
-                ✅ Saqlash
+                <Glyph name="check" size={18} color="#fff" strokeWidth={2.4} /> Saqlash
               </button>
             </div>
           )}
@@ -156,7 +157,7 @@ export default function AddDebt({ onDone }: { onDone: () => void }) {
           <label>Muddat (ixtiyoriy)</label>
           <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
           <button className="btn-primary" onClick={saveManual} disabled={busy}>
-            ✅ Qarz yozish
+            <Glyph name="check" size={18} color="#fff" strokeWidth={2.4} /> Qarz yozish
           </button>
         </>
       )}

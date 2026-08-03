@@ -1,9 +1,16 @@
 import Fastify from 'fastify';
+import { mkdirSync, writeFileSync, existsSync, readFileSync } from 'node:fs';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { db, markOverdueDebts } from './db.js';
 import { signToken, requireAuth } from './auth.js';
 import { parseDebtText } from './voice.js';
 
-const app = Fastify({ logger: true });
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const UPLOADS_DIR = join(__dirname, '..', 'uploads');
+mkdirSync(UPLOADS_DIR, { recursive: true });
+
+const app = Fastify({ logger: true, bodyLimit: 10 * 1024 * 1024 });
 
 // CORS (Mini App va admin panel boshqa domendan keladi)
 app.addHook('onSend', async (_req, reply) => {
@@ -239,11 +246,11 @@ app.get<{ Querystring: { q?: string; barcode?: string } }>('/products', { preHan
   return db.prepare('SELECT * FROM products WHERE shop_id = ? ORDER BY name').all(req.shopId);
 });
 
-app.post<{ Body: { barcode?: string; name: string; unit?: string; cost_price?: number; sell_price?: number; qty?: number; expiry_date?: string } }>(
+app.post<{ Body: { barcode?: string; name: string; unit?: string; cost_price?: number; sell_price?: number; qty?: number; expiry_date?: string; image?: string } }>(
   '/products/intake',
   { preHandler: requireAuth },
   async (req, reply) => {
-    const { barcode, name, unit, cost_price, sell_price, qty, expiry_date } = req.body;
+    const { barcode, name, unit, cost_price, sell_price, qty, expiry_date, image } = req.body;
     if (!name?.trim()) return reply.code(400).send({ error: 'name_required' });
     let product = barcode
       ? (db.prepare('SELECT * FROM products WHERE shop_id = ? AND barcode = ?').get(req.shopId, barcode) as any)
@@ -282,9 +289,48 @@ app.post<{ Body: { barcode?: string; name: string; unit?: string; cost_price?: n
         expiry_date ?? null
       );
     }
+    if (image) {
+      const url = saveImage(image, product.id);
+      if (url) db.prepare('UPDATE products SET image_url = ? WHERE id = ?').run(url, product.id);
+    }
     return db.prepare('SELECT * FROM products WHERE id = ?').get(product.id);
   }
 );
+
+// Mahsulot rasmi: base64 dataURL qabul qilib, faylga saqlaymiz
+function saveImage(dataUrl: string, productId: number): string | null {
+  const match = dataUrl.match(/^data:image\/(png|jpe?g|webp);base64,(.+)$/);
+  if (!match) return null;
+  const ext = match[1] === 'jpeg' ? 'jpg' : match[1];
+  const filename = `product-${productId}.${ext}`;
+  writeFileSync(join(UPLOADS_DIR, filename), Buffer.from(match[2], 'base64'));
+  return `/uploads/${filename}`;
+}
+
+app.post<{ Params: { id: string }; Body: { image: string } }>(
+  '/products/:id/image',
+  { preHandler: requireAuth },
+  async (req, reply) => {
+    const product = db
+      .prepare('SELECT * FROM products WHERE id = ? AND shop_id = ?')
+      .get(req.params.id, req.shopId) as any;
+    if (!product) return reply.code(404).send({ error: 'not_found' });
+    const url = saveImage(req.body.image, product.id);
+    if (!url) return reply.code(400).send({ error: 'invalid_image' });
+    db.prepare('UPDATE products SET image_url = ? WHERE id = ?').run(url, product.id);
+    return db.prepare('SELECT * FROM products WHERE id = ?').get(product.id);
+  }
+);
+
+app.get<{ Params: { file: string } }>('/uploads/:file', async (req, reply) => {
+  const safe = req.params.file.replace(/[^a-zA-Z0-9._-]/g, '');
+  const path = join(UPLOADS_DIR, safe);
+  if (!existsSync(path)) return reply.code(404).send({ error: 'not_found' });
+  const ext = safe.split('.').pop();
+  reply.header('Content-Type', ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg');
+  reply.header('Cache-Control', 'public, max-age=86400');
+  return reply.send(readFileSync(path));
+});
 
 // ---------- KASSA ----------
 app.post<{ Body: { items: { product_id: number; qty: number }[]; payment_type: 'cash' | 'card' | 'debt'; customer_id?: number; customer_name?: string; due_date?: string } }>(

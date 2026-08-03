@@ -1,4 +1,4 @@
-const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
+export const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
 
 export function getToken(): string | null {
   return localStorage.getItem('token');
@@ -58,7 +58,7 @@ export const api = {
     const qs = new URLSearchParams(params as Record<string, string>).toString();
     return request<Product[]>(`/products${qs ? `?${qs}` : ''}`);
   },
-  intake: (data: { barcode?: string; name: string; unit?: string; cost_price?: number; sell_price?: number; qty?: number; expiry_date?: string }) =>
+  intake: (data: { barcode?: string; name: string; unit?: string; cost_price?: number; sell_price?: number; qty?: number; expiry_date?: string; image?: string }) =>
     request<Product>('/products/intake', { method: 'POST', body: JSON.stringify(data) }),
   createSale: (data: { items: { product_id: number; qty: number }[]; payment_type: 'cash' | 'card' | 'debt'; customer_id?: number; customer_name?: string; due_date?: string }) =>
     request<Sale>('/sales', { method: 'POST', body: JSON.stringify(data) }),
@@ -105,6 +105,7 @@ export interface Product {
   sell_price: number;
   stock: number;
   expiry_date: string | null;
+  image_url: string | null;
   from_catalog?: boolean;
 }
 

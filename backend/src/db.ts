@@ -12,6 +12,13 @@ db.pragma('foreign_keys = ON');
 
 db.exec(readFileSync(join(__dirname, '..', 'db', 'schema.sql'), 'utf-8'));
 
+// Yengil migratsiya: eski dev-bazalarga yangi ustunlarni qo'shish
+try {
+  db.exec('ALTER TABLE products ADD COLUMN image_url TEXT');
+} catch {
+  /* ustun allaqachon bor */
+}
+
 // Kechikkan qarzlarni belgilash (har so'rovda emas, startda va cron'da chaqiriladi)
 export function markOverdueDebts() {
   db.prepare(

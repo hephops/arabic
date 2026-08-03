@@ -203,6 +203,7 @@ Mini App ichida mobil ilovaning barcha asosiy ekranlari bo'ladi:
 
 **Kirim jarayoni:**
 - Skaner (yoki qo'lda) → mahsulot aniqlanadi → kirim narxi, sotuv narxi, soni kiritiladi.
+- **Mahsulot rasmi (ixtiyoriy):** do'konchi mahsulotni telefon kamerasida suratga oladi yoki galereyadan tanlaydi — kassada va omborda mahsulot rasm bilan ko'rinadi (topish oson bo'ladi). Rasm avtomatik kichraytiriladi (trafik tejash uchun).
 - **Yaroqlilik muddati (srok) — ixtiyoriy maydon:** mahsulotning srogi bo'lsa (sut, kolbasa, dori...) do'konchi kiritadi; srogi yo'q bo'lsa (sovun, daftar...) — shunchaki o'tkazib yuboradi. Majburiy emas.
 
 **Skaner ishlatishni xohlamasa — hammasi qo'lda ham bo'ladi:**
@@ -303,19 +304,23 @@ Admin panel (React)          ──┘            │
 
 ---
 
-## 8. Dizayn tizimi (logodan kelib chiqqan)
+## 8. Dizayn tizimi — Apple (iOS) uslubi
+
+Butun mahsulot **Apple dizayn tiliga** quriladi: yorug' oq fonlar, guruhlangan oq kartochkalar, iOS'dagi kabi rangli gradient kvadrat (squircle) ikonkalar. **Emoji ishlatilmaydi** — barcha ikonkalar SF Symbols uslubida chizilgan SVG.
 
 | Element | Qiymat |
 |---|---|
-| Asosiy fon (dark) | To'q ko'k-navy gradient: `#0A1228 → #0E1B3A` |
-| Aksent (brend ko'k) | `#2E7CF6` (logodagi doira rangi) |
-| Matn | Oq `#FFFFFF`, ikkilamchi: `#8FA3C8` |
-| Muvaffaqiyat (to'lov qaytdi) | Yashil `#22C55E` |
-| Ogohlantirish (kechikkan qarz) | Qizil `#EF4444` |
-| Shrift | Inter / SF Pro — logodagi kabi qalin, zamonaviy |
-| Uslub | Dark theme asosiy; yumaloq kartochkalar, katta tugmalar (do'konchi qo'li band bo'lsa ham bosishi oson) |
+| Asosiy fon | iOS tizim foni `#F2F2F7` (och kulrang-oq) |
+| Kartochkalar | Oq `#FFFFFF`, radius 14px, yengil soya |
+| Aksent | iOS blue `#007AFF` (brend ko'kiga mos) |
+| Matn | Qora `#1C1C1E`, ikkilamchi: `#8E8E93` |
+| Muvaffaqiyat | iOS green `#34C759` |
+| Ogohlantirish | iOS red `#FF3B30`, sariq `#FF9500` |
+| Ikonkalar | SF Symbols uslubidagi chiziqli SVG; bo'lim ikonkalari — iOS ilovalari kabi gradientli kvadratlar (yashil/qizil/ko'k/sariq) |
+| Shrift | SF Pro / -apple-system — iOS tizim shrifti |
+| Uslub | iOS guruhlangan ro'yxatlar (inset grouped list), blur'li pastki tab-bar, katta tugmalar |
 
-Logo: ko'k doira ichida oq "A" — ilova ikonkasi va splash-ekranda ishlatiladi.
+Logo: gradient ko'k kvadratda oq "A" — ilova ikonkasi va splash-ekranda. Mahsulotlar ro'yxatlarda **o'z rasmi bilan** ko'rinadi (rasm bo'lmasa — kulrang quti ikonkasi).
 
 ---
 

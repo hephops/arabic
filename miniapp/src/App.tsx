@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { getToken } from './api';
+import { Glyph } from './icons';
 import Login from './screens/Login';
 import Dashboard from './screens/Dashboard';
 import Customers from './screens/Customers';
@@ -44,15 +45,15 @@ export default function App() {
       <nav className="tabbar">
         {(
           [
-            ['home', '🏠', 'Bosh'],
-            ['customers', '👥', 'Mijozlar'],
-            ['add', '➕', 'Qarz'],
-            ['kassa', '🛒', 'Kassa'],
-            ['profile', '⚙️', 'Profil'],
+            ['home', 'house', 'Bosh'],
+            ['customers', 'people', 'Mijozlar'],
+            ['add', 'plus', 'Qarz'],
+            ['kassa', 'cart', 'Kassa'],
+            ['profile', 'person', 'Profil'],
           ] as [Tab, string, string][]
-        ).map(([id, icon, label]) => (
+        ).map(([id, glyph, label]) => (
           <button key={id} className={tab === id ? 'active' : ''} onClick={() => setTab(id)}>
-            <span className="icon">{icon}</span>
+            <Glyph name={glyph} size={24} strokeWidth={tab === id ? 2.1 : 1.7} />
             {label}
           </button>
         ))}

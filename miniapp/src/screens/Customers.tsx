@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api, fmt, Customer, CustomerDetail } from '../api';
+import { AppIcon } from '../icons';
 
 export default function Customers() {
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -78,7 +79,10 @@ export default function Customers() {
 
   return (
     <div className="screen">
-      <div className="section-title">Mijozlar</div>
+      <div className="section-title">
+        <AppIcon glyph="people" color="blue" size={22} /> Mijozlar
+      </div>
+      <div className="list-group">
       {customers.map((c) => (
         <div className="list-item" key={c.id} onClick={() => openCustomer(c.id)}>
           <div>
@@ -90,6 +94,7 @@ export default function Customers() {
           </div>
         </div>
       ))}
+      </div>
       {customers.length === 0 && <div className="empty">Hozircha mijozlar yo'q</div>}
     </div>
   );
