@@ -1,7 +1,9 @@
 # ARABIC.ONE — Texnik Topshiriq (TZ)
 
-**Loyiha:** Do'konchilar uchun raqamli qarz daftari — ovozli kiritish, avtomatik eslatmalar va AI qo'ng'iroq bilan.
-**Platformalar:** Android (APK / Google Play), iOS (App Store), Web Admin Panel.
+**Loyiha:** Do'konchilar uchun raqamli qarz daftari — ovozli va qo'lda kiritish, avtomatik eslatmalar va AI qo'ng'iroq bilan.
+**Platformalar:** Android (APK / Google Play), iOS (App Store), **Telegram bot**, Web Admin Panel.
+
+> **Muhim prinsip:** Mobil ilova va Telegram bot — **teng huquqli ikkita mijoz platformasi**. Do'konchi qaysi biri qulay bo'lsa o'shani ishlataveradi (yoki ikkalasini birga), hamma ma'lumot bitta hisobda sinxron turadi. Qarz kiritish ham ikki usulda teng ishlaydi: **ovoz orqali** va **qo'lda** — ikkalasi ham asosiy usul.
 **Brend:** ARABIC.ONE
 **Versiya:** 1.0 (qoralama)
 
@@ -43,15 +45,22 @@ Do'konchi (savdogar) qog'oz qarz daftarini telefoniga ko'chiradi:
 - Kechikkan qarzlar (qizil belgi bilan).
 - Katta **mikrofon tugmasi** — ovozli kiritish (asosiy funksiya, doim ko'z oldida).
 
-### 3.3. Ovozli qarz kiritish (asosiy "fishka")
+### 3.3. Qarz kiritish — ikki teng usul
+
+**A) Ovoz orqali:**
 - Do'konchi mikrofonni bosib gapiradi: *"Karim akaga 120 ming so'm, shanbagacha"*.
 - Oqim: **Ovoz → STT (matn) → AI tahlil → tayyor yozuv**:
   - Mijoz ismi: Karim aka
   - Summa: 120 000 so'm
   - Muddat: kelasi shanba (aniq sana)
-- Tizim yozuvni **tasdiqlash ekranida** ko'rsatadi — do'konchi "Saqlash" bosadi yoki tahrirlaydi (xato bo'lsa qo'lda to'g'irlaydi).
-- Ovozni tanimasa — qo'lda kiritish formasi ochiladi.
+- Tizim yozuvni **tasdiqlash ekranida** ko'rsatadi — do'konchi "Saqlash" bosadi yoki tahrirlaydi.
 - STT: **Mohir.ai** (o'zbek tili uchun) yoki Google Speech-to-Text; tahlil: LLM (Claude API).
+
+**B) Qo'lda kiritish (ovoz bilan teng darajadagi asosiy usul):**
+- "+" tugmasi → forma: mijoz tanlash (ro'yxatdan yoki yangi qo'shish), summa (katta raqamli klaviatura), izoh (mahsulot nomi, ixtiyoriy), muddat (kalendar yoki tez tanlov: "1 hafta", "oyning oxiri").
+- 3–4 bosishda yozuv tayyor bo'lishi kerak — tezlik asosiy mezon.
+- Tez-tez ishlatiladigan summalar shablon bo'lib chiqadi (10 000 / 50 000 / 100 000).
+- Internet bo'lmasa ham ishlaydi (offline rejim).
 
 ### 3.4. Qarz daftari
 - Mijozlar ro'yxati: ism, telefon, umumiy qarz, oxirgi amaliyot sanasi.
@@ -87,7 +96,39 @@ Do'konchi har bir mijoz/qarz uchun rejimni tanlaydi:
 
 ---
 
-## 4. Admin panel (Web)
+## 4. Telegram Mini App (mobil ilovaga teng platforma)
+
+> Bu oddiy chat-bot emas — **Telegram Mini App**: Telegram ichida ochiladigan to'liq ilova interfeysi (Payme/Uzum botlaridagi kabi). Do'konchi hech narsa o'rnatmasdan, Telegramning o'zida ishlaydi.
+
+### 4.1. Nega Mini App
+- O'zbekistonda deyarli hamma Telegramda — o'rnatish to'sig'i nol.
+- App Store/Google Play moderatsiyasisiz tez yangilanadi.
+- Mobil ilova bilan **bitta backend, bitta hisob** — do'konchi ilovada yozganini botda ko'radi va aksincha.
+
+### 4.2. Kirish
+- Botga `/start` → "Ochish" tugmasi → Mini App ochiladi.
+- Avtorizatsiya Telegram hisobi orqali avtomatik; birinchi kirishda telefon raqamni tasdiqlaydi (mobil ilovadagi hisob bilan bog'lanadi).
+
+### 4.3. Funksionallik — mobil ilova bilan to'liq parite
+Mini App ichida mobil ilovaning barcha asosiy ekranlari bo'ladi:
+- Dashboard: umumiy qarz, bugungi muddatlar, kechikkanlar.
+- Qarz kiritish — **ikkala usul**: ovozli (Telegram voice yozib yuboradi → STT → AI tahlil → tasdiqlash) va qo'lda (forma).
+- Mijozlar ro'yxati, mijoz sahifasi, to'lov qabul qilish.
+- Eslatma sozlamalari, hisobotlar.
+- Obuna to'lash (Payme/Click havolasi orqali).
+
+### 4.4. Bot qismining qo'shimcha imkoniyatlari (Mini App'dan tashqari)
+- Ovozli xabarni to'g'ridan-to'g'ri botga tashlash — Mini App ochmasdan ham qarz yoziladi (eng tez yo'l).
+- Kunlik xulosalar chat ko'rinishida: "Bugun 3 ta qarz muddati keladi".
+- Qarzdorlarga eslatmalar ham Telegram orqali yetkaziladi (agar qarzdor Telegramda bo'lsa — SMS'dan arzon).
+
+### 4.5. Texnologiya
+- Mini App: React + Telegram Web App SDK (dizayn tizimi mobil ilova bilan bir xil — dark navy + brend ko'k).
+- Bot: backend'ning bir moduli (webhook), alohida tizim emas.
+
+---
+
+## 5. Admin panel (Web)
 
 > Texnologiya: React + REST API. Faqat admin/super-admin kiradi (login + parol + 2FA).
 
@@ -122,12 +163,12 @@ Do'konchi har bir mijoz/qarz uchun rejimni tanlaydi:
 
 ---
 
-## 5. Backend arxitektura
+## 6. Backend arxitektura
 
 ```
-Mobil ilova (Flutter)  ──┐
-                         ├──►  REST API (backend)  ──►  PostgreSQL
-Admin panel (React)   ──┘            │
+Mobil ilova (Flutter)        ──┐
+Telegram Mini App (React)    ──┼──►  REST API (backend)  ──►  PostgreSQL
+Admin panel (React)          ──┘            │
                                      ├──►  STT: Mohir.ai / Google STT
                                      ├──►  AI tahlil: Claude API
                                      ├──►  SMS: Eskiz.uz / Play Mobile
@@ -143,7 +184,7 @@ Admin panel (React)   ──┘            │
 
 ---
 
-## 6. Dizayn tizimi (logodan kelib chiqqan)
+## 7. Dizayn tizimi (logodan kelib chiqqan)
 
 | Element | Qiymat |
 |---|---|
@@ -159,18 +200,18 @@ Logo: ko'k doira ichida oq "A" — ilova ikonkasi va splash-ekranda ishlatiladi.
 
 ---
 
-## 7. Bosqichlar (roadmap)
+## 8. Bosqichlar (roadmap)
 
 | Bosqich | Muddat (taxminiy) | Nima chiqadi |
 |---|---|---|
-| **1. MVP** | 4–6 hafta | Mobil ilova: ro'yxatdan o'tish, qarz daftari (qo'lda + ovozli kiritish), SMS/Telegram eslatma. Oddiy admin panel. |
+| **1. MVP** | 4–6 hafta | Telegram Mini App + mobil ilova (Android): ro'yxatdan o'tish, qarz daftari (qo'lda + ovozli kiritish), SMS/Telegram eslatma. Oddiy admin panel. |
 | **2. Monetizatsiya** | +3 hafta | Payme/Click/Uzum obuna, tariflar, to'liq admin panel. |
 | **3. AI qo'ng'iroq** | +4 hafta | Telefoniya integratsiyasi, TTS, qo'ng'iroq skriptlari, monitoring. |
 | **4. Kengaytirish** | doimiy | Hisobotlar, eksport, qarzdor uchun web-sahifa, iOS App Store nashri. |
 
 ---
 
-## 8. Ochiq savollar (kelishib olish kerak)
+## 9. Ochiq savollar (kelishib olish kerak)
 
 1. Ilova nomi do'konlarda qanday chiqadi — "ARABIC.ONE" o'zими, yoki qo'shimcha nom bilan (masalan "Arabic.One — Qarz Daftari")?
 2. AI qo'ng'iroq qaysi til(lar)da — faqat o'zbekmi, rus ham kerakmi?
