@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { api, fmt, getToken } from './api';
+import { useState } from 'react';
+import { getToken } from './api';
 import { Glyph } from './icons';
 import Login from './screens/Login';
 import Dashboard from './screens/Dashboard';
@@ -19,30 +19,23 @@ export default function App() {
   const [tab, setTab] = useState<Tab>('home');
   const [refreshKey, setRefreshKey] = useState(0);
   const [sub, setSub] = useState<SubScreen>(null);
-  const [balance, setBalance] = useState<number | null>(null);
-
-  useEffect(() => {
-    if (authed) api.me().then((s) => setBalance(s.balance)).catch(() => {});
-  }, [authed, refreshKey, tab]);
 
   if (!authed) return <Login onLogin={() => setAuthed(true)} />;
 
   const refresh = () => setRefreshKey((k) => k + 1);
 
+  const TITLES: Record<Tab, string> = {
+    home: 'Asosiy',
+    customers: 'Mijozlar',
+    add: 'Qarz yozish',
+    kassa: 'Kassa',
+    profile: 'Profil',
+  };
+
   return (
     <>
-      <div className="header">
-        <div className="logo">A</div>
-        <div style={{ flex: 1 }}>
-          <div className="title">Arabic.One</div>
-          <div className="subtitle">Do'kon Daftari</div>
-        </div>
-        {balance !== null && (
-          <button className="chip" onClick={() => setTab('profile')} style={{ fontWeight: 700 }}>
-            <Glyph name="banknote" size={15} color="var(--green)" strokeWidth={2} /> {fmt(balance)}
-          </button>
-        )}
-      </div>
+      {/* iOS large-title: ichki ekranlarda o'z sarlavhasi bor */}
+      {!sub && <div className="large-title">{TITLES[tab]}</div>}
 
       {sub === 'suppliers' && <Suppliers onBack={() => setSub(null)} />}
       {sub === 'reports' && <Reports onBack={() => setSub(null)} />}
