@@ -22,8 +22,10 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     },
   });
   if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new Error((body as any).error ?? `HTTP ${res.status}`);
+    const body: any = await res.json().catch(() => ({}));
+    const err: any = new Error(body.error ?? `HTTP ${res.status}`);
+    err.details = body;          // masalan: qoldig'i yetmagan tovarlar ro'yxati
+    throw err;
   }
   return res.json();
 }
@@ -80,7 +82,7 @@ export const api = {
   },
   intake: (data: { barcode?: string; name: string; unit?: string; cost_price?: number; sell_price?: number; qty?: number; expiry_date?: string; image?: string }) =>
     request<Product>('/products/intake', { method: 'POST', body: JSON.stringify(data) }),
-  createSale: (data: { items: { product_id: number; qty: number }[]; payment_type: 'cash' | 'card' | 'debt'; customer_id?: number; customer_name?: string; due_date?: string }) =>
+  createSale: (data: { items: { product_id: number; qty: number }[]; payment_type: 'cash' | 'card' | 'debt'; customer_id?: number; customer_name?: string; due_date?: string; allow_negative?: boolean }) =>
     request<Sale>('/sales', { method: 'POST', body: JSON.stringify(data) }),
   reports: (period: 'day' | 'week' | 'month') => request<Report>(`/reports/summary?period=${period}`),
   suppliers: () => request<Supplier[]>('/suppliers'),

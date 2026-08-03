@@ -204,16 +204,19 @@ function SaleMode({ onDone }: { onDone: () => void }) {
       }
       setPendingCode(null);
     }
-    let qty = 1;
+    const inCart = cart.find((l) => l.product.id === p.id);
+    const qty = (inCart?.qty ?? 0) + 1;
     setCart((prev) => {
       const existing = prev.find((l) => l.product.id === p.id);
-      if (existing) {
-        qty = existing.qty + 1;
-        return prev.map((l) => (l.product.id === p.id ? { ...l, qty } : l));
-      }
+      if (existing) return prev.map((l) => (l.product.id === p.id ? { ...l, qty } : l));
       return [...prev, { product: p, qty: 1 }];
     });
-    toast.success(p.name, `${qty} ${t('pcs')} · ${fmt(p.sell_price * qty)}`);
+    // Omborda yetarli emasmi — darhol aytamiz, lekin sotishni to'smaymiz
+    if (qty > p.stock) {
+      toast.error(p.name, `${t('stockShort')}: ${p.stock} ${p.unit}`);
+    } else {
+      toast.success(p.name, `${qty} ${t('pcs')} · ${fmt(p.sell_price * qty)}`);
+    }
     setQuery('');
     setResults([]);
   }
@@ -224,6 +227,9 @@ function SaleMode({ onDone }: { onDone: () => void }) {
     if (!line) return;
     const qty = line.qty + delta;
     if (qty <= 0) toast.info(line.product.name, t('toastRemoved'));
+    else if (delta > 0 && qty > line.product.stock) {
+      toast.error(line.product.name, `${t('stockShort')}: ${line.product.stock} ${line.product.unit}`);
+    }
     setCart((prev) =>
       prev.map((l) => (l.product.id === id ? { ...l, qty } : l)).filter((l) => l.qty > 0)
     );
@@ -231,7 +237,7 @@ function SaleMode({ onDone }: { onDone: () => void }) {
 
   const total = cart.reduce((s, l) => s + l.product.sell_price * l.qty, 0);
 
-  async function checkout() {
+  async function checkout(allowNegative = false) {
     if (payment === 'debt' && !customerName.trim()) {
       toast.error(t('debtNeedsCustomer'));
       return;
@@ -241,12 +247,24 @@ function SaleMode({ onDone }: { onDone: () => void }) {
         items: cart.map((l) => ({ product_id: l.product.id!, qty: l.qty })),
         payment_type: payment,
         customer_name: payment === 'debt' ? customerName.trim() : undefined,
+        allow_negative: allowNegative || undefined,
       });
       toast.success(t('saleSaved'), `${fmt(total)}${payment === 'debt' ? ` · ${t('writtenToDebts')}` : ''}`);
       setCart([]);
       setCustomerName('');
       onDone();
     } catch (e: any) {
+      // Omborda yetarli emas — do'konchidan so'raymiz
+      if (e.message === 'insufficient_stock') {
+        const rows: { name: string; stock: number; qty: number }[] = e.details?.items ?? [];
+        const text = rows.map((r) => `${r.name}: ${t('stock')} ${r.stock}, ${t('cart')} ${r.qty}`).join('\n');
+        if (confirm(`${t('stockNotEnough')}\n\n${text}\n\n${t('sellAnyway')}`)) {
+          await checkout(true);
+        } else {
+          toast.error(t('stockNotEnough'), rows.map((r) => r.name).join(', '));
+        }
+        return;
+      }
       toast.error(t('error'), e.message);
     }
   }
@@ -313,7 +331,9 @@ function SaleMode({ onDone }: { onDone: () => void }) {
                 <ProductThumb product={p} />
                 <div>
                   <div className="name">{p.name}</div>
-                  <div className="sub">{t('stock')}: {p.stock} {p.unit}</div>
+                  <div className="sub" style={p.stock <= 0 ? { color: 'var(--red)' } : undefined}>
+                    {t('stock')}: {p.stock} {p.unit}
+                  </div>
                 </div>
               </div>
               <div className="amount">{fmt(p.sell_price)}</div>
@@ -334,7 +354,14 @@ function SaleMode({ onDone }: { onDone: () => void }) {
                   <ProductThumb product={l.product} size={38} />
                   <div style={{ minWidth: 0 }}>
                     <div className="name">{l.product.name}</div>
-                    <div className="sub">{fmt(l.product.sell_price * l.qty)}</div>
+                    <div className="sub">
+                      {fmt(l.product.sell_price * l.qty)}
+                      {l.qty > l.product.stock && (
+                        <span style={{ color: 'var(--red)' }}>
+                          {' '}· {t('stockShort')}: {l.product.stock} {l.product.unit}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
                 <div className="stepper">
@@ -372,7 +399,7 @@ function SaleMode({ onDone }: { onDone: () => void }) {
                 placeholder={t('debtCustomerPlaceholder')}
               />
             )}
-            <button className="btn-primary btn-lg" onClick={checkout}>
+            <button className="btn-primary btn-lg" onClick={() => checkout()}>
               <Glyph name="check" size={19} color="#fff" /> {t('finishSale')}
             </button>
           </div>

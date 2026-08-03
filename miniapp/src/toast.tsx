@@ -40,8 +40,13 @@ export function ToastHost() {
 
   useEffect(() => {
     const listener: Listener = (t) => {
-      // bir vaqtda ko'pi bilan uchtasi ko'rinadi
-      setItems((prev) => [...prev.slice(-2), t]);
+      setItems((prev) => {
+        // Bir xil xabar ketma-ket chiqsa (masalan "+" tugmasi tez bosilsa) —
+        // takrorlanmaydi, eskisi yangisi bilan almashadi.
+        const same = prev.filter((x) => !(x.text === t.text && x.sub === t.sub));
+        // bir vaqtda ko'pi bilan uchtasi ko'rinadi
+        return [...same.slice(-2), t];
+      });
       setTimeout(() => setItems((prev) => prev.filter((x) => x.id !== t.id)), 2600);
     };
     listeners.add(listener);

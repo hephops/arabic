@@ -223,8 +223,9 @@ export default function Dashboard({
             {data.low_stock.map((p) => (
               <div className="list-item" key={p.id}>
                 <div className="name">{p.name}</div>
-                <div className="amount" style={{ color: 'var(--yellow)' }}>
+                <div className="amount" style={{ color: p.stock < 0 ? 'var(--red)' : 'var(--yellow)' }}>
                   {p.stock} {p.unit}
+                  {p.stock < 0 && <span className="badge overdue">{t('stockNegative')}</span>}
                 </div>
               </div>
             ))}

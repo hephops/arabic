@@ -122,7 +122,10 @@ export default function Inventory({ onBack }: { onBack: () => void }) {
                   </div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span className="amount" style={{ color: p.stock <= 5 ? 'var(--yellow)' : undefined }}>
+                  <span
+                    className="amount"
+                    style={{ color: p.stock < 0 ? 'var(--red)' : p.stock <= 5 ? 'var(--yellow)' : undefined }}
+                  >
                     {p.stock} {p.unit}
                   </span>
                   <Glyph name="chevron" size={15} color="#c7c7cc" />

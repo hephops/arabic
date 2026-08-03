@@ -869,12 +869,27 @@ app.post<{ Body: { items: { product_id: number; actual: number }[] } }>(
 );
 
 // ---------- KASSA ----------
-app.post<{ Body: { items: { product_id: number; qty: number }[]; payment_type: 'cash' | 'card' | 'debt'; customer_id?: number; customer_name?: string; due_date?: string } }>(
+app.post<{ Body: { items: { product_id: number; qty: number }[]; payment_type: 'cash' | 'card' | 'debt'; customer_id?: number; customer_name?: string; due_date?: string; allow_negative?: boolean } }>(
   '/sales',
   { preHandler: requireAuth },
   async (req, reply) => {
     const { items, payment_type, customer_id, customer_name, due_date } = req.body;
     if (!items?.length) return reply.code(400).send({ error: 'items_required' });
+
+    // Qoldiqdan ko'p sotishga yo'l qo'yilmaydi: ombor minusga tushib ketmasin.
+    // Do'konchi baribir sotmoqchi bo'lsa (qoldiq noto'g'ri kiritilgan bo'lishi mumkin),
+    // ilova tasdiqlatib, allow_negative bilan qayta yuboradi.
+    const shortage: { product_id: number; name: string; stock: number; qty: number }[] = [];
+    for (const item of items) {
+      const p = db
+        .prepare('SELECT id, name, stock FROM products WHERE id = ? AND shop_id = ?')
+        .get(item.product_id, req.shopId) as any;
+      if (!p) return reply.code(404).send({ error: 'product_not_found' });
+      if (item.qty > p.stock) shortage.push({ product_id: p.id, name: p.name, stock: p.stock, qty: item.qty });
+    }
+    if (shortage.length > 0 && !req.body.allow_negative) {
+      return reply.code(409).send({ error: 'insufficient_stock', items: shortage });
+    }
 
     const tx = db.transaction(() => {
       let total = 0;
