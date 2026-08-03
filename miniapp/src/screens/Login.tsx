@@ -84,32 +84,28 @@ export default function Login({ onLogin }: { onLogin: () => void }) {
 
         {step === 'phone' ? (
           <>
-            <h1 className="auth-title">{t('authWelcome')}</h1>
-            <p className="auth-sub">{t('authPhoneHint')}</p>
-
-            <div className="phone-field">
-              <span className="cc">+998</span>
-              <input
-                className="phone-input"
-                value={formatPhone(phone).replace('+998', '').trim()}
-                onChange={(e) => setPhone(phoneDigits(e.target.value))}
-                inputMode="tel"
-                autoFocus
-                placeholder="90 123 45 67"
-                onKeyDown={(e) => e.key === 'Enter' && isPhoneComplete(phone) && sendOtp()}
-              />
-            </div>
-
-            <button className="btn-primary btn-lg" onClick={sendOtp} disabled={busy || !isPhoneComplete(phone)}>
-              {t('loginGetCode')}
-            </button>
-
-            <div className="auth-links">
-              <button className="link" onClick={() => setStep('employee')}>
-                {t('employeeLoginLink')}
+            <div className="auth-card">
+              <label className="auth-label">{t('loginPhone')}</label>
+              <div className="phone-field">
+                <span className="cc">+998</span>
+                <input
+                  className="phone-input"
+                  value={formatPhone(phone).replace('+998', '').trim()}
+                  onChange={(e) => setPhone(phoneDigits(e.target.value))}
+                  inputMode="tel"
+                  autoFocus
+                  placeholder="90 123 45 67"
+                  onKeyDown={(e) => e.key === 'Enter' && isPhoneComplete(phone) && sendOtp()}
+                />
+              </div>
+              <button className="btn-primary btn-lg" onClick={sendOtp} disabled={busy || !isPhoneComplete(phone)}>
+                {t('loginGetCode')}
               </button>
             </div>
-            <p className="auth-terms">{t('authTerms')}</p>
+
+            <button className="btn-soft" onClick={() => setStep('employee')}>
+              <Glyph name="person" size={17} /> {t('employeeLoginLink')}
+            </button>
           </>
         ) : (
           <CodeStep
@@ -131,13 +127,17 @@ export default function Login({ onLogin }: { onLogin: () => void }) {
   );
 }
 
-function Brand() {
+function Brand({ compact }: { compact?: boolean }) {
   const { t } = useT();
   return (
-    <div className="auth-brand">
-      <div className="auth-logo">A</div>
-      <div className="auth-name">Arabic.One</div>
-      <div className="auth-tagline">{t('loginSubtitle')}</div>
+    <div className={`auth-brand ${compact ? 'tight' : ''}`}>
+      <div className={`auth-logo ${compact ? 'sm' : ''}`}>A</div>
+      {!compact && (
+        <>
+          <div className="auth-name">Arabic.One</div>
+          <div className="auth-tagline">{t('loginSubtitle')}</div>
+        </>
+      )}
     </div>
   );
 }
@@ -178,37 +178,37 @@ function CodeStep({
 
   return (
     <>
-      <h1 className="auth-title">{t('authCodeTitle')}</h1>
-      <p className="auth-sub">
-        {t('authCodeSentTo')} <b>{formatPhone(phone)}</b>
-      </p>
+      <div className="auth-card">
+        <div className="auth-card-title">{t('authCodeTitle')}</div>
+        <div className="auth-card-sub">{formatPhone(phone)}</div>
 
-      <div className="otp" onClick={() => inputRef.current?.focus()}>
-        {Array.from({ length: 6 }).map((_, i) => (
-          <div key={i} className={`otp-box ${code.length === i ? 'active' : ''} ${code[i] ? 'filled' : ''}`}>
-            {code[i] ?? ''}
-          </div>
-        ))}
-        <input
-          ref={inputRef}
-          className="otp-hidden"
-          value={code}
-          onChange={(e) => change(e.target.value)}
-          inputMode="numeric"
-          autoComplete="one-time-code"
-          maxLength={6}
-        />
-      </div>
-
-      {hint && (
-        <div className="dev-hint">
-          {t('loginDevHint')}: <b>{hint}</b>
+        <div className="otp" onClick={() => inputRef.current?.focus()}>
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className={`otp-box ${code.length === i ? 'active' : ''} ${code[i] ? 'filled' : ''}`}>
+              {code[i] ?? ''}
+            </div>
+          ))}
+          <input
+            ref={inputRef}
+            className="otp-hidden"
+            value={code}
+            onChange={(e) => change(e.target.value)}
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            maxLength={6}
+          />
         </div>
-      )}
 
-      <button className="btn-primary btn-lg" onClick={() => onSubmit(code)} disabled={busy || code.length < 6}>
-        {t('loginEnter')}
-      </button>
+        {hint && (
+          <div className="dev-hint">
+            {t('loginDevHint')}: <b>{hint}</b>
+          </div>
+        )}
+
+        <button className="btn-primary btn-lg" onClick={() => onSubmit(code)} disabled={busy || code.length < 6}>
+          {t('loginEnter')}
+        </button>
+      </div>
 
       <div className="auth-links">
         {left > 0 ? (
@@ -271,59 +271,58 @@ function EmployeeLogin({ onDone, onBack }: { onDone: () => void; onBack: () => v
   return (
     <div className="auth">
       <div className="auth-body">
-        <div className="auth-brand tight">
-          <div className="auth-logo sm">A</div>
-          <h1 className="auth-title" style={{ marginTop: 12 }}>{t('employeeLoginTitle')}</h1>
-          <p className="auth-sub">{t('employeeLoginHint')}</p>
-        </div>
+        <Brand compact />
 
-        <label style={{ margin: '0 4px 6px' }}>{t('employeeShopPhone')}</label>
-        <div className="phone-field">
-          <span className="cc">+998</span>
-          <input
-            className="phone-input"
-            value={formatPhone(phone).replace('+998', '').trim()}
-            onChange={(e) => setPhone(phoneDigits(e.target.value))}
-            inputMode="tel"
-            autoFocus
-            placeholder="90 123 45 67"
-          />
-        </div>
+        <div className="auth-card">
+          <div className="auth-card-title">{t('employeeLoginTitle')}</div>
+          <div className="auth-card-sub">{t('employeeLoginHint')}</div>
 
-        <label style={{ margin: '16px 4px 8px' }}>{t('pinCode')}</label>
-        <div className="otp" onClick={() => pinRef.current?.focus()}>
-          {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className={`otp-box ${pin.length === i ? 'active' : ''} ${pin[i] ? 'filled' : ''}`}>
-              {pin[i] ? '•' : ''}
-            </div>
-          ))}
-          <input
-            ref={pinRef}
-            className="otp-hidden"
-            value={pin}
-            onChange={(e) => {
-              const d = e.target.value.replace(/\D/g, '').slice(0, 4);
-              setPin(d);
-              if (d.length === 4 && isPhoneComplete(phone)) enter(d);
-            }}
-            inputMode="numeric"
-            maxLength={4}
-          />
-        </div>
+          <label className="auth-label">{t('employeeShopPhone')}</label>
+          <div className="phone-field">
+            <span className="cc">+998</span>
+            <input
+              className="phone-input"
+              value={formatPhone(phone).replace('+998', '').trim()}
+              onChange={(e) => setPhone(phoneDigits(e.target.value))}
+              inputMode="tel"
+              autoFocus
+              placeholder="90 123 45 67"
+            />
+          </div>
 
-        <button
-          className="btn-primary btn-lg"
-          onClick={() => enter()}
-          disabled={busy || !isPhoneComplete(phone) || pin.length < 4}
-        >
-          {t('loginEnter')}
-        </button>
+          <label className="auth-label" style={{ marginTop: 16 }}>{t('pinCode')}</label>
+          <div className="otp" onClick={() => pinRef.current?.focus()}>
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className={`otp-box ${pin.length === i ? 'active' : ''} ${pin[i] ? 'filled' : ''}`}>
+                {pin[i] ? '•' : ''}
+              </div>
+            ))}
+            <input
+              ref={pinRef}
+              className="otp-hidden"
+              value={pin}
+              onChange={(e) => {
+                const d = e.target.value.replace(/\D/g, '').slice(0, 4);
+                setPin(d);
+                if (d.length === 4 && isPhoneComplete(phone)) enter(d);
+              }}
+              inputMode="numeric"
+              maxLength={4}
+            />
+          </div>
 
-        <div className="auth-links">
-          <button className="link" onClick={onBack}>
-            {t('ownerLoginLink')}
+          <button
+            className="btn-primary btn-lg"
+            onClick={() => enter()}
+            disabled={busy || !isPhoneComplete(phone) || pin.length < 4}
+          >
+            {t('loginEnter')}
           </button>
         </div>
+
+        <button className="btn-soft" onClick={onBack}>
+          <Glyph name="house" size={17} /> {t('ownerLoginLink')}
+        </button>
         {error && <p className="error center">{error}</p>}
       </div>
     </div>
@@ -374,9 +373,9 @@ function Setup({ onDone }: { onDone: () => void }) {
   return (
     <div className="auth">
       <div className="auth-body">
-        <div className="auth-brand tight">
-          <div className="auth-logo sm">A</div>
-          <h1 className="auth-title" style={{ marginTop: 12 }}>{t('setupTitle')}</h1>
+        <Brand compact />
+        <div className="auth-head">
+          <h1 className="auth-title">{t('setupTitle')}</h1>
           <p className="auth-sub">{t('setupSub')}</p>
         </div>
 

@@ -56,7 +56,7 @@ const UZ: Record<string, string> = {
   navSettings: 'Sozlamalar',
 
   // Kirish
-  loginSubtitle: "Do'kon Daftari — qarz, ombor, kassa",
+  loginSubtitle: "Do'kon Daftari",
   loginPhone: 'Telefon raqamingiz',
   loginGetCode: 'SMS kod olish',
   loginCode: 'SMS kod',
@@ -87,7 +87,7 @@ const UZ: Record<string, string> = {
   employeeLoginLink: 'Xodim sifatida kirish',
   ownerLoginLink: "Do'kon egasi sifatida kirish",
   employeeLoginTitle: 'Sotuvchi kirishi',
-  employeeLoginHint: "Do'kon telefon raqami va sizga berilgan 4 xonali PIN-kod",
+  employeeLoginHint: "Do'kon raqami va sizga berilgan PIN-kod",
   employeeShopPhone: "Do'kon raqami",
   employeeWrongPin: "PIN-kod noto'g'ri yoki xodim bloklangan",
   employeeShopNotFound: "Bunday raqamli do'kon topilmadi",
@@ -401,7 +401,7 @@ const RU: Record<string, string> = {
   navLanguage: 'Язык',
   navSettings: 'Настройки',
 
-  loginSubtitle: 'Тетрадь магазина — долги, склад, касса',
+  loginSubtitle: 'Тетрадь магазина',
   loginPhone: 'Ваш номер телефона',
   loginGetCode: 'Получить SMS-код',
   loginCode: 'SMS-код',
@@ -432,7 +432,7 @@ const RU: Record<string, string> = {
   employeeLoginLink: 'Войти как сотрудник',
   ownerLoginLink: 'Войти как владелец',
   employeeLoginTitle: 'Вход продавца',
-  employeeLoginHint: 'Номер магазина и выданный вам 4-значный PIN-код',
+  employeeLoginHint: 'Номер магазина и выданный вам PIN-код',
   employeeShopPhone: 'Номер магазина',
   employeeWrongPin: 'Неверный PIN или сотрудник заблокирован',
   employeeShopNotFound: 'Магазин с таким номером не найден',

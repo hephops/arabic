@@ -297,75 +297,124 @@ label { font-size: 13px; color: var(--muted); display: block; margin: 6px 4px 5p
 /* ═══════════ Kirish / ro'yxatdan o'tish ═══════════ */
 
 .auth {
-  min-height: 100vh; padding: 0 22px 34px;
+  min-height: 100vh; padding: 0 20px 34px;
   background:
-    radial-gradient(120% 60% at 50% -10%, rgba(0, 122, 255, 0.14), rgba(0, 122, 255, 0) 62%),
-    var(--bg);
+    radial-gradient(120% 55% at 50% -12%, #dceaff 0%, rgba(220, 234, 255, 0) 60%),
+    radial-gradient(90% 45% at 100% 8%, rgba(122, 130, 240, 0.16), rgba(122, 130, 240, 0) 60%),
+    linear-gradient(180deg, #f7f9fc 0%, #eef1f6 100%);
 }
-.auth-body { max-width: 400px; margin: 0 auto; padding-top: 8vh; }
+.auth-body { max-width: 390px; margin: 0 auto; padding-top: 9vh; }
 .auth-center { display: flex; flex-direction: column; align-items: center; justify-content: center; }
 
-.auth-brand { text-align: center; margin-bottom: 30px; }
-.auth-brand.tight { margin-bottom: 22px; }
+.auth-brand { text-align: center; margin-bottom: 26px; }
+.auth-brand.tight { margin-bottom: 18px; }
 .auth-logo {
-  width: 78px; height: 78px; border-radius: 19px; margin: 0 auto 16px;
-  background: linear-gradient(180deg, #4da2ff, #0a66f0);
+  position: relative; overflow: hidden;
+  width: 84px; height: 84px; border-radius: 22px; margin: 0 auto 15px;
+  background: linear-gradient(165deg, #5cabff 0%, #1f7bf5 48%, #0a5fe0 100%);
   display: flex; align-items: center; justify-content: center;
-  font-size: 40px; font-weight: 800; color: #fff; letter-spacing: -1px;
-  box-shadow: 0 10px 26px rgba(10, 102, 240, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  font-size: 42px; font-weight: 800; color: #fff; letter-spacing: -1.5px;
+  box-shadow:
+    0 18px 34px -12px rgba(10, 95, 224, 0.55),
+    0 2px 6px rgba(10, 95, 224, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.45);
 }
-.auth-logo.sm { width: 54px; height: 54px; border-radius: 14px; font-size: 28px; margin-bottom: 0; }
-.auth-name { font-size: 21px; font-weight: 700; letter-spacing: -0.5px; }
-.auth-tagline { font-size: 13.5px; color: var(--muted); margin-top: 3px; }
+/* Yuqoridan tushgan yorug'lik — Apple ikonkalaridagi kabi */
+.auth-logo::after {
+  content: ''; position: absolute; left: 0; right: 0; top: 0; height: 52%;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.24), rgba(255, 255, 255, 0));
+}
+.auth-logo.sm {
+  width: 56px; height: 56px; border-radius: 15px; font-size: 28px; margin-bottom: 0;
+  box-shadow: 0 10px 22px -8px rgba(10, 95, 224, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+.auth-name { font-size: 23px; font-weight: 750; letter-spacing: -0.6px; }
+.auth-tagline { font-size: 13.5px; color: var(--muted); margin-top: 4px; }
 
+/* Oq kartochka — kirish shakli shu ichida turadi */
+.auth-card {
+  background: #fff; border-radius: 22px; padding: 18px;
+  box-shadow:
+    0 20px 44px -22px rgba(16, 32, 64, 0.28),
+    0 2px 8px rgba(16, 32, 64, 0.05),
+    0 0 0 0.5px rgba(16, 32, 64, 0.04);
+}
+.auth-card-title { font-size: 19px; font-weight: 700; letter-spacing: -0.4px; text-align: center; }
+.auth-card-sub {
+  font-size: 13.5px; color: var(--muted); text-align: center; margin: 3px 0 16px; line-height: 1.4;
+}
+.auth-label {
+  display: block; font-size: 12.5px; font-weight: 600; color: var(--muted);
+  letter-spacing: 0.2px; margin: 0 2px 7px;
+}
+
+.auth-head { margin-bottom: 18px; }
 .auth-title {
-  font-size: 26px; font-weight: 800; letter-spacing: -0.7px; text-align: center; margin-bottom: 6px;
+  font-size: 25px; font-weight: 800; letter-spacing: -0.7px; text-align: center; margin-bottom: 5px;
 }
 .auth-sub {
-  font-size: 14.5px; color: var(--muted); text-align: center; line-height: 1.42;
-  margin: 0 auto 22px; max-width: 320px;
+  font-size: 14px; color: var(--muted); text-align: center; line-height: 1.42;
+  margin: 0 auto; max-width: 310px;
 }
-.auth-terms { font-size: 12px; color: #a9a9ae; text-align: center; margin-top: 14px; line-height: 1.4; }
 .auth-links { display: flex; flex-direction: column; align-items: center; gap: 12px; margin-top: 18px; }
 button.link { background: none; color: var(--accent); font-size: 15px; font-weight: 500; padding: 4px; }
 .muted-link { color: var(--muted); font-size: 15px; }
 
+/* Ikkinchi darajali tugma — "Xodim sifatida kirish" */
+.btn-soft {
+  width: 100%; margin-top: 14px; padding: 13px; border-radius: 15px;
+  background: rgba(255, 255, 255, 0.72); color: var(--accent);
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  font-size: 15.5px; font-weight: 600;
+  box-shadow: 0 0 0 0.5px rgba(16, 32, 64, 0.07), 0 4px 14px -8px rgba(16, 32, 64, 0.18);
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+}
+.btn-soft:active { background: rgba(255, 255, 255, 0.95); }
+
 /* Telefon maydoni: +998 qismi qotib turadi */
 .phone-field {
   display: flex; align-items: center; gap: 10px;
-  background: var(--card); border-radius: 14px; padding: 0 16px; height: 56px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  background: var(--bg); border-radius: 14px; padding: 0 14px; height: 54px;
+  box-shadow: inset 0 0 0 1px rgba(16, 32, 64, 0.06);
+  transition: box-shadow 0.15s ease;
 }
-.phone-field:focus-within { box-shadow: 0 0 0 2px var(--accent); }
+.phone-field:focus-within { box-shadow: inset 0 0 0 2px var(--accent); }
 .phone-field .cc {
-  font-size: 19px; font-weight: 600; color: var(--muted); letter-spacing: -0.2px;
-  padding-right: 10px; border-right: 1px solid var(--separator); line-height: 1.6;
+  font-size: 18px; font-weight: 700; color: #6f7683; letter-spacing: -0.2px;
+  padding-right: 10px; border-right: 1px solid rgba(16, 32, 64, 0.1); line-height: 1.6;
 }
 .phone-input {
   flex: 1; border: none; background: none; margin: 0; padding: 0;
-  font-size: 19px; font-weight: 600; letter-spacing: 0.6px;
+  font-size: 19px; font-weight: 650; letter-spacing: 0.7px;
 }
 .phone-input:focus { box-shadow: none; }
 
 /* SMS kod kataklari */
-.otp { position: relative; display: flex; gap: 8px; justify-content: center; margin-bottom: 6px; }
+.otp { position: relative; display: flex; gap: 8px; justify-content: center; }
 .otp-box {
-  width: 46px; height: 56px; border-radius: 13px; background: var(--card);
+  flex: 1; max-width: 50px; height: 56px; border-radius: 14px; background: var(--bg);
   display: flex; align-items: center; justify-content: center;
   font-size: 25px; font-weight: 700; letter-spacing: -0.5px;
-  box-shadow: inset 0 0 0 1.5px transparent, 0 1px 3px rgba(0, 0, 0, 0.05);
-  transition: box-shadow 0.15s ease;
+  box-shadow: inset 0 0 0 1px rgba(16, 32, 64, 0.06);
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
 }
-.otp-box.filled { box-shadow: inset 0 0 0 1.5px rgba(0, 122, 255, 0.35); }
-.otp-box.active { box-shadow: inset 0 0 0 2px var(--accent); }
+.otp-box.filled { box-shadow: inset 0 0 0 1.5px rgba(0, 122, 255, 0.4); }
+.otp-box.active { box-shadow: inset 0 0 0 2px var(--accent); transform: translateY(-1px); }
 .otp-hidden {
   position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%;
   margin: 0; padding: 0; font-size: 16px; cursor: pointer;
 }
 .dev-hint {
   text-align: center; font-size: 13px; color: var(--muted);
-  background: var(--fill); border-radius: 9px; padding: 7px; margin: 12px 0 4px;
+  background: var(--bg); border-radius: 10px; padding: 8px; margin-top: 12px;
 }
+
+/* Kirish ekranidagi asosiy tugma — chuqurroq va yorqinroq */
+.auth .btn-primary {
+  background: linear-gradient(180deg, #1f88ff, #0a6be8);
+  box-shadow: 0 12px 26px -12px rgba(10, 107, 232, 0.75);
+}
+.auth .btn-primary:disabled { background: #c3d4ea; box-shadow: none; }
 
 /* ═══════════ Guruhlangan forma (iOS Settings uslubi) ═══════════ */
 
