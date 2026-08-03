@@ -1,56 +1,140 @@
-import { useState } from 'react';
-import { api } from '../api';
+import { useEffect, useRef, useState } from 'react';
+import { api, fmt } from '../api';
 import { Glyph } from '../icons';
 import { haptic } from '../telegram';
 import { useT } from '../i18n';
+import { formatAmount, amountValue } from '../format';
 
-// Ovozli kiritish: brauzer SpeechRecognition (Telegram webview'da bor/yo'qligiga qarab)
-// bo'lmasa — matn yozib parse qilinadi. PROD: audio -> backend -> Mohir.ai STT.
+// Qarz yozishning ikki yo'li teng: ovoz bilan va qo'lda.
+// Ovoz: brauzer SpeechRecognition. Ishlamasa — sabab aniq aytiladi va
+// matn maydoni qoladi (PROD: audio -> backend -> Mohir.ai STT).
+
+type Parsed = { customer_name: string; amount: number; due_date: string | null; note: string | null };
+
+const SR: any = typeof window !== 'undefined'
+  ? (window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition
+  : null;
 
 export default function AddDebt({ onDone }: { onDone: () => void }) {
   const [mode, setMode] = useState<'voice' | 'manual'>('voice');
-  const [voiceText, setVoiceText] = useState('');
-  const [listening, setListening] = useState(false);
-  const [parsed, setParsed] = useState<{ customer_name: string; amount: number; due_date: string | null; note: string | null } | null>(null);
-
-  const [name, setName] = useState('');
-  const [amount, setAmount] = useState('');
-  const [note, setNote] = useState('');
-  const [dueDate, setDueDate] = useState('');
-  const [error, setError] = useState('');
-  const [busy, setBusy] = useState(false);
   const { t } = useT();
 
-  function startListening() {
-    const SR = (window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition;
+  return (
+    <div className="screen">
+      <div className="segmented">
+        <button className={mode === 'voice' ? 'on' : ''} onClick={() => { setMode('voice'); haptic.select(); }}>
+          <Glyph name="mic" size={16} /> {t('byVoice')}
+        </button>
+        <button className={mode === 'manual' ? 'on' : ''} onClick={() => { setMode('manual'); haptic.select(); }}>
+          <Glyph name="pencil" size={16} /> {t('byHand')}
+        </button>
+      </div>
+
+      {mode === 'voice' ? <VoiceMode onDone={onDone} /> : <ManualMode onDone={onDone} />}
+    </div>
+  );
+}
+
+/* ─────────── Ovoz bilan ─────────── */
+
+function VoiceMode({ onDone }: { onDone: () => void }) {
+  const [text, setText] = useState('');
+  const [live, setLive] = useState('');
+  const [listening, setListening] = useState(false);
+  const [parsed, setParsed] = useState<Parsed | null>(null);
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const recRef = useRef<any>(null);
+  const timerRef = useRef<any>(null);
+  const { t, lang } = useT();
+
+  // Ekrandan chiqilsa mikrofon albatta o'chadi
+  useEffect(() => () => stop(), []);
+
+  function stop() {
+    clearTimeout(timerRef.current);
+    try {
+      recRef.current?.stop();
+    } catch { /* allaqachon to'xtagan */ }
+    recRef.current = null;
+    setListening(false);
+    setLive('');
+  }
+
+  function start() {
+    if (listening) return stop();
     if (!SR) {
       setError(t('noSpeechSupport'));
       return;
     }
+    setError('');
+    setParsed(null);
+    setLive('');
+
     const rec = new SR();
-    rec.lang = 'uz-UZ';
+    rec.lang = lang === 'ru' ? 'ru-RU' : 'uz-UZ';
+    rec.interimResults = true;
+    rec.maxAlternatives = 1;
+
     rec.onresult = (e: any) => {
-      const text = e.results[0][0].transcript;
-      setVoiceText(text);
-      parseText(text);
+      let finalText = '';
+      let interim = '';
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const r = e.results[i];
+        if (r.isFinal) finalText += r[0].transcript;
+        else interim += r[0].transcript;
+      }
+      setLive(interim);
+      if (finalText.trim()) {
+        setText(finalText.trim());
+        stop();
+        haptic.success();
+        parse(finalText.trim());
+      }
+    };
+    rec.onerror = (e: any) => {
+      const kind = e?.error;
+      setError(
+        kind === 'not-allowed' || kind === 'service-not-allowed'
+          ? t('micDenied')
+          : kind === 'network'
+          ? t('micNoNetwork')
+          : kind === 'no-speech'
+          ? t('micNoResult')
+          : t('micNoResult')
+      );
+      stop();
     };
     rec.onend = () => setListening(false);
-    rec.onerror = () => setListening(false);
+
+    recRef.current = rec;
     setListening(true);
-    rec.start();
+    try {
+      rec.start();
+    } catch {
+      setError(t('micNoResult'));
+      stop();
+      return;
+    }
+    // 12 soniyadan keyin o'zi to'xtaydi — "Eshityapman..." holatida qotib qolmasin
+    timerRef.current = setTimeout(() => {
+      if (recRef.current) {
+        stop();
+        setError((prev) => prev || t('micNoResult'));
+      }
+    }, 12000);
   }
 
-  async function parseText(text: string) {
+  async function parse(value: string) {
     setError('');
     try {
-      const res = await api.parseVoice(text);
-      setParsed(res);
+      setParsed(await api.parseVoice(value));
     } catch {
       setError(t('couldNotParse'));
     }
   }
 
-  async function saveParsed() {
+  async function save() {
     if (!parsed) return;
     setBusy(true);
     try {
@@ -70,17 +154,101 @@ export default function AddDebt({ onDone }: { onDone: () => void }) {
     }
   }
 
-  async function saveManual() {
-    const amt = parseInt(amount.replace(/\D/g, ''), 10);
-    if (!name.trim() || !amt) {
+  return (
+    <>
+      <div className="mic-stage">
+        <button className={`mic-btn ${listening ? 'on' : ''} ${SR ? '' : 'off'}`} onClick={start}>
+          {listening && (
+            <>
+              <span className="ring r1" />
+              <span className="ring r2" />
+            </>
+          )}
+          <Glyph name={listening ? 'close' : 'mic'} size={34} color="#fff" />
+        </button>
+        <div className="mic-state">{listening ? t('listening') : t('micTap')}</div>
+        <div className="mic-example">{live || t('voiceExample')}</div>
+      </div>
+
+      {!SR && (
+        <div className="notice">
+          <Glyph name="warning" size={17} color="var(--yellow)" />
+          <span>{t('noSpeechSupport')}</span>
+        </div>
+      )}
+
+      <div className="form-group">
+        <div className="form-row">
+          <label>{t('orType')}</label>
+          <input
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder="Karim akaga 120 ming shanbagacha"
+            onKeyDown={(e) => e.key === 'Enter' && text.trim() && parse(text)}
+          />
+        </div>
+      </div>
+      <button className="btn-ghost" onClick={() => parse(text)} disabled={!text.trim()}>
+        {t('analyze')}
+      </button>
+
+      {parsed && (
+        <div className="confirm-card">
+          <div className="confirm-head">{t('confirm')}</div>
+          <div className="confirm-amount">{fmt(parsed.amount)}</div>
+          <div className="confirm-name">{parsed.customer_name}</div>
+          <div className="confirm-meta">
+            {parsed.due_date && (
+              <span>
+                <Glyph name="calendar" size={13} /> {parsed.due_date}
+              </span>
+            )}
+            {parsed.note && (
+              <span>
+                <Glyph name="pencil" size={13} /> {parsed.note}
+              </span>
+            )}
+          </div>
+          <button className="btn-primary" onClick={save} disabled={busy}>
+            <Glyph name="check" size={18} color="#fff" /> {t('save')}
+          </button>
+        </div>
+      )}
+
+      {error && (
+        <div className="notice">
+          <Glyph name="warning" size={17} color="var(--yellow)" />
+          <span>{error}</span>
+        </div>
+      )}
+    </>
+  );
+}
+
+/* ─────────── Qo'lda ─────────── */
+
+function ManualMode({ onDone }: { onDone: () => void }) {
+  const [name, setName] = useState('');
+  const [amount, setAmount] = useState('');
+  const [note, setNote] = useState('');
+  const [dueDate, setDueDate] = useState('');
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const { t } = useT();
+
+  const value = amountValue(amount);
+
+  async function save() {
+    if (!name.trim() || !value) {
       setError(t('nameAmountRequired'));
       return;
     }
     setBusy(true);
+    setError('');
     try {
       await api.createDebt({
         customer_name: name.trim(),
-        amount: amt,
+        amount: value,
         note: note || undefined,
         due_date: dueDate || undefined,
         source: 'manual',
@@ -94,79 +262,43 @@ export default function AddDebt({ onDone }: { onDone: () => void }) {
     }
   }
 
-  const quickAmounts = [10000, 50000, 100000, 200000];
-
   return (
-    <div className="screen">
-      <div className="chip-row">
-        <button className={`chip ${mode === 'voice' ? 'selected' : ''}`} onClick={() => setMode('voice')}>
-          <Glyph name="mic" size={16} /> {t('byVoice')}
-        </button>
-        <button className={`chip ${mode === 'manual' ? 'selected' : ''}`} onClick={() => setMode('manual')}>
-          <Glyph name="pencil" size={16} /> {t('byHand')}
-        </button>
+    <>
+      <div className="amount-stage">
+        <input
+          className="amount-input"
+          value={formatAmount(amount)}
+          onChange={(e) => setAmount(e.target.value)}
+          inputMode="numeric"
+          placeholder="0"
+          autoFocus
+        />
+        <div className="amount-cur">{t('currency')}</div>
       </div>
 
-      {mode === 'voice' ? (
-        <>
-          <div className="card center">
-            <p className="hint">{t('voiceExample')}</p>
-            <button
-              className="btn-primary"
-              style={{ background: listening ? 'var(--red)' : 'var(--accent)' }}
-              onClick={startListening}
-            >
-              {listening ? t('listening') : <><Glyph name="mic" size={18} color="#fff" strokeWidth={2.2} /> {t('speak')}</>}
-            </button>
-          </div>
-          <label>{t('orType')}</label>
-          <input
-            value={voiceText}
-            onChange={(e) => setVoiceText(e.target.value)}
-            placeholder="Karim akaga 120 ming shanbagacha"
-          />
-          <button className="btn-ghost" onClick={() => parseText(voiceText)} disabled={!voiceText.trim()}>
-            {t('analyze')}
-          </button>
-
-          {parsed && (
-            <div className="card" style={{ marginTop: 12 }}>
-              <div className="section-title">{t('confirm')}</div>
-              <div className="list-item" style={{ background: 'var(--bg)', borderRadius: 10 }}>
-                <div className="name">{parsed.customer_name}</div>
-              </div>
-              <div className="big-amount">{new Intl.NumberFormat('uz-UZ').format(parsed.amount)} so'm</div>
-              {parsed.due_date && <p className="center hint">{t('dueDate')}: {parsed.due_date}</p>}
-              {parsed.note && <p className="center hint">{t('note')}: {parsed.note}</p>}
-              <button className="btn-primary" onClick={saveParsed} disabled={busy}>
-                <Glyph name="check" size={18} color="#fff" strokeWidth={2.4} /> {t('save')}
-              </button>
-            </div>
-          )}
-        </>
-      ) : (
-        <>
+      <div className="form-group">
+        <div className="form-row">
           <label>{t('customerName')}</label>
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Karim aka" />
-          <label>{t('amount')}</label>
-          <input value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="numeric" placeholder="120 000" />
-          <div className="chip-row">
-            {quickAmounts.map((a) => (
-              <button key={a} className="chip" onClick={() => setAmount(String(a))}>
-                {new Intl.NumberFormat('uz-UZ').format(a)}
-              </button>
-            ))}
-          </div>
-          <label>{t('note')} ({t('optional')})</label>
-          <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="un, yog'..." />
-          <label>{t('dueDate')} ({t('optional')})</label>
+        </div>
+        <div className="form-row">
+          <label>
+            {t('dueDate')} <span className="tag">{t('optional')}</span>
+          </label>
           <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
-          <button className="btn-primary" onClick={saveManual} disabled={busy}>
-            <Glyph name="check" size={18} color="#fff" strokeWidth={2.4} /> {t('addDebtBtn')}
-          </button>
-        </>
-      )}
-      {error && <p className="error">{error}</p>}
-    </div>
+        </div>
+        <div className="form-row">
+          <label>
+            {t('note')} <span className="tag">{t('optional')}</span>
+          </label>
+          <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="un, yog'..." />
+        </div>
+      </div>
+
+      <button className="btn-primary btn-lg" onClick={save} disabled={busy || !name.trim() || !value}>
+        <Glyph name="check" size={19} color="#fff" /> {t('addDebtBtn')}
+      </button>
+      {error && <p className="error center">{error}</p>}
+    </>
   );
 }

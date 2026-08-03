@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { api, fmt, logout, Shop, BalanceInfo, Employee } from '../api';
 import { AppIcon, Glyph } from '../icons';
 import { SubHeader } from '../ui';
-import { useT, LANG_NAMES, type Lang } from '../i18n';
+import { useT, LANG_NAMES, group, type Lang } from '../i18n';
+import { formatCard, cardDigits, formatPhone, maskCard, formatAmount, amountValue } from '../format';
 
 // iOS Sozlamalar uslubidagi kabinet: asosiy ekranda qatorlar,
 // har biri o'z ichki ekraniga ochiladi.
@@ -89,7 +90,7 @@ export default function Profile({
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 18, fontWeight: 700, letterSpacing: -0.3 }}>{shop.name}</div>
-          <div className="sub">{shop.owner_name ? `${shop.owner_name} · ` : ''}{shop.phone}</div>
+          <div className="sub">{shop.owner_name ? `${shop.owner_name} · ` : ''}{formatPhone(shop.phone)}</div>
         </div>
         <Glyph name="chevron" size={16} color="#c7c7cc" strokeWidth={2.2} />
       </div>
@@ -102,7 +103,7 @@ export default function Profile({
       <div className="list-group">
         <Row icon="house" label={t('shopInfo')} onClick={() => setView('shop')} />
         <Row icon="globe" label={t('navLanguage')} value={LANG_NAMES[shop.language as Lang] ?? shop.language} onClick={() => setView('language')} />
-        <Row icon="card" label={t('cardNumber')} value={shop.card_number ? '•• ' + shop.card_number.replace(/\s/g, '').slice(-4) : t('notSet')} onClick={() => setView('shop')} />
+        <Row icon="card" label={t('cardNumber')} value={maskCard(shop.card_number) || t('notSet')} onClick={() => setView('shop')} />
       </div>
 
       <div className="list-group">
@@ -124,7 +125,7 @@ function BalanceView({ shop, balance, onBack, reload }: { shop: Shop; balance: B
   const [error, setError] = useState('');
 
   async function doTopup() {
-    const value = parseInt(amount.replace(/\D/g, ''), 10);
+    const value = amountValue(amount);
     if (!value) return;
     setError('');
     if (value < balance.min_topup) {
@@ -152,7 +153,7 @@ function BalanceView({ shop, balance, onBack, reload }: { shop: Shop; balance: B
 
       <div className="section-title">{t('topup')}</div>
       <div className="card">
-        <input value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="numeric" placeholder={t('topupAmount')} />
+        <input value={formatAmount(amount)} onChange={(e) => setAmount(e.target.value)} inputMode="numeric" placeholder={t('topupAmount')} />
         <p className="hint" style={{ marginTop: 0 }}>{t('minAmount')}: {fmt(balance.min_topup)}</p>
         <button className="btn-primary" onClick={doTopup} disabled={!amount}>
           {t('topupVia')}
@@ -220,7 +221,7 @@ function PlanView({ shop, balance, onBack, reload }: { shop: Shop; balance: Bala
         <div className="card" key={id}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
             <div style={{ fontSize: 17, fontWeight: 700 }}>{p.title}</div>
-            <div style={{ fontWeight: 700 }}>{new Intl.NumberFormat('uz-UZ').format(p.price)} {t('currency')}/{t('monthly')}</div>
+            <div style={{ fontWeight: 700 }}>{group(p.price)} {t('currency')}/{t('monthly')}</div>
           </div>
           <ul style={{ margin: '8px 0 4px', paddingLeft: 4, listStyle: 'none' }}>
             {FEATURES[id]?.map((f) => (
@@ -265,24 +266,63 @@ function ShopView({ shop, onBack, reload }: { shop: Shop; onBack: () => void; re
     }
   }
 
+  const cardLen = cardDigits(form.card_number).length;
+  const cardBad = cardLen > 0 && cardLen < 16;
+
   return (
     <div className="screen">
       <SubHeader title={t('shopInfo')} onBack={onBack} />
-      <label>{t('shopName')}</label>
-      <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-      <label>{t('ownerName')}</label>
-      <input value={form.owner_name} onChange={(e) => setForm({ ...form, owner_name: e.target.value })} placeholder="Akbar aka" />
-      <label>{t('cardHint')}</label>
-      <input value={form.card_number} onChange={(e) => setForm({ ...form, card_number: e.target.value })} inputMode="numeric" placeholder="8600 0000 0000 0000" />
-      <label>{t('address')}</label>
-      <input value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} placeholder="Chilonzor, 5-kvartal" />
-      <label>{t('phone')}</label>
-      <input value={shop.phone} disabled style={{ opacity: 0.6 }} />
-      <button className="btn-primary" onClick={save}>
-        <Glyph name="check" size={18} color="#fff" strokeWidth={2.4} /> {t('save')}
+
+      <div className="form-group">
+        <div className="form-row">
+          <label>{t('shopName')}</label>
+          <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+        </div>
+        <div className="form-row">
+          <label>{t('ownerName')}</label>
+          <input
+            value={form.owner_name}
+            onChange={(e) => setForm({ ...form, owner_name: e.target.value })}
+            placeholder="Akbar aka"
+          />
+        </div>
+        <div className="form-row">
+          <label>{t('address')}</label>
+          <input
+            value={form.address}
+            onChange={(e) => setForm({ ...form, address: e.target.value })}
+            placeholder="Chilonzor, 5-kvartal"
+          />
+        </div>
+      </div>
+
+      <div className="form-group">
+        <div className="form-row">
+          <label>{t('setupCardShort')}</label>
+          <input
+            className={`mono ${cardBad ? 'bad' : ''}`}
+            value={formatCard(form.card_number)}
+            onChange={(e) => setForm({ ...form, card_number: formatCard(e.target.value) })}
+            inputMode="numeric"
+            placeholder="8600 0000 0000 0000"
+          />
+        </div>
+        <p className="form-note">{t('setupCardHint')}</p>
+      </div>
+
+      <div className="form-group">
+        <div className="form-row">
+          <label>{t('phone')}</label>
+          <input value={formatPhone(shop.phone)} disabled style={{ opacity: 0.5 }} />
+        </div>
+      </div>
+
+      <button className="btn-primary btn-lg" onClick={save} disabled={cardBad || !form.name.trim()}>
+        <Glyph name="check" size={19} color="#fff" /> {t('save')}
       </button>
+      {cardBad && <p className="error center">{t('cardInvalid')}</p>}
       {message && <p className="hint center">{message}</p>}
-      {error && <p className="error">{error}</p>}
+      {error && <p className="error center">{error}</p>}
     </div>
   );
 }

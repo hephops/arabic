@@ -4,6 +4,7 @@ import { AppIcon, Glyph } from '../icons';
 import { NavBar } from '../ui';
 import { useT, LANG_NAMES, type Lang } from '../i18n';
 import { MODES } from './Reminders';
+import { formatAmount, formatPhoneSoft, phoneStore } from '../format';
 
 export default function Customers() {
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -122,8 +123,8 @@ export default function Customers() {
               <input value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} />
               <label>{t('phoneForReminders')}</label>
               <input
-                value={editForm.phone}
-                onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
+                value={formatPhoneSoft(editForm.phone)}
+                onChange={(e) => setEditForm({ ...editForm, phone: phoneStore(e.target.value) })}
                 inputMode="tel"
                 placeholder="+998 90 123 45 67"
               />
@@ -175,7 +176,7 @@ export default function Customers() {
                 <div className="card">
                   <label>{t('amount')}</label>
                   <input
-                    value={debtForm.amount}
+                    value={formatAmount(debtForm.amount)}
                     onChange={(e) => setDebtForm({ ...debtForm, amount: e.target.value })}
                     inputMode="numeric"
                     placeholder="120 000"
@@ -229,7 +230,7 @@ export default function Customers() {
                       <div className="card">
                         <label>{t('paymentAmount')}</label>
                         <input
-                          value={payAmount}
+                          value={formatAmount(payAmount)}
                           onChange={(e) => setPayAmount(e.target.value)}
                           inputMode="numeric"
                           placeholder={String(d.amount - d.paid_amount)}
@@ -266,7 +267,7 @@ export default function Customers() {
           <label>{t('name')}</label>
           <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Karim aka" autoFocus />
           <label>{t('phoneForReminders')}</label>
-          <input value={newPhone} onChange={(e) => setNewPhone(e.target.value)} inputMode="tel" placeholder="+998 90 123 45 67" />
+          <input value={formatPhoneSoft(newPhone)} onChange={(e) => setNewPhone(phoneStore(e.target.value))} inputMode="tel" placeholder="+998 90 123 45 67" />
           <button
             className="btn-primary"
             onClick={async () => {

@@ -1,26 +1,20 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api, setToken } from '../api';
 import { Glyph } from '../icons';
 import { useT, LANG_NAMES, type Lang } from '../i18n';
 import { inTelegram, initData, haptic } from '../telegram';
+import { formatPhone, phoneE164, isPhoneComplete, phoneDigits, formatCard, cardDigits } from '../format';
 
-// Ro'yxatdan o'tish TZ bo'yicha: telefon + SMS-kod (OTP), yangi do'kon uchun
-// profil to'ldirish bosqichi (do'kon nomi, ega, karta, til).
+// Ro'yxatdan o'tish: telefon → SMS-kod → (yangi do'kon bo'lsa) profilni to'ldirish.
+// Har bir bosqich alohida ekran: bitta ish, bitta tugma.
 
 export default function Login({ onLogin }: { onLogin: () => void }) {
   const [step, setStep] = useState<'phone' | 'code' | 'setup'>('phone');
-  const [phone, setPhone] = useState('+998');
-  const [code, setCode] = useState('');
+  const [phone, setPhone] = useState('');
   const [hint, setHint] = useState<string | undefined>();
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-
-  // setup bosqichi
-  const [shopName, setShopName] = useState('');
-  const [ownerName, setOwnerName] = useState('');
-  const [cardNumber, setCardNumber] = useState('');
-  const [language, setLanguage] = useState<Lang>('uz');
-  const { t, setLang } = useT();
+  const { t } = useT();
   const [checkingTg, setCheckingTg] = useState(inTelegram);
 
   // Telegram ichida ochilgan bo'lsa — hisob bog'langan bo'lsa avtomatik kiramiz
@@ -40,9 +34,10 @@ export default function Login({ onLogin }: { onLogin: () => void }) {
     setBusy(true);
     setError('');
     try {
-      const res = await api.requestOtp(phone);
+      const res = await api.requestOtp(phoneE164(phone));
       setHint(res.dev_hint);
       setStep('code');
+      haptic.tap();
     } catch (e: any) {
       setError(t('error') + ': ' + e.message);
     } finally {
@@ -50,29 +45,209 @@ export default function Login({ onLogin }: { onLogin: () => void }) {
     }
   }
 
-  async function verify() {
+  async function verify(code: string) {
     setBusy(true);
     setError('');
     try {
-      const res = await api.verify(phone, code, undefined, inTelegram ? initData() : undefined);
+      const res = await api.verify(phoneE164(phone), code, undefined, inTelegram ? initData() : undefined);
       setToken(res.token);
+      haptic.success();
       if (!res.shop.owner_name) {
-        // yangi do'kon — profilni to'ldirish bosqichi
-        setShopName(res.shop.name === "Mening do‘konim" ? '' : res.shop.name);
         setStep('setup');
       } else {
         onLogin();
       }
     } catch (e: any) {
+      haptic.error();
       setError(e.message === 'invalid_code' ? t('loginWrongCode') : t('error') + ': ' + e.message);
     } finally {
       setBusy(false);
     }
   }
 
-  async function finishSetup() {
+  if (checkingTg) {
+    return (
+      <div className="auth auth-center">
+        <Brand />
+        <p className="auth-sub">{t('loading')}</p>
+      </div>
+    );
+  }
+
+  if (step === 'setup') return <Setup onDone={onLogin} />;
+
+  return (
+    <div className="auth">
+      <div className="auth-body">
+        <Brand />
+
+        {step === 'phone' ? (
+          <>
+            <h1 className="auth-title">{t('authWelcome')}</h1>
+            <p className="auth-sub">{t('authPhoneHint')}</p>
+
+            <div className="phone-field">
+              <span className="cc">+998</span>
+              <input
+                className="phone-input"
+                value={formatPhone(phone).replace('+998', '').trim()}
+                onChange={(e) => setPhone(phoneDigits(e.target.value))}
+                inputMode="tel"
+                autoFocus
+                placeholder="90 123 45 67"
+                onKeyDown={(e) => e.key === 'Enter' && isPhoneComplete(phone) && sendOtp()}
+              />
+            </div>
+
+            <button className="btn-primary btn-lg" onClick={sendOtp} disabled={busy || !isPhoneComplete(phone)}>
+              {t('loginGetCode')}
+            </button>
+            <p className="auth-terms">{t('authTerms')}</p>
+          </>
+        ) : (
+          <CodeStep
+            phone={phone}
+            hint={hint}
+            busy={busy}
+            onSubmit={verify}
+            onResend={sendOtp}
+            onBack={() => {
+              setError('');
+              setStep('phone');
+            }}
+          />
+        )}
+
+        {error && <p className="error center">{error}</p>}
+      </div>
+    </div>
+  );
+}
+
+function Brand() {
+  const { t } = useT();
+  return (
+    <div className="auth-brand">
+      <div className="auth-logo">A</div>
+      <div className="auth-name">Arabic.One</div>
+      <div className="auth-tagline">{t('loginSubtitle')}</div>
+    </div>
+  );
+}
+
+/* ─────────── SMS kod: 6 ta alohida katak ─────────── */
+
+function CodeStep({
+  phone,
+  hint,
+  busy,
+  onSubmit,
+  onResend,
+  onBack,
+}: {
+  phone: string;
+  hint?: string;
+  busy: boolean;
+  onSubmit: (code: string) => void;
+  onResend: () => void;
+  onBack: () => void;
+}) {
+  const [code, setCode] = useState('');
+  const [left, setLeft] = useState(60);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const { t } = useT();
+
+  useEffect(() => {
+    inputRef.current?.focus();
+    const timer = setInterval(() => setLeft((s) => (s > 0 ? s - 1 : 0)), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  function change(v: string) {
+    const d = v.replace(/\D/g, '').slice(0, 6);
+    setCode(d);
+    if (d.length === 6) onSubmit(d);
+  }
+
+  return (
+    <>
+      <h1 className="auth-title">{t('authCodeTitle')}</h1>
+      <p className="auth-sub">
+        {t('authCodeSentTo')} <b>{formatPhone(phone)}</b>
+      </p>
+
+      <div className="otp" onClick={() => inputRef.current?.focus()}>
+        {Array.from({ length: 6 }).map((_, i) => (
+          <div key={i} className={`otp-box ${code.length === i ? 'active' : ''} ${code[i] ? 'filled' : ''}`}>
+            {code[i] ?? ''}
+          </div>
+        ))}
+        <input
+          ref={inputRef}
+          className="otp-hidden"
+          value={code}
+          onChange={(e) => change(e.target.value)}
+          inputMode="numeric"
+          autoComplete="one-time-code"
+          maxLength={6}
+        />
+      </div>
+
+      {hint && (
+        <div className="dev-hint">
+          {t('loginDevHint')}: <b>{hint}</b>
+        </div>
+      )}
+
+      <button className="btn-primary btn-lg" onClick={() => onSubmit(code)} disabled={busy || code.length < 6}>
+        {t('loginEnter')}
+      </button>
+
+      <div className="auth-links">
+        {left > 0 ? (
+          <span className="muted-link">
+            {t('authResendIn')} {left}s
+          </span>
+        ) : (
+          <button
+            className="link"
+            onClick={() => {
+              setLeft(60);
+              onResend();
+            }}
+          >
+            {t('authResend')}
+          </button>
+        )}
+        <button className="link" onClick={onBack}>
+          {t('authChangeNumber')}
+        </button>
+      </div>
+    </>
+  );
+}
+
+/* ─────────── Yangi do'kon: profilni to'ldirish ─────────── */
+
+function Setup({ onDone }: { onDone: () => void }) {
+  const [shopName, setShopName] = useState('');
+  const [ownerName, setOwnerName] = useState('');
+  const [card, setCard] = useState('');
+  const [language, setLanguage] = useState<Lang>('uz');
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const { t, setLang } = useT();
+
+  const cardLen = cardDigits(card).length;
+  const cardBad = cardLen > 0 && cardLen < 16;
+
+  async function finish() {
     if (!shopName.trim()) {
       setError(t('setupNameRequired'));
+      return;
+    }
+    if (cardBad) {
+      setError(t('cardInvalid'));
       return;
     }
     setBusy(true);
@@ -81,10 +256,11 @@ export default function Login({ onLogin }: { onLogin: () => void }) {
       await api.updateMe({
         name: shopName.trim(),
         owner_name: ownerName.trim() || undefined,
-        card_number: cardNumber.trim() || undefined,
+        card_number: cardLen === 16 ? formatCard(card) : undefined,
         language,
       } as any);
-      onLogin();
+      haptic.success();
+      onDone();
     } catch (e: any) {
       setError(t('error') + ': ' + e.message);
     } finally {
@@ -92,73 +268,64 @@ export default function Login({ onLogin }: { onLogin: () => void }) {
     }
   }
 
-  if (checkingTg) {
-    return (
-      <div className="login-wrap center">
-        <div className="login-logo">A</div>
-        <p className="hint">{t('loading')}</p>
-      </div>
-    );
-  }
-
   return (
-    <div className="login-wrap">
-      <div className="login-logo">A</div>
-      <h2 className="center" style={{ marginBottom: 4 }}>Arabic.One</h2>
-      <p className="center hint" style={{ marginBottom: 24 }}>{t('loginSubtitle')}</p>
+    <div className="auth">
+      <div className="auth-body">
+        <div className="auth-brand tight">
+          <div className="auth-logo sm">A</div>
+          <h1 className="auth-title" style={{ marginTop: 12 }}>{t('setupTitle')}</h1>
+          <p className="auth-sub">{t('setupSub')}</p>
+        </div>
 
-      {step === 'phone' && (
-        <>
-          <label>{t('loginPhone')}</label>
-          <input value={phone} onChange={(e) => setPhone(e.target.value)} inputMode="tel" />
-          <button className="btn-primary" onClick={sendOtp} disabled={busy || phone.length < 9}>
-            {t('loginGetCode')}
-          </button>
-        </>
-      )}
+        <div className="form-group">
+          <div className="form-row">
+            <label>{t('setupShopName')}</label>
+            <input value={shopName} onChange={(e) => setShopName(e.target.value)} placeholder="Barakat do'koni" autoFocus />
+          </div>
+          <div className="form-row">
+            <label>{t('setupOwner')}</label>
+            <input value={ownerName} onChange={(e) => setOwnerName(e.target.value)} placeholder="Akbar aka" />
+          </div>
+        </div>
 
-      {step === 'code' && (
-        <>
-          <label>{t('loginCode')}</label>
-          <input value={code} onChange={(e) => setCode(e.target.value)} inputMode="numeric" maxLength={6} />
-          {hint && <p className="hint">{t('loginDevHint')}: {hint}</p>}
-          <button className="btn-primary" onClick={verify} disabled={busy || code.length < 6}>
-            {t('loginEnter')}
-          </button>
-          <button className="btn-ghost" style={{ marginTop: 8 }} onClick={() => setStep('phone')}>
-            {t('back')}
-          </button>
-        </>
-      )}
+        <div className="form-group">
+          <div className="form-row">
+            <label>
+              {t('setupCardShort')} <span className="tag">{t('optionalField')}</span>
+            </label>
+            <input
+              className={`mono ${cardBad ? 'bad' : ''}`}
+              value={formatCard(card)}
+              onChange={(e) => setCard(e.target.value)}
+              inputMode="numeric"
+              placeholder="8600 0000 0000 0000"
+            />
+          </div>
+          <p className="form-note">{t('setupCardHint')}</p>
+        </div>
 
-      {step === 'setup' && (
-        <>
-          <p className="center hint" style={{ marginBottom: 10 }}>{t('setupWelcome')}</p>
-          <label>{t('setupShopName')} *</label>
-          <input value={shopName} onChange={(e) => setShopName(e.target.value)} placeholder="Barakat do'koni" />
-          <label>{t('setupOwner')}</label>
-          <input value={ownerName} onChange={(e) => setOwnerName(e.target.value)} placeholder="Akbar aka" />
-          <label>{t('setupCard')}</label>
-          <input value={cardNumber} onChange={(e) => setCardNumber(e.target.value)} inputMode="numeric" placeholder="8600 0000 0000 0000" />
-          <label>{t('navLanguage')}</label>
-          <select
-            value={language}
-            onChange={(e) => {
-              setLanguage(e.target.value as Lang);
-              setLang(e.target.value as Lang);
-            }}
-          >
-            {Object.entries(LANG_NAMES).map(([id, label]) => (
-              <option key={id} value={id}>{label}</option>
-            ))}
-          </select>
-          <button className="btn-primary" onClick={finishSetup} disabled={busy}>
-            <Glyph name="check" size={18} color="#fff" strokeWidth={2.4} /> {t('setupStart')}
-          </button>
-        </>
-      )}
+        <div className="form-group">
+          <div className="form-row">
+            <label>{t('navLanguage')}</label>
+            <select
+              value={language}
+              onChange={(e) => {
+                setLanguage(e.target.value as Lang);
+                setLang(e.target.value as Lang);
+              }}
+            >
+              {Object.entries(LANG_NAMES).map(([id, label]) => (
+                <option key={id} value={id}>{label}</option>
+              ))}
+            </select>
+          </div>
+        </div>
 
-      {error && <p className="error">{error}</p>}
+        <button className="btn-primary btn-lg" onClick={finish} disabled={busy || !shopName.trim()}>
+          <Glyph name="check" size={19} color="#fff" /> {t('setupStart')}
+        </button>
+        {error && <p className="error center">{error}</p>}
+      </div>
     </div>
   );
 }

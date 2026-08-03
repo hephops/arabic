@@ -23,6 +23,7 @@ export default function Dashboard({
   if (!data) return <div className="screen empty">{t('loading')}</div>;
 
   const maxRev = Math.max(...data.week.map((w) => w.revenue), 1);
+  const weekTotal = data.week.reduce((a, w) => a + w.revenue, 0);
   const today = new Date().toISOString().slice(0, 10);
   const WD = ['Ya', 'Du', 'Se', 'Ch', 'Pa', 'Ju', 'Sh'];
 
@@ -51,19 +52,23 @@ export default function Dashboard({
             <div className="v">{fmtShort(data.today.debt)}</div>
           </div>
         </div>
-        <div className="spark">
-          {data.week.map((w) => (
-            <div className={`col ${w.day === today ? 'today' : ''}`} key={w.day}>
-              <div className="track">
-                <div
-                  className="bar"
-                  style={{ height: `${w.revenue > 0 ? Math.max(6, Math.round((w.revenue / maxRev) * 27)) : 0}px` }}
-                />
+        {weekTotal > 0 ? (
+          <div className="spark">
+            {data.week.map((w) => (
+              <div className={`col ${w.day === today ? 'today' : ''}`} key={w.day}>
+                <div className="track">
+                  <div
+                    className="bar"
+                    style={{ height: `${w.revenue > 0 ? Math.max(5, Math.round((w.revenue / maxRev) * 27)) : 2}px` }}
+                  />
+                </div>
+                <div className="d">{WD[new Date(w.day).getDay()]}</div>
               </div>
-              <div className="d">{WD[new Date(w.day).getDay()]}</div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        ) : (
+          <div className="spark-empty">{t('noSalesWeek')}</div>
+        )}
       </div>
 
       {/* Uchta asosiy ko'rsatkich */}
@@ -226,7 +231,13 @@ export default function Dashboard({
       {data.overdue.length === 0 &&
         data.due_today.length === 0 &&
         data.recent_sales.length === 0 &&
-        data.supplier_due.length === 0 && <div className="empty">{t('noDueToday')}</div>}
+        data.supplier_due.length === 0 && (
+          <div className="empty-state">
+            <AppIcon glyph="book" size={54} />
+            <div className="t">{t('allClearTitle')}</div>
+            <div className="s">{t('allClearSub')}</div>
+          </div>
+        )}
 
       <button className="fab-voice" onClick={onOpenAdd} title="Qarz qo'shish">
         <Glyph name="mic" size={26} color="#fff" strokeWidth={2} />

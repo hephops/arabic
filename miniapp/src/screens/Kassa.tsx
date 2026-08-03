@@ -4,6 +4,7 @@ import { AppIcon, Glyph } from '../icons';
 import Scanner from '../Scanner';
 import { haptic } from '../telegram';
 import { useT } from '../i18n';
+import { formatAmount } from '../format';
 
 interface CartLine {
   product: Product;
@@ -448,11 +449,11 @@ function IntakeMode({ onDone }: { onDone: () => void }) {
       <div style={{ display: 'flex', gap: 10 }}>
         <div style={{ flex: 1 }}>
           <label>{t('costPrice')}</label>
-          <input value={costPrice} onChange={(e) => setCostPrice(e.target.value)} inputMode="numeric" placeholder="10 000" />
+          <input value={formatAmount(costPrice)} onChange={(e) => setCostPrice(e.target.value)} inputMode="numeric" placeholder="10 000" />
         </div>
         <div style={{ flex: 1 }}>
           <label>{t('sellPrice')}</label>
-          <input value={sellPrice} onChange={(e) => setSellPrice(e.target.value)} inputMode="numeric" placeholder="13 000" />
+          <input value={formatAmount(sellPrice)} onChange={(e) => setSellPrice(e.target.value)} inputMode="numeric" placeholder="13 000" />
         </div>
       </div>
       <div style={{ display: 'flex', gap: 10 }}>

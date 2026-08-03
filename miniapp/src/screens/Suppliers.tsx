@@ -3,6 +3,7 @@ import { api, fmt, Supplier, SupplierDetail } from '../api';
 import { AppIcon, Glyph } from '../icons';
 import { SubHeader } from '../ui';
 import { useT } from '../i18n';
+import { formatAmount } from '../format';
 
 // "Men qarzdorman" — postavshiklar (ta'minotchilar) daftari
 
@@ -82,7 +83,7 @@ export default function Suppliers({ onBack }: { onBack: () => void }) {
                 <div className="card">
                   <label>{t('paymentAmount')}</label>
                   <input
-                    value={payAmount}
+                    value={formatAmount(payAmount)}
                     onChange={(e) => setPayAmount(e.target.value)}
                     inputMode="numeric"
                     placeholder={String(d.amount - d.paid_amount)}
@@ -120,7 +121,7 @@ export default function Suppliers({ onBack }: { onBack: () => void }) {
           <label>{t('supplierName')}</label>
           <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Anvar aka (ulgurji)" />
           <label>{t('amount')}</label>
-          <input value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} inputMode="numeric" placeholder="2 500 000" />
+          <input value={formatAmount(form.amount)} onChange={(e) => setForm({ ...form, amount: e.target.value })} inputMode="numeric" placeholder="2 500 000" />
           <label>{t('whatGoods')}</label>
           <input value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} placeholder="ichimliklar, shirinliklar..." />
           <label>{t('payDeadline')}</label>

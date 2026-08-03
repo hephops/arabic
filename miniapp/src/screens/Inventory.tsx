@@ -4,6 +4,7 @@ import { AppIcon, Glyph } from '../icons';
 import { NavBar } from '../ui';
 import { useT } from '../i18n';
 import Scanner from '../Scanner';
+import { formatAmount } from '../format';
 
 // Ombor: mahsulotlar ro'yxati, tahrirlash va inventarizatsiya
 
@@ -216,11 +217,11 @@ function ProductEdit({ product, onBack, onSaved }: { product: Product; onBack: (
         <div style={{ display: 'flex', gap: 10 }}>
           <div style={{ flex: 1 }}>
             <label>{t('costPrice')}</label>
-            <input value={form.cost_price} onChange={(e) => setForm({ ...form, cost_price: e.target.value })} inputMode="numeric" />
+            <input value={formatAmount(form.cost_price)} onChange={(e) => setForm({ ...form, cost_price: e.target.value })} inputMode="numeric" />
           </div>
           <div style={{ flex: 1 }}>
             <label>{t('sellPrice')}</label>
-            <input value={form.sell_price} onChange={(e) => setForm({ ...form, sell_price: e.target.value })} inputMode="numeric" />
+            <input value={formatAmount(form.sell_price)} onChange={(e) => setForm({ ...form, sell_price: e.target.value })} inputMode="numeric" />
           </div>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>

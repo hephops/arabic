@@ -69,6 +69,21 @@ const UZ: Record<string, string> = {
   setupCard: "Karta raqami (qarzdorlar to'lovi uchun; keyin ham kiritsa bo'ladi)",
   setupStart: 'Boshlash',
   setupNameRequired: "Do'kon nomini kiriting",
+  authWelcome: 'Xush kelibsiz',
+  authPhoneHint: "Kirish uchun telefon raqamingizni kiriting — SMS orqali kod yuboramiz",
+  authCodeTitle: 'Kodni kiriting',
+  authCodeSentTo: 'Kod yuborildi',
+  authResend: 'Kodni qayta yuborish',
+  authResendIn: 'Qayta yuborish',
+  authChangeNumber: "Raqamni o'zgartirish",
+  authTerms: "Davom etishingiz bilan xizmat shartlariga rozilik bildirasiz",
+  continueBtn: 'Davom etish',
+  setupTitle: "Do'koningizni sozlaymiz",
+  setupSub: "Bu ma'lumotlarni keyin ham o'zgartirasiz",
+  setupCardShort: 'Karta raqami',
+  setupCardHint: "Qarzdorlarga SMS'da shu karta yuboriladi",
+  cardInvalid: 'Karta raqami 16 xonadan iborat',
+  optionalField: 'ixtiyoriy',
 
   // Asosiy ekran
   owedToMe: 'Menga qarzdorlar',
@@ -145,6 +160,16 @@ const UZ: Record<string, string> = {
   nameAmountRequired: 'Ism va summa majburiy',
   couldNotParse: "Tushunolmadim — qo'lda kiriting yoki boshqacha ayting",
   noSpeechSupport: "Bu qurilmada ovoz tanish yo'q — matn yozing yoki qo'lda kiriting",
+  micTap: 'Bosing va gapiring',
+  micStop: "To'xtatish",
+  micNoResult: "Ovoz eshitilmadi — yana urinib ko'ring yoki matn yozing",
+  micDenied: 'Mikrofonga ruxsat berilmadi — brauzer sozlamalaridan ruxsat bering',
+  micNoNetwork: "Ovoz tanish uchun internet kerak — matn yozing",
+  voiceHeard: 'Eshitildi',
+  tryAgain: "Qayta urinish",
+  noSalesWeek: "Bu hafta hali savdo yo'q",
+  allClearTitle: 'Hammasi joyida',
+  allClearSub: "Muddati kelgan qarz ham, yangi sotuv ham yo'q",
 
   // Kassa
   modeSale: 'Sotuv',
@@ -352,6 +377,21 @@ const RU: Record<string, string> = {
   setupCard: 'Номер карты (для оплаты долгов; можно указать позже)',
   setupStart: 'Начать',
   setupNameRequired: 'Укажите название магазина',
+  authWelcome: 'Добро пожаловать',
+  authPhoneHint: 'Введите номер телефона — пришлём код в SMS',
+  authCodeTitle: 'Введите код',
+  authCodeSentTo: 'Код отправлен на',
+  authResend: 'Отправить код заново',
+  authResendIn: 'Повтор через',
+  authChangeNumber: 'Изменить номер',
+  authTerms: 'Продолжая, вы принимаете условия сервиса',
+  continueBtn: 'Продолжить',
+  setupTitle: 'Настроим ваш магазин',
+  setupSub: 'Эти данные можно изменить позже',
+  setupCardShort: 'Номер карты',
+  setupCardHint: 'Эту карту должники увидят в SMS',
+  cardInvalid: 'Номер карты состоит из 16 цифр',
+  optionalField: 'необязательно',
 
   owedToMe: 'Мне должны',
   iOwe: 'Я должен',
@@ -425,6 +465,16 @@ const RU: Record<string, string> = {
   nameAmountRequired: 'Имя и сумма обязательны',
   couldNotParse: 'Не понял — введите вручную или скажите иначе',
   noSpeechSupport: 'На этом устройстве нет распознавания речи — напишите текст',
+  micTap: 'Нажмите и говорите',
+  micStop: 'Остановить',
+  micNoResult: 'Ничего не услышал — попробуйте ещё раз или напишите текст',
+  micDenied: 'Нет доступа к микрофону — разрешите его в настройках браузера',
+  micNoNetwork: 'Для распознавания нужен интернет — напишите текст',
+  voiceHeard: 'Услышано',
+  tryAgain: 'Попробовать снова',
+  noSalesWeek: 'На этой неделе продаж пока нет',
+  allClearTitle: 'Всё в порядке',
+  allClearSub: 'Нет ни просроченных долгов, ни новых продаж',
 
   modeSale: 'Продажа',
   modeIntake: 'Приход товара',
@@ -629,9 +679,15 @@ export function translate(key: string, lang: Lang = currentLang): string {
   return lang === 'uz_cyrl' ? toCyrillic(uz) : uz;
 }
 
+// Raqamni bo'g'inlash: 120000 -> "120 000" (O'zbekistonda ajratgich — probel)
+export function group(n: number): string {
+  const sign = n < 0 ? '-' : '';
+  return sign + Math.abs(Math.round(n)).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+}
+
 // Summa formati — valyuta nomi tilga qarab o'zgaradi
 export function fmt(n: number): string {
-  return `${new Intl.NumberFormat('uz-UZ').format(n)} ${translate('currency')}`;
+  return `${group(n)} ${translate('currency')}`;
 }
 
 // Qisqa format — tor kartochkalar uchun (476 ming, 2,5 mln)
@@ -643,7 +699,7 @@ export function fmtShort(n: number): string {
     return `${sign}${v >= 10 ? Math.round(v) : v.toFixed(1).replace('.0', '')} ${translate('mln')}`;
   }
   if (abs >= 10_000) return `${sign}${Math.round(abs / 1000)} ${translate('thousand')}`;
-  return `${sign}${new Intl.NumberFormat('uz-UZ').format(abs)}`;
+  return `${sign}${group(abs)}`;
 }
 
 interface I18nValue {
