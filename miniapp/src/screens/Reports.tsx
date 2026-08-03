@@ -33,22 +33,18 @@ export default function Reports({ onBack }: { onBack: () => void }) {
         <div className="empty">Yuklanmoqda...</div>
       ) : (
         <>
-          <div className="balance-row">
-            <div className="card balance-card">
-              <AppIcon glyph="banknote" color="blue" />
+          <div className="card split-card">
+            <div className="split">
               <div className="label">Savdo ({data.count} ta)</div>
               <div className="value">{fmt(data.revenue)}</div>
             </div>
-            <div className="card balance-card">
-              <AppIcon glyph="arrowUp" color="green" />
+            <div className="split">
               <div className="label">Foyda</div>
               <div className="value green">{fmt(data.profit)}</div>
             </div>
           </div>
 
-          <div className="section-title">
-            <AppIcon glyph="card" color="purple" size={22} /> To'lov turlari
-          </div>
+          <div className="section-title">To'lov turlari</div>
           <div className="list-group">
             <div className="list-item">
               <div className="lead"><Glyph name="banknote" size={20} color="var(--green)" /><div className="name">Naqd</div></div>
@@ -66,9 +62,7 @@ export default function Reports({ onBack }: { onBack: () => void }) {
 
           {data.top_products.length > 0 && (
             <>
-              <div className="section-title">
-                <AppIcon glyph="star" color="orange" size={22} /> Eng ko'p sotilganlar
-              </div>
+              <div className="section-title">Eng ko'p sotilganlar</div>
               <div className="list-group">
                 {data.top_products.map((p, i) => (
                   <div className="list-item" key={p.name}>

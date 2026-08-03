@@ -82,9 +82,7 @@ export default function Customers() {
 
   return (
     <div className="screen">
-      <div className="section-title">
-        <AppIcon glyph="people" color="blue" size={22} /> Mijozlar
-      </div>
+      <div className="section-title">Mijozlar</div>
       {!adding ? (
         <button className="btn-primary" style={{ marginBottom: 12 }} onClick={() => setAdding(true)}>
           <Glyph name="plus" size={18} color="#fff" /> Mijoz qo'shish

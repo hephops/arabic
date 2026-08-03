@@ -148,9 +148,7 @@ function SaleMode({ onDone }: { onDone: () => void }) {
 
       {cart.length > 0 && (
         <>
-          <div className="section-title">
-            <AppIcon glyph="cart" color="blue" size={22} /> Savat
-          </div>
+          <div className="section-title">Savat</div>
           <div className="list-group">
             {cart.map((l) => (
               <div className="list-item" key={l.product.id}>

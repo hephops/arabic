@@ -22,35 +22,28 @@ export default function Dashboard({
 
   return (
     <div className="screen">
-      <div className="balance-row">
-        <div className="card balance-card">
-          <AppIcon glyph="arrowDown" color="green" />
+      <div className="card split-card">
+        <div className="split">
           <div className="label">Menga qarzdorlar</div>
           <div className="value green">{fmt(data.owed_to_me)}</div>
         </div>
-        <div className="card balance-card" onClick={() => onNavigate('suppliers')} style={{ cursor: 'pointer' }}>
-          <AppIcon glyph="arrowUp" color="red" />
+        <div className="split" onClick={() => onNavigate('suppliers')} style={{ cursor: 'pointer' }}>
           <div className="label">Men qarzdorman ›</div>
           <div className="value red">{fmt(data.i_owe)}</div>
         </div>
       </div>
 
       {/* Tez kirish */}
-      <div className="balance-row" style={{ marginTop: 10 }}>
+      <div className="tile-row">
         {(
           [
-            ['suppliers', 'box', 'orange', 'Postavshiklar'],
-            ['reports', 'star', 'purple', 'Hisobotlar'],
-            ['inventory', 'search', 'teal', 'Ombor'],
-          ] as [SubScreen, string, any, string][]
-        ).map(([id, glyph, color, label]) => (
-          <div
-            key={label}
-            className="card balance-card center"
-            style={{ cursor: 'pointer', alignItems: 'center', gap: 4, padding: '12px 8px' }}
-            onClick={() => onNavigate(id)}
-          >
-            <AppIcon glyph={glyph} color={color} size={34} />
+            ['suppliers', 'box', 'Postavshiklar'],
+            ['reports', 'star', 'Hisobotlar'],
+            ['inventory', 'search', 'Ombor'],
+          ] as [SubScreen, string, string][]
+        ).map(([id, glyph, label]) => (
+          <div key={label} className="tile" onClick={() => onNavigate(id)}>
+            <AppIcon glyph={glyph} color="blue" size={29} />
             <div className="label">{label}</div>
           </div>
         ))}
@@ -58,9 +51,7 @@ export default function Dashboard({
 
       {data.overdue.length > 0 && (
         <>
-          <div className="section-title">
-            <AppIcon glyph="warning" color="red" size={22} /> Kechikkan qarzlar
-          </div>
+          <div className="section-title">Kechikkan qarzlar</div>
           <div className="list-group">
             {data.overdue.map((d) => (
               <div className="list-item" key={d.id}>
@@ -79,9 +70,7 @@ export default function Dashboard({
 
       {data.due_today.length > 0 && (
         <>
-          <div className="section-title">
-            <AppIcon glyph="calendar" color="blue" size={22} /> Bugun muddati keladi
-          </div>
+          <div className="section-title">Bugun muddati keladi</div>
           <div className="list-group">
             {data.due_today.map((d) => (
               <div className="list-item" key={d.id}>
@@ -95,9 +84,7 @@ export default function Dashboard({
 
       {data.low_stock.length > 0 && (
         <>
-          <div className="section-title">
-            <AppIcon glyph="box" color="orange" size={22} /> Kam qolgan tovarlar
-          </div>
+          <div className="section-title">Kam qolgan tovarlar</div>
           <div className="list-group">
             {data.low_stock.map((p) => (
               <div className="list-item" key={p.id}>
@@ -113,9 +100,7 @@ export default function Dashboard({
 
       {data.expiring_soon.length > 0 && (
         <>
-          <div className="section-title">
-            <AppIcon glyph="clock" color="yellow" size={22} /> Srogi yaqin
-          </div>
+          <div className="section-title">Srogi yaqin</div>
           <div className="list-group">
             {data.expiring_soon.map((p) => (
               <div className="list-item" key={p.id}>
