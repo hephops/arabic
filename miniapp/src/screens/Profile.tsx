@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, fmt, logout, Shop, BalanceInfo, Employee } from '../api';
 import { AppIcon, Glyph } from '../icons';
-import { SubHeader } from '../ui';
+import { SubHeader, EmptyState } from '../ui';
 import { useT, LANG_NAMES, group, type Lang } from '../i18n';
 import { formatCard, cardDigits, formatPhone, maskCard, formatAmount, amountValue } from '../format';
 
@@ -75,7 +75,7 @@ export default function Profile({
     return (
       <div className="screen">
         <div className="card" style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          <AppIcon glyph="employee" size={52} />
+          <AppIcon glyph="employee" color="teal" size={52} />
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 18, fontWeight: 700, letterSpacing: -0.3 }}>{shop.employee?.name}</div>
             <div className="sub">{t('employeeMode')} · {shop.name}</div>
@@ -393,7 +393,7 @@ function EmployeesView({ shopPhone, onBack }: { shopPhone: string; onBack: () =>
   const [name, setName] = useState('');
   const [pin, setPin] = useState('');
   const [adding, setAdding] = useState(false);
-  const [shown, setShown] = useState<number | null>(null);
+  const [opened, setOpened] = useState<Employee | null>(null);
   const [error, setError] = useState('');
 
   const load = () => api.employees().then(setEmployees).catch(() => {});
@@ -414,17 +414,27 @@ function EmployeesView({ shopPhone, onBack }: { shopPhone: string; onBack: () =>
     load();
   }
 
+  // Xodim kartochkasi: PIN va kirish yo'riqnomasi shu yerda turadi,
+  // ro'yxatda esa faqat ism va holat ko'rinadi.
+  if (opened) {
+    return (
+      <EmployeeCard
+        employee={opened}
+        shopPhone={shopPhone}
+        onBack={() => setOpened(null)}
+        onChanged={async () => {
+          await load();
+          setOpened(null);
+        }}
+      />
+    );
+  }
+
   return (
     <div className="screen">
       <SubHeader title={t('navEmployees')} onBack={onBack} />
       <p className="hint">{t('employeesHint')}</p>
 
-      <div className="card">
-        <div className="section-title" style={{ margin: '0 0 6px' }}>{t('employeeHowTo')}</div>
-        <p className="hint" style={{ marginTop: 0 }}>
-          {t('employeeHowToText').replace('{phone}', formatPhone(shopPhone))}
-        </p>
-      </div>
       {!adding ? (
         <button className="btn-primary" onClick={() => setAdding(true)}>
           <Glyph name="plus" size={18} color="#fff" /> {t('addEmployee')}
@@ -455,36 +465,96 @@ function EmployeesView({ shopPhone, onBack }: { shopPhone: string; onBack: () =>
           {error && <p className="error center">{error}</p>}
         </>
       )}
-      <div className="list-group" style={{ marginTop: 12 }}>
-        {employees.map((e) => (
-          <div className="list-item" key={e.id}>
-            <div className="lead">
-              <AppIcon glyph="employee" color={e.is_active ? undefined : 'gray'} size={30} />
-              <div>
+      {employees.length > 0 && (
+        <div className="list-group" style={{ marginTop: 12 }}>
+          {employees.map((e) => (
+            <div className="list-item" key={e.id} onClick={() => setOpened(e)}>
+              <div className="lead">
+                <AppIcon glyph="employee" color={e.is_active ? 'teal' : 'gray'} size={30} />
                 <div className="name">{e.name}</div>
-                <div className="sub">
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span className={`badge ${e.is_active ? 'paid' : 'overdue'}`}>
                   {e.is_active ? t('employeeActive') : t('employeeBlocked')}
-                  {e.pin && ` · ${t('employeePin')}: ${shown === e.id ? e.pin : '••••'}`}
-                </div>
+                </span>
+                <Glyph name="chevron" size={15} color="#c7c7cc" />
               </div>
             </div>
-            <div style={{ display: 'flex', gap: 6 }}>
-              {e.pin && (
-                <button className="chip" onClick={() => setShown(shown === e.id ? null : e.id)}>
-                  {shown === e.id ? t('close') : t('showPin')}
-                </button>
-              )}
+          ))}
+        </div>
+      )}
+      {employees.length === 0 && !adding && (
+        <EmptyState icon="employee" title={t('noEmployees')} sub={t('noEmployeesSub')} />
+      )}
+    </div>
+  );
+}
+
+/* ───────── Xodim kartochkasi: PIN va kirish yo'riqnomasi ───────── */
+
+function EmployeeCard({
+  employee,
+  shopPhone,
+  onBack,
+  onChanged,
+}: {
+  employee: Employee;
+  shopPhone: string;
+  onBack: () => void;
+  onChanged: () => void;
+}) {
+  const [shown, setShown] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const { t } = useT();
+
+  return (
+    <div className="screen">
+      <SubHeader title={employee.name} onBack={onBack} />
+
+      <div className="card center" style={{ padding: '20px 16px' }}>
+        <AppIcon glyph="employee" color={employee.is_active ? 'teal' : 'gray'} size={54} />
+        <div style={{ fontSize: 19, fontWeight: 700, marginTop: 10 }}>{employee.name}</div>
+        <div className="sub">
+          {t('roleSeller')} · {employee.is_active ? t('employeeActive') : t('employeeBlocked')}
+        </div>
+      </div>
+
+      {employee.pin && (
+        <>
+          <div className="section-title">{t('employeePin')}</div>
+          <div className="pin-card">
+            <div className="pin-value">{shown ? employee.pin : '••••'}</div>
+            <div className="pin-actions">
+              <button className="chip" onClick={() => setShown(!shown)}>
+                {shown ? t('hidePin') : t('showPin')}
+              </button>
               <button
                 className="chip"
-                onClick={() => api.updateEmployee(e.id, { is_active: e.is_active ? 0 : 1 }).then(load)}
+                onClick={() => {
+                  navigator.clipboard?.writeText(employee.pin!);
+                  setCopied(true);
+                }}
               >
-                {e.is_active ? t('block') : t('unblock')}
+                {copied ? t('copied') : t('copy')}
               </button>
             </div>
           </div>
-        ))}
+        </>
+      )}
+
+      <div className="section-title">{t('employeeHowTo')}</div>
+      <div className="card">
+        <p className="hint" style={{ margin: 0 }}>
+          {t('employeeHowToText').replace('{phone}', formatPhone(shopPhone))}
+        </p>
       </div>
-      {employees.length === 0 && <div className="empty">{t('noEmployees')}</div>}
+
+      <button
+        className={`btn-primary btn-lg ${employee.is_active ? 'danger' : ''}`}
+        onClick={() => api.updateEmployee(employee.id, { is_active: employee.is_active ? 0 : 1 }).then(onChanged)}
+      >
+        {employee.is_active ? t('block') : t('unblock')}
+      </button>
     </div>
   );
 }

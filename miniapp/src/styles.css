@@ -611,6 +611,18 @@ button.link { background: none; color: var(--accent); font-size: 15px; font-weig
 .empty-state .t { font-size: 16px; font-weight: 600; margin-top: 12px; }
 .empty-state .s { font-size: 13.5px; color: var(--muted); margin-top: 4px; line-height: 1.4; }
 
+/* Xodim PIN-kodi */
+.pin-card {
+  background: var(--card); border-radius: 14px; padding: 16px; margin-bottom: 10px; text-align: center;
+}
+.pin-value {
+  font-size: 34px; font-weight: 800; letter-spacing: 10px; text-indent: 10px;
+  font-variant-numeric: tabular-nums; margin-bottom: 12px;
+}
+.pin-actions { display: flex; gap: 8px; justify-content: center; }
+
+.btn-primary.danger { background: var(--red); }
+
 /* Sotuvchi rejimi belgisi */
 .role-banner {
   display: flex; align-items: center; gap: 7px;
