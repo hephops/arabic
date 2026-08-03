@@ -106,8 +106,8 @@ label { font-size: 13px; color: var(--muted); display: block; margin: 4px 4px 6p
 .tabbar {
   position: fixed; bottom: 0; left: 0; right: 0; max-width: 480px; margin: 0 auto;
   display: flex;
-  background: rgba(249, 249, 251, 0.94);
-  backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+  background: rgba(249, 249, 251, 0.97);
+  backdrop-filter: blur(24px) saturate(180%); -webkit-backdrop-filter: blur(24px) saturate(180%);
   border-top: 0.5px solid var(--separator);
   padding: 6px 0 max(8px, env(safe-area-inset-bottom));
 }
