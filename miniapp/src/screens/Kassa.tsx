@@ -4,7 +4,7 @@ import { AppIcon, Glyph } from '../icons';
 import Scanner from '../Scanner';
 import { haptic } from '../telegram';
 import { useT } from '../i18n';
-import { formatAmount } from '../format';
+import { formatAmount, amountValue } from '../format';
 
 interface CartLine {
   product: Product;
@@ -30,15 +30,15 @@ export default function Kassa({ onDone }: { onDone: () => void }) {
 
   return (
     <div className="screen">
-      <div className="chip-row">
-        <button className={`chip ${mode === 'sale' ? 'selected' : ''}`} onClick={() => setMode('sale')}>
+      <div className="segmented">
+        <button className={mode === 'sale' ? 'on' : ''} onClick={() => { setMode('sale'); haptic.select(); }}>
           <Glyph name="cart" size={16} /> {t('modeSale')}
         </button>
-        <button className={`chip ${mode === 'intake' ? 'selected' : ''}`} onClick={() => setMode('intake')}>
+        <button className={mode === 'intake' ? 'on' : ''} onClick={() => { setMode('intake'); haptic.select(); }}>
           <Glyph name="box" size={16} /> {t('modeIntake')}
         </button>
-        <button className={`chip ${mode === 'history' ? 'selected' : ''}`} onClick={() => setMode('history')}>
-          <Glyph name="clock" size={16} /> {t('salesHistory')}
+        <button className={mode === 'history' ? 'on' : ''} onClick={() => { setMode('history'); haptic.select(); }}>
+          <Glyph name="clock" size={16} /> {t('modeHistory')}
         </button>
       </div>
       {mode === 'sale' && <SaleMode onDone={onDone} />}
@@ -212,23 +212,22 @@ function SaleMode({ onDone }: { onDone: () => void }) {
     }
   }
 
+  const qtyTotal = cart.reduce((s, l) => s + l.qty, 0);
+
   return (
     <>
-      <div style={{ display: 'flex', gap: 8 }}>
-        <input
-          value={query}
-          onChange={(e) => search(e.target.value)}
-          placeholder={t('searchProduct')}
-          style={{ flex: 1 }}
-        />
-        <button
-          className="chip"
-          style={{ height: 48, marginBottom: 10 }}
-          onClick={() => setScanning(true)}
-          title="Skaner"
-        >
-          <Glyph name="scan" size={20} />
-          {t('scanner')}
+      <div className="search-row">
+        <div className="search-field">
+          <Glyph name="search" size={17} color="#8a8a8e" />
+          <input value={query} onChange={(e) => search(e.target.value)} placeholder={t('searchProduct')} />
+          {query && (
+            <button className="search-clear" onClick={() => search('')} aria-label={t('close')}>
+              <Glyph name="close" size={15} color="#8a8a8e" />
+            </button>
+          )}
+        </div>
+        <button className="scan-round" onClick={() => setScanning(true)} aria-label={t('scanner')}>
+          <Glyph name="scan" size={21} color="#fff" />
         </button>
       </div>
       {scanning && (
@@ -267,62 +266,73 @@ function SaleMode({ onDone }: { onDone: () => void }) {
 
       {cart.length > 0 && (
         <>
-          <div className="section-title">{t('cart')}</div>
+          <div className="section-title">
+            {t('cart')} · {qtyTotal} {t('pcs')}
+          </div>
           <div className="list-group">
             {cart.map((l) => (
               <div className="list-item" key={l.product.id}>
                 <div className="lead">
                   <ProductThumb product={l.product} size={38} />
-                  <div>
+                  <div style={{ minWidth: 0 }}>
                     <div className="name">{l.product.name}</div>
-                    <div className="sub">{fmt(l.product.sell_price)} × {l.qty}</div>
+                    <div className="sub">{fmt(l.product.sell_price * l.qty)}</div>
                   </div>
                 </div>
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                  <button className="chip" onClick={() => changeQty(l.product.id!, -1)}>−</button>
+                <div className="stepper">
+                  <button onClick={() => changeQty(l.product.id!, -1)}>−</button>
                   <span>{l.qty}</span>
-                  <button className="chip" onClick={() => changeQty(l.product.id!, 1)}>+</button>
+                  <button onClick={() => changeQty(l.product.id!, 1)}>+</button>
                 </div>
               </div>
             ))}
           </div>
-          <div className="big-amount">{fmt(total)}</div>
-          <div className="chip-row">
-            {(
-              [
-                ['cash', 'banknote', 'payCash'],
-                ['card', 'card', 'payCard'],
-                ['debt', 'book', 'payDebt'],
-              ] as const
-            ).map(([id, glyph, key]) => (
-              <button
-                key={id}
-                className={`chip ${payment === id ? 'selected' : ''}`}
-                onClick={() => setPayment(id)}
-              >
-                <Glyph name={glyph} size={16} /> {t(key)}
-              </button>
-            ))}
+
+          <div className="checkout">
+            <div className="checkout-total">
+              <span>{t('total')}</span>
+              <b>{fmt(total)}</b>
+            </div>
+            <div className="segmented sm">
+              {(
+                [
+                  ['cash', 'banknote', 'payCash'],
+                  ['card', 'card', 'payCard'],
+                  ['debt', 'book', 'payDebt'],
+                ] as const
+              ).map(([id, glyph, key]) => (
+                <button key={id} className={payment === id ? 'on' : ''} onClick={() => { setPayment(id); haptic.select(); }}>
+                  <Glyph name={glyph} size={15} /> {t(key)}
+                </button>
+              ))}
+            </div>
+            {payment === 'debt' && (
+              <input
+                style={{ marginTop: 10, marginBottom: 0 }}
+                value={customerName}
+                onChange={(e) => setCustomerName(e.target.value)}
+                placeholder={t('debtCustomerPlaceholder')}
+              />
+            )}
+            <button className="btn-primary btn-lg" onClick={checkout}>
+              <Glyph name="check" size={19} color="#fff" /> {t('finishSale')}
+            </button>
           </div>
-          {payment === 'debt' && (
-            <input
-              value={customerName}
-              onChange={(e) => setCustomerName(e.target.value)}
-              placeholder={t('debtCustomerPlaceholder')}
-            />
-          )}
-          <button className="btn-primary" onClick={checkout}>
-            <Glyph name="check" size={18} color="#fff" strokeWidth={2.4} /> {t('finishSale')}
-          </button>
         </>
       )}
+
       {cart.length === 0 && !results.length && (
-        <button className="btn-primary" style={{ marginTop: 14 }} onClick={() => setScanning(true)}>
-          <Glyph name="scan" size={20} color="#fff" /> {t('scanToSell')}
-        </button>
+        <div className="empty-state">
+          <AppIcon glyph="cart" size={54} />
+          <div className="t">{t('cartEmptyTitle')}</div>
+          <div className="s">{t('cartEmptySub')}</div>
+          <button className="btn-primary btn-lg" style={{ maxWidth: 280, margin: '18px auto 0' }} onClick={() => setScanning(true)}>
+            <Glyph name="scan" size={20} color="#fff" /> {t('scanToSell')}
+          </button>
+        </div>
       )}
       {message && <p className="hint center">{message}</p>}
-      {error && <p className="error">{error}</p>}
+      {error && <p className="error center">{error}</p>}
     </>
   );
 }
@@ -399,22 +409,13 @@ function IntakeMode({ onDone }: { onDone: () => void }) {
     }
   }
 
+  const margin =
+    amountValue(sellPrice) && amountValue(costPrice)
+      ? amountValue(sellPrice) - amountValue(costPrice)
+      : 0;
+
   return (
     <>
-      <label>{t('barcodeLabel')}</label>
-      <div style={{ display: 'flex', gap: 8 }}>
-        <input
-          value={barcode}
-          onChange={(e) => lookupBarcode(e.target.value)}
-          inputMode="numeric"
-          placeholder="4780000123456"
-          style={{ flex: 1 }}
-        />
-        <button className="chip" style={{ height: 48, marginBottom: 10 }} onClick={() => setScanning(true)}>
-          <Glyph name="scan" size={20} />
-          {t('scanner')}
-        </button>
-      </div>
       {scanning && (
         <Scanner
           onScan={(code) => {
@@ -425,52 +426,85 @@ function IntakeMode({ onDone }: { onDone: () => void }) {
           status={t('scanHint')}
         />
       )}
-      <label>{t('productName')}</label>
-      <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Coca-Cola 1.5L" />
 
-      <label>{t('productImage')} ({t('optional')})</label>
-      <input
-        ref={fileRef}
-        type="file"
-        accept="image/*"
-        capture="environment"
-        style={{ display: 'none' }}
-        onChange={(e) => pickImage(e.target.files?.[0])}
-      />
-      <div className="chip-row">
-        <button className="chip" onClick={() => fileRef.current?.click()}>
-          <Glyph name="plus" size={15} /> {image ? t('changePhoto') : t('takePhoto')}
-        </button>
-        {image && (
-          <img src={image} alt="" style={{ width: 44, height: 44, borderRadius: 10, objectFit: 'cover' }} />
+      {/* Mahsulot: rasm, shtrix-kod, nom */}
+      <div className="form-group">
+        <div className="intake-head">
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            style={{ display: 'none' }}
+            onChange={(e) => pickImage(e.target.files?.[0])}
+          />
+          <button className="photo-tile" onClick={() => fileRef.current?.click()}>
+            {image ? <img src={image} alt="" /> : <Glyph name="camera" size={24} color="#8a8a8e" />}
+            {!image && <span>{t('takePhoto')}</span>}
+          </button>
+          <div className="intake-head-fields">
+            <div className="form-row">
+              <label>{t('productName')}</label>
+              <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Coca-Cola 1.5L" />
+            </div>
+            <div className="form-row">
+              <label>
+                {t('barcodeLabel')} <span className="tag">{t('optional')}</span>
+              </label>
+              <div className="inline-scan">
+                <input
+                  className="mono"
+                  value={barcode}
+                  onChange={(e) => lookupBarcode(e.target.value)}
+                  inputMode="numeric"
+                  placeholder="4780000123456"
+                />
+                <button onClick={() => setScanning(true)} aria-label={t('scanner')}>
+                  <Glyph name="scan" size={19} color="var(--accent)" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Narx va miqdor */}
+      <div className="form-group">
+        <div className="row-2">
+          <div className="form-row">
+            <label>{t('costPrice')}</label>
+            <input value={formatAmount(costPrice)} onChange={(e) => setCostPrice(e.target.value)} inputMode="numeric" placeholder="10 000" />
+          </div>
+          <div className="form-row">
+            <label>{t('sellPrice')}</label>
+            <input value={formatAmount(sellPrice)} onChange={(e) => setSellPrice(e.target.value)} inputMode="numeric" placeholder="13 000" />
+          </div>
+        </div>
+        <div className="row-2">
+          <div className="form-row">
+            <label>{t('qty')}</label>
+            <input value={qty} onChange={(e) => setQty(e.target.value)} inputMode="decimal" placeholder="24" />
+          </div>
+          <div className="form-row">
+            <label>
+              {t('expiry')} <span className="tag">{t('optional')}</span>
+            </label>
+            <input type="date" value={expiry} onChange={(e) => setExpiry(e.target.value)} />
+          </div>
+        </div>
+        {margin > 0 && (
+          <p className="form-note">
+            {t('profit')}: <b style={{ color: 'var(--green)' }}>{fmt(margin)}</b>
+            {qty && ` · ${t('qty')} ${qty} → ${fmt(margin * (parseFloat(qty) || 0))}`}
+          </p>
         )}
       </div>
 
-      <div style={{ display: 'flex', gap: 10 }}>
-        <div style={{ flex: 1 }}>
-          <label>{t('costPrice')}</label>
-          <input value={formatAmount(costPrice)} onChange={(e) => setCostPrice(e.target.value)} inputMode="numeric" placeholder="10 000" />
-        </div>
-        <div style={{ flex: 1 }}>
-          <label>{t('sellPrice')}</label>
-          <input value={formatAmount(sellPrice)} onChange={(e) => setSellPrice(e.target.value)} inputMode="numeric" placeholder="13 000" />
-        </div>
-      </div>
-      <div style={{ display: 'flex', gap: 10 }}>
-        <div style={{ flex: 1 }}>
-          <label>{t('qty')}</label>
-          <input value={qty} onChange={(e) => setQty(e.target.value)} inputMode="decimal" placeholder="24" />
-        </div>
-        <div style={{ flex: 1 }}>
-          <label>{t('expiry')} ({t('optional')})</label>
-          <input type="date" value={expiry} onChange={(e) => setExpiry(e.target.value)} />
-        </div>
-      </div>
-      <button className="btn-primary" onClick={save} disabled={busy}>
-        <Glyph name="check" size={18} color="#fff" strokeWidth={2.4} /> {t('saveIntake')}
+      <button className="btn-primary btn-lg" onClick={save} disabled={busy || !name.trim()}>
+        <Glyph name="check" size={19} color="#fff" /> {t('saveIntake')}
       </button>
       {message && <p className="hint center">{message}</p>}
-      {error && <p className="error">{error}</p>}
+      {error && <p className="error center">{error}</p>}
     </>
   );
 }

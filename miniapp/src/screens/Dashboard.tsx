@@ -4,13 +4,7 @@ import { AppIcon, Glyph } from '../icons';
 import type { SubScreen } from '../App';
 import { useT } from '../i18n';
 
-export default function Dashboard({
-  onOpenAdd,
-  onNavigate,
-}: {
-  onOpenAdd: () => void;
-  onNavigate: (s: SubScreen) => void;
-}) {
+export default function Dashboard({ onNavigate }: { onNavigate: (s: SubScreen) => void }) {
   const [data, setData] = useState<DashboardData | null>(null);
   const [error, setError] = useState('');
   const { t } = useT();
@@ -239,9 +233,6 @@ export default function Dashboard({
           </div>
         )}
 
-      <button className="fab-voice" onClick={onOpenAdd} title="Qarz qo'shish">
-        <Glyph name="mic" size={26} color="#fff" strokeWidth={2} />
-      </button>
     </div>
   );
 }

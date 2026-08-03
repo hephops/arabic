@@ -70,7 +70,7 @@ export default function App() {
       {sub === 'reminders' && <Reminders onBack={() => setSub(null)} />}
 
       {!sub && tab === 'home' && (
-        <Dashboard key={refreshKey} onOpenAdd={() => setTab('add')} onNavigate={setSub} />
+        <Dashboard key={refreshKey} onNavigate={setSub} />
       )}
       {!sub && tab === 'customers' && <Customers key={refreshKey} />}
       {!sub && tab === 'add' && (

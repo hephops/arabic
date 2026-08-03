@@ -3,8 +3,10 @@ import { Glyph } from './icons';
 import { useT } from './i18n';
 
 // Kamera orqali shtrix-kod skaneri.
-// Brauzerning o'zidagi BarcodeDetector API ishlatiladi (Android/Chrome, Telegram webview).
-// Qo'llamaydigan qurilmada (eski iOS Safari) qo'lda kiritishga yo'naltiradi.
+// Brauzerning BarcodeDetector API'si ishlatiladi (Android/Chrome, Telegram webview).
+// Kamera yoki API bo'lmasa — ekran bo'sh qolmaydi: kodni qo'lda kiritish maydoni ochiladi.
+
+type Phase = 'starting' | 'live' | 'manual';
 
 export default function Scanner({
   onScan,
@@ -20,7 +22,13 @@ export default function Scanner({
   status?: string;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const [error, setError] = useState('');
+  const trackRef = useRef<MediaStreamTrack | null>(null);
+  const [phase, setPhase] = useState<Phase>('starting');
+  const [reason, setReason] = useState('');
+  const [flash, setFlash] = useState(false);
+  const [torch, setTorch] = useState(false);
+  const [hasTorch, setHasTorch] = useState(false);
+  const [manual, setManual] = useState('');
   const { t } = useT();
   const onScanRef = useRef(onScan);
   onScanRef.current = onScan;
@@ -32,20 +40,28 @@ export default function Scanner({
     async function start() {
       const BD = (window as any).BarcodeDetector;
       if (!BD) {
-        setError(t('scanNoSupport'));
+        setReason(t('scanNoSupport'));
+        setPhase('manual');
         return;
       }
       try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'environment' },
-        });
+        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
       } catch {
-        setError(t('scanNoPermission'));
+        setReason(t('scanNoPermission'));
+        setPhase('manual');
+        return;
+      }
+      if (stopped) {
+        stream.getTracks().forEach((tr) => tr.stop());
         return;
       }
       const video = videoRef.current!;
       video.srcObject = stream;
-      await video.play();
+      await video.play().catch(() => {});
+      const track = stream.getVideoTracks()[0];
+      trackRef.current = track;
+      setHasTorch(!!(track.getCapabilities?.() as any)?.torch);
+      setPhase('live');
 
       const detector = new BD({ formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'qr_code'] });
       let lastCode = '';
@@ -62,6 +78,8 @@ export default function Scanner({
               lastCode = code;
               lastAt = now;
               navigator.vibrate?.(60);
+              setFlash(true);
+              setTimeout(() => setFlash(false), 260);
               onScanRef.current(code);
               if (!continuous) return;
             }
@@ -77,55 +95,93 @@ export default function Scanner({
     start();
     return () => {
       stopped = true;
-      stream?.getTracks().forEach((t) => t.stop());
+      stream?.getTracks().forEach((tr) => tr.stop());
+      trackRef.current = null;
     };
   }, [continuous]);
 
+  function toggleTorch() {
+    const track = trackRef.current;
+    if (!track) return;
+    const next = !torch;
+    track.applyConstraints({ advanced: [{ torch: next }] } as any).then(
+      () => setTorch(next),
+      () => setHasTorch(false)
+    );
+  }
+
   return (
-    <div
-      style={{
-        position: 'fixed', inset: 0, zIndex: 100, background: '#000',
-        display: 'flex', flexDirection: 'column',
-      }}
-    >
-      <video ref={videoRef} playsInline muted style={{ flex: 1, objectFit: 'cover', width: '100%' }} />
-      {/* nishon ramkasi */}
-      <div
-        style={{
-          position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
-          width: 260, height: 150, border: '3px solid #fff', borderRadius: 16,
-          boxShadow: '0 0 0 100vmax rgba(0,0,0,0.45)',
-        }}
-      />
-      {status && (
-        <div
-          style={{
-            position: 'absolute', bottom: 96, left: 16, right: 16,
-            background: 'rgba(255,255,255,0.95)', color: '#000', borderRadius: 14,
-            padding: '11px 14px', fontSize: 15, fontWeight: 600, textAlign: 'center',
-          }}
-        >
-          {status}
+    <div className={`scan ${flash ? 'flash' : ''}`}>
+      <video ref={videoRef} playsInline muted className="scan-video" />
+      <div className="scan-shade" />
+
+      <div className="scan-top">
+        <div className="scan-title">{t('scanTitle')}</div>
+        <div className="scan-tools">
+          {hasTorch && (
+            <button className={`scan-icon ${torch ? 'on' : ''}`} onClick={toggleTorch} aria-label={t('scanTorch')}>
+              <Glyph name="star" size={19} color="#fff" />
+            </button>
+          )}
+          <button className="scan-icon" onClick={onClose} aria-label={t('close')}>
+            <Glyph name="close" size={20} color="#fff" />
+          </button>
+        </div>
+      </div>
+
+      {phase !== 'manual' && (
+        <div className="scan-window">
+          <span className="c tl" />
+          <span className="c tr" />
+          <span className="c bl" />
+          <span className="c br" />
+          {phase === 'live' && <span className="scan-line" />}
         </div>
       )}
-      <p
-        style={{
-          position: 'absolute', bottom: status ? 152 : 110, width: '100%',
-          textAlign: 'center', color: '#fff', fontSize: 14,
-        }}
-      >
-        {error || t('scanHint')}
-      </p>
-      <button
-        onClick={onClose}
-        style={{
-          position: 'absolute', bottom: 34, left: '50%', transform: 'translateX(-50%)',
-          background: 'rgba(255,255,255,0.92)', color: '#1c1c1e', padding: '13px 34px',
-          borderRadius: 24, display: 'flex', alignItems: 'center', gap: 8, fontSize: 15,
-        }}
-      >
-<Glyph name="close" size={18} /> {t('close')}
-      </button>
+
+      <div className="scan-bottom">
+        {phase === 'manual' ? (
+          <div className="scan-panel">
+            <Glyph name="scan" size={26} color="#fff" />
+            <div className="scan-reason">{reason}</div>
+            <div className="scan-manual">
+              <input
+                value={manual}
+                onChange={(e) => setManual(e.target.value.replace(/\D/g, ''))}
+                inputMode="numeric"
+                placeholder={t('scanManual')}
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && manual.length >= 6) {
+                    onScanRef.current(manual);
+                    setManual('');
+                    if (!continuous) onClose();
+                  }
+                }}
+              />
+              <button
+                className="scan-add"
+                disabled={manual.length < 6}
+                onClick={() => {
+                  onScanRef.current(manual);
+                  setManual('');
+                  if (!continuous) onClose();
+                }}
+              >
+                {t('scanAdd')}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <>
+            <div className="scan-hint">{phase === 'starting' ? t('scanStarting') : t('scanHint')}</div>
+            {status && <div className="scan-status">{status}</div>}
+            <button className="scan-manual-link" onClick={() => setPhase('manual')}>
+              {t('scanManual')}
+            </button>
+          </>
+        )}
+      </div>
     </div>
   );
 }

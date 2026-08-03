@@ -272,13 +272,6 @@ label { font-size: 13px; color: var(--muted); display: block; margin: 6px 4px 5p
 }
 .qa-item:active { background: #ebebf0; }
 
-.fab-voice {
-  position: fixed; bottom: 100px; left: calc(50% - 222px); width: 52px; height: 52px;
-  border-radius: 50%; background: var(--accent); color: #fff; z-index: 60;
-  box-shadow: 0 4px 14px rgba(0, 122, 255, 0.35);
-  display: flex; align-items: center; justify-content: center;
-}
-@media (max-width: 500px) { .fab-voice { left: 16px; } }
 
 .big-amount {
   font-size: 30px; font-weight: 700; text-align: center; margin: 10px 0;
@@ -406,9 +399,9 @@ button.link { background: none; color: var(--accent); font-size: 15px; font-weig
   display: flex; gap: 3px; background: var(--fill); border-radius: 10px; padding: 3px; margin-bottom: 18px;
 }
 .segmented button {
-  flex: 1; padding: 8px; border-radius: 8px; background: none; color: var(--text);
+  flex: 1; padding: 8px 4px; border-radius: 8px; background: none; color: var(--text);
   display: flex; align-items: center; justify-content: center; gap: 6px;
-  font-size: 14px; font-weight: 500;
+  font-size: 14px; font-weight: 500; white-space: nowrap;
 }
 .segmented button.on {
   background: var(--card); font-weight: 600;
@@ -471,6 +464,147 @@ button.link { background: none; color: var(--accent); font-size: 15px; font-weig
   background: rgba(255, 149, 0, 0.1); border-radius: 12px; padding: 11px 13px; margin-top: 12px;
   font-size: 13.5px; color: #8a5a00; line-height: 1.4;
 }
+
+/* ═══════════ Kassa ═══════════ */
+
+.search-row { display: flex; gap: 9px; margin-bottom: 14px; }
+.search-field {
+  flex: 1; display: flex; align-items: center; gap: 8px;
+  background: var(--card); border-radius: 12px; padding: 0 12px; height: 46px;
+}
+.search-field:focus-within { box-shadow: 0 0 0 1.5px var(--accent); }
+.search-field input { background: none; margin: 0; padding: 0; font-size: 16px; }
+.search-field input:focus { box-shadow: none; }
+.search-clear { background: none; padding: 4px; display: flex; }
+.scan-round {
+  width: 46px; height: 46px; flex-shrink: 0; border-radius: 12px;
+  background: var(--accent); display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 3px 10px rgba(0, 122, 255, 0.3);
+}
+.scan-round:active { opacity: 0.8; }
+
+/* Miqdor o'zgartirgich */
+.stepper { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+.stepper button {
+  width: 30px; height: 30px; border-radius: 50%; background: var(--fill); color: var(--text);
+  font-size: 19px; line-height: 1; display: flex; align-items: center; justify-content: center;
+}
+.stepper button:active { background: #dcdce0; }
+.stepper span { min-width: 26px; text-align: center; font-weight: 600; font-size: 15px; }
+
+/* Yakuniy hisob bloki */
+.checkout { background: var(--card); border-radius: 14px; padding: 14px; margin-top: 12px; }
+.checkout-total {
+  display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 12px;
+}
+.checkout-total span { color: var(--muted); font-size: 14px; }
+.checkout-total b { font-size: 26px; font-weight: 800; letter-spacing: -0.8px; }
+.segmented.sm button { padding: 7px 4px; font-size: 13px; gap: 4px; }
+
+/* Tovar kirimi sarlavhasi: rasm + maydonlar */
+.intake-head { display: flex; gap: 12px; padding: 12px 14px; }
+.intake-head-fields { flex: 1; min-width: 0; }
+.intake-head-fields .form-row { padding: 0 0 8px; }
+.intake-head-fields .form-row + .form-row { border-top: 0.5px solid var(--separator); padding-top: 8px; padding-bottom: 0; }
+.photo-tile {
+  width: 84px; height: 84px; flex-shrink: 0; border-radius: 12px; background: var(--fill);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+  color: var(--muted); font-size: 10.5px; text-align: center; overflow: hidden; padding: 4px;
+}
+.photo-tile img { width: 100%; height: 100%; object-fit: cover; border-radius: 12px; }
+.inline-scan { display: flex; align-items: center; gap: 6px; }
+.inline-scan input { flex: 1; }
+.inline-scan button { background: none; padding: 2px; display: flex; }
+.row-2 { display: flex; }
+.row-2 .form-row { flex: 1; }
+.row-2 .form-row + .form-row { border-top: none; border-left: 0.5px solid var(--separator); }
+.row-2 + .row-2 { border-top: 0.5px solid var(--separator); }
+
+/* ═══════════ Shtrix-kod skaneri ═══════════ */
+
+.scan { position: fixed; inset: 0; z-index: 100; background: #0b0b0d; overflow: hidden; }
+.scan-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.scan-shade { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.42); }
+.scan.flash::after {
+  content: ''; position: absolute; inset: 0; background: #fff; opacity: 0.55;
+  animation: scanFlash 0.26s ease-out forwards;
+}
+@keyframes scanFlash { to { opacity: 0; } }
+
+.scan-top {
+  position: absolute; top: 0; left: 0; right: 0; z-index: 5;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: max(14px, env(safe-area-inset-top)) 14px 14px;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0));
+}
+.scan-title { color: #fff; font-size: 17px; font-weight: 600; letter-spacing: -0.3px; }
+.scan-tools { display: flex; gap: 8px; }
+.scan-icon {
+  width: 38px; height: 38px; border-radius: 50%; background: rgba(255, 255, 255, 0.16);
+  display: flex; align-items: center; justify-content: center;
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+}
+.scan-icon.on { background: #ffd02e; }
+.scan-icon.on svg { color: #1c1c1e; }
+
+/* Nishon oynasi — burchak qavslar va yuruvchi chiziq */
+.scan-window {
+  position: absolute; top: 44%; left: 50%; transform: translate(-50%, -50%);
+  width: min(76vw, 290px); height: min(46vw, 176px); z-index: 2;
+  border-radius: 20px; box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+}
+.scan-window .c { position: absolute; width: 30px; height: 30px; border: 3.5px solid #fff; }
+.scan-window .tl { top: 0; left: 0; border-right: none; border-bottom: none; border-radius: 18px 0 0 0; }
+.scan-window .tr { top: 0; right: 0; border-left: none; border-bottom: none; border-radius: 0 18px 0 0; }
+.scan-window .bl { bottom: 0; left: 0; border-right: none; border-top: none; border-radius: 0 0 0 18px; }
+.scan-window .br { bottom: 0; right: 0; border-left: none; border-top: none; border-radius: 0 0 18px 0; }
+.scan-line {
+  position: absolute; left: 8px; right: 8px; height: 2px; border-radius: 2px;
+  background: linear-gradient(90deg, rgba(0, 122, 255, 0), #38a1ff, rgba(0, 122, 255, 0));
+  box-shadow: 0 0 12px rgba(56, 161, 255, 0.9);
+  animation: scanSweep 2.1s ease-in-out infinite;
+}
+@keyframes scanSweep {
+  0% { top: 10%; }
+  50% { top: 88%; }
+  100% { top: 10%; }
+}
+
+.scan-bottom {
+  position: absolute; left: 0; right: 0; bottom: 0; z-index: 3;
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
+  padding: 22px 18px max(24px, env(safe-area-inset-bottom));
+  background: linear-gradient(0deg, rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0));
+}
+/* Kamera yo'q bo'lsa — panel ekran o'rtasida turadi, qora bo'shliq qolmaydi.
+   Bo'sh joy bosishni to'smasligi uchun faqat panelning o'zi bosiladi. */
+.scan-bottom:has(.scan-panel) {
+  top: 0; justify-content: center; background: none; padding: 18px; pointer-events: none;
+}
+.scan-panel { pointer-events: auto; }
+.scan-hint { color: rgba(255, 255, 255, 0.86); font-size: 14px; text-align: center; }
+.scan-status {
+  background: rgba(255, 255, 255, 0.95); color: #000; border-radius: 22px;
+  padding: 10px 20px; font-size: 15px; font-weight: 700; letter-spacing: -0.2px;
+}
+.scan-manual-link { background: none; color: #fff; opacity: 0.75; font-size: 14px; padding: 6px; }
+
+.scan-panel {
+  width: 100%; max-width: 380px; text-align: center;
+  background: rgba(28, 28, 32, 0.86); border-radius: 18px; padding: 20px 16px 16px;
+  backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+}
+.scan-reason { color: rgba(255, 255, 255, 0.82); font-size: 13.5px; line-height: 1.4; margin: 9px 0 14px; }
+.scan-manual { display: flex; gap: 8px; }
+.scan-manual input {
+  flex: 1; margin: 0; background: rgba(255, 255, 255, 0.12); color: #fff;
+  border-radius: 11px; font-size: 16px; letter-spacing: 0.6px;
+}
+.scan-manual input::placeholder { color: rgba(255, 255, 255, 0.45); }
+.scan-manual input:focus { box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.5); }
+.scan-add { background: var(--accent); color: #fff; padding: 0 18px; font-weight: 600; border-radius: 11px; }
+.scan-add:disabled { opacity: 0.4; }
 
 /* Bo'sh holat — sovuq ro'yxat o'rniga tushunarli xabar */
 .empty-state { text-align: center; padding: 34px 20px 24px; }
