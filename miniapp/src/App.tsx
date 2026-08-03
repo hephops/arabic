@@ -11,9 +11,10 @@ import Profile from './screens/Profile';
 import Suppliers from './screens/Suppliers';
 import Reports from './screens/Reports';
 import Inventory from './screens/Inventory';
+import Reminders from './screens/Reminders';
 
 export type Tab = 'home' | 'customers' | 'add' | 'kassa' | 'profile';
-export type SubScreen = 'suppliers' | 'reports' | 'inventory' | null;
+export type SubScreen = 'suppliers' | 'reports' | 'inventory' | 'reminders' | null;
 
 export default function App() {
   const [authed, setAuthed] = useState(!!getToken());
@@ -42,6 +43,7 @@ export default function App() {
       {sub === 'suppliers' && <Suppliers onBack={() => setSub(null)} />}
       {sub === 'reports' && <Reports onBack={() => setSub(null)} />}
       {sub === 'inventory' && <Inventory onBack={() => setSub(null)} />}
+      {sub === 'reminders' && <Reminders onBack={() => setSub(null)} />}
 
       {!sub && tab === 'home' && (
         <Dashboard key={refreshKey} onOpenAdd={() => setTab('add')} onNavigate={setSub} />

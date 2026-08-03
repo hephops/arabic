@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { db, markOverdueDebts } from './db.js';
 import { signToken, requireAuth } from './auth.js';
 import { parseDebtText } from './voice.js';
+import { runReminders, startReminderScheduler } from './reminders.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const UPLOADS_DIR = join(__dirname, '..', 'uploads');
@@ -170,9 +171,12 @@ app.post<{ Body: { name: string; phone?: string; language?: string; note?: strin
   async (req, reply) => {
     const { name, phone, language, note } = req.body;
     if (!name?.trim()) return reply.code(400).send({ error: 'name_required' });
+    const shop = db.prepare('SELECT default_reminder_mode FROM shops WHERE id = ?').get(req.shopId) as any;
     const info = db
-      .prepare('INSERT INTO customers (shop_id, name, phone, language, note) VALUES (?, ?, ?, ?, ?)')
-      .run(req.shopId, name.trim(), phone ?? null, language ?? 'uz', note ?? null);
+      .prepare(
+        'INSERT INTO customers (shop_id, name, phone, language, note, reminder_mode) VALUES (?, ?, ?, ?, ?, ?)'
+      )
+      .run(req.shopId, name.trim(), phone ?? null, language ?? 'uz', note ?? null, shop.default_reminder_mode);
     return db.prepare('SELECT * FROM customers WHERE id = ?').get(info.lastInsertRowid);
   }
 );
@@ -187,6 +191,71 @@ app.get<{ Params: { id: string } }>('/customers/:id', { preHandler: requireAuth 
     .all(req.params.id);
   return { ...customer, debts };
 });
+
+app.patch<{ Params: { id: string }; Body: Record<string, unknown> }>(
+  '/customers/:id',
+  { preHandler: requireAuth },
+  async (req, reply) => {
+    const customer = db
+      .prepare('SELECT * FROM customers WHERE id = ? AND shop_id = ?')
+      .get(req.params.id, req.shopId);
+    if (!customer) return reply.code(404).send({ error: 'not_found' });
+    for (const key of ['name', 'phone', 'language', 'reminder_mode', 'note']) {
+      if (key in req.body) {
+        db.prepare(`UPDATE customers SET ${key} = ? WHERE id = ?`).run(req.body[key], req.params.id);
+      }
+    }
+    return db.prepare('SELECT * FROM customers WHERE id = ?').get(req.params.id);
+  }
+);
+
+// ---------- ESLATMALAR ----------
+app.get<{ Querystring: { limit?: string } }>('/reminders', { preHandler: requireAuth }, async (req) => {
+  const limit = Math.min(Number(req.query.limit ?? 100), 300);
+  const logs = db
+    .prepare(
+      `SELECT r.*, c.name AS customer_name, c.phone AS customer_phone,
+              d.amount, d.paid_amount, d.due_date
+       FROM reminder_logs r
+       LEFT JOIN customers c ON c.id = r.customer_id
+       LEFT JOIN debts d ON d.id = r.debt_id
+       WHERE r.shop_id = ? ORDER BY r.created_at DESC, r.id DESC LIMIT ?`
+    )
+    .all(req.shopId, limit);
+  const shop = db.prepare('SELECT default_reminder_mode FROM shops WHERE id = ?').get(req.shopId) as any;
+  const stats = db
+    .prepare(
+      `SELECT COUNT(*) AS total,
+              SUM(CASE WHEN status = 'sent' THEN 1 ELSE 0 END) AS sent,
+              SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) AS failed,
+              SUM(CASE WHEN channel = 'call' THEN 1 ELSE 0 END) AS calls
+       FROM reminder_logs WHERE shop_id = ?`
+    )
+    .get(req.shopId) as any;
+  return { logs, default_mode: shop.default_reminder_mode, stats };
+});
+
+// Eslatmalarni hozir hisoblab chiqish (dev/qo'lda tekshirish uchun)
+app.post('/reminders/run', { preHandler: requireAuth }, async (req) => {
+  return runReminders(req.shopId);
+});
+
+// Do'kon bo'yicha standart rejim — yangi mijozlarga qo'llanadi
+app.patch<{ Body: { default_reminder_mode: string; apply_to_all?: boolean } }>(
+  '/reminders/settings',
+  { preHandler: requireAuth },
+  async (req, reply) => {
+    const mode = req.body.default_reminder_mode;
+    if (!['off', 'soft', 'medium', 'call'].includes(mode)) {
+      return reply.code(400).send({ error: 'invalid_mode' });
+    }
+    db.prepare('UPDATE shops SET default_reminder_mode = ? WHERE id = ?').run(mode, req.shopId);
+    if (req.body.apply_to_all) {
+      db.prepare('UPDATE customers SET reminder_mode = ? WHERE shop_id = ?').run(mode, req.shopId);
+    }
+    return { default_reminder_mode: mode };
+  }
+);
 
 // ---------- QARZLAR ----------
 app.post<{ Body: { customer_id?: number; customer_name?: string; amount: number; note?: string; due_date?: string; source?: string } }>(
@@ -557,5 +626,7 @@ app.get<{ Querystring: { period?: string } }>('/reports/summary', { preHandler: 
 const port = Number(process.env.PORT ?? 3000);
 app.listen({ port, host: '0.0.0.0' }).then(() => {
   markOverdueDebts();
+  runReminders();
+  startReminderScheduler();
   console.log(`ARABIC.ONE backend :${port}`);
 });

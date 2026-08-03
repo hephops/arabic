@@ -28,6 +28,18 @@ try {
 } catch {
   /* ustun allaqachon bor */
 }
+for (const sql of [
+  "ALTER TABLE customers ADD COLUMN reminder_mode TEXT NOT NULL DEFAULT 'soft'",
+  "ALTER TABLE shops ADD COLUMN default_reminder_mode TEXT NOT NULL DEFAULT 'soft'",
+  'ALTER TABLE reminder_logs ADD COLUMN customer_id INTEGER',
+  'ALTER TABLE reminder_logs ADD COLUMN kind TEXT',
+]) {
+  try {
+    db.exec(sql);
+  } catch {
+    /* ustun allaqachon bor */
+  }
+}
 
 // Kechikkan qarzlarni belgilash (har so'rovda emas, startda va cron'da chaqiriladi)
 export function markOverdueDebts() {

@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS shops (
   plan TEXT NOT NULL DEFAULT 'free',             -- free | premium | business
   plan_expires_at TEXT,
   balance INTEGER NOT NULL DEFAULT 0,            -- obuna balansi (so'm)
+  default_reminder_mode TEXT NOT NULL DEFAULT 'soft',
   referred_by TEXT,                              -- referal kodi (ARABIC<id>)
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -49,6 +50,7 @@ CREATE TABLE IF NOT EXISTS customers (
   name TEXT NOT NULL,
   phone TEXT,
   language TEXT NOT NULL DEFAULT 'uz',           -- AI qo'ng'iroq/SMS tili: uz | ru
+  reminder_mode TEXT NOT NULL DEFAULT 'soft',    -- off | soft | medium | call
   note TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -159,7 +161,9 @@ CREATE TABLE IF NOT EXISTS reminder_logs (
   shop_id INTEGER NOT NULL REFERENCES shops(id),
   debt_id INTEGER REFERENCES debts(id),
   supplier_debt_id INTEGER REFERENCES supplier_debts(id),
+  customer_id INTEGER REFERENCES customers(id),
   channel TEXT NOT NULL,                         -- sms | telegram | call
+  kind TEXT,                                     -- before | due | overdue | call | after_call
   status TEXT NOT NULL DEFAULT 'queued',         -- queued | sent | delivered | answered | failed
   payload TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))

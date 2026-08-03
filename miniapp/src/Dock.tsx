@@ -26,6 +26,7 @@ const LAUNCHER_ITEMS: { label: string; glyph: string; target: NavTarget }[] = [
   { label: 'Kassa', glyph: 'cart', target: { tab: 'kassa' } },
   { label: 'Skaner', glyph: 'scan', target: { tab: 'kassa' } },
   { label: 'Postavshiklar', glyph: 'truck', target: { sub: 'suppliers' } },
+  { label: 'Eslatmalar', glyph: 'calendar', target: { sub: 'reminders' } },
   { label: 'Hisobotlar', glyph: 'chart', target: { sub: 'reports' } },
   { label: 'Ombor', glyph: 'boxes', target: { sub: 'inventory' } },
   { label: 'Balans', glyph: 'banknote', target: { tab: 'profile', profileView: 'balance' } },

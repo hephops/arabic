@@ -75,6 +75,15 @@ export const api = {
   updateEmployee: (id: number, data: { is_active: number }) =>
     request<Employee>(`/employees/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   referral: () => request<{ code: string; invited_count: number; reward_text: string }>('/referral'),
+  updateCustomer: (id: number, data: Partial<Pick<Customer, 'name' | 'phone' | 'language' | 'reminder_mode'>>) =>
+    request<Customer>(`/customers/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  reminders: () => request<RemindersInfo>('/reminders'),
+  runReminders: () => request<{ created: number }>('/reminders/run', { method: 'POST' }),
+  setReminderDefault: (mode: ReminderMode, applyToAll?: boolean) =>
+    request<{ default_reminder_mode: ReminderMode }>('/reminders/settings', {
+      method: 'PATCH',
+      body: JSON.stringify({ default_reminder_mode: mode, apply_to_all: applyToAll }),
+    }),
   updateMe: (data: Partial<Pick<Shop, 'name' | 'owner_name' | 'address' | 'language' | 'card_number'>>) =>
     request<Shop>('/me', { method: 'PATCH', body: JSON.stringify(data) }),
   balance: () => request<BalanceInfo>('/balance'),
@@ -138,12 +147,35 @@ export interface Employee {
   is_active: number;
 }
 
+export type ReminderMode = 'off' | 'soft' | 'medium' | 'call';
+
 export interface Customer {
   id: number;
   name: string;
   phone: string | null;
+  language: string;
+  reminder_mode: ReminderMode;
   balance: number;
   last_activity: string | null;
+}
+
+export interface ReminderLog {
+  id: number;
+  channel: 'sms' | 'telegram' | 'call';
+  kind: string | null;
+  status: string;
+  payload: string | null;
+  created_at: string;
+  customer_name: string | null;
+  customer_phone: string | null;
+  amount: number | null;
+  due_date: string | null;
+}
+
+export interface RemindersInfo {
+  logs: ReminderLog[];
+  default_mode: ReminderMode;
+  stats: { total: number; sent: number; failed: number; calls: number };
 }
 
 export interface Debt {
