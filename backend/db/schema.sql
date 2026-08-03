@@ -156,6 +156,19 @@ CREATE TABLE IF NOT EXISTS products (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- Mahsulotning qo'shimcha shtrix-kodlari.
+-- Bitta tovar bir necha kod bilan uchraydi (UPC-A/EAN-13, yashik kodi,
+-- qadoq o'zgargani), shuning uchun kodlar alohida jadvalda saqlanadi.
+CREATE TABLE IF NOT EXISTS product_barcodes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  shop_id INTEGER NOT NULL REFERENCES shops(id),
+  product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+  barcode TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (shop_id, barcode)
+);
+CREATE INDEX IF NOT EXISTS idx_product_barcodes ON product_barcodes (shop_id, barcode);
+
 -- Kirim/chiqim harakatlari
 CREATE TABLE IF NOT EXISTS stock_movements (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

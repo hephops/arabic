@@ -9,6 +9,7 @@ import { parseDebtText } from './voice.js';
 import { runReminders, startReminderScheduler } from './reminders.js';
 import { handleUpdate, verifyInitData, telegramEnabled, setWebhook } from './telegram.js';
 import { registerAdminRoutes, seedAdmin } from './admin.js';
+import { normalizeBarcode, barcodeVariants, checkGtin } from './barcodes.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const UPLOADS_DIR = join(__dirname, '..', 'uploads');
@@ -567,16 +568,50 @@ app.get('/referral', { preHandler: requireOwner }, async (req) => {
 });
 
 // ---------- OMBOR ----------
+
+// Shtrix-kod bo'yicha qidirish: kodning barcha teng ko'rinishlari bo'yicha,
+// ham products.barcode, ham qo'shimcha kodlar jadvalidan.
+function findByBarcode(shopId: number, raw: string): any | undefined {
+  const variants = barcodeVariants(raw);
+  if (variants.length === 0) return undefined;
+  const marks = variants.map(() => '?').join(',');
+  return db
+    .prepare(
+      `SELECT p.* FROM products p
+       WHERE p.shop_id = ? AND (
+         REPLACE(REPLACE(UPPER(TRIM(p.barcode)), ' ', ''), '-', '') IN (${marks})
+         OR p.id IN (SELECT product_id FROM product_barcodes WHERE shop_id = ? AND barcode IN (${marks}))
+       )
+       LIMIT 1`
+    )
+    .get(shopId, ...variants, shopId, ...variants);
+}
+
+// Kodni mahsulotga biriktirish (takrorlanmaydi)
+function attachBarcode(shopId: number, productId: number, raw: string) {
+  const code = normalizeBarcode(raw);
+  if (!code) return;
+  db.prepare('INSERT OR IGNORE INTO product_barcodes (shop_id, product_id, barcode) VALUES (?, ?, ?)').run(
+    shopId,
+    productId,
+    code
+  );
+}
+
 app.get<{ Querystring: { q?: string; barcode?: string } }>('/products', { preHandler: requireAuth }, async (req) => {
   const { q, barcode } = req.query;
   if (barcode) {
-    const product = db
-      .prepare('SELECT * FROM products WHERE shop_id = ? AND barcode = ?')
-      .get(req.shopId, barcode);
+    const product = findByBarcode(req.shopId, barcode);
     if (product) return [product];
-    // markaziy katalogdan nom taklif qilamiz
-    const catalog = db.prepare('SELECT * FROM barcode_catalog WHERE barcode = ?').get(barcode) as any;
-    return catalog ? [{ id: null, barcode, name: catalog.name, unit: catalog.unit, from_catalog: true }] : [];
+    // markaziy katalogdan nom taklif qilamiz (kodning har qanday ko'rinishi bo'yicha)
+    const variants = barcodeVariants(barcode);
+    const marks = variants.map(() => '?').join(',');
+    const catalog = variants.length
+      ? (db.prepare(`SELECT * FROM barcode_catalog WHERE barcode IN (${marks}) LIMIT 1`).get(...variants) as any)
+      : null;
+    return catalog
+      ? [{ id: null, barcode: normalizeBarcode(barcode), name: catalog.name, unit: catalog.unit, from_catalog: true }]
+      : [];
   }
   if (q) {
     return db
@@ -586,24 +621,54 @@ app.get<{ Querystring: { q?: string; barcode?: string } }>('/products', { preHan
   return db.prepare('SELECT * FROM products WHERE shop_id = ? ORDER BY name').all(req.shopId);
 });
 
+// Kod bo'yicha to'liq javob: tovar topildimi, katalogda bormi, kod o'zi to'g'rimi.
+// Kassa shu javobga qarab nima qilishni biladi.
+app.get<{ Querystring: { code?: string } }>('/barcodes/lookup', { preHandler: requireAuth }, async (req) => {
+  const code = normalizeBarcode(req.query.code);
+  if (!code) return { code: '', valid: null, product: null, catalog: null };
+  const product = findByBarcode(req.shopId, code) ?? null;
+  const variants = barcodeVariants(code);
+  const marks = variants.map(() => '?').join(',');
+  const catalog = product
+    ? null
+    : (db.prepare(`SELECT barcode, name, unit FROM barcode_catalog WHERE barcode IN (${marks}) LIMIT 1`).get(...variants) ?? null);
+  return { code, valid: checkGtin(code), product, catalog };
+});
+
 app.post<{ Body: { barcode?: string; name: string; unit?: string; cost_price?: number; sell_price?: number; qty?: number; expiry_date?: string; image?: string } }>(
   '/products/intake',
   { preHandler: requireOwner },
   async (req, reply) => {
-    const { barcode, name, unit, cost_price, sell_price, qty, expiry_date, image } = req.body;
+    const { name, unit, cost_price, sell_price, qty, expiry_date, image } = req.body;
+    const barcode = normalizeBarcode(req.body.barcode);
     if (!name?.trim()) return reply.code(400).send({ error: 'name_required' });
-    let product = barcode
-      ? (db.prepare('SELECT * FROM products WHERE shop_id = ? AND barcode = ?').get(req.shopId, barcode) as any)
-      : (db.prepare('SELECT * FROM products WHERE shop_id = ? AND name = ? COLLATE NOCASE AND barcode IS NULL').get(req.shopId, name.trim()) as any);
+
+    // 1) kod bo'yicha, 2) nom bo'yicha qidiramiz — shunda bir tovar
+    // ikki marta yaratilib, qoldig'i ikkiga bo'linib ketmaydi
+    let product = (barcode ? findByBarcode(req.shopId, barcode) : undefined) as any;
+    if (!product) {
+      product = db
+        .prepare('SELECT * FROM products WHERE shop_id = ? AND name = ? COLLATE NOCASE')
+        .get(req.shopId, name.trim()) as any;
+    }
+
     if (!product) {
       const info = db
         .prepare(
           'INSERT INTO products (shop_id, barcode, name, unit, cost_price, sell_price, stock, expiry_date) VALUES (?, ?, ?, ?, ?, ?, 0, ?)'
         )
-        .run(req.shopId, barcode ?? null, name.trim(), unit ?? 'dona', cost_price ?? 0, sell_price ?? 0, expiry_date ?? null);
+        .run(req.shopId, barcode || null, name.trim(), unit ?? 'dona', cost_price ?? 0, sell_price ?? 0, expiry_date ?? null);
       product = db.prepare('SELECT * FROM products WHERE id = ?').get(info.lastInsertRowid);
+    } else if (barcode && !product.barcode) {
+      // ilgari kodsiz yozilgan tovarga endi kod berildi
+      db.prepare('UPDATE products SET barcode = ? WHERE id = ?').run(barcode, product.id);
+      product.barcode = barcode;
+    }
+
+    if (barcode) {
+      attachBarcode(req.shopId, product.id, barcode);
       // markaziy katalogni boyitamiz
-      if (barcode && !db.prepare('SELECT 1 FROM barcode_catalog WHERE barcode = ?').get(barcode)) {
+      if (!db.prepare('SELECT 1 FROM barcode_catalog WHERE barcode = ?').get(barcode)) {
         db.prepare('INSERT INTO barcode_catalog (barcode, name, unit, created_by_shop) VALUES (?, ?, ?, ?)').run(
           barcode,
           name.trim(),
@@ -662,6 +727,69 @@ app.post<{ Params: { id: string }; Body: { image: string } }>(
   }
 );
 
+// Mahsulotning shtrix-kodlari
+app.get<{ Params: { id: string } }>('/products/:id/barcodes', { preHandler: requireAuth }, async (req) => {
+  return db
+    .prepare('SELECT id, barcode, created_at FROM product_barcodes WHERE shop_id = ? AND product_id = ? ORDER BY id')
+    .all(req.shopId, req.params.id);
+});
+
+// Skanerda topilmagan kodni mahsulotga biriktirish — kassachi ham qila oladi,
+// shunda keyingi safar skaner darhol topadi.
+app.post<{ Params: { id: string }; Body: { barcode: string } }>(
+  '/products/:id/barcodes',
+  { preHandler: requireAuth },
+  async (req, reply) => {
+    const product = db
+      .prepare('SELECT * FROM products WHERE id = ? AND shop_id = ?')
+      .get(req.params.id, req.shopId) as any;
+    if (!product) return reply.code(404).send({ error: 'not_found' });
+
+    const code = normalizeBarcode(req.body?.barcode);
+    if (!code) return reply.code(400).send({ error: 'barcode_required' });
+
+    // kod boshqa tovarga biriktirilgan bo'lsa — aytamiz, jimgina ko'chirmaymiz
+    const owner = findByBarcode(req.shopId, code);
+    if (owner && owner.id !== product.id) {
+      return reply.code(409).send({ error: 'barcode_taken', product: { id: owner.id, name: owner.name } });
+    }
+
+    attachBarcode(req.shopId, product.id, code);
+    if (!product.barcode) db.prepare('UPDATE products SET barcode = ? WHERE id = ?').run(code, product.id);
+    if (!db.prepare('SELECT 1 FROM barcode_catalog WHERE barcode = ?').get(code)) {
+      db.prepare('INSERT INTO barcode_catalog (barcode, name, unit, created_by_shop) VALUES (?, ?, ?, ?)').run(
+        code,
+        product.name,
+        product.unit,
+        req.shopId
+      );
+    }
+    return db.prepare('SELECT * FROM products WHERE id = ?').get(product.id);
+  }
+);
+
+app.delete<{ Params: { id: string; code: string } }>(
+  '/products/:id/barcodes/:code',
+  { preHandler: requireOwner },
+  async (req, reply) => {
+    const code = normalizeBarcode(req.params.code);
+    const info = db
+      .prepare('DELETE FROM product_barcodes WHERE shop_id = ? AND product_id = ? AND barcode = ?')
+      .run(req.shopId, req.params.id, code);
+    if (!info.changes) return reply.code(404).send({ error: 'not_found' });
+    // asosiy kod o'chirilgan bo'lsa — qolganidan birini asosiy qilamiz
+    const rest = db
+      .prepare('SELECT barcode FROM product_barcodes WHERE shop_id = ? AND product_id = ? ORDER BY id LIMIT 1')
+      .get(req.shopId, req.params.id) as any;
+    db.prepare('UPDATE products SET barcode = ? WHERE id = ? AND shop_id = ?').run(
+      rest?.barcode ?? null,
+      req.params.id,
+      req.shopId
+    );
+    return { ok: true };
+  }
+);
+
 app.get<{ Params: { file: string } }>('/uploads/:file', async (req, reply) => {
   const safe = req.params.file.replace(/[^a-zA-Z0-9._-]/g, '');
   const path = join(UPLOADS_DIR, safe);
@@ -683,9 +811,12 @@ app.patch<{ Params: { id: string }; Body: Record<string, unknown> }>(
     if (!product) return reply.code(404).send({ error: 'not_found' });
     for (const key of ['name', 'barcode', 'unit', 'cost_price', 'sell_price', 'low_stock_threshold', 'expiry_date', 'stock']) {
       if (key in req.body) {
-        db.prepare(`UPDATE products SET ${key} = ? WHERE id = ?`).run(req.body[key] as any, product.id);
+        const value = key === 'barcode' ? normalizeBarcode(req.body[key] as string) || null : (req.body[key] as any);
+        db.prepare(`UPDATE products SET ${key} = ? WHERE id = ?`).run(value, product.id);
       }
     }
+    // asosiy kod o'zgargan bo'lsa — kodlar ro'yxatiga ham qo'shamiz
+    if (typeof req.body.barcode === 'string') attachBarcode(req.shopId, product.id, req.body.barcode);
     if (typeof req.body.image === 'string') {
       const url = saveImage(req.body.image, product.id);
       if (url) db.prepare('UPDATE products SET image_url = ? WHERE id = ?').run(url, product.id);

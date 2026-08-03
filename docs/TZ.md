@@ -276,6 +276,31 @@ Srok kiritilgan mahsulotlar bo'yicha tizim avtomatik kuzatib boradi:
 
 ---
 
+### 6.7. Shtrix-kod mantig'i
+
+Amalda bitta tovar bir necha xil kod bilan uchraydi, shuning uchun kod
+oddiy "matn tengligi" bilan solishtirilmaydi:
+
+- **Tozalash.** Kod bazaga probel, tire va bosh/oxirgi bo'shliqlarsiz yoziladi.
+- **Teng ko'rinishlar.** UPC-A (12 xona) va EAN-13 (13 xona) — bir xil tovar,
+  farqi faqat oldidagi nol. Yashik kodi GTIN-14 ham shunga qo'shiladi.
+  Qidirishda kodning barcha shu ko'rinishlari bo'yicha izlanadi, ya'ni
+  tovar 12 xonali kod bilan kiritilib, 13 xonali bo'lib skanerlansa ham topiladi.
+- **Nazorat raqami.** EAN-8/UPC-A/EAN-13/GTIN-14 uchun nazorat raqami
+  tekshiriladi — qo'lda terishdagi xato shu yerda ushlanadi va ogohlantiriladi.
+- **Bir tovar — bir necha kod.** Kodlar alohida jadvalda (`product_barcodes`),
+  shuning uchun qadoq o'zgarsa yoki tovarda ikkita kod bo'lsa, ikkalasi ham
+  o'sha tovarni topadi.
+- **Topilmagan kod jimgina yo'qolmaydi.** Kassada skaner kodni topmasa,
+  ekranda kod ko'rsatiladi va "mahsulotni tanlang — kod unga biriktiriladi"
+  taklifi chiqadi. Bir marta tanlangach, keyingi safar skaner darhol topadi.
+- **Kirimda takrorlanish yo'q.** Tovar avval kod bo'yicha, so'ng nom bo'yicha
+  qidiriladi. Shu sababli xuddi shu nom bilan ikkinchi marta kirim qilinsa,
+  yangi yozuv yaratilmaydi — qoldiq bitta tovarda yig'iladi (ilgari qoldiq
+  ikkiga bo'linib ketardi).
+
+---
+
 ## 7. Admin panel (Web)
 
 > Texnologiya: React + REST API. Faqat admin/super-admin kiradi (login + parol + 2FA).

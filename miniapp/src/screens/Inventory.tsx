@@ -148,7 +148,6 @@ function ProductEdit({ product, onBack, onSaved }: { product: Product; onBack: (
   const { t } = useT();
   const [form, setForm] = useState({
     name: product.name,
-    barcode: product.barcode ?? '',
     cost_price: String(product.cost_price),
     sell_price: String(product.sell_price),
     stock: String(product.stock),
@@ -157,7 +156,28 @@ function ProductEdit({ product, onBack, onSaved }: { product: Product; onBack: (
   });
   const [image, setImage] = useState<string | null>(null);
   const [error, setError] = useState('');
+  const [codes, setCodes] = useState<{ id: number; barcode: string }[]>([]);
+  const [newCode, setNewCode] = useState('');
+  const [scanning, setScanning] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  const loadCodes = () => api.productBarcodes(product.id!).then(setCodes).catch(() => {});
+  useEffect(() => {
+    loadCodes();
+  }, []);
+
+  async function addCode(code: string) {
+    const clean = code.replace(/[\s-]/g, '');
+    if (clean.length < 6) return;
+    setError('');
+    try {
+      await api.attachBarcode(product.id!, clean);
+      setNewCode('');
+      loadCodes();
+    } catch (e: any) {
+      setError(e.message === 'barcode_taken' ? t('barcodeTaken') : t('error'));
+    }
+  }
 
   function pickImage(file: File | undefined) {
     if (!file) return;
@@ -177,7 +197,6 @@ function ProductEdit({ product, onBack, onSaved }: { product: Product; onBack: (
     setError('');
     await api.updateProduct(product.id!, {
       name: form.name.trim(),
-      barcode: form.barcode.trim() || null,
       cost_price: parseInt(form.cost_price.replace(/\D/g, ''), 10) || 0,
       sell_price: parseInt(form.sell_price.replace(/\D/g, ''), 10) || 0,
       stock: parseFloat(form.stock) || 0,
@@ -223,8 +242,48 @@ function ProductEdit({ product, onBack, onSaved }: { product: Product; onBack: (
 
         <label>{t('productName')}</label>
         <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-        <label>{t('barcodeLabel')}</label>
-        <input value={form.barcode} onChange={(e) => setForm({ ...form, barcode: e.target.value })} inputMode="numeric" />
+        <label>{t('productBarcodes')}</label>
+        <div className="list-group">
+          {codes.map((c) => (
+            <div className="list-item" key={c.id}>
+              <div className="name mono-code">{c.barcode}</div>
+              <button
+                className="chip"
+                onClick={async () => {
+                  await api.removeBarcode(product.id!, c.barcode).catch(() => {});
+                  loadCodes();
+                }}
+              >
+                {t('delete')}
+              </button>
+            </div>
+          ))}
+          <div className="list-item" style={{ gap: 8 }}>
+            <input
+              style={{ margin: 0, background: 'none', padding: 0, flex: 1 }}
+              value={newCode}
+              onChange={(e) => setNewCode(e.target.value.replace(/\D/g, ''))}
+              inputMode="numeric"
+              placeholder={t('addBarcode')}
+              onKeyDown={(e) => e.key === 'Enter' && addCode(newCode)}
+            />
+            <button className="chip" onClick={() => setScanning(true)}>
+              <Glyph name="scan" size={16} />
+            </button>
+            <button className="chip" onClick={() => addCode(newCode)} disabled={newCode.length < 6}>
+              <Glyph name="plus" size={16} />
+            </button>
+          </div>
+        </div>
+        {scanning && (
+          <Scanner
+            onScan={(code) => {
+              setScanning(false);
+              addCode(code);
+            }}
+            onClose={() => setScanning(false)}
+          />
+        )}
         <div style={{ display: 'flex', gap: 10 }}>
           <div style={{ flex: 1 }}>
             <label>{t('costPrice')}</label>

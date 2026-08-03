@@ -157,6 +157,8 @@ function SaleMode({ onDone }: { onDone: () => void }) {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [scanning, setScanning] = useState(false);
+  // Skanerda topilmagan kod: mahsulot tanlansa, kod o'shanga biriktiriladi
+  const [pendingCode, setPendingCode] = useState<string | null>(null);
   const { t } = useT();
 
   async function search(q: string) {
@@ -166,12 +168,51 @@ function SaleMode({ onDone }: { onDone: () => void }) {
       return;
     }
     const isBarcode = /^\d{6,}$/.test(q.trim());
-    const found = await api.products(isBarcode ? { barcode: q.trim() } : { q });
+    if (isBarcode) {
+      await handleCode(q.trim());
+      return;
+    }
+    const found = await api.products({ q });
     setResults(found.filter((p) => p.id !== null));
   }
 
-  function addToCart(p: Product) {
+  /** Skaner yoki qo'lda kiritilgan kod: topilsa savatga, topilmasa biriktirishga taklif */
+  async function handleCode(code: string) {
+    setError('');
+    try {
+      const res = await api.lookupBarcode(code);
+      if (res.product) {
+        setPendingCode(null);
+        addToCart(res.product);
+        return;
+      }
+      // Topilmadi — kodni eslab qolamiz va nom bo'yicha qidirishga o'tkazamiz
+      haptic.error();
+      setPendingCode(res.code);
+      setQuery('');
+      if (res.catalog) {
+        const byName = await api.products({ q: res.catalog.name });
+        setResults(byName.filter((p) => p.id !== null));
+      } else {
+        setResults([]);
+      }
+    } catch (e: any) {
+      setError(t('error') + ': ' + e.message);
+    }
+  }
+
+  async function addToCart(p: Product) {
     haptic.tap();
+    // Kod topilmay, foydalanuvchi mahsulotni o'zi tanlagan bo'lsa — kodni biriktiramiz
+    if (pendingCode && p.id) {
+      try {
+        await api.attachBarcode(p.id, pendingCode);
+        setMessage(t('barcodeAttached').replace('{name}', p.name));
+      } catch (e: any) {
+        if (e.message === 'barcode_taken') setError(t('barcodeTaken'));
+      }
+      setPendingCode(null);
+    }
     setCart((prev) => {
       const existing = prev.find((l) => l.product.id === p.id);
       if (existing) return prev.map((l) => (l.product.id === p.id ? { ...l, qty: l.qty + 1 } : l));
@@ -242,13 +283,32 @@ function SaleMode({ onDone }: { onDone: () => void }) {
           }
           onScan={async (code) => {
             // topilgan mahsulot darhol savatga tushadi — skaner ochiq qoladi
-            const found = await api.products({ barcode: code });
-            const p = found.find((x) => x.id !== null);
-            if (p) addToCart(p);
+            const res = await api.lookupBarcode(code).catch(() => null);
+            if (res?.product) {
+              addToCart(res.product);
+            } else {
+              // topilmadi: skanerni yopib, kodni biriktirishga taklif qilamiz
+              setScanning(false);
+              handleCode(code);
+            }
           }}
           onClose={() => setScanning(false)}
         />
       )}
+      {pendingCode && (
+        <div className="attach-banner">
+          <div className="attach-head">
+            <Glyph name="scan" size={17} color="var(--yellow)" />
+            <span>{t('codeNotFound')}</span>
+            <button className="attach-close" onClick={() => setPendingCode(null)}>
+              <Glyph name="close" size={15} color="var(--muted)" />
+            </button>
+          </div>
+          <div className="attach-code">{pendingCode}</div>
+          <div className="attach-hint">{t('codeAttachHint')}</div>
+        </div>
+      )}
+
       {results.length > 0 && (
         <div className="list-group">
           {results.map((p) => (
@@ -351,19 +411,23 @@ function IntakeMode({ onDone }: { onDone: () => void }) {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [scanning, setScanning] = useState(false);
+  const [codeWarning, setCodeWarning] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
   const { t } = useT();
 
   async function lookupBarcode(code: string) {
     setBarcode(code);
+    setCodeWarning('');
     if (code.trim().length < 6) return;
-    const found = await api.products({ barcode: code.trim() });
-    if (found.length > 0) {
-      setName(found[0].name);
-      if (found[0].id !== null) {
-        setCostPrice(String(found[0].cost_price || ''));
-        setSellPrice(String(found[0].sell_price || ''));
-      }
+    const res = await api.lookupBarcode(code.trim()).catch(() => null);
+    if (!res) return;
+    // Qo'lda terilgan kodda xato bo'lsa — nazorat raqami buni ushlaydi
+    if (res.valid === false) setCodeWarning(t('barcodeInvalid'));
+    const known = res.product ?? res.catalog;
+    if (known) setName(known.name);
+    if (res.product) {
+      setCostPrice(String(res.product.cost_price || ''));
+      setSellPrice(String(res.product.sell_price || ''));
     }
   }
 
@@ -466,6 +530,7 @@ function IntakeMode({ onDone }: { onDone: () => void }) {
                 </button>
               </div>
             </div>
+            {codeWarning && <p className="form-note" style={{ color: 'var(--yellow)' }}>{codeWarning}</p>}
           </div>
         </div>
       </div>

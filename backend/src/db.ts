@@ -43,6 +43,14 @@ for (const sql of [
   }
 }
 
+// Eski bazalarda mahsulot kodlari faqat products.barcode da edi —
+// ularni yangi product_barcodes jadvaliga ko'chiramiz (bir marta).
+db.exec(`
+  INSERT OR IGNORE INTO product_barcodes (shop_id, product_id, barcode)
+  SELECT shop_id, id, TRIM(barcode) FROM products
+  WHERE barcode IS NOT NULL AND TRIM(barcode) <> ''
+`);
+
 // Kechikkan qarzlarni belgilash (har so'rovda emas, startda va cron'da chaqiriladi)
 export function markOverdueDebts() {
   db.prepare(

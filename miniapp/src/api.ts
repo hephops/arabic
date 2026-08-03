@@ -30,6 +30,15 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
 export const api = {
   // Xodim (sotuvchi) kirishi: do'kon telefoni + 4 xonali PIN
+  // Shtrix-kod bo'yicha to'liq javob: tovar bormi, katalogda bormi, kod to'g'rimi
+  lookupBarcode: (code: string) =>
+    request<BarcodeLookup>(`/barcodes/lookup?code=${encodeURIComponent(code)}`),
+  attachBarcode: (productId: number, barcode: string) =>
+    request<Product>(`/products/${productId}/barcodes`, { method: 'POST', body: JSON.stringify({ barcode }) }),
+  productBarcodes: (productId: number) =>
+    request<{ id: number; barcode: string; created_at: string }[]>(`/products/${productId}/barcodes`),
+  removeBarcode: (productId: number, barcode: string) =>
+    request<{ ok: boolean }>(`/products/${productId}/barcodes/${encodeURIComponent(barcode)}`, { method: 'DELETE' }),
   employeeLogin: (phone: string, pin: string) =>
     request<{ token: string; shop: Shop; employee: Employee }>('/auth/employee', {
       method: 'POST',
@@ -164,6 +173,14 @@ export interface SupplierDebt {
 
 export interface SupplierDetail extends Supplier {
   debts: SupplierDebt[];
+}
+
+export interface BarcodeLookup {
+  code: string;
+  /** true — nazorat raqami to'g'ri, false — xato, null — tekshirib bo'lmaydi */
+  valid: boolean | null;
+  product: Product | null;
+  catalog: { barcode: string; name: string; unit: string } | null;
 }
 
 export interface Employee {
