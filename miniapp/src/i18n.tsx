@@ -30,6 +30,8 @@ const UZ: Record<string, string> = {
   name: 'Ismi',
   dueDate: 'Muddat',
   currency: "so'm",
+  thousand: 'ming',
+  mln: 'mln',
   pcs: 'dona',
   notSet: 'kiritilmagan',
   required: 'majburiy',
@@ -81,6 +83,12 @@ const UZ: Record<string, string> = {
   expiringSoon: 'Srogi yaqin',
   noDueToday: "Bugun muddati keladigan qarz yo'q",
   recentSales: 'Oxirgi sotuvlar',
+  todaySales: 'Bugungi savdo',
+  salesCount: 'Sotuv',
+  last7days: 'Oxirgi 7 kun',
+  netBalance: 'Sof balans',
+  statOwed: 'Qarzdorlar',
+  statOwe: 'Qarzim',
   myDebtsSection: 'Postavshiklarga qarzim',
   noSalesYet: "Hozircha sotuv yo'q",
   allSales: 'Barchasi',
@@ -277,6 +285,8 @@ const RU: Record<string, string> = {
   name: 'Имя',
   dueDate: 'Срок',
   currency: 'сум',
+  thousand: 'тыс',
+  mln: 'млн',
   pcs: 'шт',
   notSet: 'не указано',
   required: 'обязательно',
@@ -325,6 +335,12 @@ const RU: Record<string, string> = {
   expiringSoon: 'Скоро истекает срок',
   noDueToday: 'На сегодня сроков нет',
   recentSales: 'Последние продажи',
+  todaySales: 'Продажи сегодня',
+  salesCount: 'Продаж',
+  last7days: 'Последние 7 дней',
+  netBalance: 'Чистый баланс',
+  statOwed: 'Мне должны',
+  statOwe: 'Мой долг',
   myDebtsSection: 'Мой долг поставщикам',
   noSalesYet: 'Продаж пока нет',
   allSales: 'Все',
@@ -556,6 +572,18 @@ export function translate(key: string, lang: Lang = currentLang): string {
 // Summa formati — valyuta nomi tilga qarab o'zgaradi
 export function fmt(n: number): string {
   return `${new Intl.NumberFormat('uz-UZ').format(n)} ${translate('currency')}`;
+}
+
+// Qisqa format — tor kartochkalar uchun (476 ming, 2,5 mln)
+export function fmtShort(n: number): string {
+  const abs = Math.abs(n);
+  const sign = n < 0 ? '-' : '';
+  if (abs >= 1_000_000) {
+    const v = abs / 1_000_000;
+    return `${sign}${v >= 10 ? Math.round(v) : v.toFixed(1).replace('.0', '')} ${translate('mln')}`;
+  }
+  if (abs >= 10_000) return `${sign}${Math.round(abs / 1000)} ${translate('thousand')}`;
+  return `${sign}${new Intl.NumberFormat('uz-UZ').format(abs)}`;
 }
 
 interface I18nValue {

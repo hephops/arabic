@@ -235,6 +235,8 @@ export interface Dashboard {
   owed_to_me: number;
   i_owe: number;
   net: number;
+  today: { count: number; revenue: number; cash: number; card: number; debt: number; profit: number };
+  week: { day: string; revenue: number }[];
   due_today: (Debt & { customer_name: string })[];
   overdue: (Debt & { customer_name: string })[];
   low_stock: Product[];
@@ -253,4 +255,4 @@ export interface Report {
   top_products: { name: string; sold: number; revenue: number }[];
 }
 
-export { fmt } from './i18n';
+export { fmt, fmtShort } from './i18n';

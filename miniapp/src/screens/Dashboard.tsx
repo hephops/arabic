@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { api, fmt, Dashboard as DashboardData } from '../api';
+import { api, fmt, fmtShort, Dashboard as DashboardData } from '../api';
 import { AppIcon, Glyph } from '../icons';
 import type { SubScreen } from '../App';
 import { useT } from '../i18n';
@@ -22,16 +22,69 @@ export default function Dashboard({
   if (error) return <div className="screen error">{t('error')}: {error}</div>;
   if (!data) return <div className="screen empty">{t('loading')}</div>;
 
+  const maxRev = Math.max(...data.week.map((w) => w.revenue), 1);
+  const today = new Date().toISOString().slice(0, 10);
+  const WD = ['Ya', 'Du', 'Se', 'Ch', 'Pa', 'Ju', 'Sh'];
+
   return (
     <div className="screen">
-      <div className="card split-card">
-        <div className="split">
-          <div className="label">{t('owedToMe')}</div>
-          <div className="value green">{fmt(data.owed_to_me)}</div>
+      {/* Bugungi savdo — asosiy karta */}
+      <div className="hero" onClick={() => onNavigate('reports')} style={{ cursor: 'pointer' }}>
+        <div className="hero-top">
+          <div>
+            <div className="hero-label">{t('todaySales')}</div>
+            <div className="hero-value">{fmt(data.today.revenue)}</div>
+          </div>
+          <Glyph name="chart" size={22} color="rgba(255,255,255,0.75)" />
         </div>
-        <div className="split" onClick={() => onNavigate('suppliers')} style={{ cursor: 'pointer' }}>
-          <div className="label">{t('iOwe')} ›</div>
-          <div className="value red">{fmt(data.i_owe)}</div>
+        <div className="hero-stats">
+          <div className="hero-stat">
+            <div className="k">{t('profit')}</div>
+            <div className="v">{fmtShort(data.today.profit)}</div>
+          </div>
+          <div className="hero-stat">
+            <div className="k">{t('salesCount')}</div>
+            <div className="v">{data.today.count}</div>
+          </div>
+          <div className="hero-stat">
+            <div className="k">{t('payDebt')}</div>
+            <div className="v">{fmtShort(data.today.debt)}</div>
+          </div>
+        </div>
+        <div className="spark">
+          {data.week.map((w) => (
+            <div className={`col ${w.day === today ? 'today' : ''}`} key={w.day}>
+              <div className="track">
+                <div
+                  className="bar"
+                  style={{ height: `${w.revenue > 0 ? Math.max(6, Math.round((w.revenue / maxRev) * 27)) : 0}px` }}
+                />
+              </div>
+              <div className="d">{WD[new Date(w.day).getDay()]}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Uchta asosiy ko'rsatkich */}
+      <div className="stat-row">
+        <div className="stat-card" onClick={() => onNavigate('reminders')} style={{ cursor: 'pointer' }}>
+          <div className="k">
+            <Glyph name="arrowDown" size={13} color="var(--green)" /> {t('statOwed')}
+          </div>
+          <div className="v" style={{ color: 'var(--green)' }}>{fmtShort(data.owed_to_me)}</div>
+        </div>
+        <div className="stat-card" onClick={() => onNavigate('suppliers')} style={{ cursor: 'pointer' }}>
+          <div className="k">
+            <Glyph name="arrowUp" size={13} color="var(--red)" /> {t('statOwe')}
+          </div>
+          <div className="v" style={{ color: 'var(--red)' }}>{fmtShort(data.i_owe)}</div>
+        </div>
+        <div className="stat-card">
+          <div className="k">
+            <Glyph name="banknote" size={13} color="var(--accent)" /> {t('netBalance')}
+          </div>
+          <div className="v" style={{ color: data.net >= 0 ? 'var(--green)' : 'var(--red)' }}>{fmtShort(data.net)}</div>
         </div>
       </div>
 

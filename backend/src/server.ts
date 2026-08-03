@@ -163,10 +163,45 @@ app.get('/dashboard', { preHandler: requireAuth }, async (req) => {
        ORDER BY (sd.due_date IS NULL), sd.due_date ASC LIMIT 5`
     )
     .all(req.shopId);
+  // Bugungi ko'rsatkichlar
+  const todayStats = db
+    .prepare(
+      `SELECT COUNT(*) AS count, COALESCE(SUM(total), 0) AS revenue,
+              COALESCE(SUM(CASE WHEN payment_type = 'cash' THEN total END), 0) AS cash,
+              COALESCE(SUM(CASE WHEN payment_type = 'card' THEN total END), 0) AS card,
+              COALESCE(SUM(CASE WHEN payment_type = 'debt' THEN total END), 0) AS debt
+       FROM sales WHERE shop_id = ? AND date(created_at) = date('now')`
+    )
+    .get(req.shopId) as any;
+  const todayProfit = db
+    .prepare(
+      `SELECT COALESCE(SUM((si.price - p.cost_price) * si.qty), 0) AS profit
+       FROM sale_items si JOIN sales s ON s.id = si.sale_id JOIN products p ON p.id = si.product_id
+       WHERE s.shop_id = ? AND date(s.created_at) = date('now')`
+    )
+    .get(req.shopId) as any;
+  // Oxirgi 7 kunlik savdo (grafik uchun) — bo'sh kunlar 0 bilan to'ldiriladi
+  const raw = db
+    .prepare(
+      `SELECT date(created_at) AS d, COALESCE(SUM(total), 0) AS revenue
+       FROM sales WHERE shop_id = ? AND date(created_at) >= date('now', '-6 days')
+       GROUP BY date(created_at)`
+    )
+    .all(req.shopId) as any[];
+  const byDay = new Map(raw.map((r) => [r.d, r.revenue]));
+  const week: { day: string; revenue: number }[] = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    const key = d.toISOString().slice(0, 10);
+    week.push({ day: key, revenue: byDay.get(key) ?? 0 });
+  }
   return {
     owed_to_me: owedToMe.s,
     i_owe: iOwe.s,
     net: owedToMe.s - iOwe.s,
+    today: { ...todayStats, profit: todayProfit.profit },
+    week,
     due_today: dueToday,
     overdue,
     low_stock: lowStock,
