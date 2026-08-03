@@ -116,7 +116,7 @@ function SaleMode({ onDone }: { onDone: () => void }) {
           onClick={() => setScanning(true)}
           title="Skaner"
         >
-          <Glyph name="search" size={20} strokeWidth={2} />
+          <Glyph name="scan" size={20} />
           Skaner
         </button>
       </div>
@@ -287,7 +287,7 @@ function IntakeMode({ onDone }: { onDone: () => void }) {
           style={{ flex: 1 }}
         />
         <button className="chip" style={{ height: 48, marginBottom: 10 }} onClick={() => setScanning(true)}>
-          <Glyph name="search" size={20} strokeWidth={2} />
+          <Glyph name="scan" size={20} />
           Skaner
         </button>
       </div>

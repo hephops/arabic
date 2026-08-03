@@ -55,15 +55,15 @@ export default function App() {
       <nav className="tabbar">
         {(
           [
-            ['home', 'house', 'Bosh'],
-            ['customers', 'people', 'Mijozlar'],
-            ['add', 'plus', 'Qarz'],
-            ['kassa', 'cart', 'Kassa'],
-            ['profile', 'person', 'Profil'],
-          ] as [Tab, string, string][]
-        ).map(([id, glyph, label]) => (
+            ['home', 'house', 'houseFill', 'Bosh'],
+            ['customers', 'people', 'peopleFill', 'Mijozlar'],
+            ['add', 'plusCircle', 'plusCircleFill', 'Qarz'],
+            ['kassa', 'cart', 'cartFill', 'Kassa'],
+            ['profile', 'person', 'personFill', 'Profil'],
+          ] as [Tab, string, string, string][]
+        ).map(([id, glyph, glyphActive, label]) => (
           <button key={id} className={tab === id ? 'active' : ''} onClick={() => setTab(id)}>
-            <Glyph name={glyph} size={24} strokeWidth={tab === id ? 2.1 : 1.7} />
+            <Glyph name={tab === id ? glyphActive : glyph} size={25} />
             {label}
           </button>
         ))}

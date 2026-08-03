@@ -83,10 +83,7 @@ export default function Scanner({ onScan, onClose }: { onScan: (code: string) =>
           borderRadius: 24, display: 'flex', alignItems: 'center', gap: 8, fontSize: 15,
         }}
       >
-        <span style={{ display: 'inline-flex', transform: 'rotate(45deg)' }}>
-          <Glyph name="plus" size={16} strokeWidth={2.2} />
-        </span>
-        Yopish
+<Glyph name="close" size={18} /> Yopish
       </button>
     </div>
   );
