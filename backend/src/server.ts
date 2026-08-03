@@ -4,7 +4,7 @@ import { mkdirSync, writeFileSync, existsSync, readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { db, markOverdueDebts } from './db.js';
-import { signToken, requireAuth } from './auth.js';
+import { signToken, requireAuth, requireOwner } from './auth.js';
 import { parseDebtText } from './voice.js';
 import { runReminders, startReminderScheduler } from './reminders.js';
 import { handleUpdate, verifyInitData, telegramEnabled, setWebhook } from './telegram.js';
@@ -61,6 +61,29 @@ app.post<{ Body: { phone: string; code: string; shop_name?: string; ref?: string
   }
 );
 
+// Xodim (sotuvchi) kirishi: do'kon telefoni + o'zining 4 xonali PIN-kodi.
+// Egasi bu PIN-kodni "Profil → Xodimlar" bo'limida yaratadi.
+app.post<{ Body: { phone: string; pin: string } }>('/auth/employee', async (req, reply) => {
+  const phone = (req.body?.phone ?? '').trim();
+  const pin = (req.body?.pin ?? '').trim();
+  if (!phone || !/^\d{4}$/.test(pin)) return reply.code(400).send({ error: 'phone_and_pin_required' });
+
+  const shop = db.prepare('SELECT * FROM shops WHERE phone = ?').get(phone) as any;
+  if (!shop) return reply.code(404).send({ error: 'shop_not_found' });
+  if (shop.is_blocked) return reply.code(403).send({ error: 'blocked', reason: shop.blocked_reason });
+
+  const emp = db
+    .prepare("SELECT * FROM employees WHERE shop_id = ? AND pin = ? AND is_active = 1 AND role = 'seller'")
+    .get(shop.id, pin) as any;
+  if (!emp) return reply.code(401).send({ error: 'invalid_pin' });
+
+  return {
+    token: signToken(shop.id, emp.id),
+    shop,
+    employee: { id: emp.id, name: emp.name, role: emp.role },
+  };
+});
+
 // ---------- ADMIN PANEL ----------
 registerAdminRoutes(app);
 
@@ -90,10 +113,15 @@ app.post('/telegram/webhook', async (req, reply) => {
 
 // ---------- PROFIL ----------
 app.get('/me', { preHandler: requireAuth }, async (req) => {
-  return db.prepare('SELECT * FROM shops WHERE id = ?').get(req.shopId);
+  const shop = db.prepare('SELECT * FROM shops WHERE id = ?').get(req.shopId) as any;
+  // Xodim sessiyasida ilova cheklangan ko'rinishga o'tadi
+  const employee = req.employeeId
+    ? db.prepare('SELECT id, name, role FROM employees WHERE id = ?').get(req.employeeId)
+    : null;
+  return { ...shop, employee };
 });
 
-app.patch<{ Body: Record<string, unknown> }>('/me', { preHandler: requireAuth }, async (req) => {
+app.patch<{ Body: Record<string, unknown> }>('/me', { preHandler: requireOwner }, async (req) => {
   const allowed = ['name', 'owner_name', 'address', 'language', 'card_number'];
   for (const key of allowed) {
     if (key in req.body) {
@@ -117,7 +145,7 @@ function getPlans(): Record<string, { price: number; title: string }> {
   };
 }
 
-app.get('/balance', { preHandler: requireAuth }, async (req) => {
+app.get('/balance', { preHandler: requireOwner }, async (req) => {
   const shop = db.prepare('SELECT balance, plan, plan_expires_at FROM shops WHERE id = ?').get(req.shopId) as any;
   const transactions = db
     .prepare('SELECT * FROM balance_transactions WHERE shop_id = ? ORDER BY created_at DESC LIMIT 50')
@@ -126,7 +154,7 @@ app.get('/balance', { preHandler: requireAuth }, async (req) => {
 });
 
 // DEV: to'ldirish darhol o'tadi. PROD: Payme/Click/Uzum to'lov oqimi orqali.
-app.post<{ Body: { amount: number } }>('/balance/topup', { preHandler: requireAuth }, async (req, reply) => {
+app.post<{ Body: { amount: number } }>('/balance/topup', { preHandler: requireOwner }, async (req, reply) => {
   const amount = Math.round(req.body.amount);
   if (!amount || amount <= 0) return reply.code(400).send({ error: 'amount_required' });
   const minTopup = Number(getSetting('min_topup_amount', '10000'));
@@ -141,7 +169,7 @@ app.post<{ Body: { amount: number } }>('/balance/topup', { preHandler: requireAu
 });
 
 // Obunani balansdan yechib faollashtirish (1 oy)
-app.post<{ Body: { plan: 'premium' | 'business' } }>('/balance/subscribe', { preHandler: requireAuth }, async (req, reply) => {
+app.post<{ Body: { plan: 'premium' | 'business' } }>('/balance/subscribe', { preHandler: requireOwner }, async (req, reply) => {
   const plan = getPlans()[req.body.plan];
   if (!plan) return reply.code(400).send({ error: 'invalid_plan' });
   const shop = db.prepare('SELECT balance FROM shops WHERE id = ?').get(req.shopId) as any;
@@ -316,7 +344,7 @@ app.patch<{ Params: { id: string }; Body: Record<string, unknown> }>(
 );
 
 // Mijozni o'chirish — faqat ochiq qarzi bo'lmasa
-app.delete<{ Params: { id: string } }>('/customers/:id', { preHandler: requireAuth }, async (req, reply) => {
+app.delete<{ Params: { id: string } }>('/customers/:id', { preHandler: requireOwner }, async (req, reply) => {
   const customer = db
     .prepare('SELECT * FROM customers WHERE id = ? AND shop_id = ?')
     .get(req.params.id, req.shopId);
@@ -365,7 +393,7 @@ app.post('/reminders/run', { preHandler: requireAuth }, async (req) => {
 // Do'kon bo'yicha standart rejim — yangi mijozlarga qo'llanadi
 app.patch<{ Body: { default_reminder_mode: string; apply_to_all?: boolean } }>(
   '/reminders/settings',
-  { preHandler: requireAuth },
+  { preHandler: requireOwner },
   async (req, reply) => {
     const mode = req.body.default_reminder_mode;
     if (!['off', 'soft', 'medium', 'call'].includes(mode)) {
@@ -400,8 +428,10 @@ app.post<{ Body: { customer_id?: number; customer_name?: string; amount: number;
     }
     if (!cid) return reply.code(400).send({ error: 'customer_required' });
     const info = db
-      .prepare('INSERT INTO debts (shop_id, customer_id, amount, note, due_date, source) VALUES (?, ?, ?, ?, ?, ?)')
-      .run(req.shopId, cid, Math.round(amount), note ?? null, due_date ?? null, source ?? 'manual');
+      .prepare(
+        'INSERT INTO debts (shop_id, customer_id, amount, note, due_date, source, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)'
+      )
+      .run(req.shopId, cid, Math.round(amount), note ?? null, due_date ?? null, source ?? 'manual', req.employeeId);
     return db.prepare('SELECT * FROM debts WHERE id = ?').get(info.lastInsertRowid);
   }
 );
@@ -497,13 +527,13 @@ app.post<{ Params: { id: string }; Body: { amount: number } }>(
 );
 
 // ---------- XODIMLAR ----------
-app.get('/employees', { preHandler: requireAuth }, async (req) => {
+app.get('/employees', { preHandler: requireOwner }, async (req) => {
   return db
-    .prepare('SELECT id, name, role, is_active, created_at FROM employees WHERE shop_id = ? ORDER BY created_at')
+    .prepare('SELECT id, name, role, pin, is_active, created_at FROM employees WHERE shop_id = ? ORDER BY created_at')
     .all(req.shopId);
 });
 
-app.post<{ Body: { name: string; pin: string } }>('/employees', { preHandler: requireAuth }, async (req, reply) => {
+app.post<{ Body: { name: string; pin: string } }>('/employees', { preHandler: requireOwner }, async (req, reply) => {
   const { name, pin } = req.body;
   if (!name?.trim() || !/^\d{4}$/.test(pin ?? '')) return reply.code(400).send({ error: 'name_and_4digit_pin_required' });
   const info = db
@@ -514,7 +544,7 @@ app.post<{ Body: { name: string; pin: string } }>('/employees', { preHandler: re
 
 app.patch<{ Params: { id: string }; Body: { is_active?: number } }>(
   '/employees/:id',
-  { preHandler: requireAuth },
+  { preHandler: requireOwner },
   async (req, reply) => {
     const emp = db.prepare('SELECT * FROM employees WHERE id = ? AND shop_id = ?').get(req.params.id, req.shopId);
     if (!emp) return reply.code(404).send({ error: 'not_found' });
@@ -526,7 +556,7 @@ app.patch<{ Params: { id: string }; Body: { is_active?: number } }>(
 );
 
 // ---------- REFERAL ----------
-app.get('/referral', { preHandler: requireAuth }, async (req) => {
+app.get('/referral', { preHandler: requireOwner }, async (req) => {
   const code = `ARABIC${req.shopId}`;
   const invited = db.prepare("SELECT COUNT(*) AS c FROM shops WHERE referred_by = ?").get(code) as any;
   return {
@@ -558,7 +588,7 @@ app.get<{ Querystring: { q?: string; barcode?: string } }>('/products', { preHan
 
 app.post<{ Body: { barcode?: string; name: string; unit?: string; cost_price?: number; sell_price?: number; qty?: number; expiry_date?: string; image?: string } }>(
   '/products/intake',
-  { preHandler: requireAuth },
+  { preHandler: requireOwner },
   async (req, reply) => {
     const { barcode, name, unit, cost_price, sell_price, qty, expiry_date, image } = req.body;
     if (!name?.trim()) return reply.code(400).send({ error: 'name_required' });
@@ -645,7 +675,7 @@ app.get<{ Params: { file: string } }>('/uploads/:file', async (req, reply) => {
 // Mahsulotni tahrirlash va o'chirish
 app.patch<{ Params: { id: string }; Body: Record<string, unknown> }>(
   '/products/:id',
-  { preHandler: requireAuth },
+  { preHandler: requireOwner },
   async (req, reply) => {
     const product = db
       .prepare('SELECT * FROM products WHERE id = ? AND shop_id = ?')
@@ -664,7 +694,7 @@ app.patch<{ Params: { id: string }; Body: Record<string, unknown> }>(
   }
 );
 
-app.delete<{ Params: { id: string } }>('/products/:id', { preHandler: requireAuth }, async (req, reply) => {
+app.delete<{ Params: { id: string } }>('/products/:id', { preHandler: requireOwner }, async (req, reply) => {
   const product = db
     .prepare('SELECT * FROM products WHERE id = ? AND shop_id = ?')
     .get(req.params.id, req.shopId);
@@ -727,8 +757,8 @@ app.post<{ Body: { items: { product_id: number; qty: number }[]; payment_type: '
         lines.push({ product, qty: item.qty });
       }
       const saleInfo = db
-        .prepare('INSERT INTO sales (shop_id, total, payment_type, customer_id) VALUES (?, ?, ?, ?)')
-        .run(req.shopId, Math.round(total), payment_type, customer_id ?? null);
+        .prepare('INSERT INTO sales (shop_id, total, payment_type, customer_id, created_by) VALUES (?, ?, ?, ?, ?)')
+        .run(req.shopId, Math.round(total), payment_type, customer_id ?? null, req.employeeId);
       const saleId = Number(saleInfo.lastInsertRowid);
       for (const { product, qty } of lines) {
         db.prepare('INSERT INTO sale_items (sale_id, product_id, qty, price) VALUES (?, ?, ?, ?)').run(
@@ -762,8 +792,8 @@ app.post<{ Body: { items: { product_id: number; qty: number }[]; payment_type: '
         if (!cid) throw new Error('customer_required_for_debt');
         const noteText = lines.map((l) => `${l.product.name} x${l.qty}`).join(', ');
         db.prepare(
-          'INSERT INTO debts (shop_id, customer_id, amount, note, due_date, source, sale_id) VALUES (?, ?, ?, ?, ?, ?, ?)'
-        ).run(req.shopId, cid, Math.round(total), noteText, due_date ?? null, 'pos', saleId);
+          'INSERT INTO debts (shop_id, customer_id, amount, note, due_date, source, sale_id, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+        ).run(req.shopId, cid, Math.round(total), noteText, due_date ?? null, 'pos', saleId, req.employeeId);
         db.prepare('UPDATE sales SET customer_id = ? WHERE id = ?').run(cid, saleId);
       }
       return saleId;
@@ -831,7 +861,7 @@ app.post<{ Params: { id: string } }>('/sales/:id/receipt', { preHandler: require
 });
 
 // ---------- HISOBOTLAR ----------
-app.get<{ Querystring: { period?: string } }>('/reports/summary', { preHandler: requireAuth }, async (req) => {
+app.get<{ Querystring: { period?: string } }>('/reports/summary', { preHandler: requireOwner }, async (req) => {
   const period = req.query.period === 'week' ? '-7 days' : req.query.period === 'month' ? '-30 days' : '-1 day';
   const sales = db
     .prepare(
@@ -861,7 +891,7 @@ app.get<{ Querystring: { period?: string } }>('/reports/summary', { preHandler: 
 });
 
 // Hisobotni CSV (Excel ochadi) qilib yuklab olish
-app.get<{ Querystring: { period?: string } }>('/reports/export', { preHandler: requireAuth }, async (req, reply) => {
+app.get<{ Querystring: { period?: string } }>('/reports/export', { preHandler: requireOwner }, async (req, reply) => {
   const period = req.query.period === 'week' ? '-7 days' : req.query.period === 'month' ? '-30 days' : '-1 day';
   const rows = db
     .prepare(

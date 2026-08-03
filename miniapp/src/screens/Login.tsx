@@ -9,7 +9,7 @@ import { formatPhone, phoneE164, isPhoneComplete, phoneDigits, formatCard, cardD
 // Har bir bosqich alohida ekran: bitta ish, bitta tugma.
 
 export default function Login({ onLogin }: { onLogin: () => void }) {
-  const [step, setStep] = useState<'phone' | 'code' | 'setup'>('phone');
+  const [step, setStep] = useState<'phone' | 'code' | 'setup' | 'employee'>('phone');
   const [phone, setPhone] = useState('');
   const [hint, setHint] = useState<string | undefined>();
   const [error, setError] = useState('');
@@ -75,6 +75,7 @@ export default function Login({ onLogin }: { onLogin: () => void }) {
   }
 
   if (step === 'setup') return <Setup onDone={onLogin} />;
+  if (step === 'employee') return <EmployeeLogin onDone={onLogin} onBack={() => setStep('phone')} />;
 
   return (
     <div className="auth">
@@ -102,6 +103,12 @@ export default function Login({ onLogin }: { onLogin: () => void }) {
             <button className="btn-primary btn-lg" onClick={sendOtp} disabled={busy || !isPhoneComplete(phone)}>
               {t('loginGetCode')}
             </button>
+
+            <div className="auth-links">
+              <button className="link" onClick={() => setStep('employee')}>
+                {t('employeeLoginLink')}
+              </button>
+            </div>
             <p className="auth-terms">{t('authTerms')}</p>
           </>
         ) : (
@@ -224,6 +231,102 @@ function CodeStep({
         </button>
       </div>
     </>
+  );
+}
+
+/* ─────────── Xodim (sotuvchi) kirishi ─────────── */
+
+function EmployeeLogin({ onDone, onBack }: { onDone: () => void; onBack: () => void }) {
+  const [phone, setPhone] = useState('');
+  const [pin, setPin] = useState('');
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const pinRef = useRef<HTMLInputElement>(null);
+  const { t } = useT();
+
+  async function enter(code = pin) {
+    if (!isPhoneComplete(phone) || code.length < 4) return;
+    setBusy(true);
+    setError('');
+    try {
+      const res = await api.employeeLogin(phoneE164(phone), code);
+      setToken(res.token);
+      haptic.success();
+      onDone();
+    } catch (e: any) {
+      haptic.error();
+      setPin('');
+      setError(
+        e.message === 'invalid_pin'
+          ? t('employeeWrongPin')
+          : e.message === 'shop_not_found'
+          ? t('employeeShopNotFound')
+          : t('error') + ': ' + e.message
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="auth">
+      <div className="auth-body">
+        <div className="auth-brand tight">
+          <div className="auth-logo sm">A</div>
+          <h1 className="auth-title" style={{ marginTop: 12 }}>{t('employeeLoginTitle')}</h1>
+          <p className="auth-sub">{t('employeeLoginHint')}</p>
+        </div>
+
+        <label style={{ margin: '0 4px 6px' }}>{t('employeeShopPhone')}</label>
+        <div className="phone-field">
+          <span className="cc">+998</span>
+          <input
+            className="phone-input"
+            value={formatPhone(phone).replace('+998', '').trim()}
+            onChange={(e) => setPhone(phoneDigits(e.target.value))}
+            inputMode="tel"
+            autoFocus
+            placeholder="90 123 45 67"
+          />
+        </div>
+
+        <label style={{ margin: '16px 4px 8px' }}>{t('pinCode')}</label>
+        <div className="otp" onClick={() => pinRef.current?.focus()}>
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className={`otp-box ${pin.length === i ? 'active' : ''} ${pin[i] ? 'filled' : ''}`}>
+              {pin[i] ? '•' : ''}
+            </div>
+          ))}
+          <input
+            ref={pinRef}
+            className="otp-hidden"
+            value={pin}
+            onChange={(e) => {
+              const d = e.target.value.replace(/\D/g, '').slice(0, 4);
+              setPin(d);
+              if (d.length === 4 && isPhoneComplete(phone)) enter(d);
+            }}
+            inputMode="numeric"
+            maxLength={4}
+          />
+        </div>
+
+        <button
+          className="btn-primary btn-lg"
+          onClick={() => enter()}
+          disabled={busy || !isPhoneComplete(phone) || pin.length < 4}
+        >
+          {t('loginEnter')}
+        </button>
+
+        <div className="auth-links">
+          <button className="link" onClick={onBack}>
+            {t('ownerLoginLink')}
+          </button>
+        </div>
+        {error && <p className="error center">{error}</p>}
+      </div>
+    </div>
   );
 }
 

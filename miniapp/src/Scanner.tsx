@@ -55,11 +55,28 @@ export default function Scanner({
     }
 
     async function start() {
+      // Brauzer qoidasi: kamera faqat HTTPS (yoki localhost) da ochiladi.
+      // Telefondan http://192.168... orqali kirilsa Safari/Chrome ruxsat so'ramaydi ham.
+      if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
+        setReason(t('scanNeedsHttps'));
+        setPhase('manual');
+        return;
+      }
+
       // 1-qadam: kamera. Ruxsat bo'lmasa — qo'lda kiritishga o'tamiz.
       try {
         stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-      } catch {
-        setReason(t('scanNoPermission'));
+      } catch (e: any) {
+        const kind = e?.name;
+        setReason(
+          kind === 'NotAllowedError' || kind === 'SecurityError'
+            ? t('scanNoPermission')
+            : kind === 'NotFoundError' || kind === 'OverconstrainedError'
+            ? t('scanNoCamera')
+            : kind === 'NotReadableError'
+            ? t('scanCameraBusy')
+            : t('scanNoPermission')
+        );
         setPhase('manual');
         return;
       }

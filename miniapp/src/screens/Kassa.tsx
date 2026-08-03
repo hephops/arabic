@@ -24,7 +24,7 @@ function ProductThumb({ product, size = 44 }: { product: Product; size?: number 
   return <AppIcon glyph="box" color="gray" size={size} />;
 }
 
-export default function Kassa({ onDone }: { onDone: () => void }) {
+export default function Kassa({ onDone, isEmployee = false }: { onDone: () => void; isEmployee?: boolean }) {
   const [mode, setMode] = useState<'sale' | 'intake' | 'history'>('sale');
   const { t } = useT();
 
@@ -34,9 +34,11 @@ export default function Kassa({ onDone }: { onDone: () => void }) {
         <button className={mode === 'sale' ? 'on' : ''} onClick={() => { setMode('sale'); haptic.select(); }}>
           <Glyph name="cart" size={16} /> {t('modeSale')}
         </button>
-        <button className={mode === 'intake' ? 'on' : ''} onClick={() => { setMode('intake'); haptic.select(); }}>
-          <Glyph name="box" size={16} /> {t('modeIntake')}
-        </button>
+        {!isEmployee && (
+          <button className={mode === 'intake' ? 'on' : ''} onClick={() => { setMode('intake'); haptic.select(); }}>
+            <Glyph name="box" size={16} /> {t('modeIntake')}
+          </button>
+        )}
         <button className={mode === 'history' ? 'on' : ''} onClick={() => { setMode('history'); haptic.select(); }}>
           <Glyph name="clock" size={16} /> {t('modeHistory')}
         </button>

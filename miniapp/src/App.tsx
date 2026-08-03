@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { api, getToken } from './api';
+import { api, getToken, type Shop } from './api';
 import Dock, { NavTarget } from './Dock';
 import { NavBar } from './ui';
 import Login from './screens/Login';
@@ -26,6 +26,7 @@ export default function App() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [sub, setSub] = useState<SubScreen>(null);
   const [profileView, setProfileView] = useState<string>('main');
+  const [shop, setShop] = useState<Shop | null>(null);
   const { t, lang, setLang } = useT();
 
   // Telegram'ning o'z "orqaga" tugmasi ichki ekranlarda ko'rinadi
@@ -40,6 +41,7 @@ export default function App() {
       api
         .me()
         .then((s) => {
+          setShop(s);
           if (s.language && s.language !== lang) setLang(s.language as any);
         })
         .catch(() => {});
@@ -47,6 +49,9 @@ export default function App() {
   }, [authed]);
 
   if (!authed) return <Login onLogin={() => setAuthed(true)} />;
+
+  // Xodim sessiyasida narx, hisobot va sozlamalar bo'limlari ko'rinmaydi
+  const isEmployee = !!shop?.employee;
 
   const refresh = () => setRefreshKey((k) => k + 1);
 
@@ -70,7 +75,7 @@ export default function App() {
       {sub === 'reminders' && <Reminders onBack={() => setSub(null)} />}
 
       {!sub && tab === 'home' && (
-        <Dashboard key={refreshKey} onNavigate={setSub} />
+        <Dashboard key={refreshKey} onNavigate={setSub} isEmployee={isEmployee} employeeName={shop?.employee?.name} />
       )}
       {!sub && tab === 'customers' && <Customers key={refreshKey} />}
       {!sub && tab === 'add' && (
@@ -81,9 +86,17 @@ export default function App() {
           }}
         />
       )}
-      {!sub && tab === 'kassa' && <Kassa onDone={refresh} />}
+      {!sub && tab === 'kassa' && <Kassa onDone={refresh} isEmployee={isEmployee} />}
       {!sub && tab === 'profile' && (
-        <Profile key={profileView + refreshKey} initialView={profileView} onLogout={() => setAuthed(false)} />
+        <Profile
+          key={profileView + refreshKey}
+          initialView={profileView}
+          isEmployee={isEmployee}
+          onLogout={() => {
+            setShop(null);
+            setAuthed(false);
+          }}
+        />
       )}
 
       {!sub && (

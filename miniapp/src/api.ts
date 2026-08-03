@@ -29,6 +29,12 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 }
 
 export const api = {
+  // Xodim (sotuvchi) kirishi: do'kon telefoni + 4 xonali PIN
+  employeeLogin: (phone: string, pin: string) =>
+    request<{ token: string; shop: Shop; employee: Employee }>('/auth/employee', {
+      method: 'POST',
+      body: JSON.stringify({ phone, pin }),
+    }),
   requestOtp: (phone: string) =>
     request<{ ok: boolean; dev_hint?: string }>('/auth/request-otp', {
       method: 'POST',
@@ -116,6 +122,8 @@ export const api = {
 
 export interface Shop {
   id: number;
+  /** to'ldirilgan bo'lsa — sessiya xodimniki, ilova cheklangan rejimda ishlaydi */
+  employee?: Employee | null;
   phone: string;
   name: string;
   owner_name: string | null;
@@ -163,6 +171,8 @@ export interface Employee {
   name: string;
   role: string;
   is_active: number;
+  /** faqat do'kon egasi ro'yxatida keladi — sotuvchiga aytish uchun */
+  pin?: string;
 }
 
 export type ReminderMode = 'off' | 'soft' | 'medium' | 'call';

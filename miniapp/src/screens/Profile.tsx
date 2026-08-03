@@ -44,9 +44,11 @@ function Row({
 export default function Profile({
   onLogout,
   initialView = 'main',
+  isEmployee = false,
 }: {
   onLogout: () => void;
   initialView?: string;
+  isEmployee?: boolean;
 }) {
   const [view, setView] = useState<View>(initialView as View);
   const [shop, setShop] = useState<Shop | null>(null);
@@ -54,24 +56,57 @@ export default function Profile({
   const { t } = useT();
 
   async function load() {
-    const [me, bal] = await Promise.all([api.me(), api.balance()]);
+    const me = await api.me();
     setShop(me);
-    setBalance(bal);
+    // Balans va tarif — faqat do'kon egasida
+    if (!me.employee) setBalance(await api.balance());
   }
 
   useEffect(() => {
     load().catch(() => {});
   }, []);
 
-  if (!shop || !balance) return <div className="screen empty">{t('loading')}</div>;
+  if (!shop || (!isEmployee && !balance)) return <div className="screen empty">{t('loading')}</div>;
+  const bal = balance!;
 
-  const planTitle = shop.plan === 'free' ? t('planFree') : balance.plans[shop.plan]?.title ?? shop.plan;
+  // ── Sotuvchi ko'rinishi: faqat o'zi, til va chiqish ──
+  if (isEmployee) {
+    if (view === 'language') return <LanguageView shop={shop} onBack={() => setView('main')} reload={load} />;
+    return (
+      <div className="screen">
+        <div className="card" style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <AppIcon glyph="employee" size={52} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 18, fontWeight: 700, letterSpacing: -0.3 }}>{shop.employee?.name}</div>
+            <div className="sub">{t('employeeMode')} · {shop.name}</div>
+          </div>
+        </div>
 
-  if (view === 'balance') return <BalanceView shop={shop} balance={balance} onBack={() => setView('main')} reload={load} />;
-  if (view === 'plan') return <PlanView shop={shop} balance={balance} onBack={() => setView('main')} reload={load} />;
+        <div className="list-group" style={{ marginTop: 14 }}>
+          <Row
+            icon="globe"
+            label={t('navLanguage')}
+            value={LANG_NAMES[shop.language as Lang] ?? shop.language}
+            onClick={() => setView('language')}
+          />
+        </div>
+
+        <p className="hint center">{t('employeeLimited')}</p>
+
+        <div className="list-group">
+          <Row icon="logout" label={t('logoutBtn')} danger onClick={() => { logout(); onLogout(); }} />
+        </div>
+      </div>
+    );
+  }
+
+  const planTitle = shop.plan === 'free' ? t('planFree') : bal.plans[shop.plan]?.title ?? shop.plan;
+
+  if (view === 'balance') return <BalanceView shop={shop} balance={bal} onBack={() => setView('main')} reload={load} />;
+  if (view === 'plan') return <PlanView shop={shop} balance={bal} onBack={() => setView('main')} reload={load} />;
   if (view === 'shop') return <ShopView shop={shop} onBack={() => setView('main')} reload={load} />;
   if (view === 'language') return <LanguageView shop={shop} onBack={() => setView('main')} reload={load} />;
-  if (view === 'employees') return <EmployeesView onBack={() => setView('main')} />;
+  if (view === 'employees') return <EmployeesView shopPhone={shop.phone} onBack={() => setView('main')} />;
   if (view === 'referral') return <ReferralView onBack={() => setView('main')} />;
 
   return (
@@ -352,12 +387,13 @@ function LanguageView({ shop, onBack, reload }: { shop: Shop; onBack: () => void
   );
 }
 
-function EmployeesView({ onBack }: { onBack: () => void }) {
+function EmployeesView({ shopPhone, onBack }: { shopPhone: string; onBack: () => void }) {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const { t } = useT();
   const [name, setName] = useState('');
   const [pin, setPin] = useState('');
   const [adding, setAdding] = useState(false);
+  const [shown, setShown] = useState<number | null>(null);
   const [error, setError] = useState('');
 
   const load = () => api.employees().then(setEmployees).catch(() => {});
@@ -381,25 +417,43 @@ function EmployeesView({ onBack }: { onBack: () => void }) {
   return (
     <div className="screen">
       <SubHeader title={t('navEmployees')} onBack={onBack} />
-      <p className="hint">
-        {t('employeesHint')}
-      </p>
+      <p className="hint">{t('employeesHint')}</p>
+
+      <div className="card">
+        <div className="section-title" style={{ margin: '0 0 6px' }}>{t('employeeHowTo')}</div>
+        <p className="hint" style={{ marginTop: 0 }}>
+          {t('employeeHowToText').replace('{phone}', formatPhone(shopPhone))}
+        </p>
+      </div>
       {!adding ? (
         <button className="btn-primary" onClick={() => setAdding(true)}>
           <Glyph name="plus" size={18} color="#fff" /> {t('addEmployee')}
         </button>
       ) : (
-        <div className="card">
-          <label>{t('name')}</label>
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Jasur" />
-          <label>{t('pinCode')}</label>
-          <input value={pin} onChange={(e) => setPin(e.target.value)} inputMode="numeric" maxLength={4} placeholder="1234" />
-          <button className="btn-primary" onClick={add}>
-            <Glyph name="check" size={18} color="#fff" /> {t('save')}
+        <>
+          <div className="form-group">
+            <div className="form-row">
+              <label>{t('name')}</label>
+              <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Jasur" autoFocus />
+            </div>
+            <div className="form-row">
+              <label>{t('pinCode')}</label>
+              <input
+                className="mono"
+                value={pin}
+                onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                inputMode="numeric"
+                maxLength={4}
+                placeholder="1234"
+              />
+            </div>
+          </div>
+          <button className="btn-primary btn-lg" onClick={add}>
+            <Glyph name="check" size={19} color="#fff" /> {t('save')}
           </button>
           <button className="btn-ghost" onClick={() => setAdding(false)}>{t('cancel')}</button>
-          {error && <p className="error">{error}</p>}
-        </div>
+          {error && <p className="error center">{error}</p>}
+        </>
       )}
       <div className="list-group" style={{ marginTop: 12 }}>
         {employees.map((e) => (
@@ -408,15 +462,25 @@ function EmployeesView({ onBack }: { onBack: () => void }) {
               <AppIcon glyph="employee" color={e.is_active ? undefined : 'gray'} size={30} />
               <div>
                 <div className="name">{e.name}</div>
-                <div className="sub">{e.is_active ? t('employeeActive') : t('employeeBlocked')} · {t('roleSeller')}</div>
+                <div className="sub">
+                  {e.is_active ? t('employeeActive') : t('employeeBlocked')}
+                  {e.pin && ` · ${t('employeePin')}: ${shown === e.id ? e.pin : '••••'}`}
+                </div>
               </div>
             </div>
-            <button
-              className="chip"
-              onClick={() => api.updateEmployee(e.id, { is_active: e.is_active ? 0 : 1 }).then(load)}
-            >
-              {e.is_active ? t('block') : t('unblock')}
-            </button>
+            <div style={{ display: 'flex', gap: 6 }}>
+              {e.pin && (
+                <button className="chip" onClick={() => setShown(shown === e.id ? null : e.id)}>
+                  {shown === e.id ? t('close') : t('showPin')}
+                </button>
+              )}
+              <button
+                className="chip"
+                onClick={() => api.updateEmployee(e.id, { is_active: e.is_active ? 0 : 1 }).then(load)}
+              >
+                {e.is_active ? t('block') : t('unblock')}
+              </button>
+            </div>
           </div>
         ))}
       </div>

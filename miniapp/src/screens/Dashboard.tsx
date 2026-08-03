@@ -4,7 +4,15 @@ import { AppIcon, Glyph } from '../icons';
 import type { SubScreen } from '../App';
 import { useT } from '../i18n';
 
-export default function Dashboard({ onNavigate }: { onNavigate: (s: SubScreen) => void }) {
+export default function Dashboard({
+  onNavigate,
+  isEmployee = false,
+  employeeName,
+}: {
+  onNavigate: (s: SubScreen) => void;
+  isEmployee?: boolean;
+  employeeName?: string;
+}) {
   const [data, setData] = useState<DashboardData | null>(null);
   const [error, setError] = useState('');
   const { t } = useT();
@@ -23,8 +31,22 @@ export default function Dashboard({ onNavigate }: { onNavigate: (s: SubScreen) =
 
   return (
     <div className="screen">
+      {isEmployee && (
+        <div className="role-banner">
+          <Glyph name="person" size={16} color="var(--accent)" />
+          <span>
+            {t('employeeMode')}
+            {employeeName ? ` · ${employeeName}` : ''}
+          </span>
+        </div>
+      )}
+
       {/* Bugungi savdo — asosiy karta */}
-      <div className="hero" onClick={() => onNavigate('reports')} style={{ cursor: 'pointer' }}>
+      <div
+        className="hero"
+        onClick={() => !isEmployee && onNavigate('reports')}
+        style={{ cursor: isEmployee ? 'default' : 'pointer' }}
+      >
         <div className="hero-top">
           <div>
             <div className="hero-label">{t('todaySales')}</div>
@@ -33,10 +55,12 @@ export default function Dashboard({ onNavigate }: { onNavigate: (s: SubScreen) =
           <Glyph name="chart" size={22} color="rgba(255,255,255,0.75)" />
         </div>
         <div className="hero-stats">
-          <div className="hero-stat">
-            <div className="k">{t('profit')}</div>
-            <div className="v">{fmtShort(data.today.profit)}</div>
-          </div>
+          {!isEmployee && (
+            <div className="hero-stat">
+              <div className="k">{t('profit')}</div>
+              <div className="v">{fmtShort(data.today.profit)}</div>
+            </div>
+          )}
           <div className="hero-stat">
             <div className="k">{t('salesCount')}</div>
             <div className="v">{data.today.count}</div>
@@ -93,7 +117,7 @@ export default function Dashboard({ onNavigate }: { onNavigate: (s: SubScreen) =
           [
             ['reminders', 'calendar', 'tileReminder'],
             ['suppliers', 'truck', 'tileSupplier'],
-            ['reports', 'chart', 'tileReport'],
+            ...(isEmployee ? [] : [['reports', 'chart', 'tileReport']]),
             ['inventory', 'boxes', 'tileInventory'],
           ] as [SubScreen, string, string][]
         ).map(([id, glyph, key]) => (
