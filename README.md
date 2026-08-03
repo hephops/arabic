@@ -41,6 +41,41 @@ Brauzerda `http://localhost:5173` ochiladi. DEV rejimda SMS kod doim `123456`.
 - `POST /sales` — kassa: naqd/karta/**qarzga** (qarzga sotuv avtomatik qarz daftariga tushadi)
 - `GET /reports/summary?period=day|week|month` — tushum, foyda, top mahsulotlar
 
+## Telegram bot va Mini App
+
+### 1. Sozlamalar
+`backend/.env` faylini yarating (namuna: `.env.example`) — **bu fayl git'ga tushmaydi**:
+
+```
+TELEGRAM_BOT_TOKEN=BotFather bergan token
+MINIAPP_URL=https://sizning-domeningiz        # HTTPS bo'lishi SHART
+PUBLIC_URL=https://api.sizning-domeningiz     # backend manzili (webhook uchun)
+TELEGRAM_WEBHOOK_SECRET=tasodifiy-maxfiy-soz
+AUTH_SECRET=tasodifiy-uzun-satr
+```
+
+### 2. BotFather'da Mini App'ni ro'yxatdan o'tkazish
+1. `/newapp` → botni tanlang → nom, tavsif, rasm → **Web App URL**: `MINIAPP_URL`
+2. `/setmenubutton` → botga "Ochish" tugmasini qo'ying (o'sha URL)
+
+### 3. Webhook
+Backend ishga tushganda `PUBLIC_URL` bo'lsa webhook o'zi ro'yxatdan o'tadi.
+Qo'lda ham qilsa bo'ladi:
+
+```bash
+curl "https://api.telegram.org/bot<TOKEN>/setWebhook?url=https://api.domen/telegram/webhook&secret_token=<SECRET>"
+```
+
+### Nima ishlaydi
+- `/start` — ilovani ochish tugmasi bilan salomlashish
+- Botga matn yuborilsa — qarz yozuviga aylanadi (`Karim akaga 120 ming, shanbagacha`)
+- Mini App Telegram ichida ochilsa — **initData** orqali avtomatik kiradi
+  (birinchi marta telefon tasdiqlanadi va Telegram hisobi do'konga bog'lanadi)
+- Telegram'ning **Orqaga** tugmasi, **tebranish** (haptic) va mavzu ranglari ishlatiladi
+
+> Ovozli xabarni matnga aylantirish (Mohir.ai STT) hali ulanmagan —
+> bot hozircha matn ko'rinishida yuborishni so'raydi.
+
 ## Hozirgi holat
 
 MVP skelet: auth, qarz daftari (ovozli parse + qo'lda), mijozlar, ombor kirimi,

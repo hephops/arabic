@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { api } from '../api';
 import { Glyph } from '../icons';
+import { haptic } from '../telegram';
 import { useT } from '../i18n';
 
 // Ovozli kiritish: brauzer SpeechRecognition (Telegram webview'da bor/yo'qligiga qarab)
@@ -60,6 +61,7 @@ export default function AddDebt({ onDone }: { onDone: () => void }) {
         due_date: parsed.due_date ?? undefined,
         source: 'voice',
       });
+      haptic.success();
       onDone();
     } catch (e: any) {
       setError(t('error') + ': ' + e.message);
@@ -83,6 +85,7 @@ export default function AddDebt({ onDone }: { onDone: () => void }) {
         due_date: dueDate || undefined,
         source: 'manual',
       });
+      haptic.success();
       onDone();
     } catch (e: any) {
       setError(t('error') + ': ' + e.message);

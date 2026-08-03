@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { AppIcon, Glyph } from './icons';
+import { haptic } from './telegram';
 import type { Tab, SubScreen } from './App';
 import { useT } from './i18n';
 
@@ -54,7 +55,7 @@ export default function Dock({
   return (
     <>
       <div className="dock">
-        <button className="dock-handle" aria-label="Menyu" onClick={() => setOpen(true)} />
+        <button className="dock-handle" aria-label="Menyu" onClick={() => { haptic.tap(); setOpen(true); }} />
         {DOCK_ITEMS.map((item) => (
           <button
             key={item.id}
@@ -78,6 +79,7 @@ export default function Dock({
                 key={item.key}
                 className="launcher-item"
                 onClick={() => {
+                  haptic.tap();
                   setOpen(false);
                   onNavigate(item.target);
                 }}

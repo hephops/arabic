@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import Fastify from 'fastify';
 import { mkdirSync, writeFileSync, existsSync, readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
@@ -6,6 +7,7 @@ import { db, markOverdueDebts } from './db.js';
 import { signToken, requireAuth } from './auth.js';
 import { parseDebtText } from './voice.js';
 import { runReminders, startReminderScheduler } from './reminders.js';
+import { handleUpdate, verifyInitData, telegramEnabled, setWebhook } from './telegram.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const UPLOADS_DIR = join(__dirname, '..', 'uploads');
@@ -32,8 +34,10 @@ app.post<{ Body: { phone: string } }>('/auth/request-otp', async (req) => {
   return { ok: true, dev_hint: process.env.NODE_ENV === 'production' ? undefined : code };
 });
 
-app.post<{ Body: { phone: string; code: string; shop_name?: string; ref?: string } }>('/auth/verify', async (req, reply) => {
-  const { phone, code, shop_name, ref } = req.body;
+app.post<{ Body: { phone: string; code: string; shop_name?: string; ref?: string; init_data?: string } }>(
+  '/auth/verify',
+  async (req, reply) => {
+  const { phone, code, shop_name, ref, init_data } = req.body;
   if (otpStore.get(phone) !== code) return reply.code(400).send({ error: 'invalid_code' });
   otpStore.delete(phone);
   let shop = db.prepare('SELECT * FROM shops WHERE phone = ?').get(phone) as any;
@@ -43,7 +47,40 @@ app.post<{ Body: { phone: string; code: string; shop_name?: string; ref?: string
       .run(phone, shop_name ?? 'Mening do‘konim', ref ?? null);
     shop = db.prepare('SELECT * FROM shops WHERE id = ?').get(info.lastInsertRowid);
   }
+  // Telegram ichidan kirilgan bo'lsa — hisobni bog'lab qo'yamiz
+  if (init_data) {
+    const tgUser = verifyInitData(init_data);
+    if (tgUser) {
+      db.prepare('UPDATE shops SET telegram_user_id = ? WHERE id = ?').run(tgUser.id, shop.id);
+      shop = db.prepare('SELECT * FROM shops WHERE id = ?').get(shop.id);
+    }
+  }
   return { token: signToken(shop.id), shop };
+  }
+);
+
+// ---------- TELEGRAM ----------
+// Mini App Telegram ichida ochilganda initData orqali kirish
+app.post<{ Body: { init_data: string } }>('/auth/telegram', async (req, reply) => {
+  const user = verifyInitData(req.body?.init_data ?? '');
+  if (!user) return reply.code(401).send({ error: 'invalid_init_data' });
+  const shop = db.prepare('SELECT * FROM shops WHERE telegram_user_id = ?').get(user.id) as any;
+  if (!shop) {
+    // Telegram hisobi hali do'konga bog'lanmagan — telefon orqali kirish kerak
+    return reply.code(404).send({ error: 'not_linked', telegram_user_id: user.id, first_name: user.first_name });
+  }
+  return { token: signToken(shop.id), shop };
+});
+
+// Telegram webhook — bot xabarlari shu yerga keladi
+app.post('/telegram/webhook', async (req, reply) => {
+  const secret = req.headers['x-telegram-bot-api-secret-token'];
+  if (process.env.TELEGRAM_WEBHOOK_SECRET && secret !== process.env.TELEGRAM_WEBHOOK_SECRET) {
+    return reply.code(401).send({ error: 'bad_secret' });
+  }
+  // Telegram javobni kutmasligi uchun darhol 200 qaytaramiz
+  reply.send({ ok: true });
+  handleUpdate(req.body).catch((e) => app.log.error(e));
 });
 
 // ---------- PROFIL ----------
@@ -844,5 +881,10 @@ app.listen({ port, host: '0.0.0.0' }).then(() => {
   markOverdueDebts();
   runReminders();
   startReminderScheduler();
+  if (telegramEnabled() && process.env.PUBLIC_URL) {
+    setWebhook(process.env.PUBLIC_URL).then((r: any) =>
+      console.log('[telegram] webhook:', r.ok ? 'ulandi' : r.description ?? r.error)
+    );
+  }
   console.log(`ARABIC.ONE backend :${port}`);
 });

@@ -34,10 +34,15 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ phone }),
     }),
-  verify: (phone: string, code: string, shop_name?: string) =>
+  verify: (phone: string, code: string, shop_name?: string, init_data?: string) =>
     request<{ token: string; shop: Shop }>('/auth/verify', {
       method: 'POST',
-      body: JSON.stringify({ phone, code, shop_name }),
+      body: JSON.stringify({ phone, code, shop_name, init_data }),
+    }),
+  telegramAuth: (init_data: string) =>
+    request<{ token: string; shop: Shop }>('/auth/telegram', {
+      method: 'POST',
+      body: JSON.stringify({ init_data }),
     }),
   me: () => request<Shop>('/me'),
   dashboard: () => request<Dashboard>('/dashboard'),

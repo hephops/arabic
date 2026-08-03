@@ -4,10 +4,10 @@ import App from './App';
 import { I18nProvider } from './i18n';
 import './styles.css';
 
-// Telegram Mini App muhitida ekranni to'liq ochamiz
-const tg = (window as any).Telegram?.WebApp;
-tg?.ready();
-tg?.expand();
+import { initTelegram } from './telegram';
+
+// Telegram Mini App muhitida ekranni to'liq ochamiz va mavzuga moslashamiz
+initTelegram();
 
 createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

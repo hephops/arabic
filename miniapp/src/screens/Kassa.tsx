@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { api, fmt, Product, SaleRow, SaleDetail, BASE } from '../api';
 import { AppIcon, Glyph } from '../icons';
 import Scanner from '../Scanner';
+import { haptic } from '../telegram';
 import { useT } from '../i18n';
 
 interface CartLine {
@@ -167,6 +168,7 @@ function SaleMode({ onDone }: { onDone: () => void }) {
   }
 
   function addToCart(p: Product) {
+    haptic.tap();
     setCart((prev) => {
       const existing = prev.find((l) => l.product.id === p.id);
       if (existing) return prev.map((l) => (l.product.id === p.id ? { ...l, qty: l.qty + 1 } : l));
@@ -198,11 +200,13 @@ function SaleMode({ onDone }: { onDone: () => void }) {
         payment_type: payment,
         customer_name: payment === 'debt' ? customerName.trim() : undefined,
       });
+      haptic.success();
       setMessage(`${t('saleSaved')}: ${fmt(total)}${payment === 'debt' ? ` (${t('writtenToDebts')})` : ''}`);
       setCart([]);
       setCustomerName('');
       onDone();
     } catch (e: any) {
+      haptic.error();
       setError(t('error') + ': ' + e.message);
     }
   }

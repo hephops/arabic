@@ -13,6 +13,7 @@ import Reports from './screens/Reports';
 import Inventory from './screens/Inventory';
 import Reminders from './screens/Reminders';
 import { useT } from './i18n';
+import { setBackButton, haptic } from './telegram';
 
 export type Tab = 'home' | 'customers' | 'add' | 'kassa' | 'profile';
 export type SubScreen = 'suppliers' | 'reports' | 'inventory' | 'reminders' | null;
@@ -24,6 +25,12 @@ export default function App() {
   const [sub, setSub] = useState<SubScreen>(null);
   const [profileView, setProfileView] = useState<string>('main');
   const { t, lang, setLang } = useT();
+
+  // Telegram'ning o'z "orqaga" tugmasi ichki ekranlarda ko'rinadi
+  useEffect(() => {
+    setBackButton(sub ? () => setSub(null) : null);
+    return () => setBackButton(null);
+  }, [sub]);
 
   // Do'kon profilidagi til ilovaga qo'llanadi
   useEffect(() => {

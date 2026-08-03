@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { api, setToken } from '../api';
 import { Glyph } from '../icons';
 import { useT, LANG_NAMES, type Lang } from '../i18n';
+import { inTelegram, initData, haptic } from '../telegram';
 
 // Ro'yxatdan o'tish TZ bo'yicha: telefon + SMS-kod (OTP), yangi do'kon uchun
 // profil to'ldirish bosqichi (do'kon nomi, ega, karta, til).
@@ -20,6 +21,20 @@ export default function Login({ onLogin }: { onLogin: () => void }) {
   const [cardNumber, setCardNumber] = useState('');
   const [language, setLanguage] = useState<Lang>('uz');
   const { t, setLang } = useT();
+  const [checkingTg, setCheckingTg] = useState(inTelegram);
+
+  // Telegram ichida ochilgan bo'lsa — hisob bog'langan bo'lsa avtomatik kiramiz
+  useEffect(() => {
+    if (!inTelegram) return;
+    api
+      .telegramAuth(initData())
+      .then((res) => {
+        setToken(res.token);
+        haptic.success();
+        onLogin();
+      })
+      .catch(() => setCheckingTg(false));
+  }, []);
 
   async function sendOtp() {
     setBusy(true);
@@ -39,7 +54,7 @@ export default function Login({ onLogin }: { onLogin: () => void }) {
     setBusy(true);
     setError('');
     try {
-      const res = await api.verify(phone, code);
+      const res = await api.verify(phone, code, undefined, inTelegram ? initData() : undefined);
       setToken(res.token);
       if (!res.shop.owner_name) {
         // yangi do'kon — profilni to'ldirish bosqichi
@@ -75,6 +90,15 @@ export default function Login({ onLogin }: { onLogin: () => void }) {
     } finally {
       setBusy(false);
     }
+  }
+
+  if (checkingTg) {
+    return (
+      <div className="login-wrap center">
+        <div className="login-logo">A</div>
+        <p className="hint">{t('loading')}</p>
+      </div>
+    );
   }
 
   return (
