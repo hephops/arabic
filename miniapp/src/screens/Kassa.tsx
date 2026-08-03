@@ -232,9 +232,17 @@ function SaleMode({ onDone }: { onDone: () => void }) {
       </div>
       {scanning && (
         <Scanner
-          onScan={(code) => {
-            setScanning(false);
-            search(code);
+          continuous
+          status={
+            cart.length > 0
+              ? `${cart.reduce((s, l) => s + l.qty, 0)} ${t('pcs')} · ${fmt(total)}`
+              : t('searchOrScan')
+          }
+          onScan={async (code) => {
+            // topilgan mahsulot darhol savatga tushadi — skaner ochiq qoladi
+            const found = await api.products({ barcode: code });
+            const p = found.find((x) => x.id !== null);
+            if (p) addToCart(p);
           }}
           onClose={() => setScanning(false)}
         />
@@ -307,7 +315,11 @@ function SaleMode({ onDone }: { onDone: () => void }) {
           </button>
         </>
       )}
-      {cart.length === 0 && !results.length && <div className="empty">{t('searchOrScan')}</div>}
+      {cart.length === 0 && !results.length && (
+        <button className="btn-primary" style={{ marginTop: 14 }} onClick={() => setScanning(true)}>
+          <Glyph name="scan" size={20} color="#fff" /> {t('scanToSell')}
+        </button>
+      )}
       {message && <p className="hint center">{message}</p>}
       {error && <p className="error">{error}</p>}
     </>
@@ -374,7 +386,9 @@ function IntakeMode({ onDone }: { onDone: () => void }) {
         expiry_date: expiry || undefined,
         image: image ?? undefined,
       });
-      setMessage(`"${product.name}" — ${t('stock')}: ${product.stock}`);
+      haptic.success();
+      setMessage(`✓ "${product.name}" — ${t('stock')}: ${product.stock}`);
+      // forma yopilmaydi — keyingi tovarga tayyor turadi
       setBarcode(''); setName(''); setCostPrice(''); setSellPrice(''); setQty(''); setExpiry(''); setImage(null);
       onDone();
     } catch (e: any) {
@@ -407,6 +421,7 @@ function IntakeMode({ onDone }: { onDone: () => void }) {
             lookupBarcode(code);
           }}
           onClose={() => setScanning(false)}
+          status={t('scanHint')}
         />
       )}
       <label>{t('productName')}</label>

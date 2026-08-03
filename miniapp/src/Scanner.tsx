@@ -6,10 +6,24 @@ import { useT } from './i18n';
 // Brauzerning o'zidagi BarcodeDetector API ishlatiladi (Android/Chrome, Telegram webview).
 // Qo'llamaydigan qurilmada (eski iOS Safari) qo'lda kiritishga yo'naltiradi.
 
-export default function Scanner({ onScan, onClose }: { onScan: (code: string) => void; onClose: () => void }) {
+export default function Scanner({
+  onScan,
+  onClose,
+  continuous = false,
+  status,
+}: {
+  onScan: (code: string) => void;
+  onClose: () => void;
+  /** true — skaner yopilmaydi, ketma-ket skanerlash mumkin */
+  continuous?: boolean;
+  /** ekran pastida ko'rinadigan holat (masalan savat summasi) */
+  status?: string;
+}) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [error, setError] = useState('');
   const { t } = useT();
+  const onScanRef = useRef(onScan);
+  onScanRef.current = onScan;
 
   useEffect(() => {
     let stream: MediaStream | null = null;
@@ -34,14 +48,23 @@ export default function Scanner({ onScan, onClose }: { onScan: (code: string) =>
       await video.play();
 
       const detector = new BD({ formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'qr_code'] });
+      let lastCode = '';
+      let lastAt = 0;
       const tick = async () => {
         if (stopped) return;
         try {
           const codes = await detector.detect(video);
           if (codes.length > 0) {
-            navigator.vibrate?.(80);
-            onScan(codes[0].rawValue);
-            return;
+            const code = codes[0].rawValue;
+            const now = Date.now();
+            // bitta kodni ketma-ket qayta o'qib yubormaslik uchun 1.2s pauza
+            if (code !== lastCode || now - lastAt > 1200) {
+              lastCode = code;
+              lastAt = now;
+              navigator.vibrate?.(60);
+              onScanRef.current(code);
+              if (!continuous) return;
+            }
           }
         } catch {
           /* kadr tayyor emas — davom etamiz */
@@ -56,7 +79,7 @@ export default function Scanner({ onScan, onClose }: { onScan: (code: string) =>
       stopped = true;
       stream?.getTracks().forEach((t) => t.stop());
     };
-  }, [onScan]);
+  }, [continuous]);
 
   return (
     <div
@@ -74,7 +97,23 @@ export default function Scanner({ onScan, onClose }: { onScan: (code: string) =>
           boxShadow: '0 0 0 100vmax rgba(0,0,0,0.45)',
         }}
       />
-      <p style={{ position: 'absolute', bottom: 110, width: '100%', textAlign: 'center', color: '#fff', fontSize: 14 }}>
+      {status && (
+        <div
+          style={{
+            position: 'absolute', bottom: 96, left: 16, right: 16,
+            background: 'rgba(255,255,255,0.95)', color: '#000', borderRadius: 14,
+            padding: '11px 14px', fontSize: 15, fontWeight: 600, textAlign: 'center',
+          }}
+        >
+          {status}
+        </div>
+      )}
+      <p
+        style={{
+          position: 'absolute', bottom: status ? 152 : 110, width: '100%',
+          textAlign: 'center', color: '#fff', fontSize: 14,
+        }}
+      >
         {error || t('scanHint')}
       </p>
       <button

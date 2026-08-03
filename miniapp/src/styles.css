@@ -222,13 +222,81 @@ label { font-size: 13px; color: var(--muted); display: block; margin: 6px 4px 5p
 }
 .launcher-item:active { opacity: 0.6; }
 
+/* Tezkor amallar tugmasi va varag'i */
+.fab-quick {
+  position: fixed; bottom: 100px; right: calc(50% - 222px);
+  width: 54px; height: 54px; border-radius: 50%;
+  background: var(--accent); color: #fff; z-index: 60;
+  box-shadow: 0 5px 16px rgba(0, 122, 255, 0.4);
+  display: flex; align-items: center; justify-content: center;
+  transition: transform 0.18s ease;
+}
+.fab-quick.open { transform: rotate(45deg); background: #4a4a52; }
+@media (max-width: 500px) { .fab-quick { right: 16px; } }
+
+.qa-backdrop {
+  position: fixed; inset: 0; background: rgba(0, 0, 0, 0.25); z-index: 55;
+  backdrop-filter: blur(2px);
+}
+.qa-sheet {
+  position: fixed; bottom: 162px; right: calc(50% - 222px); z-index: 60;
+  display: flex; flex-direction: column; gap: 8px; align-items: flex-end;
+  animation: qaIn 0.16s ease-out;
+}
+@media (max-width: 500px) { .qa-sheet { right: 16px; } }
+@keyframes qaIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.qa-item {
+  display: flex; align-items: center; gap: 10px;
+  background: var(--card); border-radius: 14px; padding: 8px 14px 8px 10px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.14);
+  font-size: 15px; font-weight: 600; color: var(--text);
+}
+.qa-item:active { background: #ebebf0; }
+
 .fab-voice {
-  position: fixed; bottom: 118px; right: calc(50% - 222px); width: 52px; height: 52px;
+  position: fixed; bottom: 100px; left: calc(50% - 222px); width: 52px; height: 52px;
   border-radius: 50%; background: var(--accent); color: #fff;
   box-shadow: 0 4px 14px rgba(0, 122, 255, 0.35);
   display: flex; align-items: center; justify-content: center;
 }
-@media (max-width: 500px) { .fab-voice { right: 16px; } }
+@media (max-width: 500px) { /* Tezkor amallar tugmasi va varag'i */
+.fab-quick {
+  position: fixed; bottom: 100px; right: calc(50% - 222px);
+  width: 54px; height: 54px; border-radius: 50%;
+  background: var(--accent); color: #fff; z-index: 60;
+  box-shadow: 0 5px 16px rgba(0, 122, 255, 0.4);
+  display: flex; align-items: center; justify-content: center;
+  transition: transform 0.18s ease;
+}
+.fab-quick.open { transform: rotate(45deg); background: #4a4a52; }
+@media (max-width: 500px) { .fab-quick { right: 16px; } }
+
+.qa-backdrop {
+  position: fixed; inset: 0; background: rgba(0, 0, 0, 0.25); z-index: 55;
+  backdrop-filter: blur(2px);
+}
+.qa-sheet {
+  position: fixed; bottom: 162px; right: calc(50% - 222px); z-index: 60;
+  display: flex; flex-direction: column; gap: 8px; align-items: flex-end;
+  animation: qaIn 0.16s ease-out;
+}
+@media (max-width: 500px) { .qa-sheet { right: 16px; } }
+@keyframes qaIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.qa-item {
+  display: flex; align-items: center; gap: 10px;
+  background: var(--card); border-radius: 14px; padding: 8px 14px 8px 10px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.14);
+  font-size: 15px; font-weight: 600; color: var(--text);
+}
+.qa-item:active { background: #ebebf0; }
+
+.fab-voice { right: 16px; } }
 
 .big-amount {
   font-size: 30px; font-weight: 700; text-align: center; margin: 10px 0;

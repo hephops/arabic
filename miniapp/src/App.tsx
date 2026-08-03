@@ -12,6 +12,7 @@ import Suppliers from './screens/Suppliers';
 import Reports from './screens/Reports';
 import Inventory from './screens/Inventory';
 import Reminders from './screens/Reminders';
+import QuickActions from './QuickActions';
 import { useT } from './i18n';
 import { setBackButton, haptic } from './telegram';
 
@@ -81,6 +82,15 @@ export default function App() {
       {!sub && tab === 'kassa' && <Kassa onDone={refresh} />}
       {!sub && tab === 'profile' && (
         <Profile key={profileView + refreshKey} initialView={profileView} onLogout={() => setAuthed(false)} />
+      )}
+
+      {!sub && (
+        <QuickActions
+          onPick={(target) => {
+            setSub(null);
+            setTab(target);
+          }}
+        />
       )}
 
       <Dock

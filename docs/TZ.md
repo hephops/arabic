@@ -1,7 +1,7 @@
 # ARABIC.ONE — Texnik Topshiriq (TZ)
 
 **Loyiha:** Do'konchilar uchun raqamli qarz daftari va savdo hisobi — ovozli va qo'lda kiritish, shtrix-kodli ombor/kassa (POS), avtomatik eslatmalar va AI qo'ng'iroq bilan.
-**Platformalar:** Android (APK / Google Play), iOS (App Store), **Telegram Mini App**, Web Admin Panel.
+**Platformalar:** Android (APK / Google Play), iOS (App Store), **Telegram Mini App**, **brauzer / PWA**, Web Admin Panel.
 
 > **Muhim prinsip:** Mobil ilova va Telegram bot — **teng huquqli ikkita mijoz platformasi**. Do'konchi qaysi biri qulay bo'lsa o'shani ishlataveradi (yoki ikkalasini birga), hamma ma'lumot bitta hisobda sinxron turadi. Qarz kiritish ham ikki usulda teng ishlaydi: **ovoz orqali** va **qo'lda** — ikkalasi ham asosiy usul.
 **Brend:** ARABIC.ONE
@@ -191,7 +191,32 @@ Mini App ichida mobil ilovaning barcha asosiy ekranlari bo'ladi:
 
 ---
 
-## 5. Ombor va kassa (POS) moduli — shtrix-kod bilan
+### 4.6. PWA — brauzerdan ham ilova sifatida
+Mini App aynan shu kod bilan **oddiy brauzerda** ham ochiladi (Telegramsiz, qidiruv orqali topib kirsa ham). Brauzer versiyasi **PWA** qilib rasmiylashtiriladi:
+- Do'konchi saytni ochib **"Ekranga qo'shish"** bosadi — telefonida ARABIC.ONE ikonkasi paydo bo'ladi.
+- Alohida oynada ochiladi (brauzer manzil satri ko'rinmaydi), o'z splash-ekrani bilan — haqiqiy ilovadan farq qilmaydi.
+- Ilova qobig'i keshlanadi: internet sekin bo'lsa ham tez ochiladi.
+- Play Market/App Store'siz tarqatish yo'li — havolani yuborish kifoya.
+
+Shunday qilib bitta kod uch joyda ishlaydi: **Telegram Mini App**, **brauzer/PWA**, va keyinchalik **Flutter ilova** (Android/iOS).
+
+---
+
+## 5. Foydalanish qulayligi (UX prinsiplari)
+
+Do'konchining qo'li band, mijoz kutib turadi — shuning uchun har bir amal **eng kam bosish** bilan bajarilishi shart. Majburiy qoidalar:
+
+1. **Ikki bosish qoidasi:** eng ko'p ishlatiladigan uchta amal — *sotuv*, *qarz yozish*, *tovar kirimi* — istalgan ekrandan **2 bosishdan oshmasligi** kerak. Menyu ichida menyu bo'lmaydi.
+2. **Tezkor amal tugmasi:** har ekranda suzuvchi tugma — bosilganda uchta asosiy amal darhol chiqadi.
+3. **Uzluksiz skaner:** kassada skaner **ochiq qoladi** — mahsulotlarni ketma-ket skanerlab savatga qo'shaveradi, har safar tugma bosish shart emas (supermarket kassasi kabi). Ekranda savat summasi ko'rinib turadi.
+4. **Kirimda ham uzluksizlik:** bir tovar saqlangach forma yopilmaydi — keyingi tovarni kiritishga tayyor turadi, saqlangani qisqa xabar bilan bildiriladi.
+5. **Katta tugmalar:** minimal 44px balandlik (iOS talabi), raqam kiritishda telefon raqamli klaviaturasi ochiladi.
+6. **Tasdiqlash — faqat kerak joyda:** o'chirish va pul bilan bog'liq amallardagina; qolgan hollarda darhol bajariladi.
+7. **Tebranish (haptic):** savatga qo'shilganda, sotuv yakunlanganda, xatoda — do'konchi ekranga qaramay ham amal bajarilganini his qiladi.
+
+---
+
+## 6. Ombor va kassa (POS) moduli — shtrix-kod bilan
 
 > Qarz daftari bilan bir ilovada ishlaydigan to'liq savdo hisobi: do'konga tovar kirishi, ombor qoldig'i, narxlar va sotuv — hammasi telefon kamerasi orqali **shtrix-kod skaneri** bilan. Alohida qurilma kerak emas.
 
@@ -251,7 +276,7 @@ Srok kiritilgan mahsulotlar bo'yicha tizim avtomatik kuzatib boradi:
 
 ---
 
-## 6. Admin panel (Web)
+## 7. Admin panel (Web)
 
 > Texnologiya: React + REST API. Faqat admin/super-admin kiradi (login + parol + 2FA).
 
@@ -288,7 +313,7 @@ Srok kiritilgan mahsulotlar bo'yicha tizim avtomatik kuzatib boradi:
 
 ---
 
-## 7. Backend arxitektura
+## 8. Backend arxitektura
 
 ```
 Mobil ilova (Flutter)        ──┐
@@ -309,7 +334,7 @@ Admin panel (React)          ──┘            │
 
 ---
 
-## 8. Dizayn tizimi — Apple (iOS) uslubi
+## 9. Dizayn tizimi — Apple (iOS) uslubi
 
 Butun mahsulot **Apple dizayn tiliga** quriladi: yorug' oq fonlar, guruhlangan oq kartochkalar, iOS'dagi kabi rangli gradient kvadrat (squircle) ikonkalar. **Emoji ishlatilmaydi** — barcha ikonkalar SF Symbols uslubida chizilgan SVG.
 
@@ -329,7 +354,7 @@ Logo: gradient ko'k kvadratda oq "A" — ilova ikonkasi va splash-ekranda. Mahsu
 
 ---
 
-## 9. Bosqichlar (roadmap)
+## 10. Bosqichlar (roadmap)
 
 | Bosqich | Muddat (taxminiy) | Nima chiqadi |
 |---|---|---|
@@ -341,7 +366,7 @@ Logo: gradient ko'k kvadratda oq "A" — ilova ikonkasi va splash-ekranda. Mahsu
 
 ---
 
-## 10. Qarorlar va ochiq savollar
+## 11. Qarorlar va ochiq savollar
 
 | # | Savol | Holat | Qaror |
 |---|---|---|---|
