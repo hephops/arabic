@@ -37,7 +37,21 @@ Do'konchi (savdogar) qog'oz qarz daftarini telefoniga ko'chiradi:
 ### 3.1. Ro'yxatdan o'tish / Kirish
 - Telefon raqami + SMS-kod (OTP) orqali.
 - Do'kon profili: nomi, manzili (ixtiyoriy), do'kon turi.
+- **To'lov rekvizitlari:** do'konchining karta raqami (Humo/Uzcard) va telefon raqami — qarzdorlarga yuboriladigan SMS'da "pulni shu kartaga tashlang" deb ko'rsatiladi. Bir nechta karta qo'shsa bo'ladi, bittasi asosiy.
 - Til tanlash: **O'zbek (lotin), O'zbek (kirill), Rus**.
+
+### 3.1.1. Eski qog'oz daftarini ko'chirish (onboarding import)
+Yangi do'konchining qo'lida yillar davomida yozilgan qog'oz qarz daftari bor — uni qo'lda ko'chirish azob. Shuning uchun **avtomatik import**:
+
+1. **Rasmga olish:** do'konchi daftar sahifasini telefon kamerasida suratga oladi (bir nechta sahifa ketma-ket).
+2. **AI o'qiydi:** rasm AI'ga (vision-model, Claude API) yuboriladi — qo'lyozmadagi ism, summa, sanalarni ajratib, jadvalga aylantiradi. O'zbek/rus/kirill-lotin aralash qo'lyozmani ham tushunishga harakat qiladi.
+3. **Tekshirish ekrani:** natija jadval ko'rinishida chiqadi — har bir qator: ism / summa / sana. Do'konchi xatolarni to'g'irlaydi, keraksizini o'chiradi ("qo'lyozma har xil bo'ladi, 100% aniqlik bo'lmaydi — tasdiqlash bosqichi majburiy").
+4. **Saqlash:** tasdiqlangan yozuvlar bazaga kiradi, mijozlar avtomatik yaratiladi.
+
+Qo'shimcha import usullari:
+- **Excel/CSV fayl** yuklash (daftarini allaqachon Excelda yuritganlar uchun).
+- **Ovoz orqali ketma-ket aytish:** "Anvar 200 ming, Zulfiya opa 45 ming..." — AI ro'yxatga aylantiradi.
+- Telegram Mini App'da ham xuddi shu import ishlaydi (rasmni botga tashlasa ham bo'ladi).
 
 ### 3.2. Asosiy ekran (Dashboard)
 - Umumiy qarz summasi (menga qarzdorlar).
@@ -75,7 +89,14 @@ Do'konchi har bir mijoz/qarz uchun rejimni tanlaydi:
 1. **Yumshoq:** muddatdan 1 kun oldin SMS/Telegram xabar — "Ertaga qarz muddati keladi".
 2. **O'rta:** muddat kuni va keyin har 3 kunda takroriy xabar.
 3. **AI qo'ng'iroq:** kechikkanda tizim qarzdorga o'zbek tilida ovozli qo'ng'iroq qiladi — muloyim matn: *"Assalomu alaykum, [do'kon nomi] do'konidan eslatma: [summa] qarzingizning muddati o'tdi, iltimos to'lab qo'ying"*.
-- Har bir eslatma do'konchi ilovasida log bo'lib ko'rinadi (yuborildi / yetkazildi / ko'tarildi).
+4. **Qo'ng'iroqdan keyingi SMS (rekvizitlar bilan):** AI qo'ng'iroq tugagach (ko'tarilgan bo'lsa ham, ko'tarilmagan bo'lsa ham) qarzdorga avtomatik SMS ketadi — qarzdor og'zaki eshitganini unutmasligi va to'lashi oson bo'lishi uchun:
+
+   > *"[Do'kon nomi] do'koniga qarzingiz: 120 000 so'm. To'lash uchun karta: 8600 **** **** 1234 ([do'konchi ismi]). Savollar uchun: +998 90 123 45 67"*
+
+   - SMS'dagi karta raqami va telefon — do'konchi profilida ko'rsatilgan rekvizitlardan olinadi.
+   - SMS shabloni admin panelda tahrirlash mumkin; do'konchi ham o'z matnini moslashtira oladi.
+   - Qarzdor Telegramda bo'lsa, xuddi shu xabar Telegram orqali ham yuboriladi (SMS'dan arzon).
+- Har bir eslatma va qo'ng'iroq do'konchi ilovasida log bo'lib ko'rinadi (yuborildi / yetkazildi / ko'tarildi / SMS ketdi).
 - AI qo'ng'iroq faqat do'konchining aniq ruxsati bilan yoqiladi (mijoz bilan munosabatni saqlash uchun).
 
 ### 3.6. Hisobotlar
