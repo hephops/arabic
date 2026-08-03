@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
-import { api, fmt, Customer, CustomerDetail } from '../api';
+import { api, fmt, Customer, CustomerDetail, ReminderMode } from '../api';
 import { AppIcon, Glyph } from '../icons';
-import { useT } from '../i18n';
+import { NavBar } from '../ui';
+import { useT, LANG_NAMES, type Lang } from '../i18n';
+import { MODES } from './Reminders';
 
 export default function Customers() {
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -11,7 +13,14 @@ export default function Customers() {
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState('');
   const [newPhone, setNewPhone] = useState('');
+  const [query, setQuery] = useState('');
   const { t } = useT();
+
+  // mijoz sahifasidagi rejimlar
+  const [mode, setMode] = useState<'view' | 'debt' | 'edit'>('view');
+  const [debtForm, setDebtForm] = useState({ amount: '', note: '', due: '' });
+  const [editForm, setEditForm] = useState({ name: '', phone: '', language: 'uz', reminder_mode: 'soft' });
+  const [error, setError] = useState('');
 
   const load = () => api.customers().then(setCustomers).catch(() => {});
   useEffect(() => {
@@ -19,7 +28,15 @@ export default function Customers() {
   }, []);
 
   async function openCustomer(id: number) {
-    setSelected(await api.customer(id));
+    const c = await api.customer(id);
+    setSelected(c);
+    setMode('view');
+    setEditForm({
+      name: c.name,
+      phone: c.phone ?? '',
+      language: c.language ?? 'uz',
+      reminder_mode: c.reminder_mode ?? 'soft',
+    });
   }
 
   async function submitPayment(debtId: number) {
@@ -32,67 +49,222 @@ export default function Customers() {
     load();
   }
 
+  async function addDebt() {
+    if (!selected) return;
+    const amount = parseInt(debtForm.amount.replace(/\D/g, ''), 10);
+    if (!amount) {
+      setError(t('nameAmountRequired'));
+      return;
+    }
+    setError('');
+    await api.createDebt({
+      customer_id: selected.id,
+      amount,
+      note: debtForm.note || undefined,
+      due_date: debtForm.due || undefined,
+    });
+    setDebtForm({ amount: '', note: '', due: '' });
+    setMode('view');
+    openCustomer(selected.id);
+    load();
+  }
+
+  async function saveEdit() {
+    if (!selected) return;
+    setError('');
+    await api.updateCustomer(selected.id, {
+      name: editForm.name.trim(),
+      phone: editForm.phone.trim() || null,
+      language: editForm.language,
+      reminder_mode: editForm.reminder_mode as ReminderMode,
+    } as any);
+    setMode('view');
+    openCustomer(selected.id);
+    load();
+  }
+
+  async function removeCustomer() {
+    if (!selected) return;
+    if (!confirm(t('deleteConfirm'))) return;
+    try {
+      await api.deleteCustomer(selected.id);
+      setSelected(null);
+      load();
+    } catch (e: any) {
+      setError(e.message === 'has_open_debts' ? t('hasOpenDebts') : t('error'));
+    }
+  }
+
+  /* ───────── Mijoz sahifasi ───────── */
   if (selected) {
+    const modeInfo = MODES.find((m) => m.id === selected.reminder_mode) ?? MODES[1];
     return (
-      <div className="screen">
-        <button className="btn-ghost" onClick={() => setSelected(null)}>
-          ← {t('back')}
-        </button>
-        <h2 style={{ margin: '14px 0 2px' }}>{selected.name}</h2>
-        {selected.phone && <p className="hint">{selected.phone}</p>}
-        <div className="card balance-card" style={{ margin: '12px 0' }}>
-          <div className="label">{t('totalDebt')}</div>
-          <div className="value red">{fmt(selected.balance)}</div>
-        </div>
-        <div className="section-title">{t('debtHistory')}</div>
-        {selected.debts.map((d) => (
-          <div key={d.id}>
-            <div className="list-item" onClick={() => setPayFor(payFor === d.id ? null : d.id)}>
-              <div>
-                <div className="name">
-                  {fmt(d.amount)}
-                  <span className={`badge ${d.status}`}>
-                    {d.status === 'paid' ? t('statusPaid') : d.status === 'overdue' ? t('statusOverdue') : t('statusActive')}
-                  </span>
+      <>
+        <NavBar
+          title={selected.name}
+          onBack={() => setSelected(null)}
+          right={
+            mode === 'view' ? (
+              <button className="nav-btn" onClick={() => setMode('edit')}>
+                {t('edit')}
+              </button>
+            ) : (
+              <button className="nav-btn" onClick={() => setMode('view')}>
+                {t('cancel')}
+              </button>
+            )
+          }
+        />
+        <div className="screen">
+          {mode === 'edit' ? (
+            <>
+              <label>{t('name')}</label>
+              <input value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} />
+              <label>{t('phoneForReminders')}</label>
+              <input
+                value={editForm.phone}
+                onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
+                inputMode="tel"
+                placeholder="+998 90 123 45 67"
+              />
+              <label>{t('customerLang')}</label>
+              <select
+                value={editForm.language}
+                onChange={(e) => setEditForm({ ...editForm, language: e.target.value })}
+              >
+                {Object.entries(LANG_NAMES)
+                  .filter(([id]) => id !== 'uz_cyrl')
+                  .map(([id, label]) => (
+                    <option key={id} value={id}>
+                      {label}
+                    </option>
+                  ))}
+              </select>
+              <label>{t('reminderMode')}</label>
+              <select
+                value={editForm.reminder_mode}
+                onChange={(e) => setEditForm({ ...editForm, reminder_mode: e.target.value })}
+              >
+                {MODES.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {t(m.key)}
+                  </option>
+                ))}
+              </select>
+              <button className="btn-primary" onClick={saveEdit}>
+                <Glyph name="check" size={18} color="#fff" /> {t('save')}
+              </button>
+              <button className="btn-ghost" style={{ color: 'var(--red)' }} onClick={removeCustomer}>
+                {t('deleteCustomer')}
+              </button>
+              {error && <p className="error">{error}</p>}
+            </>
+          ) : (
+            <>
+              <div className="card center">
+                <div className="hint">{t('totalDebt')}</div>
+                <div style={{ fontSize: 28, fontWeight: 800, color: selected.balance > 0 ? 'var(--red)' : 'var(--green)' }}>
+                  {fmt(selected.balance)}
                 </div>
-                <div className="sub">
-                  {d.note ?? ''} {d.due_date ? `· ${t('dueDate')}: ${d.due_date}` : ''}
-                  {d.paid_amount > 0 && d.status !== 'paid' ? ` · ${t('paidLabel')}: ${fmt(d.paid_amount)}` : ''}
+                <div className="hint">
+                  {selected.phone ?? t('noPhone')} · {t(modeInfo.key)}
                 </div>
               </div>
-            </div>
-            {payFor === d.id && d.status !== 'paid' && (
-              <div className="card">
-                <label>{t('paymentAmount')}</label>
-                <input
-                  value={payAmount}
-                  onChange={(e) => setPayAmount(e.target.value)}
-                  inputMode="numeric"
-                  placeholder={String(d.amount - d.paid_amount)}
-                />
-                <button className="btn-primary" onClick={() => submitPayment(d.id)}>
-                  {t('acceptPayment')}
+
+              {mode === 'debt' ? (
+                <div className="card">
+                  <label>{t('amount')}</label>
+                  <input
+                    value={debtForm.amount}
+                    onChange={(e) => setDebtForm({ ...debtForm, amount: e.target.value })}
+                    inputMode="numeric"
+                    placeholder="120 000"
+                    autoFocus
+                  />
+                  <label>
+                    {t('note')} ({t('optional')})
+                  </label>
+                  <input
+                    value={debtForm.note}
+                    onChange={(e) => setDebtForm({ ...debtForm, note: e.target.value })}
+                    placeholder="un, yog'..."
+                  />
+                  <label>
+                    {t('dueDate')} ({t('optional')})
+                  </label>
+                  <input type="date" value={debtForm.due} onChange={(e) => setDebtForm({ ...debtForm, due: e.target.value })} />
+                  <button className="btn-primary" onClick={addDebt}>
+                    <Glyph name="check" size={18} color="#fff" /> {t('save')}
+                  </button>
+                  <button className="btn-ghost" onClick={() => setMode('view')}>
+                    {t('cancel')}
+                  </button>
+                  {error && <p className="error">{error}</p>}
+                </div>
+              ) : (
+                <button className="btn-primary" onClick={() => setMode('debt')}>
+                  <Glyph name="plus" size={18} color="#fff" /> {t('addDebtHere')}
                 </button>
+              )}
+
+              <div className="section-title">{t('debtHistory')}</div>
+              <div className="list-group">
+                {selected.debts.map((d) => (
+                  <div key={d.id}>
+                    <div className="list-item" onClick={() => setPayFor(payFor === d.id ? null : d.id)}>
+                      <div>
+                        <div className="name">
+                          {fmt(d.amount)}
+                          <span className={`badge ${d.status}`}>
+                            {d.status === 'paid' ? t('statusPaid') : d.status === 'overdue' ? t('statusOverdue') : t('statusActive')}
+                          </span>
+                        </div>
+                        <div className="sub">
+                          {d.note ?? ''} {d.due_date ? `· ${t('dueDate')}: ${d.due_date}` : ''}
+                          {d.paid_amount > 0 && d.status !== 'paid' ? ` · ${t('paidLabel')}: ${fmt(d.paid_amount)}` : ''}
+                        </div>
+                      </div>
+                    </div>
+                    {payFor === d.id && d.status !== 'paid' && (
+                      <div className="card">
+                        <label>{t('paymentAmount')}</label>
+                        <input
+                          value={payAmount}
+                          onChange={(e) => setPayAmount(e.target.value)}
+                          inputMode="numeric"
+                          placeholder={String(d.amount - d.paid_amount)}
+                        />
+                        <button className="btn-primary" onClick={() => submitPayment(d.id)}>
+                          {t('acceptPayment')}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ))}
               </div>
-            )}
-          </div>
-        ))}
-        {selected.debts.length === 0 && <div className="empty">{t('noDebts')}</div>}
-      </div>
+              {selected.debts.length === 0 && <div className="empty">{t('noDebts')}</div>}
+            </>
+          )}
+        </div>
+      </>
     );
   }
 
+  /* ───────── Mijozlar ro'yxati ───────── */
+  const filtered = customers.filter((c) => !query || c.name.toLowerCase().includes(query.toLowerCase()));
+
   return (
     <div className="screen">
-      <div className="section-title">{t('tabCustomers')}</div>
+      <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t('search')} />
+
       {!adding ? (
-        <button className="btn-primary" style={{ marginBottom: 12 }} onClick={() => setAdding(true)}>
+        <button className="btn-primary" style={{ marginBottom: 4 }} onClick={() => setAdding(true)}>
           <Glyph name="plus" size={18} color="#fff" /> {t('addCustomer')}
         </button>
       ) : (
         <div className="card">
           <label>{t('name')}</label>
-          <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Karim aka" />
+          <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Karim aka" autoFocus />
           <label>{t('phoneForReminders')}</label>
           <input value={newPhone} onChange={(e) => setNewPhone(e.target.value)} inputMode="tel" placeholder="+998 90 123 45 67" />
           <button
@@ -108,23 +280,36 @@ export default function Customers() {
           >
             <Glyph name="check" size={18} color="#fff" /> {t('save')}
           </button>
-          <button className="btn-ghost" onClick={() => setAdding(false)}>{t('cancel')}</button>
+          <button className="btn-ghost" onClick={() => setAdding(false)}>
+            {t('cancel')}
+          </button>
         </div>
       )}
+
+      <div className="section-title">{t('tabCustomers')}</div>
       <div className="list-group">
-      {customers.map((c) => (
-        <div className="list-item" key={c.id} onClick={() => openCustomer(c.id)}>
-          <div>
-            <div className="name">{c.name}</div>
-            {c.phone && <div className="sub">{c.phone}</div>}
-          </div>
-          <div className="amount" style={{ color: c.balance > 0 ? 'var(--red)' : 'var(--green)' }}>
-            {fmt(c.balance)}
-          </div>
-        </div>
-      ))}
+        {filtered.map((c) => {
+          const m = MODES.find((x) => x.id === c.reminder_mode) ?? MODES[1];
+          return (
+            <div className="list-item" key={c.id} onClick={() => openCustomer(c.id)}>
+              <div className="lead">
+                <AppIcon glyph={m.icon} color={m.color} size={29} />
+                <div>
+                  <div className="name">{c.name}</div>
+                  <div className="sub">{c.phone ?? t('noPhone')}</div>
+                </div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span className="amount" style={{ color: c.balance > 0 ? 'var(--red)' : 'var(--green)' }}>
+                  {fmt(c.balance)}
+                </span>
+                <Glyph name="chevron" size={15} color="#c7c7cc" />
+              </div>
+            </div>
+          );
+        })}
       </div>
-      {customers.length === 0 && <div className="empty">{t('noCustomers')}</div>}
+      {filtered.length === 0 && <div className="empty">{t('noCustomers')}</div>}
     </div>
   );
 }

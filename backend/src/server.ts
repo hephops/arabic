@@ -246,8 +246,11 @@ app.get<{ Params: { id: string } }>('/customers/:id', { preHandler: requireAuth 
   if (!customer) return reply.code(404).send({ error: 'not_found' });
   const debts = db
     .prepare('SELECT * FROM debts WHERE customer_id = ? ORDER BY created_at DESC')
-    .all(req.params.id);
-  return { ...customer, debts };
+    .all(req.params.id) as any[];
+  const balance = debts
+    .filter((d) => d.status !== 'paid')
+    .reduce((s, d) => s + (d.amount - d.paid_amount), 0);
+  return { ...customer, debts, balance };
 });
 
 app.patch<{ Params: { id: string }; Body: Record<string, unknown> }>(
@@ -266,6 +269,22 @@ app.patch<{ Params: { id: string }; Body: Record<string, unknown> }>(
     return db.prepare('SELECT * FROM customers WHERE id = ?').get(req.params.id);
   }
 );
+
+// Mijozni o'chirish — faqat ochiq qarzi bo'lmasa
+app.delete<{ Params: { id: string } }>('/customers/:id', { preHandler: requireAuth }, async (req, reply) => {
+  const customer = db
+    .prepare('SELECT * FROM customers WHERE id = ? AND shop_id = ?')
+    .get(req.params.id, req.shopId);
+  if (!customer) return reply.code(404).send({ error: 'not_found' });
+  const open = db
+    .prepare("SELECT COUNT(*) AS c FROM debts WHERE customer_id = ? AND status != 'paid'")
+    .get(req.params.id) as any;
+  if (open.c > 0) return reply.code(400).send({ error: 'has_open_debts' });
+  db.prepare('DELETE FROM debt_payments WHERE debt_id IN (SELECT id FROM debts WHERE customer_id = ?)').run(req.params.id);
+  db.prepare('DELETE FROM debts WHERE customer_id = ?').run(req.params.id);
+  db.prepare('DELETE FROM customers WHERE id = ?').run(req.params.id);
+  return { ok: true };
+});
 
 // ---------- ESLATMALAR ----------
 app.get<{ Querystring: { limit?: string } }>('/reminders', { preHandler: requireAuth }, async (req) => {
@@ -578,6 +597,71 @@ app.get<{ Params: { file: string } }>('/uploads/:file', async (req, reply) => {
   return reply.send(readFileSync(path));
 });
 
+// Mahsulotni tahrirlash va o'chirish
+app.patch<{ Params: { id: string }; Body: Record<string, unknown> }>(
+  '/products/:id',
+  { preHandler: requireAuth },
+  async (req, reply) => {
+    const product = db
+      .prepare('SELECT * FROM products WHERE id = ? AND shop_id = ?')
+      .get(req.params.id, req.shopId) as any;
+    if (!product) return reply.code(404).send({ error: 'not_found' });
+    for (const key of ['name', 'barcode', 'unit', 'cost_price', 'sell_price', 'low_stock_threshold', 'expiry_date', 'stock']) {
+      if (key in req.body) {
+        db.prepare(`UPDATE products SET ${key} = ? WHERE id = ?`).run(req.body[key] as any, product.id);
+      }
+    }
+    if (typeof req.body.image === 'string') {
+      const url = saveImage(req.body.image, product.id);
+      if (url) db.prepare('UPDATE products SET image_url = ? WHERE id = ?').run(url, product.id);
+    }
+    return db.prepare('SELECT * FROM products WHERE id = ?').get(product.id);
+  }
+);
+
+app.delete<{ Params: { id: string } }>('/products/:id', { preHandler: requireAuth }, async (req, reply) => {
+  const product = db
+    .prepare('SELECT * FROM products WHERE id = ? AND shop_id = ?')
+    .get(req.params.id, req.shopId);
+  if (!product) return reply.code(404).send({ error: 'not_found' });
+  const sold = db.prepare('SELECT COUNT(*) AS c FROM sale_items WHERE product_id = ?').get(req.params.id) as any;
+  if (sold.c > 0) return reply.code(400).send({ error: 'has_sales' });
+  db.prepare('DELETE FROM stock_movements WHERE product_id = ?').run(req.params.id);
+  db.prepare('DELETE FROM products WHERE id = ?').run(req.params.id);
+  return { ok: true };
+});
+
+// Inventarizatsiya — haqiqiy qoldiqni kiritish, farqni yozib qo'yish
+app.post<{ Body: { items: { product_id: number; actual: number }[] } }>(
+  '/inventory/count',
+  { preHandler: requireAuth },
+  async (req, reply) => {
+    const items = req.body.items ?? [];
+    if (!items.length) return reply.code(400).send({ error: 'items_required' });
+    const result: { product_id: number; name: string; before: number; actual: number; diff: number }[] = [];
+    const tx = db.transaction(() => {
+      for (const item of items) {
+        const p = db
+          .prepare('SELECT * FROM products WHERE id = ? AND shop_id = ?')
+          .get(item.product_id, req.shopId) as any;
+        if (!p) continue;
+        const diff = item.actual - p.stock;
+        if (diff !== 0) {
+          db.prepare('UPDATE products SET stock = ? WHERE id = ?').run(item.actual, p.id);
+          db.prepare("INSERT INTO stock_movements (shop_id, product_id, type, qty) VALUES (?, ?, 'adjust', ?)").run(
+            req.shopId,
+            p.id,
+            diff
+          );
+        }
+        result.push({ product_id: p.id, name: p.name, before: p.stock, actual: item.actual, diff });
+      }
+    });
+    tx();
+    return { items: result, changed: result.filter((r) => r.diff !== 0).length };
+  }
+);
+
 // ---------- KASSA ----------
 app.post<{ Body: { items: { product_id: number; qty: number }[]; payment_type: 'cash' | 'card' | 'debt'; customer_id?: number; customer_name?: string; due_date?: string } }>(
   '/sales',
@@ -651,6 +735,56 @@ app.post<{ Body: { items: { product_id: number; qty: number }[]; payment_type: '
   }
 );
 
+// Sotuvlar tarixi
+app.get<{ Querystring: { limit?: string } }>('/sales', { preHandler: requireAuth }, async (req) => {
+  const limit = Math.min(Number(req.query.limit ?? 50), 200);
+  return db
+    .prepare(
+      `SELECT s.*, c.name AS customer_name, c.phone AS customer_phone,
+              (SELECT GROUP_CONCAT(p.name || ' ×' || CAST(si.qty AS INTEGER), ', ')
+               FROM sale_items si JOIN products p ON p.id = si.product_id WHERE si.sale_id = s.id) AS items
+       FROM sales s LEFT JOIN customers c ON c.id = s.customer_id
+       WHERE s.shop_id = ? ORDER BY s.created_at DESC, s.id DESC LIMIT ?`
+    )
+    .all(req.shopId, limit);
+});
+
+app.get<{ Params: { id: string } }>('/sales/:id', { preHandler: requireAuth }, async (req, reply) => {
+  const sale = db.prepare('SELECT * FROM sales WHERE id = ? AND shop_id = ?').get(req.params.id, req.shopId) as any;
+  if (!sale) return reply.code(404).send({ error: 'not_found' });
+  const items = db
+    .prepare(
+      `SELECT si.*, p.name, p.unit FROM sale_items si JOIN products p ON p.id = si.product_id WHERE si.sale_id = ?`
+    )
+    .all(sale.id);
+  const customer = sale.customer_id
+    ? db.prepare('SELECT name, phone FROM customers WHERE id = ?').get(sale.customer_id)
+    : null;
+  return { ...sale, items, customer };
+});
+
+// Chekni mijozga yuborish (jurnalga yoziladi; provayder ulanganda SMS/Telegram ketadi)
+app.post<{ Params: { id: string } }>('/sales/:id/receipt', { preHandler: requireAuth }, async (req, reply) => {
+  const sale = db.prepare('SELECT * FROM sales WHERE id = ? AND shop_id = ?').get(req.params.id, req.shopId) as any;
+  if (!sale) return reply.code(404).send({ error: 'not_found' });
+  if (!sale.customer_id) return reply.code(400).send({ error: 'no_customer' });
+  const customer = db.prepare('SELECT * FROM customers WHERE id = ?').get(sale.customer_id) as any;
+  if (!customer?.phone) return reply.code(400).send({ error: 'no_phone' });
+  const shop = db.prepare('SELECT name FROM shops WHERE id = ?').get(req.shopId) as any;
+  const items = db
+    .prepare(
+      `SELECT p.name, si.qty, si.price FROM sale_items si JOIN products p ON p.id = si.product_id WHERE si.sale_id = ?`
+    )
+    .all(sale.id) as any[];
+  const lines = items.map((i) => `${i.name} ×${i.qty} — ${new Intl.NumberFormat('uz-UZ').format(i.price * i.qty)}`);
+  const text = `«${shop.name}» cheki:\n${lines.join('\n')}\nJami: ${new Intl.NumberFormat('uz-UZ').format(sale.total)}`;
+  db.prepare(
+    `INSERT INTO reminder_logs (shop_id, customer_id, channel, kind, status, payload)
+     VALUES (?, ?, 'sms', 'receipt', 'sent', ?)`
+  ).run(req.shopId, customer.id, text);
+  return { ok: true, text };
+});
+
 // ---------- HISOBOTLAR ----------
 app.get<{ Querystring: { period?: string } }>('/reports/summary', { preHandler: requireAuth }, async (req) => {
   const period = req.query.period === 'week' ? '-7 days' : req.query.period === 'month' ? '-30 days' : '-1 day';
@@ -679,6 +813,30 @@ app.get<{ Querystring: { period?: string } }>('/reports/summary', { preHandler: 
     )
     .all(req.shopId, period);
   return { ...sales, profit: profit.profit, top_products: topProducts };
+});
+
+// Hisobotni CSV (Excel ochadi) qilib yuklab olish
+app.get<{ Querystring: { period?: string } }>('/reports/export', { preHandler: requireAuth }, async (req, reply) => {
+  const period = req.query.period === 'week' ? '-7 days' : req.query.period === 'month' ? '-30 days' : '-1 day';
+  const rows = db
+    .prepare(
+      `SELECT s.created_at AS sana, s.total AS summa, s.payment_type AS tolov,
+              COALESCE(c.name, '') AS mijoz,
+              (SELECT GROUP_CONCAT(p.name || ' x' || CAST(si.qty AS INTEGER), '; ')
+               FROM sale_items si JOIN products p ON p.id = si.product_id WHERE si.sale_id = s.id) AS mahsulotlar
+       FROM sales s LEFT JOIN customers c ON c.id = s.customer_id
+       WHERE s.shop_id = ? AND s.created_at >= datetime('now', ?)
+       ORDER BY s.created_at DESC`
+    )
+    .all(req.shopId, period) as any[];
+  const esc = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  const csv = [
+    ['Sana', 'Mahsulotlar', "To'lov turi", 'Mijoz', 'Summa'].map(esc).join(','),
+    ...rows.map((r) => [r.sana, r.mahsulotlar, r.tolov, r.mijoz, r.summa].map(esc).join(',')),
+  ].join('\n');
+  reply.header('Content-Type', 'text/csv; charset=utf-8');
+  reply.header('Content-Disposition', `attachment; filename="hisobot-${req.query.period ?? 'day'}.csv"`);
+  return reply.send('\uFEFF' + csv); // BOM — Excel kirillchani to'g'ri ochadi
 });
 
 const port = Number(process.env.PORT ?? 3000);

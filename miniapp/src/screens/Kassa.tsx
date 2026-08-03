@@ -1,5 +1,5 @@
-import { useRef, useState } from 'react';
-import { api, fmt, Product, BASE } from '../api';
+import { useEffect, useRef, useState } from 'react';
+import { api, fmt, Product, SaleRow, SaleDetail, BASE } from '../api';
 import { AppIcon, Glyph } from '../icons';
 import Scanner from '../Scanner';
 import { useT } from '../i18n';
@@ -23,7 +23,7 @@ function ProductThumb({ product, size = 44 }: { product: Product; size?: number 
 }
 
 export default function Kassa({ onDone }: { onDone: () => void }) {
-  const [mode, setMode] = useState<'sale' | 'intake'>('sale');
+  const [mode, setMode] = useState<'sale' | 'intake' | 'history'>('sale');
   const { t } = useT();
 
   return (
@@ -35,9 +35,112 @@ export default function Kassa({ onDone }: { onDone: () => void }) {
         <button className={`chip ${mode === 'intake' ? 'selected' : ''}`} onClick={() => setMode('intake')}>
           <Glyph name="box" size={16} /> {t('modeIntake')}
         </button>
+        <button className={`chip ${mode === 'history' ? 'selected' : ''}`} onClick={() => setMode('history')}>
+          <Glyph name="clock" size={16} /> {t('salesHistory')}
+        </button>
       </div>
-      {mode === 'sale' ? <SaleMode onDone={onDone} /> : <IntakeMode onDone={onDone} />}
+      {mode === 'sale' && <SaleMode onDone={onDone} />}
+      {mode === 'intake' && <IntakeMode onDone={onDone} />}
+      {mode === 'history' && <HistoryMode />}
     </div>
+  );
+}
+
+/* ───────── Sotuvlar tarixi va cheklar ───────── */
+
+function HistoryMode() {
+  const { t } = useT();
+  const [sales, setSales] = useState<SaleRow[]>([]);
+  const [detail, setDetail] = useState<SaleDetail | null>(null);
+  const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    api.sales(50).then(setSales).catch(() => {});
+  }, []);
+
+  async function sendReceipt(id: number) {
+    setError('');
+    setMessage('');
+    try {
+      await api.sendReceipt(id);
+      setMessage(t('receiptSent'));
+    } catch (e: any) {
+      setError(
+        e.message === 'no_customer' ? t('receiptNoCustomer') : e.message === 'no_phone' ? t('receiptNoPhone') : t('error')
+      );
+    }
+  }
+
+  if (detail) {
+    return (
+      <>
+        <button className="btn-ghost" style={{ textAlign: 'left' }} onClick={() => setDetail(null)}>
+          ‹ {t('back')}
+        </button>
+        <div className="card">
+          <div className="section-title" style={{ margin: '0 0 8px' }}>
+            {t('receipt')} #{detail.id} · {detail.created_at.slice(0, 16)}
+          </div>
+          <div className="list-group" style={{ marginBottom: 8 }}>
+            {detail.items.map((i) => (
+              <div className="list-item" key={i.id}>
+                <div>
+                  <div className="name">{i.name}</div>
+                  <div className="sub">
+                    {i.qty} {i.unit} × {fmt(i.price)}
+                  </div>
+                </div>
+                <div className="amount">{fmt(i.qty * i.price)}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: 17 }}>
+            <span>{t('total')}</span>
+            <span>{fmt(detail.total)}</span>
+          </div>
+          {detail.customer && <p className="hint">{detail.customer.name} · {detail.customer.phone ?? t('noPhone')}</p>}
+          <button className="btn-primary" onClick={() => sendReceipt(detail.id)}>
+            <Glyph name="note" size={17} color="#fff" /> {t('sendReceipt')}
+          </button>
+          {message && <p className="hint center">{message}</p>}
+          {error && <p className="error">{error}</p>}
+        </div>
+      </>
+    );
+  }
+
+  return (
+    <>
+      <div className="list-group">
+        {sales.map((s) => (
+          <div className="list-item" key={s.id} onClick={async () => setDetail(await api.sale(s.id))}>
+            <div className="lead">
+              <AppIcon
+                glyph={s.payment_type === 'debt' ? 'note' : s.payment_type === 'card' ? 'card' : 'banknote'}
+                color={s.payment_type === 'debt' ? 'yellow' : s.payment_type === 'card' ? 'indigo' : 'green'}
+                size={29}
+              />
+              <div style={{ minWidth: 0 }}>
+                <div className="name" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {s.items ?? '—'}
+                </div>
+                <div className="sub">
+                  {s.created_at.slice(5, 16)} ·{' '}
+                  {s.payment_type === 'cash' ? t('payCash') : s.payment_type === 'card' ? t('payCard') : t('payDebt')}
+                  {s.customer_name ? ` · ${s.customer_name}` : ''}
+                </div>
+              </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+              <span className="amount">{fmt(s.total)}</span>
+              <Glyph name="chevron" size={15} color="#c7c7cc" />
+            </div>
+          </div>
+        ))}
+      </div>
+      {sales.length === 0 && <div className="empty">{t('noSalesYet')}</div>}
+    </>
   );
 }
 

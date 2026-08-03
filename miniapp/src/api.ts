@@ -77,6 +77,19 @@ export const api = {
   referral: () => request<{ code: string; invited_count: number; reward_text: string }>('/referral'),
   updateCustomer: (id: number, data: Partial<Pick<Customer, 'name' | 'phone' | 'language' | 'reminder_mode'>>) =>
     request<Customer>(`/customers/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteCustomer: (id: number) => request<{ ok: boolean }>(`/customers/${id}`, { method: 'DELETE' }),
+  updateProduct: (id: number, data: Partial<Product> & { image?: string }) =>
+    request<Product>(`/products/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteProduct: (id: number) => request<{ ok: boolean }>(`/products/${id}`, { method: 'DELETE' }),
+  stocktake: (items: { product_id: number; actual: number }[]) =>
+    request<{ items: StocktakeRow[]; changed: number }>('/inventory/count', {
+      method: 'POST',
+      body: JSON.stringify({ items }),
+    }),
+  sales: (limit = 50) => request<SaleRow[]>(`/sales?limit=${limit}`),
+  sale: (id: number) => request<SaleDetail>(`/sales/${id}`),
+  sendReceipt: (id: number) => request<{ ok: boolean; text: string }>(`/sales/${id}/receipt`, { method: 'POST' }),
+  exportUrl: (period: string) => `${BASE}/reports/export?period=${period}`,
   reminders: () => request<RemindersInfo>('/reminders'),
   runReminders: () => request<{ created: number }>('/reminders/run', { method: 'POST' }),
   setReminderDefault: (mode: ReminderMode, applyToAll?: boolean) =>
@@ -204,6 +217,33 @@ export interface Product {
   expiry_date: string | null;
   image_url: string | null;
   from_catalog?: boolean;
+}
+
+export interface StocktakeRow {
+  product_id: number;
+  name: string;
+  before: number;
+  actual: number;
+  diff: number;
+}
+
+export interface SaleRow {
+  id: number;
+  total: number;
+  payment_type: 'cash' | 'card' | 'debt';
+  created_at: string;
+  customer_name: string | null;
+  customer_phone: string | null;
+  items: string | null;
+}
+
+export interface SaleDetail {
+  id: number;
+  total: number;
+  payment_type: string;
+  created_at: string;
+  items: { id: number; name: string; unit: string; qty: number; price: number }[];
+  customer: { name: string; phone: string | null } | null;
 }
 
 export interface Sale {

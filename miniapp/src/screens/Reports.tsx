@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { api, fmt, Report } from '../api';
+import { api, fmt, getToken, Report } from '../api';
 import { AppIcon, Glyph } from '../icons';
 import { SubHeader } from '../ui';
 import { useT } from '../i18n';
@@ -83,6 +83,27 @@ export default function Reports({ onBack }: { onBack: () => void }) {
           )}
 
           {data.count === 0 && <div className="empty">{t('noSalesPeriod')}</div>}
+
+          {data.count > 0 && (
+            <button
+              className="btn-primary"
+              onClick={async () => {
+                // token bilan yuklab olamiz va faylni saqlaymiz
+                const res = await fetch(api.exportUrl(period), {
+                  headers: { Authorization: `Bearer ${getToken()}` },
+                });
+                const blob = await res.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `hisobot-${period}.csv`;
+                a.click();
+                URL.revokeObjectURL(url);
+              }}
+            >
+              <Glyph name="arrowDown" size={17} color="#fff" /> {t('exportCsv')}
+            </button>
+          )}
         </>
       )}
     </div>
