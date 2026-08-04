@@ -17,13 +17,15 @@ export default function Admins({ me }: { me: Admin }) {
     <>
 
       <div className="toolbar">
+        <div className="panel-title" style={{ margin: 0 }}>Adminlar ro'yxati</div>
+        <div className="spacer" />
         <button className="btn sm" onClick={() => setAdding(true)}>
           Yangi admin
         </button>
         {err && <span className="error">{err}</span>}
       </div>
 
-      <div className="panel" style={{ padding: 0, overflowX: 'auto' }}>
+      <div className="table-wrap">
         <table>
           <thead>
             <tr>

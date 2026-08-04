@@ -206,6 +206,7 @@ export interface AdminLog {
   username: string | null;
   action: string;
   target: string | null;
+  target_name?: string | null;
   details: string | null;
   created_at: string;
 }

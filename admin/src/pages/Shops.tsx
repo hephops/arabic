@@ -209,7 +209,7 @@ function ShopModal({
           <div className="stat">
             <div className="txt">
               <div className="k">Ochiq qarz</div>
-              <div className="v red" style={{ fontSize: 18 }}>{fmtNum(data.stats.open_debt)}</div>
+              <div className="v red" style={{ fontSize: 18 }}>{fmt(data.stats.open_debt)}</div>
             </div>
           </div>
           <div className="stat">
@@ -321,7 +321,13 @@ function ShopModal({
                   <tr key={t.id}>
                     <td>{t.note ?? t.type}</td>
                     <td className="muted">{t.created_at.slice(0, 16)}</td>
-                    <td className="num" style={{ color: t.amount >= 0 ? 'var(--green)' : 'var(--red)' }}>
+                    <td
+                      className="num"
+                      style={{
+                        color:
+                          t.amount === 0 ? 'var(--muted)' : t.amount > 0 ? 'var(--green)' : 'var(--red)',
+                      }}
+                    >
                       {t.amount > 0 ? '+' : ''}
                       {fmtNum(t.amount)}
                     </td>

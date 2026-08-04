@@ -271,10 +271,10 @@ export function registerAdminRoutes(app: FastifyInstance) {
            CASE WHEN plan_expires_at > date('now') THEN plan_expires_at ELSE date('now') END, '+' || ? || ' days')
          WHERE id = ?`
       ).run(req.body.plan, days, shop.id);
-      db.prepare("INSERT INTO balance_transactions (shop_id, type, amount, note) VALUES (?, 'subscription', 0, ?)").run(
-        shop.id,
-        `Admin sovg'asi: ${req.body.plan} — ${days} kun`
-      );
+      // Sovg'a — pul harakati emas, shuning uchun alohida tur bilan yoziladi
+      db.prepare(
+        "INSERT INTO balance_transactions (shop_id, type, amount, note, admin_id) VALUES (?, 'grant', 0, ?, ?)"
+      ).run(shop.id, `Admin sovg'asi: ${req.body.plan} — ${days} kun`, req.admin!.id);
       log(req.admin!.id, 'grant_plan', `shop:${shop.id}`, `${req.body.plan} ${days}d`);
       return db.prepare('SELECT * FROM shops WHERE id = ?').get(shop.id);
     }
@@ -558,7 +558,11 @@ export function registerAdminRoutes(app: FastifyInstance) {
   app.get('/admin/logs', { preHandler: requireAdmin }, async () => {
     return db
       .prepare(
-        `SELECT l.*, a.username FROM admin_logs l LEFT JOIN admins a ON a.id = l.admin_id
+        // "shop:2" o'rniga do'kon nomi ko'rinsin
+        `SELECT l.*, a.username,
+                (SELECT s.name FROM shops s
+                  WHERE 'shop:' || s.id = l.target) AS target_name
+         FROM admin_logs l LEFT JOIN admins a ON a.id = l.admin_id
          ORDER BY l.created_at DESC, l.id DESC LIMIT 200`
       )
       .all();

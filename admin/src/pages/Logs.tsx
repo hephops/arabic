@@ -22,23 +22,31 @@ export default function Logs() {
 
   const filtered = q
     ? rows.filter((r) =>
-        `${r.username ?? ''} ${r.action} ${r.target ?? ''} ${r.details ?? ''}`.toLowerCase().includes(q.toLowerCase())
+        `${r.username ?? ''} ${ACTION_LABEL[r.action] ?? r.action} ${r.target_name ?? ''} ${r.target ?? ''} ${
+          r.details ?? ''
+        }`
+          .toLowerCase()
+          .includes(q.toLowerCase())
       )
     : rows;
 
   return (
     <>
 
-      <div className="toolbar">
-        <input
-          placeholder="Amal, admin yoki obyekt bo'yicha qidirish..."
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          style={{ flex: 1, minWidth: 260 }}
-        />
+      <div className="panel">
+        <div className="filters">
+          <div className="f wide">
+            <label>Qidiruv</label>
+            <input
+              placeholder="Amal, admin yoki obyekt bo'yicha qidirish..."
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+            />
+          </div>
+        </div>
       </div>
 
-      <div className="panel" style={{ padding: 0, overflowX: 'auto' }}>
+      <div className="table-wrap">
         <table>
           <thead>
             <tr>
@@ -55,7 +63,7 @@ export default function Logs() {
                 <td className="muted">{r.created_at.slice(0, 16).replace('T', ' ')}</td>
                 <td>{r.username ?? `#${r.admin_id}`}</td>
                 <td>{ACTION_LABEL[r.action] ?? r.action}</td>
-                <td className="muted">{r.target ?? '—'}</td>
+                <td className="muted">{r.target_name ?? r.target ?? '—'}</td>
                 <td className="muted">{r.details ?? '—'}</td>
               </tr>
             ))}

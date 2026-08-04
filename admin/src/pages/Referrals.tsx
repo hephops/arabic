@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api, fmtNum } from '../api';
+import { AppIcon } from '../icons';
 
 type Row = { code: string; invited: number; inviter: string | null };
 
@@ -18,16 +19,22 @@ export default function Referrals() {
 
       <div className="cards">
         <div className="stat">
-          <div className="k">Taklif orqali kelgan</div>
-          <div className="v accent">{fmtNum(total)}</div>
+          <AppIcon glyph="gift" size={38} />
+          <div className="txt">
+            <div className="k">Taklif orqali kelgan</div>
+            <div className="v accent">{fmtNum(total)}</div>
+          </div>
         </div>
         <div className="stat">
-          <div className="k">Faol taklifchilar</div>
-          <div className="v">{fmtNum(rows.length)}</div>
+          <AppIcon glyph="people" size={38} />
+          <div className="txt">
+            <div className="k">Faol taklifchilar</div>
+            <div className="v">{fmtNum(rows.length)}</div>
+          </div>
         </div>
       </div>
 
-      <div className="panel" style={{ padding: 0, overflowX: 'auto' }}>
+      <div className="table-wrap">
         <table>
           <thead>
             <tr>

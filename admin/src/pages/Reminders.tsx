@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { api, fmtNum, type ReminderLog } from '../api';
+import { api, fmtNum, fmtPhone, type ReminderLog } from '../api';
+import { AppIcon } from '../icons';
 
 const CHANNEL_LABEL: Record<string, string> = {
   sms: 'SMS',
@@ -14,6 +15,15 @@ const KIND_LABEL: Record<string, string> = {
   overdue: 'Kechikkan',
   call: "Qo'ng'iroq",
   after_call: "Qo'ng'iroqdan keyin (rekvizit)",
+  receipt: 'Chek',
+};
+
+const CHANNEL_GLYPH: Record<string, string> = {
+  sms: 'note', call: 'mic', telegram: 'send', push: 'calendar',
+};
+
+const STATUS_LABEL: Record<string, string> = {
+  sent: 'Yuborildi', failed: 'Yuborilmadi', queued: 'Navbatda',
 };
 
 export default function Reminders() {
@@ -38,28 +48,39 @@ export default function Reminders() {
       <div className="cards">
         {stats.map((s) => (
           <div className="stat" key={s.channel}>
-            <div className="k">{CHANNEL_LABEL[s.channel] ?? s.channel}</div>
-            <div className="v">{fmtNum(s.c)}</div>
+            <AppIcon glyph={CHANNEL_GLYPH[s.channel] ?? 'calendar'} size={38} />
+            <div className="txt">
+              <div className="k">{CHANNEL_LABEL[s.channel] ?? s.channel}</div>
+              <div className="v">{fmtNum(s.c)}</div>
+            </div>
           </div>
         ))}
         {stats.length === 0 && (
           <div className="stat">
-            <div className="k">Yuborilgan</div>
-            <div className="v">0</div>
+            <AppIcon glyph="calendar" size={38} />
+            <div className="txt">
+              <div className="k">Yuborilgan</div>
+              <div className="v">0</div>
+            </div>
           </div>
         )}
       </div>
 
-      <div className="toolbar">
-        <select value={channel} onChange={(e) => setChannel(e.target.value)}>
-          <option value="all">Barcha kanallar</option>
-          <option value="sms">SMS</option>
-          <option value="call">AI qo'ng'iroq</option>
-          <option value="telegram">Telegram</option>
-        </select>
+      <div className="panel">
+        <div className="filters">
+          <div className="f">
+            <label>Kanal</label>
+            <select value={channel} onChange={(e) => setChannel(e.target.value)}>
+              <option value="all">Barcha kanallar</option>
+              <option value="sms">SMS</option>
+              <option value="call">AI qo'ng'iroq</option>
+              <option value="telegram">Telegram</option>
+            </select>
+          </div>
+        </div>
       </div>
 
-      <div className="panel" style={{ padding: 0, overflowX: 'auto' }}>
+      <div className="table-wrap">
         <table>
           <thead>
             <tr>
@@ -78,7 +99,7 @@ export default function Reminders() {
                 <td>{r.shop_name}</td>
                 <td>
                   {r.customer_name ?? '—'}
-                  {r.customer_phone && <div className="muted" style={{ fontSize: 12 }}>{r.customer_phone}</div>}
+                  {r.customer_phone && <div className="cell-sub">{fmtPhone(r.customer_phone)}</div>}
                 </td>
                 <td>
                   <span className={`badge ${r.channel === 'call' ? 'business' : 'premium'}`}>
@@ -87,7 +108,9 @@ export default function Reminders() {
                 </td>
                 <td className="muted">{r.kind ? KIND_LABEL[r.kind] ?? r.kind : '—'}</td>
                 <td>
-                  <span className={`badge ${r.status === 'sent' ? 'ok' : 'blocked'}`}>{r.status}</span>
+                  <span className={`badge ${r.status === 'sent' ? 'ok' : r.status === 'failed' ? 'bad' : 'warn'}`}>
+                    {STATUS_LABEL[r.status] ?? r.status}
+                  </span>
                 </td>
               </tr>
             ))}

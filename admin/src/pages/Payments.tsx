@@ -10,6 +10,7 @@ const TYPE_LABEL: Record<string, string> = {
   subscription: 'Obuna',
   withdraw: 'Yechim',
   refund: 'Qaytarilgan',
+  grant: "Sovg'a",
 };
 
 const METHODS = [
@@ -122,6 +123,7 @@ export default function Payments() {
               <option value="topup">To'ldirish</option>
               <option value="subscription">Obuna</option>
               <option value="refund">Qaytarilgan</option>
+              <option value="grant">Sovg'a</option>
             </select>
           </div>
           <div className="f">
@@ -198,16 +200,25 @@ export default function Payments() {
               <tr key={r.id}>
                 <td className="muted">{(r.paid_at ?? r.created_at).slice(0, 10)}</td>
                 <td>
-                  <span className={`badge ${r.amount >= 0 ? 'ok' : 'bad'}`}>
-                    {r.amount >= 0 ? 'Kirim' : 'Chiqim'}
+                  {/* Summasi nol bo'lgan yozuv (masalan admin sovg'asi) kirim ham,
+                      chiqim ham emas — o'z turi bilan ko'rsatiladi */}
+                  <span className={`badge ${r.amount === 0 ? 'free' : r.amount > 0 ? 'ok' : 'bad'}`}>
+                    {r.amount === 0 ? TYPE_LABEL[r.type] ?? 'Yozuv' : r.amount > 0 ? 'Kirim' : 'Chiqim'}
                   </span>
                 </td>
                 <td>
                   <div className="cell-main">{r.shop_name}</div>
                   <div className="cell-sub">{fmtPhone(r.shop_phone)}</div>
                 </td>
-                <td className="num" style={{ color: r.amount >= 0 ? 'var(--green)' : 'var(--red)', fontWeight: 700 }}>
-                  {r.amount > 0 ? '+' : '−'}{fmtNum(Math.abs(r.amount))} so'm
+                <td
+                  className="num"
+                  style={{
+                    color: r.amount === 0 ? 'var(--muted)' : r.amount > 0 ? 'var(--green)' : 'var(--red)',
+                    fontWeight: 700,
+                  }}
+                >
+                  {r.amount > 0 ? '+' : r.amount < 0 ? '−' : ''}
+                  {fmtNum(Math.abs(r.amount))} so'm
                 </td>
                 <td>{methodLabel(r.method)}</td>
                 <td className="mono">{r.doc_no || '—'}</td>
@@ -274,19 +285,22 @@ function PaymentModal({
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [listOpen, setListOpen] = useState(false);
 
   const picked = shops.find((s) => s.id === shopId);
+  // Maydon bosilganda ham ro'yxat chiqadi — yozish shart emas
   const matches = useMemo(() => {
+    if (picked) return [];
     const t = shopQuery.trim().toLowerCase();
-    if (!t || picked) return [];
-    return shops
-      .filter(
-        (s) =>
-          s.name.toLowerCase().includes(t) ||
-          (s.phone ?? '').includes(t) ||
-          (s.owner_name ?? '').toLowerCase().includes(t)
-      )
-      .slice(0, 8);
+    const list = t
+      ? shops.filter(
+          (s) =>
+            s.name.toLowerCase().includes(t) ||
+            (s.phone ?? '').includes(t) ||
+            (s.owner_name ?? '').toLowerCase().includes(t)
+        )
+      : shops;
+    return list.slice(0, 8);
   }, [shopQuery, shops, picked]);
 
   const value = Number(amount.replace(/\D/g, '') || 0);
@@ -372,21 +386,34 @@ function PaymentModal({
               <>
                 <input
                   value={shopQuery}
-                  onChange={(e) => setShopQuery(e.target.value)}
+                  onChange={(e) => { setShopQuery(e.target.value); setListOpen(true); }}
+                  onFocus={() => setListOpen(true)}
+                  // ro'yxatdagi tugma bosilishi ulgurishi uchun kechikish bilan yopamiz
+                  onBlur={() => setTimeout(() => setListOpen(false), 150)}
                   placeholder="Do'konni tanlash yoki qidirish..."
+                  autoComplete="off"
                 />
-                {matches.length > 0 && (
+                {listOpen && (
                   <div className="picker-list">
                     {matches.map((s) => (
                       <button
                         key={s.id}
                         className="picker-item"
-                        onClick={() => { setShopId(s.id); setShopQuery(s.name); }}
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => {
+                          setShopId(s.id);
+                          setShopQuery(s.name);
+                          setListOpen(false);
+                          setError('');
+                        }}
                       >
                         <div className="nm">{s.name}</div>
-                        <div className="sb">{fmtPhone(s.phone)} · {s.owner_name ?? '—'}</div>
+                        <div className="sb">
+                          {fmtPhone(s.phone)} · {s.owner_name ?? '—'} · balans {fmt(s.balance ?? 0)}
+                        </div>
                       </button>
                     ))}
+                    {matches.length === 0 && <div className="picker-empty">Do'kon topilmadi</div>}
                   </div>
                 )}
               </>
