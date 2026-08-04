@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { api, fmt, fmtNum, type Shop, type ShopDetail } from '../api';
+import { api, fmt, fmtNum, type Shop, type ShopDetail, fmtPhone } from '../api';
 
 const PLAN_LABEL: Record<string, string> = { free: 'Bepul', premium: 'Premium', business: 'Biznes' };
 
@@ -64,7 +64,7 @@ export default function Shops() {
                   {s.owner_name && <span className="muted"> · {s.owner_name}</span>}
                   {!!s.is_blocked && <span className="badge blocked" style={{ marginLeft: 6 }}>bloklangan</span>}
                 </td>
-                <td className="muted">{s.phone}</td>
+                <td className="muted">{fmtPhone(s.phone)}</td>
                 <td>
                   <span className={`badge ${s.plan}`}>{PLAN_LABEL[s.plan] ?? s.plan}</span>
                   {s.plan_expires_at && <div className="muted" style={{ fontSize: 12 }}>{s.plan_expires_at}</div>}
@@ -112,7 +112,7 @@ function ShopModal({
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <h3>{data.name}</h3>
         <div className="sub">
-          {data.phone} {data.owner_name && `· ${data.owner_name}`}
+          {fmtPhone(data.phone)} {data.owner_name && `· ${data.owner_name}`}
           {data.telegram_user_id ? ' · Telegram ulangan' : ''}
         </div>
 

@@ -59,7 +59,15 @@ export default function Login({ onLogin }: { onLogin: () => void }) {
       }
     } catch (e: any) {
       haptic.error();
-      setError(e.message === 'invalid_code' ? t('loginWrongCode') : t('error') + ': ' + e.message);
+      setError(
+        e.message === 'invalid_code'
+          ? t('loginWrongCode')
+          : e.message === 'code_expired'
+          ? t('codeExpired')
+          : e.message === 'too_many_attempts'
+          ? t('tooManyAttempts')
+          : t('error') + ': ' + e.message
+      );
     } finally {
       setBusy(false);
     }
@@ -261,6 +269,8 @@ function EmployeeLogin({ onDone, onBack }: { onDone: () => void; onBack: () => v
           ? t('employeeWrongPin')
           : e.message === 'shop_not_found'
           ? t('employeeShopNotFound')
+          : e.message === 'too_many_attempts'
+          ? t('tooManyAttempts')
           : t('error') + ': ' + e.message
       );
     } finally {

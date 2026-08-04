@@ -142,7 +142,7 @@ function VoiceMode({ onDone }: { onDone: () => void }) {
     if (!parsed) return;
     setBusy(true);
     try {
-      await api.createDebt({
+      const saved = await api.createDebt({
         customer_name: parsed.customer_name,
         customer_phone: isPhoneComplete(phone) ? phoneE164(phone) : undefined,
         amount: parsed.amount,
@@ -150,7 +150,12 @@ function VoiceMode({ onDone }: { onDone: () => void }) {
         due_date: parsed.due_date ?? undefined,
         source: 'voice',
       });
-      toast.success(t('toastDebtSaved'), `${parsed.customer_name} · ${fmt(parsed.amount)}`);
+      const who = saved.customer?.name ?? parsed.customer_name;
+      toast.success(t('toastDebtSaved'), `${who} · ${fmt(parsed.amount)}`);
+      // Raqam bo'yicha boshqa mijoz topilgan bo'lsa — aytib qo'yamiz
+      if (saved.customer && saved.customer.name !== parsed.customer_name) {
+        toast.info(t('debtWentTo').replace('{name}', saved.customer.name));
+      }
       onDone();
     } catch (e: any) {
       // Bu qarzdorning raqami yo'q — shu yerda so'raymiz
@@ -285,7 +290,7 @@ function ManualMode({ onDone }: { onDone: () => void }) {
     setBusy(true);
     setError('');
     try {
-      await api.createDebt({
+      const saved = await api.createDebt({
         customer_name: name.trim(),
         customer_phone: phoneE164(phone),
         amount: value,
@@ -293,7 +298,11 @@ function ManualMode({ onDone }: { onDone: () => void }) {
         due_date: dueDate || undefined,
         source: 'manual',
       });
-      toast.success(t('toastDebtSaved'), `${name.trim()} · ${fmt(value)}`);
+      const who = saved.customer?.name ?? name.trim();
+      toast.success(t('toastDebtSaved'), `${who} · ${fmt(value)}`);
+      if (saved.customer && saved.customer.name !== name.trim()) {
+        toast.info(t('debtWentTo').replace('{name}', saved.customer.name));
+      }
       onDone();
     } catch (e: any) {
       setError(t('error') + ': ' + e.message);

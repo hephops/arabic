@@ -1,4 +1,5 @@
 import { randomBytes, scryptSync, timingSafeEqual, createHmac } from 'node:crypto';
+import { hit, reset } from './ratelimit.js';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { db } from './db.js';
 
@@ -106,10 +107,14 @@ export function registerAdminRoutes(app: FastifyInstance) {
   // Kirish
   app.post<{ Body: { username: string; password: string } }>('/admin/login', async (req, reply) => {
     const { username, password } = req.body ?? {};
+    // Parolni terib topishga urinishlar cheklanadi
+    const gate = hit(`adm:${username ?? ''}`, { max: 6, windowMs: 10 * 60_000, blockMs: 20 * 60_000 });
+    if (!gate.ok) return reply.code(429).send({ error: 'too_many_attempts', retry_after: gate.retryAfter });
     const admin = db.prepare('SELECT * FROM admins WHERE username = ?').get(username) as any;
     if (!admin || !admin.is_active || !checkPassword(password ?? '', admin.password_hash)) {
       return reply.code(401).send({ error: 'invalid_credentials' });
     }
+    reset(`adm:${username}`);
     db.prepare("UPDATE admins SET last_login_at = datetime('now') WHERE id = ?").run(admin.id);
     log(admin.id, 'login');
     return {

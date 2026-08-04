@@ -33,13 +33,21 @@ export function parseDebtText(text: string): ParsedDebt | null {
   const lower = raw.toLowerCase();
 
   // --- Summa ---
+  // "2 million 300 ming" kabi qo'shma summalar qo'shib hisoblanadi:
+  // avval million qismi, keyin undan keyingi matndagi "ming" qismi.
   let amount = 0;
+  const num = (s: string) => parseFloat(s.replace(',', '.'));
   const millionMatch = lower.match(/(\d+(?:[.,]\d+)?)\s*(million|mln|милли?он)/);
-  const thousandMatch = lower.match(/(\d+(?:[.,]\d+)?)\s*(ming|минг|тыс)/);
-  const plainMatch = lower.replace(/\s/g, ' ').match(/(\d[\d\s]{3,})\s*(so'm|сум|som)?/);
-  if (millionMatch) amount = Math.round(parseFloat(millionMatch[1].replace(',', '.')) * 1_000_000);
-  else if (thousandMatch) amount = Math.round(parseFloat(thousandMatch[1].replace(',', '.')) * 1_000);
-  else if (plainMatch) amount = parseInt(plainMatch[1].replace(/\s/g, ''), 10);
+  if (millionMatch) amount += Math.round(num(millionMatch[1]) * 1_000_000);
+  const afterMillion = millionMatch
+    ? lower.slice((millionMatch.index ?? 0) + millionMatch[0].length)
+    : lower;
+  const thousandMatch = afterMillion.match(/(\d+(?:[.,]\d+)?)\s*(ming|минг|тыс)/);
+  if (thousandMatch) amount += Math.round(num(thousandMatch[1]) * 1_000);
+  if (!amount) {
+    const plainMatch = lower.replace(/\s/g, ' ').match(/(\d[\d\s]{3,})\s*(so'm|сум|som)?/);
+    if (plainMatch) amount = parseInt(plainMatch[1].replace(/\s/g, ''), 10);
+  }
   if (!amount || amount <= 0) return null;
 
   // --- Muddat ---
@@ -71,6 +79,17 @@ export function parseDebtText(text: string): ParsedDebt | null {
     .replace(/(ga|га)\s*$/i, '')
     .replace(/\b(qarz|berdim|oldi|uchun)\b/gi, '')
     .trim();
+  // Ism summadan keyin aytilgan bo'lsa ("1 million Ali akaga") — matndan
+  // raqam va o'lchov so'zlarini olib tashlab, qolganini ism deb olamiz
+  if (!name) {
+    name = raw
+      .replace(/\d+(?:[.,]\d+)?\s*(million|mln|милли?он|ming|минг|тыс|so'?m|сум|som)?/gi, ' ')
+      .replace(/\b(qarz|berdim|oldi|uchun|gacha)\b/gi, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .replace(/(ga|га)\s*$/i, '')
+      .trim();
+  }
   if (!name) return null;
   // "Karimga" -> "Karim"
   if (/[a-zа-я]ga$/i.test(name.split(' ')[0]) && name.split(' ').length === 1) {

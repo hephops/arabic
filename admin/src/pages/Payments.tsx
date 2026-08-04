@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { api, fmt, fmtNum, type Payment } from '../api';
+import { api, fmt, fmtNum, type Payment, fmtPhone } from '../api';
 
 const TYPE_LABEL: Record<string, string> = { topup: "To'ldirish", subscription: 'Obuna' };
 
@@ -82,7 +82,7 @@ export default function Payments() {
                 <td className="muted">{r.created_at.slice(0, 16).replace('T', ' ')}</td>
                 <td>
                   <b>{r.shop_name}</b>
-                  <div className="muted" style={{ fontSize: 12 }}>{r.shop_phone}</div>
+                  <div className="muted" style={{ fontSize: 12 }}>{fmtPhone(r.shop_phone)}</div>
                 </td>
                 <td>
                   <span className={`badge ${r.type === 'topup' ? 'ok' : 'premium'}`}>

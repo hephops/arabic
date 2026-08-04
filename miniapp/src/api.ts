@@ -18,7 +18,9 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     ...options,
     headers: {
-      'Content-Type': 'application/json',
+      // Content-Type faqat tana bo'lganda qo'yiladi — aks holda server
+      // "bo'sh tana" deb rad etadi (masalan: chek yuborish, eslatmani tekshirish)
+      ...(options.body ? { 'Content-Type': 'application/json' } : {}),
       ...(getToken() ? { Authorization: `Bearer ${getToken()}` } : {}),
       ...options.headers,
     },
@@ -72,7 +74,10 @@ export const api = {
   createCustomer: (data: { name: string; phone?: string }) =>
     request<Customer>('/customers', { method: 'POST', body: JSON.stringify(data) }),
   createDebt: (data: { customer_id?: number; customer_name?: string; customer_phone?: string; amount: number; note?: string; due_date?: string; source?: string }) =>
-    request<Debt>('/debts', { method: 'POST', body: JSON.stringify(data) }),
+    request<Debt & { customer?: { id: number; name: string } }>('/debts', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
   payDebt: (id: number, amount: number) =>
     request<Debt>(`/debts/${id}/payments`, { method: 'POST', body: JSON.stringify({ amount }) }),
   parseVoice: (text: string) =>

@@ -8,7 +8,8 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     ...options,
     headers: {
-      'Content-Type': 'application/json',
+      // Content-Type faqat tana bo'lganda — bo'sh tanali so'rov rad etilmasin
+      ...(options.body ? { 'Content-Type': 'application/json' } : {}),
       ...(getToken() ? { Authorization: `Bearer ${getToken()}` } : {}),
       ...options.headers,
     },
@@ -152,5 +153,14 @@ export interface AdminLog {
   created_at: string;
 }
 
-export const fmt = (n: number) => new Intl.NumberFormat('uz-UZ').format(n) + " so'm";
-export const fmtNum = (n: number) => new Intl.NumberFormat('uz-UZ').format(n);
+// Raqamlar do'kon ilovasidagidek probel bilan ajratiladi: 99 000 so'm
+export const fmtNum = (n: number) =>
+  String(Math.round(n || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+export const fmt = (n: number) => `${fmtNum(n)} so'm`;
+
+// Telefon do'kon ilovasidagidek ko'rinadi: +998 90 123 45 67
+export function fmtPhone(v: string | null | undefined): string {
+  const d = String(v ?? '').replace(/\D/g, '').replace(/^998/, '');
+  if (d.length !== 9) return v ?? '';
+  return `+998 ${d.slice(0, 2)} ${d.slice(2, 5)} ${d.slice(5, 7)} ${d.slice(7)}`;
+}

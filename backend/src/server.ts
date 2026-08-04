@@ -5,6 +5,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { db, markOverdueDebts } from './db.js';
 import { signToken, requireAuth, requireOwner } from './auth.js';
+import { hit, reset } from './ratelimit.js';
 import { parseDebtText } from './voice.js';
 import { runReminders, startReminderScheduler } from './reminders.js';
 import { handleUpdate, verifyInitData, telegramEnabled, setWebhook } from './telegram.js';
@@ -27,13 +28,19 @@ app.addHook('onSend', async (_req, reply) => {
 app.options('*', async (_req, reply) => reply.code(204).send());
 
 // ---------- AUTH ----------
-const otpStore = new Map<string, string>();
+// SMS kod 5 daqiqa amal qiladi — eskisi bilan kirib bo'lmaydi
+const OTP_TTL = 5 * 60 * 1000;
+const otpStore = new Map<string, { code: string; expires: number }>();
+
+// Kirish urinishlari cheklovi (PIN/SMS kodni terib topishning oldini oladi)
+const OTP_LIMIT = { max: 5, windowMs: 10 * 60_000, blockMs: 15 * 60_000 };
+const PIN_LIMIT = { max: 7, windowMs: 10 * 60_000, blockMs: 15 * 60_000 };
 
 app.post<{ Body: { phone: string } }>('/auth/request-otp', async (req) => {
   const { phone } = req.body;
   // DEV: kod doim 123456. PROD: Eskiz.uz orqali SMS yuboriladi.
   const code = process.env.NODE_ENV === 'production' ? String(Math.floor(100000 + Math.random() * 900000)) : '123456';
-  otpStore.set(phone, code);
+  otpStore.set(phone, { code, expires: Date.now() + OTP_TTL });
   return { ok: true, dev_hint: process.env.NODE_ENV === 'production' ? undefined : code };
 });
 
@@ -41,8 +48,16 @@ app.post<{ Body: { phone: string; code: string; shop_name?: string; ref?: string
   '/auth/verify',
   async (req, reply) => {
   const { phone, code, shop_name, ref, init_data } = req.body;
-  if (otpStore.get(phone) !== code) return reply.code(400).send({ error: 'invalid_code' });
+  const gate = hit(`otp:${phone}`, OTP_LIMIT);
+  if (!gate.ok) return reply.code(429).send({ error: 'too_many_attempts', retry_after: gate.retryAfter });
+  const saved = otpStore.get(phone);
+  if (!saved || saved.code !== code) return reply.code(400).send({ error: 'invalid_code' });
+  if (saved.expires < Date.now()) {
+    otpStore.delete(phone);
+    return reply.code(400).send({ error: 'code_expired' });
+  }
   otpStore.delete(phone);
+  reset(`otp:${phone}`);
   let shop = db.prepare('SELECT * FROM shops WHERE phone = ?').get(phone) as any;
   if (!shop) {
     const info = db
@@ -69,6 +84,8 @@ app.post<{ Body: { phone: string; pin: string } }>('/auth/employee', async (req,
   const phone = (req.body?.phone ?? '').trim();
   const pin = (req.body?.pin ?? '').trim();
   if (!phone || !/^\d{4}$/.test(pin)) return reply.code(400).send({ error: 'phone_and_pin_required' });
+  const gate = hit(`pin:${phone}`, PIN_LIMIT);
+  if (!gate.ok) return reply.code(429).send({ error: 'too_many_attempts', retry_after: gate.retryAfter });
 
   const shop = db.prepare('SELECT * FROM shops WHERE phone = ?').get(phone) as any;
   if (!shop) return reply.code(404).send({ error: 'shop_not_found' });
@@ -78,6 +95,7 @@ app.post<{ Body: { phone: string; pin: string } }>('/auth/employee', async (req,
     .prepare("SELECT * FROM employees WHERE shop_id = ? AND pin = ? AND is_active = 1 AND role = 'seller'")
     .get(shop.id, pin) as any;
   if (!emp) return reply.code(401).send({ error: 'invalid_pin' });
+  reset(`pin:${phone}`);
 
   return {
     token: signToken(shop.id, emp.id),
@@ -482,7 +500,10 @@ app.post<{ Body: { customer_id?: number; customer_name?: string; customer_phone?
         'INSERT INTO debts (shop_id, customer_id, amount, note, due_date, source, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)'
       )
       .run(req.shopId, cid, Math.round(amount), note ?? null, due_date ?? null, source ?? 'manual', req.employeeId);
-    return db.prepare('SELECT * FROM debts WHERE id = ?').get(info.lastInsertRowid);
+    const debt = db.prepare('SELECT * FROM debts WHERE id = ?').get(info.lastInsertRowid) as any;
+    // Qarz kimga yozilgani qaytadi: raqam bo'yicha eski mijoz topilgan bo'lsa,
+    // do'konchi boshqa ism yozgan bo'lsa ham buni ko'rib turadi
+    return { ...debt, customer: { id: customer.id, name: customer.name } };
   }
 );
 
@@ -555,8 +576,11 @@ app.get<{ Params: { id: string } }>('/suppliers/:id', { preHandler: requireAuth 
   if (!supplier) return reply.code(404).send({ error: 'not_found' });
   const debts = db
     .prepare('SELECT * FROM supplier_debts WHERE supplier_id = ? ORDER BY created_at DESC')
-    .all(req.params.id);
-  return { ...supplier, debts };
+    .all(req.params.id) as any[];
+  // Qolgan qarz — ro'yxatdagi kabi shu yerda ham qaytadi, aks holda
+  // kartochkada summa o'rniga bo'sh joy chiqardi
+  const balance = debts.reduce((s, d) => s + (d.amount - d.paid_amount), 0);
+  return { ...supplier, balance, debts };
 });
 
 app.post<{ Params: { id: string }; Body: { amount: number } }>(
