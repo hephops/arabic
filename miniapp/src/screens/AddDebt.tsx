@@ -159,6 +159,18 @@ function VoiceMode({ onDone }: { onDone: () => void }) {
       onDone();
     } catch (e: any) {
       // Bu qarzdorning raqami yo'q — shu yerda so'raymiz
+      if (e.message === 'customer_blocked') {
+        toast.error(t('blockedCustomer'));
+        return;
+      }
+      if (e.message === 'credit_limit_exceeded') {
+        const d = e.details?.details ?? {};
+        toast.error(
+          t('limitExceeded'),
+          t('limitDetail').replace('{limit}', fmt(d.limit ?? 0)).replace('{current}', fmt(d.current ?? 0))
+        );
+        return;
+      }
       if (e.message === 'customer_phone_required') {
         setNeedPhone(true);
         setError(t('phoneRequired'));

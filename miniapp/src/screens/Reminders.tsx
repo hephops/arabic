@@ -193,6 +193,27 @@ export default function Reminders({ onBack }: { onBack: () => void }) {
               </div>
             </div>
 
+            {/* Bu oydagi taxminiy xarajat — do'konchi qancha sarflayotganini biladi */}
+            {info.cost && (
+              <div className="card cost-card">
+                <div className="lead">
+                  <AppIcon glyph="banknote" size={38} />
+                  <div>
+                    <div className="name">{t('smsCostTitle')}</div>
+                    <div className="sub">
+                      {t('smsCostLine')
+                        .replace('{sms}', String(info.cost.sms_count))
+                        .replace('{calls}', String(info.cost.call_count))}
+                    </div>
+                  </div>
+                </div>
+                <div className="cost-total">
+                  <div className="k">{t('smsCostTotal')}</div>
+                  <div className="v">{fmt(info.cost.total)}</div>
+                </div>
+              </div>
+            )}
+
             {info.logs.length > 0 && <div className="section-title">{t('tabLog')}</div>}
             <div className="list-group">
               {info.logs.map((l) => {

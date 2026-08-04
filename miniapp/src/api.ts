@@ -85,11 +85,11 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ text }),
     }),
-  products: (params?: { q?: string; barcode?: string }) => {
+  products: (params?: { q?: string; barcode?: string; category?: string }) => {
     const qs = new URLSearchParams(params as Record<string, string>).toString();
     return request<Product[]>(`/products${qs ? `?${qs}` : ''}`);
   },
-  intake: (data: { barcode?: string; name: string; unit?: string; cost_price?: number; sell_price?: number; qty?: number; expiry_date?: string; image?: string }) =>
+  intake: (data: { barcode?: string; name: string; unit?: string; cost_price?: number; sell_price?: number; qty?: number; expiry_date?: string; image?: string; category?: string }) =>
     request<Product>('/products/intake', { method: 'POST', body: JSON.stringify(data) }),
   createSale: (data: { items: { product_id: number; qty: number }[]; payment_type: 'cash' | 'card' | 'debt'; customer_id?: number; customer_name?: string; customer_phone?: string; due_date?: string; allow_negative?: boolean }) =>
     request<Sale>('/sales', { method: 'POST', body: JSON.stringify(data) }),
@@ -106,7 +106,10 @@ export const api = {
   updateEmployee: (id: number, data: { is_active: number }) =>
     request<Employee>(`/employees/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   referral: () => request<{ code: string; invited_count: number; reward_text: string }>('/referral'),
-  updateCustomer: (id: number, data: Partial<Pick<Customer, 'name' | 'phone' | 'language' | 'reminder_mode'>>) =>
+  updateCustomer: (
+    id: number,
+    data: Partial<Pick<Customer, 'name' | 'phone' | 'language' | 'reminder_mode' | 'credit_limit' | 'is_blocked'>>
+  ) =>
     request<Customer>(`/customers/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   deleteCustomer: (id: number) => request<{ ok: boolean }>(`/customers/${id}`, { method: 'DELETE' }),
   updateProduct: (id: number, data: Partial<Product> & { image?: string }) =>
@@ -133,15 +136,21 @@ export const api = {
   balance: () => request<BalanceInfo>('/balance'),
   topup: (amount: number) =>
     request<{ balance: number }>('/balance/topup', { method: 'POST', body: JSON.stringify({ amount }) }),
-  subscribe: (plan: 'premium' | 'business') =>
+  subscribe: (plan: string, period: 'month' | 'year' = 'month') =>
     request<{ balance: number; plan: string; plan_expires_at: string }>('/balance/subscribe', {
       method: 'POST',
-      body: JSON.stringify({ plan }),
+      body: JSON.stringify({ plan, period }),
     }),
+  categories: () => request<{ name: string; count: number }[]>('/categories'),
 };
 
 export interface Shop {
   id: number;
+  /** sinov muddatidami va necha kun qolgani */
+  on_trial?: boolean;
+  days_left?: number;
+  trial_ends_at?: string | null;
+  plan_active?: string;
   /** to'ldirilgan bo'lsa — sessiya xodimniki, ilova cheklangan rejimda ishlaydi */
   employee?: Employee | null;
   phone: string;
@@ -161,7 +170,7 @@ export interface BalanceInfo {
   plan: string;
   plan_expires_at: string | null;
   transactions: { id: number; type: string; amount: number; note: string | null; created_at: string }[];
-  plans: Record<string, { price: number; title: string }>;
+  plans: Record<string, { price: number; title: string; yearly: number }>;
 }
 
 export interface Supplier {
@@ -206,6 +215,8 @@ export interface Employee {
 export type ReminderMode = 'off' | 'soft' | 'medium' | 'call';
 
 export interface Customer {
+  credit_limit?: number;
+  is_blocked?: number;
   id: number;
   name: string;
   phone: string | null;
@@ -229,6 +240,13 @@ export interface ReminderLog {
 }
 
 export interface RemindersInfo {
+  cost?: {
+    sms_count: number;
+    call_count: number;
+    sms_price: number;
+    call_price: number;
+    total: number;
+  };
   logs: ReminderLog[];
   default_mode: ReminderMode;
   stats: { total: number; sent: number; failed: number; calls: number };
@@ -250,6 +268,7 @@ export interface CustomerDetail extends Customer {
 }
 
 export interface Product {
+  category?: string | null;
   id: number | null;
   barcode: string | null;
   name: string;

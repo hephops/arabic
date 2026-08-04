@@ -42,6 +42,11 @@ for (const sql of [
   'ALTER TABLE balance_transactions ADD COLUMN payer TEXT',
   'ALTER TABLE balance_transactions ADD COLUMN admin_id INTEGER',
   'ALTER TABLE balance_transactions ADD COLUMN paid_at TEXT',
+  // Sinov muddati, mijoz limiti va mahsulot kategoriyasi
+  'ALTER TABLE shops ADD COLUMN trial_ends_at TEXT',
+  'ALTER TABLE customers ADD COLUMN credit_limit INTEGER NOT NULL DEFAULT 0',
+  'ALTER TABLE customers ADD COLUMN is_blocked INTEGER NOT NULL DEFAULT 0',
+  'ALTER TABLE products ADD COLUMN category TEXT',
 ]) {
   try {
     db.exec(sql);

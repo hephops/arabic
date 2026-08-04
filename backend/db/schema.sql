@@ -46,8 +46,10 @@ CREATE TABLE IF NOT EXISTS settings (
 );
 INSERT OR IGNORE INTO settings (key, value) VALUES
   ('min_topup_amount', '10000'),      -- balansni to'ldirishning eng kam summasi
+  ('price_starter', '39000'),         -- Boshlang'ich tarif narxi (30 kun)
   ('price_premium', '99000'),         -- Premium tarif narxi (30 kun)
   ('price_business', '199000'),       -- Biznes tarif narxi (30 kun)
+  ('yearly_bonus_months', '2'),       -- yillik to'lovda necha oy sovg'a
   ('trial_days', '14'),               -- yangi do'kon uchun sinov muddati
   ('referral_bonus', '20000'),        -- taklif qilgan do'konga bonus
   ('sms_price', '150'),               -- 1 ta SMS tannarxi

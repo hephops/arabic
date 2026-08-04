@@ -233,43 +233,82 @@ function PlanView({ shop, balance, onBack, reload }: { shop: Shop; balance: Bala
   const [message, setMessage] = useState('');
   const { t } = useT();
   const [error, setError] = useState('');
+  const [period, setPeriod] = useState<'month' | 'year'>('month');
+  const [busy, setBusy] = useState(false);
 
-  async function doSubscribe(plan: 'premium' | 'business') {
+  async function doSubscribe(plan: string) {
     setError('');
     setMessage('');
+    setBusy(true);
     try {
-      await api.subscribe(plan);
+      await api.subscribe(plan, period);
       toast.success(t('planActivated'));
       reload();
     } catch (e: any) {
       setError(e.message === 'insufficient_balance' ? t('insufficientBalance') : t('error') + ': ' + e.message);
+    } finally {
+      setBusy(false);
     }
   }
 
   const FEATURES: Record<string, string[]> = {
+    starter: ['planStarterF1', 'planStarterF2', 'planStarterF3'],
     premium: ['planPremiumF1', 'planPremiumF2', 'planPremiumF3', 'planPremiumF4'],
     business: ['planBusinessF1', 'planBusinessF2', 'planBusinessF3', 'planBusinessF4', 'planBusinessF5'],
   };
+
+  const bonus = Math.max(0, 12 - Math.round((balance.plans.premium?.yearly ?? 0) / (balance.plans.premium?.price || 1)));
 
   return (
     <>
       <SubHeader title={t('navPlan')} onBack={onBack} />
       <div className="screen">
+      {/* Sinov muddati — nechta kun qolgani doim ko'rinib turadi */}
+      {shop.on_trial && (
+        <div className="trial-banner">
+          <AppIcon glyph="crown" size={34} />
+          <div>
+            <div className="t">{t('trialTitle')}</div>
+            <div className="s">{t('trialLeft').replace('{days}', String(shop.days_left ?? 0))}</div>
+          </div>
+        </div>
+      )}
+
       <div className="card center">
         <div className="hint">{t('currentPlan')}</div>
         <div style={{ fontSize: 22, fontWeight: 800 }}>
-          {shop.plan === 'free' ? t('planFree') : balance.plans[shop.plan]?.title}
+          {shop.plan === 'free' ? t('planFree') : balance.plans[shop.plan]?.title ?? shop.plan}
         </div>
-        {shop.plan_expires_at && <div className="hint">{shop.plan_expires_at}</div>}
+        {shop.plan_expires_at && <div className="hint">{shop.plan_expires_at} {t('untilDate')}</div>}
+      </div>
+
+      {/* Oylik / yillik */}
+      <div className="segmented sm" style={{ marginBottom: 12 }}>
+        <button className={period === 'month' ? 'on' : ''} onClick={() => setPeriod('month')}>
+          {t('periodMonth')}
+        </button>
+        <button className={period === 'year' ? 'on' : ''} onClick={() => setPeriod('year')}>
+          {t('periodYear')} {bonus > 0 && <span className="tag">+{bonus} {t('monthsShort')}</span>}
+        </button>
       </div>
 
       <div className="plan-cols">
-      {Object.entries(balance.plans).map(([id, p]) => (
-        <div className="card" key={id}>
+      {Object.entries(balance.plans).map(([id, p]) => {
+        const price = period === 'year' ? p.yearly : p.price;
+        const current = shop.plan === id;
+        return (
+        <div className={`card plan-card ${current ? 'on' : ''}`} key={id}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
             <div style={{ fontSize: 17, fontWeight: 700 }}>{p.title}</div>
-            <div style={{ fontWeight: 700 }}>{group(p.price)} {t('currency')}/{t('monthly')}</div>
+            <div style={{ fontWeight: 700 }}>
+              {group(price)} {t('currency')}/{period === 'year' ? t('yearly') : t('monthly')}
+            </div>
           </div>
+          {period === 'year' && (
+            <div className="hint" style={{ marginTop: 2 }}>
+              {t('perMonth').replace('{sum}', group(Math.round(price / 12)))}
+            </div>
+          )}
           <ul style={{ margin: '8px 0 4px', paddingLeft: 4, listStyle: 'none' }}>
             {FEATURES[id]?.map((f) => (
               <li key={f} style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '3px 0', fontSize: 14 }}>
@@ -277,14 +316,12 @@ function PlanView({ shop, balance, onBack, reload }: { shop: Shop; balance: Bala
               </li>
             ))}
           </ul>
-          <button
-            className={shop.plan === id ? 'btn-ghost' : 'btn-primary'}
-            onClick={() => doSubscribe(id as 'premium' | 'business')}
-          >
-            {shop.plan === id ? t('planExtend') : t('planActivate')}
+          <button className={current ? 'btn-ghost' : 'btn-primary'} disabled={busy} onClick={() => doSubscribe(id)}>
+            {current ? t('planExtend') : t('planActivate')}
           </button>
         </div>
-      ))}
+        );
+      })}
       </div>
       {message && <p className="hint center">{message}</p>}
       {error && <p className="error">{error}</p>}

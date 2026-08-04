@@ -30,6 +30,7 @@ export default function Inventory({ onBack }: { onBack: () => void }) {
   const [products, setProducts] = useState<Product[]>([]);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<'all' | 'low' | 'expiry'>('all');
+  const [category, setCategory] = useState('');
   const [editing, setEditing] = useState<Product | null>(null);
   const [counting, setCounting] = useState(false);
   const { t } = useT();
@@ -52,8 +53,12 @@ export default function Inventory({ onBack }: { onBack: () => void }) {
       />
     );
 
+  // Do'kondagi kategoriyalar — mahsulotlardan yig'iladi
+  const categories = [...new Set(products.map((p) => p.category).filter(Boolean))] as string[];
+
   const filtered = products.filter((p) => {
     if (query && !p.name.toLowerCase().includes(query.toLowerCase())) return false;
+    if (category && p.category !== category) return false;
     if (filter === 'low') return p.stock <= 5;
     if (filter === 'expiry') return p.expiry_date !== null && daysTo(p.expiry_date) <= 7;
     return true;
@@ -100,6 +105,20 @@ export default function Inventory({ onBack }: { onBack: () => void }) {
             { id: 'expiry', label: t('filterExpiry') },
           ]}
         />
+
+        {/* Kategoriyalar — ko'p tovarli do'konda kerakli guruhni tez topish uchun */}
+        {categories.length > 0 && (
+          <div className="chip-row">
+            <button className={`chip ${category === '' ? 'on' : ''}`} onClick={() => setCategory('')}>
+              {t('categoryAll')}
+            </button>
+            {categories.map((c) => (
+              <button key={c} className={`chip ${category === c ? 'on' : ''}`} onClick={() => setCategory(c)}>
+                {c}
+              </button>
+            ))}
+          </div>
+        )}
 
         <div className="list-group">
           {filtered.map((p) => {

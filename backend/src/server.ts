@@ -36,8 +36,11 @@ const otpStore = new Map<string, { code: string; expires: number }>();
 const OTP_LIMIT = { max: 5, windowMs: 10 * 60_000, blockMs: 15 * 60_000 };
 const PIN_LIMIT = { max: 7, windowMs: 10 * 60_000, blockMs: 15 * 60_000 };
 
-app.post<{ Body: { phone: string } }>('/auth/request-otp', async (req) => {
-  const { phone } = req.body;
+app.post<{ Body: { phone: string } }>('/auth/request-otp', async (req, reply) => {
+  // Raqam har doim +998XXXXXXXXX ko'rinishida saqlanadi — aks holda
+  // "939228889" va "+998939228889" ikki xil do'kon bo'lib ketardi
+  const phone = normalizePhone(req.body?.phone);
+  if (!phone) return reply.code(400).send({ error: 'invalid_phone' });
   // DEV: kod doim 123456. PROD: Eskiz.uz orqali SMS yuboriladi.
   const code = process.env.NODE_ENV === 'production' ? String(Math.floor(100000 + Math.random() * 900000)) : '123456';
   otpStore.set(phone, { code, expires: Date.now() + OTP_TTL });
@@ -47,7 +50,9 @@ app.post<{ Body: { phone: string } }>('/auth/request-otp', async (req) => {
 app.post<{ Body: { phone: string; code: string; shop_name?: string; ref?: string; init_data?: string } }>(
   '/auth/verify',
   async (req, reply) => {
-  const { phone, code, shop_name, ref, init_data } = req.body;
+  const { code, shop_name, ref, init_data } = req.body;
+  const phone = normalizePhone(req.body?.phone);
+  if (!phone) return reply.code(400).send({ error: 'invalid_phone' });
   const gate = hit(`otp:${phone}`, OTP_LIMIT);
   if (!gate.ok) return reply.code(429).send({ error: 'too_many_attempts', retry_after: gate.retryAfter });
   const saved = otpStore.get(phone);
@@ -60,9 +65,22 @@ app.post<{ Body: { phone: string; code: string; shop_name?: string; ref?: string
   reset(`otp:${phone}`);
   let shop = db.prepare('SELECT * FROM shops WHERE phone = ?').get(phone) as any;
   if (!shop) {
+    // Yangi do'kon sinov muddatida Premium bilan boshlaydi — do'konchi
+    // hamma imkoniyatni ko'rib, keyin qaror qiladi
+    const trialDays = Math.max(0, Number(getSetting('trial_days', '14')));
     const info = db
-      .prepare('INSERT INTO shops (phone, name, referred_by) VALUES (?, ?, ?)')
-      .run(phone, shop_name ?? 'Mening do‘konim', ref ?? null);
+      .prepare(
+        `INSERT INTO shops (phone, name, referred_by, plan, plan_expires_at, trial_ends_at)
+         VALUES (?, ?, ?, ?, ?, ?)`
+      )
+      .run(
+        phone,
+        shop_name ?? 'Mening do‘konim',
+        ref ?? null,
+        trialDays > 0 ? 'premium' : 'free',
+        trialDays > 0 ? new Date(Date.now() + trialDays * 86400000).toISOString().slice(0, 10) : null,
+        trialDays > 0 ? new Date(Date.now() + trialDays * 86400000).toISOString().slice(0, 10) : null
+      );
     shop = db.prepare('SELECT * FROM shops WHERE id = ?').get(info.lastInsertRowid);
   }
   // Telegram ichidan kirilgan bo'lsa — hisobni bog'lab qo'yamiz
@@ -81,7 +99,7 @@ app.post<{ Body: { phone: string; code: string; shop_name?: string; ref?: string
 // Xodim (sotuvchi) kirishi: do'kon telefoni + o'zining 4 xonali PIN-kodi.
 // Egasi bu PIN-kodni "Profil → Xodimlar" bo'limida yaratadi.
 app.post<{ Body: { phone: string; pin: string } }>('/auth/employee', async (req, reply) => {
-  const phone = (req.body?.phone ?? '').trim();
+  const phone = normalizePhone(req.body?.phone);
   const pin = (req.body?.pin ?? '').trim();
   if (!phone || !/^\d{4}$/.test(pin)) return reply.code(400).send({ error: 'phone_and_pin_required' });
   const gate = hit(`pin:${phone}`, PIN_LIMIT);
@@ -145,7 +163,13 @@ app.get('/me', { preHandler: requireAuth }, async (req) => {
   const employee = req.employeeId
     ? db.prepare('SELECT id, name, role FROM employees WHERE id = ?').get(req.employeeId)
     : null;
-  return { ...shop, employee };
+  // Sinov muddati holati — ilova "N kun qoldi" deb ko'rsatadi
+  const today = new Date().toISOString().slice(0, 10);
+  const onTrial = !!shop.trial_ends_at && shop.trial_ends_at >= today && shop.plan_expires_at === shop.trial_ends_at;
+  const daysLeft = shop.plan_expires_at
+    ? Math.ceil((new Date(shop.plan_expires_at).getTime() - new Date(today).getTime()) / 86_400_000)
+    : 0;
+  return { ...shop, employee, plan_active: activePlan(shop), on_trial: onTrial, days_left: Math.max(0, daysLeft) };
 });
 
 app.patch<{ Body: Record<string, unknown> }>('/me', { preHandler: requireOwner }, async (req) => {
@@ -165,11 +189,56 @@ function getSetting(key: string, fallback: string): string {
 }
 
 // Tarif narxlari admin panelning sozlamalaridan olinadi — kodda qotib qolmagan.
-function getPlans(): Record<string, { price: number; title: string }> {
-  return {
-    premium: { price: Number(getSetting('price_premium', '99000')), title: 'Premium' },
-    business: { price: Number(getSetting('price_business', '199000')), title: 'Biznes' },
+function getPlans(): Record<string, { price: number; title: string; yearly: number }> {
+  // Yillik to'lovda bir necha oy sovg'a qilinadi (masalan 12 oy narxiga 10 oy)
+  const bonus = Math.max(0, Math.min(Number(getSetting('yearly_bonus_months', '2')), 11));
+  const months = 12 - bonus;
+  const mk = (key: string, def: string, title: string) => {
+    const price = Number(getSetting(key, def));
+    return { price, title, yearly: price * months };
   };
+  return {
+    starter: mk('price_starter', '39000', "Boshlang'ich"),
+    premium: mk('price_premium', '99000', 'Premium'),
+    business: mk('price_business', '199000', 'Biznes'),
+  };
+}
+
+/**
+ * Mijozga yangi qarz yozish mumkinmi?
+ * Bloklangan bo'lsa yoki kredit limiti oshib ketsa — sabab qaytadi.
+ */
+function checkCreditAllowed(
+  shopId: number,
+  customerId: number,
+  addAmount: number
+): { ok: true } | { ok: false; error: string; details?: any } {
+  const c = db
+    .prepare('SELECT id, name, credit_limit, is_blocked FROM customers WHERE id = ? AND shop_id = ?')
+    .get(customerId, shopId) as any;
+  if (!c) return { ok: false, error: 'customer_not_found' };
+  if (c.is_blocked) return { ok: false, error: 'customer_blocked', details: { name: c.name } };
+  const limit = Number(c.credit_limit) || 0;
+  if (limit > 0) {
+    const cur = (db
+      .prepare(`SELECT COALESCE(SUM(amount - paid_amount), 0) AS s FROM debts WHERE customer_id = ? AND status != 'paid'`)
+      .get(customerId) as any).s as number;
+    if (cur + addAmount > limit) {
+      return {
+        ok: false,
+        error: 'credit_limit_exceeded',
+        details: { name: c.name, limit, current: cur, adding: addAmount },
+      };
+    }
+  }
+  return { ok: true };
+}
+
+/** Obuna muddati o'tgan bo'lsa amalda "bepul" hisoblanadi */
+function activePlan(shop: any): string {
+  if (!shop?.plan || shop.plan === 'free') return 'free';
+  if (shop.plan_expires_at && shop.plan_expires_at < new Date().toISOString().slice(0, 10)) return 'free';
+  return shop.plan;
 }
 
 app.get('/balance', { preHandler: requireOwner }, async (req) => {
@@ -196,21 +265,34 @@ app.post<{ Body: { amount: number } }>('/balance/topup', { preHandler: requireOw
 });
 
 // Obunani balansdan yechib faollashtirish (1 oy)
-app.post<{ Body: { plan: 'premium' | 'business' } }>('/balance/subscribe', { preHandler: requireOwner }, async (req, reply) => {
-  const plan = getPlans()[req.body.plan];
-  if (!plan) return reply.code(400).send({ error: 'invalid_plan' });
-  const shop = db.prepare('SELECT balance FROM shops WHERE id = ?').get(req.shopId) as any;
-  if (shop.balance < plan.price) return reply.code(400).send({ error: 'insufficient_balance' });
-  db.prepare(
-    "UPDATE shops SET balance = balance - ?, plan = ?, plan_expires_at = date('now', '+30 days') WHERE id = ?"
-  ).run(plan.price, req.body.plan, req.shopId);
-  db.prepare("INSERT INTO balance_transactions (shop_id, type, amount, note) VALUES (?, 'subscription', ?, ?)").run(
-    req.shopId,
-    -plan.price,
-    `${plan.title} obuna — 30 kun`
-  );
-  return db.prepare('SELECT balance, plan, plan_expires_at FROM shops WHERE id = ?').get(req.shopId);
-});
+app.post<{ Body: { plan: string; period?: 'month' | 'year' } }>(
+  '/balance/subscribe',
+  { preHandler: requireOwner },
+  async (req, reply) => {
+    const plan = getPlans()[req.body.plan];
+    if (!plan) return reply.code(400).send({ error: 'invalid_plan' });
+    const year = req.body.period === 'year';
+    const cost = year ? plan.yearly : plan.price;
+    const days = year ? 365 : 30;
+
+    const shop = db.prepare('SELECT balance, plan_expires_at FROM shops WHERE id = ?').get(req.shopId) as any;
+    if (shop.balance < cost) return reply.code(400).send({ error: 'insufficient_balance' });
+    // Muddati tugamagan bo'lsa — ustiga qo'shiladi, kunlar yo'qolmaydi
+    db.prepare(
+      `UPDATE shops SET balance = balance - ?, plan = ?,
+         plan_expires_at = date(
+           CASE WHEN plan_expires_at > date('now') THEN plan_expires_at ELSE date('now') END,
+           '+' || ? || ' days')
+       WHERE id = ?`
+    ).run(cost, req.body.plan, days, req.shopId);
+    db.prepare("INSERT INTO balance_transactions (shop_id, type, amount, note) VALUES (?, 'subscription', ?, ?)").run(
+      req.shopId,
+      -cost,
+      `${plan.title} obuna — ${days} kun`
+    );
+    return db.prepare('SELECT balance, plan, plan_expires_at FROM shops WHERE id = ?').get(req.shopId);
+  }
+);
 
 // ---------- DASHBOARD ----------
 app.get('/dashboard', { preHandler: requireAuth }, async (req) => {
@@ -377,6 +459,19 @@ app.patch<{ Params: { id: string }; Body: Record<string, unknown> }>(
       if (dup) return reply.code(409).send({ error: 'phone_taken', customer: dup });
       db.prepare('UPDATE customers SET phone = ? WHERE id = ?').run(phone, req.params.id);
     }
+    // Kredit limiti va bloklash — pDaftar'dagi kabi nazorat
+    if ('credit_limit' in req.body) {
+      db.prepare('UPDATE customers SET credit_limit = ? WHERE id = ?').run(
+        Math.max(0, Math.round(Number((req.body as any).credit_limit) || 0)),
+        req.params.id
+      );
+    }
+    if ('is_blocked' in req.body) {
+      db.prepare('UPDATE customers SET is_blocked = ? WHERE id = ?').run(
+        (req.body as any).is_blocked ? 1 : 0,
+        req.params.id
+      );
+    }
     for (const key of ['name', 'language', 'reminder_mode', 'note']) {
       if (key in req.body) {
         db.prepare(`UPDATE customers SET ${key} = ? WHERE id = ?`).run(req.body[key], req.params.id);
@@ -425,7 +520,26 @@ app.get<{ Querystring: { limit?: string } }>('/reminders', { preHandler: require
        FROM reminder_logs WHERE shop_id = ?`
     )
     .get(req.shopId) as any;
-  return { logs, default_mode: shop.default_reminder_mode, stats };
+  // Shu oyda yuborilgan SMS va qo'ng'iroqlar hamda ularning taxminiy narxi —
+  // do'konchi qancha sarflayotganini oldindan bilib turadi
+  const month = db
+    .prepare(
+      `SELECT SUM(CASE WHEN channel != 'call' THEN 1 ELSE 0 END) AS sms,
+              SUM(CASE WHEN channel = 'call' THEN 1 ELSE 0 END) AS calls
+       FROM reminder_logs
+       WHERE shop_id = ? AND status = 'sent' AND created_at >= date('now', 'start of month')`
+    )
+    .get(req.shopId) as any;
+  const smsPrice = Number(getSetting('sms_price', '150'));
+  const callPrice = Number(getSetting('call_price', '900'));
+  const cost = {
+    sms_count: month.sms ?? 0,
+    call_count: month.calls ?? 0,
+    sms_price: smsPrice,
+    call_price: callPrice,
+    total: (month.sms ?? 0) * smsPrice + (month.calls ?? 0) * callPrice,
+  };
+  return { logs, default_mode: shop.default_reminder_mode, stats, cost };
 });
 
 // Eslatmalarni hozir hisoblab chiqish (dev/qo'lda tekshirish uchun)
@@ -495,6 +609,10 @@ app.post<{ Body: { customer_id?: number; customer_name?: string; customer_phone?
       }
       db.prepare('UPDATE customers SET phone = ? WHERE id = ?').run(phone, customer.id);
     }
+    // Bloklangan mijoz yoki limitdan oshsa — qarz yozilmaydi
+    const allowed = checkCreditAllowed(req.shopId!, cid!, Math.round(amount));
+    if (!allowed.ok) return reply.code(409).send({ error: allowed.error, details: allowed.details });
+
     const info = db
       .prepare(
         'INSERT INTO debts (shop_id, customer_id, amount, note, due_date, source, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)'
@@ -671,8 +789,11 @@ function attachBarcode(shopId: number, productId: number, raw: string) {
   );
 }
 
-app.get<{ Querystring: { q?: string; barcode?: string } }>('/products', { preHandler: requireAuth }, async (req) => {
-  const { q, barcode } = req.query;
+app.get<{ Querystring: { q?: string; barcode?: string; category?: string } }>(
+  '/products',
+  { preHandler: requireAuth },
+  async (req) => {
+  const { q, barcode, category } = req.query;
   if (barcode) {
     const product = findByBarcode(req.shopId, barcode);
     if (product) return [product];
@@ -686,13 +807,31 @@ app.get<{ Querystring: { q?: string; barcode?: string } }>('/products', { preHan
       ? [{ id: null, barcode: normalizeBarcode(barcode), name: catalog.name, unit: catalog.unit, from_catalog: true }]
       : [];
   }
+  const where = ['shop_id = ?'];
+  const params: any[] = [req.shopId];
   if (q) {
-    return db
-      .prepare(`SELECT * FROM products WHERE shop_id = ? AND name LIKE ? ORDER BY name LIMIT 50`)
-      .all(req.shopId, `%${q}%`);
+    where.push('name LIKE ?');
+    params.push(`%${q}%`);
   }
-  return db.prepare('SELECT * FROM products WHERE shop_id = ? ORDER BY name').all(req.shopId);
+  if (category) {
+    where.push('category = ?');
+    params.push(category);
+  }
+  return db
+    .prepare(`SELECT * FROM products WHERE ${where.join(' AND ')} ORDER BY name${q ? ' LIMIT 50' : ''}`)
+    .all(...params);
 });
+
+// Do'kondagi kategoriyalar ro'yxati (tanlash uchun)
+app.get('/categories', { preHandler: requireAuth }, async (req) =>
+  db
+    .prepare(
+      `SELECT category AS name, COUNT(*) AS count FROM products
+       WHERE shop_id = ? AND category IS NOT NULL AND category <> ''
+       GROUP BY category ORDER BY category`
+    )
+    .all(req.shopId)
+);
 
 // Kod bo'yicha to'liq javob: tovar topildimi, katalogda bormi, kod o'zi to'g'rimi.
 // Kassa shu javobga qarab nima qilishni biladi.
@@ -712,7 +851,7 @@ app.post<{ Body: { barcode?: string; name: string; unit?: string; cost_price?: n
   '/products/intake',
   { preHandler: requireOwner },
   async (req, reply) => {
-    const { name, unit, cost_price, sell_price, qty, expiry_date, image } = req.body;
+    const { name, unit, cost_price, sell_price, qty, expiry_date, image, category } = req.body as any;
     const barcode = normalizeBarcode(req.body.barcode);
     if (!name?.trim()) return reply.code(400).send({ error: 'name_required' });
 
@@ -728,11 +867,18 @@ app.post<{ Body: { barcode?: string; name: string; unit?: string; cost_price?: n
     if (!product) {
       const info = db
         .prepare(
-          'INSERT INTO products (shop_id, barcode, name, unit, cost_price, sell_price, stock, expiry_date) VALUES (?, ?, ?, ?, ?, ?, 0, ?)'
+          'INSERT INTO products (shop_id, barcode, name, unit, cost_price, sell_price, stock, expiry_date, category) VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?)'
         )
-        .run(req.shopId, barcode || null, name.trim(), unit ?? 'dona', cost_price ?? 0, sell_price ?? 0, expiry_date ?? null);
+        .run(
+          req.shopId, barcode || null, name.trim(), unit ?? 'dona',
+          cost_price ?? 0, sell_price ?? 0, expiry_date ?? null, category?.trim() || null
+        );
       product = db.prepare('SELECT * FROM products WHERE id = ?').get(info.lastInsertRowid);
-    } else if (barcode && !product.barcode) {
+    } else if (category?.trim() && !product.category) {
+      db.prepare('UPDATE products SET category = ? WHERE id = ?').run(category.trim(), product.id);
+      product.category = category.trim();
+    }
+    if (product && barcode && !product.barcode) {
       // ilgari kodsiz yozilgan tovarga endi kod berildi
       db.prepare('UPDATE products SET barcode = ? WHERE id = ?').run(barcode, product.id);
       product.barcode = barcode;
@@ -882,7 +1028,7 @@ app.patch<{ Params: { id: string }; Body: Record<string, unknown> }>(
       .prepare('SELECT * FROM products WHERE id = ? AND shop_id = ?')
       .get(req.params.id, req.shopId) as any;
     if (!product) return reply.code(404).send({ error: 'not_found' });
-    for (const key of ['name', 'barcode', 'unit', 'cost_price', 'sell_price', 'low_stock_threshold', 'expiry_date', 'stock']) {
+    for (const key of ['name', 'barcode', 'unit', 'cost_price', 'sell_price', 'low_stock_threshold', 'expiry_date', 'stock', 'category']) {
       if (key in req.body) {
         const value = key === 'barcode' ? normalizeBarcode(req.body[key] as string) || null : (req.body[key] as any);
         db.prepare(`UPDATE products SET ${key} = ? WHERE id = ?`).run(value, product.id);
@@ -988,6 +1134,18 @@ app.post<{ Body: { items: { product_id: number; qty: number }[]; payment_type: '
         });
       }
       debtCustomer = known;
+
+      // Bloklangan mijoz yoki limitdan oshsa — sotuv qarzga yozilmaydi
+      if (debtCustomer) {
+        const willAdd = items.reduce((sum: number, it: any) => {
+          const p = db
+            .prepare('SELECT sell_price FROM products WHERE id = ? AND shop_id = ?')
+            .get(it.product_id, req.shopId) as any;
+          return sum + (p ? p.sell_price * it.qty : 0);
+        }, 0);
+        const allowed = checkCreditAllowed(req.shopId!, debtCustomer.id, Math.round(willAdd));
+        if (!allowed.ok) return reply.code(409).send({ error: allowed.error, details: allowed.details });
+      }
     }
 
     const tx = db.transaction(() => {

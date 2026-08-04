@@ -361,6 +361,18 @@ function SaleMode({ onDone }: { onDone: () => void }) {
       onDone();
     } catch (e: any) {
       // Omborda yetarli emas — do'konchidan so'raymiz
+      if (e.message === 'customer_blocked') {
+        toast.error(t('blockedCustomer'));
+        return;
+      }
+      if (e.message === 'credit_limit_exceeded') {
+        const d = e.details?.details ?? {};
+        toast.error(
+          t('limitExceeded'),
+          t('limitDetail').replace('{limit}', fmt(d.limit ?? 0)).replace('{current}', fmt(d.current ?? 0))
+        );
+        return;
+      }
       if (e.message === 'customer_phone_required') {
         toast.error(t('phoneRequired'));
         return;
@@ -613,12 +625,18 @@ function IntakeMode({ onDone }: { onDone: () => void }) {
   const [sellPrice, setSellPrice] = useState('');
   const [qty, setQty] = useState('');
   const [expiry, setExpiry] = useState('');
+  const [category, setCategory] = useState('');
+  const [cats, setCats] = useState<{ name: string }[]>([]);
   const [image, setImage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [codeWarning, setCodeWarning] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
   const { t } = useT();
+
+  useEffect(() => {
+    api.categories().then(setCats).catch(() => {});
+  }, []);
 
   async function lookupBarcode(code: string) {
     setBarcode(code);
@@ -665,11 +683,13 @@ function IntakeMode({ onDone }: { onDone: () => void }) {
         sell_price: parseInt(sellPrice.replace(/\D/g, ''), 10) || 0,
         qty: parseFloat(qty) || 0,
         expiry_date: expiry || undefined,
+        category: category.trim() || undefined,
         image: image ?? undefined,
       });
       toast.success(t('toastIntakeSaved'), `${product.name} · ${t('toastStockLeft')}: ${product.stock} ${product.unit}`);
       // forma yopilmaydi — keyingi tovarga tayyor turadi
       setBarcode(''); setName(''); setCostPrice(''); setSellPrice(''); setQty(''); setExpiry(''); setImage(null);
+      api.categories().then(setCats).catch(() => {});
       onDone();
     } catch (e: any) {
       toast.error(t('error'), e.message);
@@ -732,6 +752,20 @@ function IntakeMode({ onDone }: { onDone: () => void }) {
                   <Glyph name="scan" size={19} color="var(--accent)" />
                 </button>
               </div>
+            </div>
+            <div className="form-row">
+              <label>
+                {t('category')} <span className="tag">{t('optional')}</span>
+              </label>
+              <input
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                list="cat-list"
+                placeholder={t('categoryPlaceholder')}
+              />
+              <datalist id="cat-list">
+                {cats.map((c) => <option key={c.name} value={c.name} />)}
+              </datalist>
             </div>
             {codeWarning && <p className="form-note" style={{ color: 'var(--yellow)' }}>{codeWarning}</p>}
           </div>

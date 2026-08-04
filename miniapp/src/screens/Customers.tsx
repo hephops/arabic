@@ -24,7 +24,10 @@ export default function Customers() {
   // Mijozning raqami yo'q bo'lsa — qarz yozishda shu yerda so'raladi
   const [debtPhone, setDebtPhone] = useState('');
   const [needPhone, setNeedPhone] = useState(false);
-  const [editForm, setEditForm] = useState({ name: '', phone: '', language: 'uz', reminder_mode: 'soft' });
+  const [editForm, setEditForm] = useState({
+    name: '', phone: '', language: 'uz', reminder_mode: 'soft',
+    credit_limit: '', is_blocked: false,
+  });
   const [error, setError] = useState('');
 
   const load = () => api.customers().then(setCustomers).catch(() => {});
@@ -39,6 +42,8 @@ export default function Customers() {
     setEditForm({
       name: c.name,
       phone: c.phone ?? '',
+      credit_limit: c.credit_limit ? String(c.credit_limit) : '',
+      is_blocked: !!c.is_blocked,
       language: c.language ?? 'uz',
       reminder_mode: c.reminder_mode ?? 'soft',
     });
@@ -76,6 +81,14 @@ export default function Customers() {
       if (e.message === 'customer_phone_required') {
         setNeedPhone(true);
         toast.error(t('phoneRequired'));
+      } else if (e.message === 'customer_blocked') {
+        toast.error(t('blockedCustomer'));
+      } else if (e.message === 'credit_limit_exceeded') {
+        const d = e.details?.details ?? {};
+        toast.error(
+          t('limitExceeded'),
+          t('limitDetail').replace('{limit}', fmt(d.limit ?? 0)).replace('{current}', fmt(d.current ?? 0))
+        );
       } else {
         toast.error(t('error'), e.message);
       }
@@ -103,6 +116,8 @@ export default function Customers() {
         phone: phoneE164(editForm.phone),
         language: editForm.language,
         reminder_mode: editForm.reminder_mode as ReminderMode,
+        credit_limit: Number(editForm.credit_limit.replace(/\D/g, '')) || 0,
+        is_blocked: editForm.is_blocked ? 1 : 0,
       } as any);
     } catch (e: any) {
       const owner = e.details?.customer?.name;
@@ -188,6 +203,29 @@ export default function Customers() {
                   </option>
                 ))}
               </select>
+              <label>{t('creditLimit')}</label>
+              <input
+                value={formatAmount(editForm.credit_limit)}
+                onChange={(e) => setEditForm({ ...editForm, credit_limit: e.target.value })}
+                inputMode="numeric"
+                placeholder="0"
+              />
+              <p className="field-note">{t('creditLimitHint')}</p>
+
+              <div className="switch-row">
+                <div>
+                  <div className="sw-title">{t('blockCustomer')}</div>
+                  <div className="sw-sub">{t('blockCustomerHint')}</div>
+                </div>
+                <button
+                  className={`switch ${editForm.is_blocked ? 'on' : ''}`}
+                  onClick={() => setEditForm({ ...editForm, is_blocked: !editForm.is_blocked })}
+                  aria-label={t('blockCustomer')}
+                >
+                  <span />
+                </button>
+              </div>
+
               <button className="btn-primary" onClick={saveEdit}>
                 <Glyph name="check" size={18} color="#fff" /> {t('save')}
               </button>
