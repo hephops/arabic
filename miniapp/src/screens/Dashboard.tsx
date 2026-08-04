@@ -77,7 +77,8 @@ export default function Dashboard({
                 <div className="track">
                   <div
                     className="bar"
-                    style={{ height: `${w.revenue > 0 ? Math.max(5, Math.round((w.revenue / maxRev) * 27)) : 2}px` }}
+                    // foizda — ustun balandligi ekran kengligiga qarab o'zgaradi
+                    style={{ height: `${w.revenue > 0 ? Math.max(8, Math.round((w.revenue / maxRev) * 100)) : 5}%` }}
                   />
                 </div>
                 <div className="d">{WD[new Date(w.day).getDay()]}</div>

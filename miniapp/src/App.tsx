@@ -66,7 +66,7 @@ export default function App() {
   };
 
   return (
-    <>
+    <div className="app-shell">
       {/* Ichki ekranlar o'z navigatsiya panelini chizadi */}
       {!sub && <NavBar title={TITLES[tab]} />}
       <ToastHost />
@@ -115,6 +115,7 @@ export default function App() {
       <Dock
         tab={tab}
         sub={sub}
+        profileView={profileView}
         active={!sub}
         onNavigate={(target: NavTarget) => {
           setSub(target.sub ?? null);
@@ -123,6 +124,6 @@ export default function App() {
           setProfileView(target.profileView ?? 'main');
         }}
       />
-    </>
+    </div>
   );
 }

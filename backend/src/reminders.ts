@@ -1,4 +1,5 @@
 import { db } from './db.js';
+import { isValidPhone, normalizePhone } from './phone.js';
 
 // Eslatma dvigateli: muddatga qarab qaysi qarzga qanday eslatma kerakligini
 // aniqlaydi va jurnalga navbatga qo'yadi.
@@ -74,12 +75,15 @@ function buildMessage(d: DueDebt, kind: string): string {
     : `«${d.shop_name}» do'koniga qarzingiz: ${sum}. To'lash uchun karta: ${card}. Savollar: ${d.shop_phone}`;
 }
 
-// Bugun shu qarz uchun shu turdagi eslatma allaqachon qo'yilganmi?
+// Bugun shu qarz uchun shu turdagi eslatma allaqachon YUBORILGANMI?
+// Yuborilmagan ("failed") yozuv qayta urinishga to'sqinlik qilmaydi —
+// do'konchi raqamni to'g'rilashi bilan eslatma keyingi tekshiruvda ketadi.
 function alreadyLogged(debtId: number, kind: string): boolean {
   const row = db
     .prepare(
       `SELECT 1 FROM reminder_logs
-       WHERE debt_id = ? AND kind = ? AND date(created_at) = date('now') LIMIT 1`
+       WHERE debt_id = ? AND kind = ? AND status <> 'failed'
+         AND date(created_at) = date('now') LIMIT 1`
     )
     .get(debtId, kind);
   return !!row;
@@ -89,7 +93,7 @@ function enqueue(d: DueDebt, kind: string, channel: 'sms' | 'telegram' | 'call')
   if (alreadyLogged(d.id, kind)) return null;
   const text = buildMessage(d, kind);
   // Provayder ulanmaganda ham jurnal to'ladi — do'konchi nima yuborilishini ko'radi
-  const status = d.phone ? 'sent' : 'failed';
+  const status = isValidPhone(d.phone) ? 'sent' : 'failed';
   db.prepare(
     `INSERT INTO reminder_logs (shop_id, debt_id, customer_id, channel, kind, status, payload)
      VALUES (?, ?, ?, ?, ?, ?, ?)`

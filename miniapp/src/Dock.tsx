@@ -66,11 +66,13 @@ const SIDE_GROUPS: { key: string; glyph: string; target: NavTarget }[][] = [
 export default function Dock({
   tab,
   sub,
+  profileView = 'main',
   active,
   onNavigate,
 }: {
   tab: Tab;
   sub?: SubScreen;
+  profileView?: string;
   active: boolean;
   onNavigate: (t: NavTarget) => void;
 }) {
@@ -78,7 +80,9 @@ export default function Dock({
   const { t } = useT();
 
   const isActive = (target: NavTarget) =>
-    target.sub ? sub === target.sub : !!target.tab && tab === target.tab && active && !target.profileView;
+    target.sub
+      ? sub === target.sub
+      : !!target.tab && tab === target.tab && active && (target.profileView ?? 'main') === profileView;
 
   return (
     <>

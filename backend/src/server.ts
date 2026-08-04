@@ -935,6 +935,7 @@ app.post<{ Body: { items: { product_id: number; qty: number }[]; payment_type: '
 
     // Qarzga sotishda qarzdorning telefoni shart — eslatma va qo'ng'iroq shunga boradi
     const debtPhone = normalizePhone(req.body.customer_phone);
+    let debtCustomer: any = null;
     if (payment_type === 'debt') {
       let known: any = customer_id
         ? db.prepare('SELECT * FROM customers WHERE id = ? AND shop_id = ?').get(customer_id, req.shopId)
@@ -947,6 +948,7 @@ app.post<{ Body: { items: { product_id: number; qty: number }[]; payment_type: '
           .prepare('SELECT * FROM customers WHERE shop_id = ? AND name = ? COLLATE NOCASE')
           .get(req.shopId, customer_name.trim());
       }
+      if (customer_id && !known) return reply.code(404).send({ error: 'customer_not_found' });
       if (!known && !customer_name?.trim()) return reply.code(400).send({ error: 'customer_required_for_debt' });
       if ((!known || !known.phone) && !debtPhone) {
         return reply.code(400).send({
@@ -954,6 +956,7 @@ app.post<{ Body: { items: { product_id: number; qty: number }[]; payment_type: '
           customer: known ? { id: known.id, name: known.name } : null,
         });
       }
+      debtCustomer = known;
     }
 
     const tx = db.transaction(() => {
@@ -988,7 +991,7 @@ app.post<{ Body: { items: { product_id: number; qty: number }[]; payment_type: '
       }
       // "Qarzga sotish" — savdo avtomatik qarz daftariga tushadi
       if (payment_type === 'debt') {
-        let cid = customer_id;
+        let cid = debtCustomer?.id;
         if (!cid) {
           const existing = ((debtPhone
             ? db.prepare('SELECT * FROM customers WHERE shop_id = ? AND phone = ?').get(req.shopId, debtPhone)
@@ -1012,7 +1015,7 @@ app.post<{ Body: { items: { product_id: number; qty: number }[]; payment_type: '
             );
           }
         } else if (debtPhone) {
-          db.prepare('UPDATE customers SET phone = COALESCE(NULLIF(phone, ""), ?) WHERE id = ?').run(debtPhone, cid);
+          db.prepare('UPDATE customers SET phone = COALESCE(NULLIF(phone, \'\'), ?) WHERE id = ?').run(debtPhone, cid);
         }
         if (!cid) throw new Error('customer_required_for_debt');
         const noteText = lines.map((l) => `${l.product.name} x${l.qty}`).join(', ');

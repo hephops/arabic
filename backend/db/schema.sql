@@ -219,3 +219,25 @@ CREATE INDEX IF NOT EXISTS idx_debts_customer ON debts(customer_id);
 CREATE INDEX IF NOT EXISTS idx_products_shop ON products(shop_id);
 CREATE INDEX IF NOT EXISTS idx_products_barcode ON products(shop_id, barcode);
 CREATE INDEX IF NOT EXISTS idx_sales_shop ON sales(shop_id);
+
+-- Qarzdorning telefoni — qarzni yo'naltiruvchi kalit, shuning uchun
+-- bitta do'kon ichida takrorlanmaydi (eski bo'sh yozuvlar to'sqinlik qilmaydi).
+CREATE UNIQUE INDEX IF NOT EXISTS idx_customers_shop_phone
+  ON customers (shop_id, phone) WHERE phone IS NOT NULL AND phone <> '';
+
+-- Telefonsiz qarz yozilmasin — bu qoida endi ilova kodida emas, bazada turadi
+CREATE TRIGGER IF NOT EXISTS debts_require_phone
+BEFORE INSERT ON debts
+BEGIN
+  SELECT RAISE(ABORT, 'customer_phone_required')
+  WHERE COALESCE((SELECT phone FROM customers WHERE id = NEW.customer_id), '') = '';
+END;
+
+-- Ochiq qarzi bor mijozning raqamini bo'shatib bo'lmaydi
+CREATE TRIGGER IF NOT EXISTS customers_keep_phone
+BEFORE UPDATE OF phone ON customers
+BEGIN
+  SELECT RAISE(ABORT, 'phone_required')
+  WHERE COALESCE(NEW.phone, '') = ''
+    AND EXISTS (SELECT 1 FROM debts WHERE customer_id = NEW.id AND status != 'paid');
+END;

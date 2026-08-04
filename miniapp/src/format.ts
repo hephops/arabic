@@ -5,10 +5,21 @@ export const digits = (v: string) => v.replace(/\D/g, '');
 
 /* ── Telefon: +998 93 922 88 89 ── */
 
+// O'zbekistondagi operator kodlari — backend/src/phone.ts bilan bir xil ro'yxat.
+// Ikkalasi bir xil bo'lishi shart: aks holda ilova qabul qilgan raqamni
+// server boshqacha o'qib, qarz begona raqamga biriktirilib qolardi.
+const OPERATOR_CODES = new Set([
+  '20', '33', '50', '55', '77', '88', '90', '91', '93', '94', '95', '97', '98', '99',
+  '71', '78',
+]);
+
 // Kiritilgan har qanday ko'rinishdan faqat 9 xonali milliy raqam qoladi
 export function phoneDigits(value: string): string {
   let d = digits(value);
-  if (d.startsWith('998')) d = d.slice(3);
+  // "998" faqat raqam undan uzun bo'lsa mamlakat kodi hisoblanadi —
+  // aks holda 99-operatorning o'zi kesilib ketardi
+  if (d.length > 9 && d.startsWith('998')) d = d.slice(3);
+  else if (d.length === 10 && d.startsWith('8')) d = d.slice(1);
   return d.slice(0, 9);
 }
 
@@ -26,7 +37,10 @@ export const phoneE164 = (value: string) => '+998' + phoneDigits(value);
 export const formatPhoneSoft = (value: string) => (phoneDigits(value) ? formatPhone(value) : '');
 export const phoneStore = (value: string) => (phoneDigits(value) ? phoneE164(value) : '');
 
-export const isPhoneComplete = (value: string) => phoneDigits(value).length === 9;
+export const isPhoneComplete = (value: string) => {
+  const d = phoneDigits(value);
+  return d.length === 9 && OPERATOR_CODES.has(d.slice(0, 2));
+};
 
 /* ── Karta: 8600 1234 5678 9012 (16 xona) ── */
 

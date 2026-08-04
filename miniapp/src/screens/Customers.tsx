@@ -21,6 +21,9 @@ export default function Customers() {
   // mijoz sahifasidagi rejimlar
   const [mode, setMode] = useState<'view' | 'debt' | 'edit'>('view');
   const [debtForm, setDebtForm] = useState({ amount: '', note: '', due: '' });
+  // Mijozning raqami yo'q bo'lsa — qarz yozishda shu yerda so'raladi
+  const [debtPhone, setDebtPhone] = useState('');
+  const [needPhone, setNeedPhone] = useState(false);
   const [editForm, setEditForm] = useState({ name: '', phone: '', language: 'uz', reminder_mode: 'soft' });
   const [error, setError] = useState('');
 
@@ -60,12 +63,26 @@ export default function Customers() {
       return;
     }
     setError('');
-    await api.createDebt({
-      customer_id: selected.id,
-      amount,
-      note: debtForm.note || undefined,
-      due_date: debtForm.due || undefined,
-    });
+    try {
+      await api.createDebt({
+        customer_id: selected.id,
+        customer_phone: isPhoneComplete(debtPhone) ? phoneE164(debtPhone) : undefined,
+        amount,
+        note: debtForm.note || undefined,
+        due_date: debtForm.due || undefined,
+      });
+    } catch (e: any) {
+      // Bu mijozning raqami yo'q — shu yerda so'raymiz va qaytadan yuboramiz
+      if (e.message === 'customer_phone_required') {
+        setNeedPhone(true);
+        toast.error(t('phoneRequired'));
+      } else {
+        toast.error(t('error'), e.message);
+      }
+      return;
+    }
+    setNeedPhone(false);
+    setDebtPhone('');
     toast.success(t('toastDebtSaved'), `${selected.name} · ${fmt(amount)}`);
     setDebtForm({ amount: '', note: '', due: '' });
     setMode('view');
@@ -76,12 +93,25 @@ export default function Customers() {
   async function saveEdit() {
     if (!selected) return;
     setError('');
-    await api.updateCustomer(selected.id, {
-      name: editForm.name.trim(),
-      phone: editForm.phone.trim() || null,
-      language: editForm.language,
-      reminder_mode: editForm.reminder_mode as ReminderMode,
-    } as any);
+    if (!isPhoneComplete(editForm.phone)) {
+      toast.error(t('phoneRequired'));
+      return;
+    }
+    try {
+      await api.updateCustomer(selected.id, {
+        name: editForm.name.trim(),
+        phone: phoneE164(editForm.phone),
+        language: editForm.language,
+        reminder_mode: editForm.reminder_mode as ReminderMode,
+      } as any);
+    } catch (e: any) {
+      const owner = e.details?.customer?.name;
+      toast.error(
+        e.message === 'phone_taken' ? t('phoneTaken') : e.message === 'phone_required' ? t('phoneRequired') : t('error'),
+        owner
+      );
+      return;
+    }
     toast.success(t('saved'), editForm.name.trim());
     setMode('view');
     openCustomer(selected.id);
@@ -174,7 +204,7 @@ export default function Customers() {
                   {fmt(selected.balance)}
                 </div>
                 <div className="hint">
-                  {selected.phone ?? t('noPhone')} · {t(modeInfo.key)}
+                  {selected.phone ? formatPhoneSoft(selected.phone) : t('noPhone')} · {t(modeInfo.key)}
                 </div>
               </div>
 
@@ -200,7 +230,27 @@ export default function Customers() {
                     {t('dueDate')} ({t('optional')})
                   </label>
                   <input type="date" value={debtForm.due} onChange={(e) => setDebtForm({ ...debtForm, due: e.target.value })} />
-                  <button className="btn-primary" onClick={addDebt}>
+                  {(needPhone || !selected.phone) && (
+                    <>
+                      <label>{t('debtorPhone')}</label>
+                      <div className="phone-field inline">
+                        <span className="cc">+998</span>
+                        <input
+                          className="phone-input"
+                          value={formatPhone(debtPhone).replace('+998', '').trim()}
+                          onChange={(e) => setDebtPhone(phoneDigits(e.target.value))}
+                          inputMode="tel"
+                          placeholder="90 123 45 67"
+                        />
+                      </div>
+                      <p className="field-note">{t('phoneWhy')}</p>
+                    </>
+                  )}
+                  <button
+                    className="btn-primary"
+                    onClick={addDebt}
+                    disabled={(needPhone || !selected.phone) && !isPhoneComplete(debtPhone)}
+                  >
                     <Glyph name="check" size={18} color="#fff" /> {t('save')}
                   </button>
                   <button className="btn-ghost" onClick={() => setMode('view')}>
@@ -292,7 +342,10 @@ export default function Customers() {
               try {
                 await api.createCustomer({ name: newName.trim(), phone: phoneE164(newPhone) });
               } catch (err: any) {
-                toast.error(err.message === 'phone_taken' ? t('phoneTaken') : t('error'));
+                toast.error(
+                  err.message === 'phone_taken' ? t('phoneTaken') : t('error'),
+                  err.details?.customer?.name
+                );
                 return;
               }
               toast.success(t('toastCustomerAdded'), newName.trim());
@@ -320,7 +373,10 @@ export default function Customers() {
                 <AppIcon glyph={m.icon} color={m.color} size={29} />
                 <div>
                   <div className="name">{c.name}</div>
-                  <div className="sub">{c.phone ?? t('noPhone')}</div>
+                  {/* Raqami yo'q mijozga eslatma ketmaydi — qizil qilib ko'rsatamiz */}
+                  <div className="sub" style={c.phone ? undefined : { color: 'var(--red)' }}>
+                    {c.phone ? formatPhoneSoft(c.phone) : t('noPhone')}
+                  </div>
                 </div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>

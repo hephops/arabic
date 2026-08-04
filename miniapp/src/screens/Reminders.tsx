@@ -4,6 +4,7 @@ import { AppIcon, Glyph } from '../icons';
 import { NavBar, EmptyState, Segmented } from '../ui';
 import { useT } from '../i18n';
 import { toast } from '../toast';
+import { formatPhoneSoft } from '../format';
 
 // Eslatmalar: rejim sozlamalari va yuborilganlar jurnali
 
@@ -151,7 +152,7 @@ export default function Reminders({ onBack }: { onBack: () => void }) {
                       <AppIcon glyph={mode.icon} color={mode.color} size={29} />
                       <div>
                         <div className="name">{c.name}</div>
-                        <div className="sub">{c.phone ?? t('noPhone')}</div>
+                        <div className="sub">{c.phone ? formatPhoneSoft(c.phone) : t('noPhone')}</div>
                       </div>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>

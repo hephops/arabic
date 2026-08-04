@@ -3,7 +3,7 @@ import { api, fmt, Supplier, SupplierDetail } from '../api';
 import { AppIcon, Glyph } from '../icons';
 import { SubHeader, Summary, EmptyState } from '../ui';
 import { useT } from '../i18n';
-import { formatAmount } from '../format';
+import { formatAmount, formatPhoneSoft } from '../format';
 import { toast } from '../toast';
 
 // "Men qarzdorman" — postavshiklar (ta'minotchilar) daftari
@@ -156,7 +156,7 @@ export default function Suppliers({ onBack }: { onBack: () => void }) {
               <AppIcon glyph="truck" size={30} />
               <div>
                 <div className="name">{s.name}</div>
-                {s.phone && <div className="sub">{s.phone}</div>}
+                {s.phone && <div className="sub">{formatPhoneSoft(s.phone)}</div>}
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>

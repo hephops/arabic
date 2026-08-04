@@ -4,7 +4,7 @@ import { AppIcon, Glyph } from '../icons';
 import Scanner from '../Scanner';
 import { haptic } from '../telegram';
 import { useT } from '../i18n';
-import { formatAmount, amountValue, formatPhone, phoneDigits, phoneE164, isPhoneComplete } from '../format';
+import { formatAmount, amountValue, formatPhone, formatPhoneSoft, phoneDigits, phoneE164, isPhoneComplete } from '../format';
 import { toast } from '../toast';
 
 interface CartLine {
@@ -115,7 +115,7 @@ function HistoryMode() {
             <span>{t('total')}</span>
             <span>{fmt(detail.total)}</span>
           </div>
-          {detail.customer && <p className="hint">{detail.customer.name} · {detail.customer.phone ?? t('noPhone')}</p>}
+          {detail.customer && <p className="hint">{detail.customer.name} · {detail.customer.phone ? formatPhoneSoft(detail.customer.phone) : t('noPhone')}</p>}
           <button className="btn-primary" onClick={() => sendReceipt(detail.id)}>
             <Glyph name="note" size={17} color="#fff" /> {t('sendReceipt')}
           </button>
@@ -168,6 +168,7 @@ function SaleMode({ onDone }: { onDone: () => void }) {
   const [scanning, setScanning] = useState(false);
   // Skanerda topilmagan kod: mahsulot tanlansa, kod o'shanga biriktiriladi
   const [pendingCode, setPendingCode] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
   const { t } = useT();
 
   async function search(q: string) {
@@ -259,6 +260,7 @@ function SaleMode({ onDone }: { onDone: () => void }) {
   const total = cart.reduce((s, l) => s + l.product.sell_price * l.qty, 0);
 
   async function checkout(allowNegative = false) {
+    if (busy) return;
     if (payment === 'debt' && !customerName.trim()) {
       toast.error(t('debtNeedsCustomer'));
       return;
@@ -267,6 +269,7 @@ function SaleMode({ onDone }: { onDone: () => void }) {
       toast.error(t('phoneRequired'));
       return;
     }
+    setBusy(true);
     try {
       await api.createSale({
         items: cart.map((l) => ({ product_id: l.product.id!, qty: l.qty })),
@@ -289,6 +292,7 @@ function SaleMode({ onDone }: { onDone: () => void }) {
       if (e.message === 'insufficient_stock') {
         const rows: { name: string; stock: number; qty: number }[] = e.details?.items ?? [];
         const text = rows.map((r) => `${r.name}: ${t('stock')} ${r.stock}, ${t('cart')} ${r.qty}`).join('\n');
+        setBusy(false);
         if (confirm(`${t('stockNotEnough')}\n\n${text}\n\n${t('sellAnyway')}`)) {
           await checkout(true);
         } else {
@@ -297,6 +301,8 @@ function SaleMode({ onDone }: { onDone: () => void }) {
         return;
       }
       toast.error(t('error'), e.message);
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -464,7 +470,7 @@ function SaleMode({ onDone }: { onDone: () => void }) {
               <p className="field-note">{t('phoneWhy')}</p>
             </div>
           )}
-          <button className="btn-primary btn-lg" onClick={() => checkout()}>
+          <button className="btn-primary btn-lg" onClick={() => checkout()} disabled={busy || cart.length === 0}>
             <Glyph name="check" size={19} color="#fff" /> {t('finishSale')}
           </button>
         </div>

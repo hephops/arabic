@@ -1,4 +1,5 @@
 import Database from 'better-sqlite3';
+import { normalizePhone } from './phone.js';
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -50,6 +51,31 @@ db.exec(`
   SELECT shop_id, id, TRIM(barcode) FROM products
   WHERE barcode IS NOT NULL AND TRIM(barcode) <> ''
 `);
+
+// Eski yozuvlardagi telefon raqamlarini bitta ko'rinishga keltiramiz.
+// Raqami umuman yaroqsizlarga eslatma yuborib bo'lmaydi — ularni "o'chirilgan"
+// rejimga o'tkazamiz, aks holda tizim yuborgandek ko'rsatib turadi.
+{
+  const rows = db.prepare('SELECT id, phone, reminder_mode FROM customers').all() as any[];
+  const fix = db.prepare('UPDATE customers SET phone = ? WHERE id = ?');
+  const mute = db.prepare("UPDATE customers SET reminder_mode = 'off' WHERE id = ?");
+  let cleaned = 0;
+  let unreachable = 0;
+  for (const row of rows) {
+    const norm = normalizePhone(row.phone);
+    if (norm && norm !== row.phone) {
+      fix.run(norm, row.id);
+      cleaned++;
+    } else if (!norm) {
+      unreachable++;
+      if (row.reminder_mode !== 'off') mute.run(row.id);
+    }
+  }
+  if (cleaned) console.log(`[db] ${cleaned} ta telefon raqami tartibga keltirildi`);
+  if (unreachable) {
+    console.warn(`[db] DIQQAT: ${unreachable} ta mijozning raqami yo'q yoki noto'g'ri — ularga eslatma yuborilmaydi`);
+  }
+}
 
 // Kechikkan qarzlarni belgilash (har so'rovda emas, startda va cron'da chaqiriladi)
 export function markOverdueDebts() {
