@@ -4,7 +4,7 @@ import { AppIcon, Glyph } from '../icons';
 import Scanner from '../Scanner';
 import { haptic } from '../telegram';
 import { useT } from '../i18n';
-import { formatAmount, amountValue } from '../format';
+import { formatAmount, amountValue, formatPhone, phoneDigits, phoneE164, isPhoneComplete } from '../format';
 import { toast } from '../toast';
 
 interface CartLine {
@@ -164,6 +164,7 @@ function SaleMode({ onDone }: { onDone: () => void }) {
   const [cart, setCart] = useState<CartLine[]>([]);
   const [payment, setPayment] = useState<'cash' | 'card' | 'debt'>('cash');
   const [customerName, setCustomerName] = useState('');
+  const [customerPhone, setCustomerPhone] = useState('');
   const [scanning, setScanning] = useState(false);
   // Skanerda topilmagan kod: mahsulot tanlansa, kod o'shanga biriktiriladi
   const [pendingCode, setPendingCode] = useState<string | null>(null);
@@ -262,19 +263,29 @@ function SaleMode({ onDone }: { onDone: () => void }) {
       toast.error(t('debtNeedsCustomer'));
       return;
     }
+    if (payment === 'debt' && !isPhoneComplete(customerPhone)) {
+      toast.error(t('phoneRequired'));
+      return;
+    }
     try {
       await api.createSale({
         items: cart.map((l) => ({ product_id: l.product.id!, qty: l.qty })),
         payment_type: payment,
         customer_name: payment === 'debt' ? customerName.trim() : undefined,
+        customer_phone: payment === 'debt' ? phoneE164(customerPhone) : undefined,
         allow_negative: allowNegative || undefined,
       });
       toast.success(t('saleSaved'), `${fmt(total)}${payment === 'debt' ? ` · ${t('writtenToDebts')}` : ''}`);
       setCart([]);
       setCustomerName('');
+      setCustomerPhone('');
       onDone();
     } catch (e: any) {
       // Omborda yetarli emas — do'konchidan so'raymiz
+      if (e.message === 'customer_phone_required') {
+        toast.error(t('phoneRequired'));
+        return;
+      }
       if (e.message === 'insufficient_stock') {
         const rows: { name: string; stock: number; qty: number }[] = e.details?.items ?? [];
         const text = rows.map((r) => `${r.name}: ${t('stock')} ${r.stock}, ${t('cart')} ${r.qty}`).join('\n');
@@ -292,151 +303,173 @@ function SaleMode({ onDone }: { onDone: () => void }) {
   const qtyTotal = cart.reduce((s, l) => s + l.qty, 0);
 
   return (
-    <>
-      <div className="search-row">
-        <div className="search-field">
-          <Glyph name="search" size={17} color="#8a8a8e" />
-          <input value={query} onChange={(e) => search(e.target.value)} placeholder={t('searchProduct')} />
-          {query && (
-            <button className="search-clear" onClick={() => search('')} aria-label={t('close')}>
-              <Glyph name="close" size={15} color="#8a8a8e" />
-            </button>
-          )}
+    <div className="kassa-cols">
+      <div className="kassa-main">
+        <div className="search-row">
+          <div className="search-field">
+            <Glyph name="search" size={17} color="#8a8a8e" />
+            <input value={query} onChange={(e) => search(e.target.value)} placeholder={t('searchProduct')} />
+            {query && (
+              <button className="search-clear" onClick={() => search('')} aria-label={t('close')}>
+                <Glyph name="close" size={15} color="#8a8a8e" />
+              </button>
+            )}
+          </div>
+          <button className="scan-round" onClick={() => setScanning(true)} aria-label={t('scanner')}>
+            <Glyph name="scan" size={21} color="#fff" />
+          </button>
         </div>
-        <button className="scan-round" onClick={() => setScanning(true)} aria-label={t('scanner')}>
-          <Glyph name="scan" size={21} color="#fff" />
-        </button>
-      </div>
-      {scanning && (
-        <Scanner
-          continuous
-          status={
-            cart.length > 0
-              ? `${cart.reduce((s, l) => s + l.qty, 0)} ${t('pcs')} · ${fmt(total)}`
-              : t('searchOrScan')
-          }
-          onScan={async (code) => {
-            // topilgan mahsulot darhol savatga tushadi — skaner ochiq qoladi
-            const res = await api.lookupBarcode(code).catch(() => null);
-            if (res?.product) {
-              addToCart(res.product);
-            } else {
-              // topilmadi: skanerni yopib, kodni biriktirishga taklif qilamiz
-              setScanning(false);
-              handleCode(code);
+
+        {scanning && (
+          <Scanner
+            continuous
+            status={
+              cart.length > 0
+                ? `${cart.reduce((s, l) => s + l.qty, 0)} ${t('pcs')} · ${fmt(total)}`
+                : t('searchOrScan')
             }
-          }}
-          onClose={() => setScanning(false)}
-        />
-      )}
-      {pendingCode && (
-        <div className="attach-banner">
-          <div className="attach-head">
-            <Glyph name="scan" size={17} color="var(--yellow)" />
-            <span>{t('codeNotFound')}</span>
-            <button className="attach-close" onClick={() => setPendingCode(null)}>
-              <Glyph name="close" size={15} color="var(--muted)" />
-            </button>
-          </div>
-          <div className="attach-code">{pendingCode}</div>
-          <div className="attach-hint">{t('codeAttachHint')}</div>
-        </div>
-      )}
+            onScan={async (code) => {
+              // topilgan mahsulot darhol savatga tushadi — skaner ochiq qoladi
+              const res = await api.lookupBarcode(code).catch(() => null);
+              if (res?.product) {
+                addToCart(res.product);
+              } else {
+                // topilmadi: skanerni yopib, kodni biriktirishga taklif qilamiz
+                setScanning(false);
+                handleCode(code);
+              }
+            }}
+            onClose={() => setScanning(false)}
+          />
+        )}
 
-      {results.length > 0 && (
-        <div className="list-group">
-          {results.map((p) => (
-            <div className="list-item" key={p.id} onClick={() => addToCart(p)}>
-              <div className="lead">
-                <ProductThumb product={p} />
-                <div>
-                  <div className="name">{p.name}</div>
-                  <div className="sub" style={p.stock <= 0 ? { color: 'var(--red)' } : undefined}>
-                    {t('stock')}: {p.stock} {p.unit}
-                  </div>
-                </div>
-              </div>
-              <div className="amount">{fmt(p.sell_price)}</div>
+        {pendingCode && (
+          <div className="attach-banner">
+            <div className="attach-head">
+              <Glyph name="scan" size={17} color="var(--yellow)" />
+              <span>{t('codeNotFound')}</span>
+              <button className="attach-close" onClick={() => setPendingCode(null)}>
+                <Glyph name="close" size={15} color="var(--muted)" />
+              </button>
             </div>
-          ))}
-        </div>
-      )}
-
-      {cart.length > 0 && (
-        <>
-          <div className="section-title">
-            {t('cart')} · {qtyTotal} {t('pcs')}
+            <div className="attach-code">{pendingCode}</div>
+            <div className="attach-hint">{t('codeAttachHint')}</div>
           </div>
+        )}
+
+        {results.length > 0 && (
           <div className="list-group">
-            {cart.map((l) => (
-              <div className="list-item" key={l.product.id}>
+            {results.map((p) => (
+              <div className="list-item" key={p.id} onClick={() => addToCart(p)}>
                 <div className="lead">
-                  <ProductThumb product={l.product} size={38} />
-                  <div style={{ minWidth: 0 }}>
-                    <div className="name">{l.product.name}</div>
-                    <div className="sub">
-                      {fmt(l.product.sell_price * l.qty)}
-                      {l.qty > l.product.stock && (
-                        <span style={{ color: 'var(--red)' }}>
-                          {' '}· {t('stockShort')}: {l.product.stock} {l.product.unit}
-                        </span>
-                      )}
+                  <ProductThumb product={p} />
+                  <div>
+                    <div className="name">{p.name}</div>
+                    <div className="sub" style={p.stock <= 0 ? { color: 'var(--red)' } : undefined}>
+                      {t('stock')}: {p.stock} {p.unit}
                     </div>
                   </div>
                 </div>
-                <div className="stepper">
-                  <button onClick={() => changeQty(l.product.id!, -1)}>−</button>
-                  <span>{l.qty}</span>
-                  <button onClick={() => changeQty(l.product.id!, 1)}>+</button>
-                </div>
+                <div className="amount">{fmt(p.sell_price)}</div>
               </div>
             ))}
           </div>
+        )}
 
-          <div className="checkout">
-            <div className="checkout-total">
-              <span>{t('total')}</span>
-              <b>{fmt(total)}</b>
+        {cart.length > 0 && (
+          <>
+            <div className="section-title">
+              {t('cart')} · {qtyTotal} {t('pcs')}
             </div>
-            <div className="segmented sm">
-              {(
-                [
-                  ['cash', 'banknote', 'payCash'],
-                  ['card', 'card', 'payCard'],
-                  ['debt', 'book', 'payDebt'],
-                ] as const
-              ).map(([id, glyph, key]) => (
-                <button key={id} className={payment === id ? 'on' : ''} onClick={() => { setPayment(id); haptic.select(); }}>
-                  <Glyph name={glyph} size={15} /> {t(key)}
-                </button>
+            <div className="list-group">
+              {cart.map((l) => (
+                <div className="list-item" key={l.product.id}>
+                  <div className="lead">
+                    <ProductThumb product={l.product} size={38} />
+                    <div style={{ minWidth: 0 }}>
+                      <div className="name">{l.product.name}</div>
+                      <div className="sub">
+                        {fmt(l.product.sell_price * l.qty)}
+                        {l.qty > l.product.stock && (
+                          <span style={{ color: 'var(--red)' }}>
+                            {' '}· {t('stockShort')}: {l.product.stock} {l.product.unit}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="stepper">
+                    <button onClick={() => changeQty(l.product.id!, -1)}>−</button>
+                    <span>{l.qty}</span>
+                    <button onClick={() => changeQty(l.product.id!, 1)}>+</button>
+                  </div>
+                </div>
               ))}
             </div>
-            {payment === 'debt' && (
+          </>
+        )}
+
+        {cart.length === 0 && !results.length && (
+          <div className="empty-state">
+            <AppIcon glyph="cart" size={54} />
+            <div className="t">{t('cartEmptyTitle')}</div>
+            <div className="s">{t('cartEmptySub')}</div>
+            <button
+              className="btn-primary btn-lg"
+              style={{ maxWidth: 280, margin: '18px auto 0' }}
+              onClick={() => setScanning(true)}
+            >
+              <Glyph name="scan" size={20} color="#fff" /> {t('scanToSell')}
+            </button>
+          </div>
+        )}
+      </div>
+
+      {cart.length > 0 && (
+        <div className="checkout">
+          <div className="checkout-total">
+            <span>{t('total')}</span>
+            <b>{fmt(total)}</b>
+          </div>
+          <div className="segmented sm">
+            {(
+              [
+                ['cash', 'banknote', 'payCash'],
+                ['card', 'card', 'payCard'],
+                ['debt', 'book', 'payDebt'],
+              ] as const
+            ).map(([id, glyph, key]) => (
+              <button key={id} className={payment === id ? 'on' : ''} onClick={() => { setPayment(id); haptic.select(); }}>
+                <Glyph name={glyph} size={15} /> {t(key)}
+              </button>
+            ))}
+          </div>
+          {payment === 'debt' && (
+            <div className="debt-fields">
               <input
-                style={{ marginTop: 10, marginBottom: 0 }}
                 value={customerName}
                 onChange={(e) => setCustomerName(e.target.value)}
                 placeholder={t('debtCustomerPlaceholder')}
               />
-            )}
-            <button className="btn-primary btn-lg" onClick={() => checkout()}>
-              <Glyph name="check" size={19} color="#fff" /> {t('finishSale')}
-            </button>
-          </div>
-        </>
-      )}
-
-      {cart.length === 0 && !results.length && (
-        <div className="empty-state">
-          <AppIcon glyph="cart" size={54} />
-          <div className="t">{t('cartEmptyTitle')}</div>
-          <div className="s">{t('cartEmptySub')}</div>
-          <button className="btn-primary btn-lg" style={{ maxWidth: 280, margin: '18px auto 0' }} onClick={() => setScanning(true)}>
-            <Glyph name="scan" size={20} color="#fff" /> {t('scanToSell')}
+              <div className="phone-field inline">
+                <span className="cc">+998</span>
+                <input
+                  className="phone-input"
+                  value={formatPhone(customerPhone).replace('+998', '').trim()}
+                  onChange={(e) => setCustomerPhone(phoneDigits(e.target.value))}
+                  inputMode="tel"
+                  placeholder="90 123 45 67"
+                />
+              </div>
+              <p className="field-note">{t('phoneWhy')}</p>
+            </div>
+          )}
+          <button className="btn-primary btn-lg" onClick={() => checkout()}>
+            <Glyph name="check" size={19} color="#fff" /> {t('finishSale')}
           </button>
         </div>
       )}
-    </>
+    </div>
   );
 }
 

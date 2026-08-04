@@ -722,6 +722,16 @@ button.link { background: none; color: var(--accent); font-size: 15px; font-weig
 
 .btn-primary.danger { background: var(--red); }
 
+/* Forma ichidagi telefon maydoni va izoh */
+.phone-field.inline { height: 44px; padding: 0 12px; background: var(--fill); }
+.phone-field.inline .cc { font-size: 16px; }
+.phone-field.inline .phone-input { font-size: 17px; letter-spacing: 0.5px; }
+.field-note { font-size: 12px; color: var(--muted); margin: 6px 2px 0; line-height: 1.35; }
+.debt-fields { margin-top: 10px; display: flex; flex-direction: column; gap: 8px; }
+.debt-fields input { margin: 0; }
+.confirm-phone { text-align: left; margin-top: 12px; }
+.confirm-phone label { margin: 0 2px 6px; }
+
 /* Sotuvchi rejimi belgisi */
 .role-banner {
   display: flex; align-items: center; gap: 7px;
@@ -747,3 +757,106 @@ button.link { background: none; color: var(--accent); font-size: 15px; font-weig
 .duo .v { font-size: 21px; font-weight: 800; letter-spacing: -0.6px; margin-top: 3px; }
 .duo .v.green { color: var(--green); }
 .duo .v.red { color: var(--red); }
+
+/* ═══════════════════════════════════════════════════════════
+   KOMPYUTER (web) ko'rinishi — 1000px dan keng ekranlarda.
+   Telefon uslubi o'zgarmaydi; bu yerda faqat keng ekran uchun
+   chapda doimiy menyu va kengroq kontent maydoni qo'shiladi.
+   ═══════════════════════════════════════════════════════════ */
+
+.side { display: none; }
+
+@media (min-width: 1000px) {
+  body { font-size: 15.5px; }
+
+  /* Kontent chapdagi menyudan keyin boshlanadi */
+  #root {
+    max-width: none;
+    margin: 0;
+    padding: 0 0 40px 260px;
+  }
+  .screen { padding: 20px 28px; max-width: 1080px; margin: 0 auto; }
+
+  /* ── Chapdagi doimiy menyu ── */
+  .side {
+    position: fixed; top: 0; left: 0; bottom: 0; width: 260px; z-index: 60;
+    display: flex; flex-direction: column; gap: 18px;
+    padding: 20px 14px;
+    background: rgba(250, 250, 252, 0.92);
+    backdrop-filter: blur(24px) saturate(180%); -webkit-backdrop-filter: blur(24px) saturate(180%);
+    border-right: 0.5px solid var(--separator);
+    overflow-y: auto;
+  }
+  .side-brand { display: flex; align-items: center; gap: 11px; padding: 4px 8px 6px; }
+  .side-logo {
+    width: 40px; height: 40px; border-radius: 11px; flex-shrink: 0;
+    background: linear-gradient(165deg, #5cabff, #0a5fe0);
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; font-size: 21px; font-weight: 800;
+    box-shadow: 0 6px 14px -6px rgba(10, 95, 224, 0.6);
+  }
+  .side-name { font-size: 16px; font-weight: 700; letter-spacing: -0.3px; }
+  .side-sub { font-size: 11.5px; color: var(--muted); }
+
+  .side-group { display: flex; flex-direction: column; gap: 2px; }
+  .side-group + .side-group { border-top: 0.5px solid var(--separator); padding-top: 14px; }
+  .side-item {
+    display: flex; align-items: center; gap: 11px;
+    padding: 9px 10px; border-radius: 11px; background: none;
+    font-size: 14.5px; font-weight: 500; color: var(--text); text-align: left; width: 100%;
+  }
+  .side-item:hover { background: rgba(120, 120, 128, 0.1); }
+  .side-item.active { background: rgba(0, 122, 255, 0.11); color: var(--accent); font-weight: 600; }
+
+  /* Telefon uchun mo'ljallangan qismlar keng ekranda kerak emas */
+  .dock, .dock-handle { display: none; }
+  .install-banner { display: none; }
+
+  /* Yuqoridagi sarlavha kontent kengligida turadi */
+  .navbar {
+    background: rgba(249, 249, 251, 0.9);
+    padding: 0 28px; height: 52px;
+    grid-template-columns: auto 1fr auto;
+  }
+  .nav-title { font-size: 19px; text-align: left; }
+  .nav-left { justify-self: start; }
+
+  /* Suzuvchi tugma kontent burchagida */
+  .fab-quick { right: 32px; bottom: 32px; }
+  .qa-sheet { right: 32px; bottom: 96px; }
+
+  /* Xabarlar o'ng pastda — kontentning tepasini to'smaydi */
+  .toast-host { left: auto; right: 24px; top: auto; bottom: 100px; align-items: flex-end; padding: 0; }
+  .toast { width: auto; min-width: 260px; max-width: 420px; }
+
+  /* Bo'lim tugmalari cho'zilib ketmasin */
+  .segmented { max-width: 520px; }
+
+  /* ── Kengroq joyda ustunlar ── */
+  .stat-row { gap: 14px; }
+  .stat-card { padding: 14px 16px; }
+  .stat-card .k { font-size: 12.5px; }
+  .stat-card .v { font-size: 20px; }
+  .tile-row { gap: 14px; margin: 14px 0 4px; }
+  .tile { padding: 16px 8px 14px; }
+  .hero { padding: 20px 22px 18px; }
+  .hero-value { font-size: 34px; }
+  .spark .track { height: 46px; }
+  .list-item { padding: 13px 16px; }
+  .form-group, .card, .list-group { border-radius: 14px; }
+
+  /* Asosiy ekran: qarzlar va sotuvlar yonma-yon */
+  .home-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 0 20px; align-items: start; }
+
+  /* Kassa: chapda qidiruv va savat, o'ngda hisob */
+  .kassa-cols { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(300px, 0.65fr); gap: 20px; align-items: start; }
+  .kassa-cols .checkout { position: sticky; top: 72px; margin-top: 0; }
+  .checkout-total b { font-size: 30px; }
+
+  /* Skaner va launcher to'liq ekranda qoladi */
+  .scan, .launcher { left: 0; }
+}
+
+@media (min-width: 1400px) {
+  .screen { max-width: 1180px; }
+}

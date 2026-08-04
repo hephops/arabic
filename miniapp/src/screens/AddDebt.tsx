@@ -3,7 +3,7 @@ import { api, fmt } from '../api';
 import { Glyph } from '../icons';
 import { haptic } from '../telegram';
 import { useT } from '../i18n';
-import { formatAmount, amountValue } from '../format';
+import { formatAmount, amountValue, formatPhone, phoneDigits, phoneE164, isPhoneComplete } from '../format';
 import { toast } from '../toast';
 
 // Qarz yozishning ikki yo'li teng: ovoz bilan va qo'lda.
@@ -43,6 +43,8 @@ function VoiceMode({ onDone }: { onDone: () => void }) {
   const [live, setLive] = useState('');
   const [listening, setListening] = useState(false);
   const [parsed, setParsed] = useState<Parsed | null>(null);
+  const [phone, setPhone] = useState('');
+  const [needPhone, setNeedPhone] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const recRef = useRef<any>(null);
@@ -128,6 +130,7 @@ function VoiceMode({ onDone }: { onDone: () => void }) {
 
   async function parse(value: string) {
     setError('');
+    setNeedPhone(false);
     try {
       setParsed(await api.parseVoice(value));
     } catch {
@@ -141,6 +144,7 @@ function VoiceMode({ onDone }: { onDone: () => void }) {
     try {
       await api.createDebt({
         customer_name: parsed.customer_name,
+        customer_phone: isPhoneComplete(phone) ? phoneE164(phone) : undefined,
         amount: parsed.amount,
         note: parsed.note ?? undefined,
         due_date: parsed.due_date ?? undefined,
@@ -149,7 +153,15 @@ function VoiceMode({ onDone }: { onDone: () => void }) {
       toast.success(t('toastDebtSaved'), `${parsed.customer_name} · ${fmt(parsed.amount)}`);
       onDone();
     } catch (e: any) {
-      setError(t('error') + ': ' + e.message);
+      // Bu qarzdorning raqami yo'q — shu yerda so'raymiz
+      if (e.message === 'customer_phone_required') {
+        setNeedPhone(true);
+        setError(t('phoneRequired'));
+      } else if (e.message === 'phone_taken') {
+        setError(t('phoneTaken'));
+      } else {
+        setError(t('error') + ': ' + e.message);
+      }
     } finally {
       setBusy(false);
     }
@@ -210,7 +222,28 @@ function VoiceMode({ onDone }: { onDone: () => void }) {
               </span>
             )}
           </div>
-          <button className="btn-primary" onClick={save} disabled={busy}>
+          {needPhone && (
+            <div className="confirm-phone">
+              <label>{t('debtorPhone')}</label>
+              <div className="phone-field inline">
+                <span className="cc">+998</span>
+                <input
+                  className="phone-input"
+                  value={formatPhone(phone).replace('+998', '').trim()}
+                  onChange={(e) => setPhone(phoneDigits(e.target.value))}
+                  inputMode="tel"
+                  placeholder="90 123 45 67"
+                  autoFocus
+                />
+              </div>
+              <p className="field-note">{t('phoneWhy')}</p>
+            </div>
+          )}
+          <button
+            className="btn-primary"
+            onClick={save}
+            disabled={busy || (needPhone && !isPhoneComplete(phone))}
+          >
             <Glyph name="check" size={18} color="#fff" /> {t('save')}
           </button>
         </div>
@@ -230,6 +263,7 @@ function VoiceMode({ onDone }: { onDone: () => void }) {
 
 function ManualMode({ onDone }: { onDone: () => void }) {
   const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
   const [amount, setAmount] = useState('');
   const [note, setNote] = useState('');
   const [dueDate, setDueDate] = useState('');
@@ -244,11 +278,16 @@ function ManualMode({ onDone }: { onDone: () => void }) {
       setError(t('nameAmountRequired'));
       return;
     }
+    if (!isPhoneComplete(phone)) {
+      setError(t('phoneRequired'));
+      return;
+    }
     setBusy(true);
     setError('');
     try {
       await api.createDebt({
         customer_name: name.trim(),
+        customer_phone: phoneE164(phone),
         amount: value,
         note: note || undefined,
         due_date: dueDate || undefined,
@@ -283,6 +322,20 @@ function ManualMode({ onDone }: { onDone: () => void }) {
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Karim aka" />
         </div>
         <div className="form-row">
+          <label>{t('debtorPhone')}</label>
+          <div className="phone-field inline">
+            <span className="cc">+998</span>
+            <input
+              className="phone-input"
+              value={formatPhone(phone).replace('+998', '').trim()}
+              onChange={(e) => setPhone(phoneDigits(e.target.value))}
+              inputMode="tel"
+              placeholder="90 123 45 67"
+            />
+          </div>
+          <p className="field-note">{t('phoneWhy')}</p>
+        </div>
+        <div className="form-row">
           <label>
             {t('dueDate')} <span className="tag">{t('optional')}</span>
           </label>
@@ -296,7 +349,11 @@ function ManualMode({ onDone }: { onDone: () => void }) {
         </div>
       </div>
 
-      <button className="btn-primary btn-lg" onClick={save} disabled={busy || !name.trim() || !value}>
+      <button
+        className="btn-primary btn-lg"
+        onClick={save}
+        disabled={busy || !name.trim() || !value || !isPhoneComplete(phone)}
+      >
         <Glyph name="check" size={19} color="#fff" /> {t('addDebtBtn')}
       </button>
       {error && <p className="error center">{error}</p>}

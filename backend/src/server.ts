@@ -10,6 +10,7 @@ import { runReminders, startReminderScheduler } from './reminders.js';
 import { handleUpdate, verifyInitData, telegramEnabled, setWebhook } from './telegram.js';
 import { registerAdminRoutes, seedAdmin } from './admin.js';
 import { normalizeBarcode, barcodeVariants, checkGtin } from './barcodes.js';
+import { normalizePhone } from './phone.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const UPLOADS_DIR = join(__dirname, '..', 'uploads');
@@ -301,14 +302,21 @@ app.post<{ Body: { name: string; phone?: string; language?: string; note?: strin
   '/customers',
   { preHandler: requireAuth },
   async (req, reply) => {
-    const { name, phone, language, note } = req.body;
+    const { name, language, note } = req.body;
     if (!name?.trim()) return reply.code(400).send({ error: 'name_required' });
+    // Telefonsiz mijoz bo'lmaydi: eslatma ham, qo'ng'iroq ham shu raqamga boradi
+    const phone = normalizePhone(req.body.phone);
+    if (!phone) return reply.code(400).send({ error: 'phone_required' });
+    const dup = db
+      .prepare('SELECT id, name FROM customers WHERE shop_id = ? AND phone = ?')
+      .get(req.shopId, phone) as any;
+    if (dup) return reply.code(409).send({ error: 'phone_taken', customer: dup });
     const shop = db.prepare('SELECT default_reminder_mode FROM shops WHERE id = ?').get(req.shopId) as any;
     const info = db
       .prepare(
         'INSERT INTO customers (shop_id, name, phone, language, note, reminder_mode) VALUES (?, ?, ?, ?, ?, ?)'
       )
-      .run(req.shopId, name.trim(), phone ?? null, language ?? 'uz', note ?? null, shop.default_reminder_mode);
+      .run(req.shopId, name.trim(), phone, language ?? 'uz', note ?? null, shop.default_reminder_mode);
     return db.prepare('SELECT * FROM customers WHERE id = ?').get(info.lastInsertRowid);
   }
 );
@@ -335,7 +343,16 @@ app.patch<{ Params: { id: string }; Body: Record<string, unknown> }>(
       .prepare('SELECT * FROM customers WHERE id = ? AND shop_id = ?')
       .get(req.params.id, req.shopId);
     if (!customer) return reply.code(404).send({ error: 'not_found' });
-    for (const key of ['name', 'phone', 'language', 'reminder_mode', 'note']) {
+    if ('phone' in req.body) {
+      const phone = normalizePhone(req.body.phone as string);
+      if (!phone) return reply.code(400).send({ error: 'phone_required' });
+      const dup = db
+        .prepare('SELECT id, name FROM customers WHERE shop_id = ? AND phone = ? AND id != ?')
+        .get(req.shopId, phone, req.params.id) as any;
+      if (dup) return reply.code(409).send({ error: 'phone_taken', customer: dup });
+      db.prepare('UPDATE customers SET phone = ? WHERE id = ?').run(phone, req.params.id);
+    }
+    for (const key of ['name', 'language', 'reminder_mode', 'note']) {
       if (key in req.body) {
         db.prepare(`UPDATE customers SET ${key} = ? WHERE id = ?`).run(req.body[key], req.params.id);
       }
@@ -409,25 +426,50 @@ app.patch<{ Body: { default_reminder_mode: string; apply_to_all?: boolean } }>(
 );
 
 // ---------- QARZLAR ----------
-app.post<{ Body: { customer_id?: number; customer_name?: string; amount: number; note?: string; due_date?: string; source?: string } }>(
+app.post<{ Body: { customer_id?: number; customer_name?: string; customer_phone?: string; amount: number; note?: string; due_date?: string; source?: string } }>(
   '/debts',
   { preHandler: requireAuth },
   async (req, reply) => {
     const { customer_id, customer_name, amount, note, due_date, source } = req.body;
     if (!amount || amount <= 0) return reply.code(400).send({ error: 'amount_required' });
+    const phone = normalizePhone(req.body.customer_phone);
+
     let cid = customer_id;
     if (!cid && customer_name) {
-      const existing = db
-        .prepare('SELECT id FROM customers WHERE shop_id = ? AND name = ? COLLATE NOCASE')
-        .get(req.shopId, customer_name.trim()) as any;
-      cid = existing
-        ? existing.id
-        : Number(
-            db.prepare('INSERT INTO customers (shop_id, name) VALUES (?, ?)').run(req.shopId, customer_name.trim())
-              .lastInsertRowid
-          );
+      // Avval raqam bo'yicha (ism takrorlanishi mumkin), so'ng ism bo'yicha
+      const existing = (phone
+        ? db.prepare('SELECT * FROM customers WHERE shop_id = ? AND phone = ?').get(req.shopId, phone)
+        : null) ??
+        db
+          .prepare('SELECT * FROM customers WHERE shop_id = ? AND name = ? COLLATE NOCASE')
+          .get(req.shopId, customer_name.trim()) as any;
+      if (existing) {
+        cid = (existing as any).id;
+      } else {
+        // Yangi qarzdor — telefonsiz bo'lmaydi: eslatma va qo'ng'iroq shu raqamga boradi
+        if (!phone) return reply.code(400).send({ error: 'customer_phone_required' });
+        const shop = db.prepare('SELECT default_reminder_mode FROM shops WHERE id = ?').get(req.shopId) as any;
+        cid = Number(
+          db
+            .prepare('INSERT INTO customers (shop_id, name, phone, reminder_mode) VALUES (?, ?, ?, ?)')
+            .run(req.shopId, customer_name.trim(), phone, shop.default_reminder_mode).lastInsertRowid
+        );
+      }
     }
     if (!cid) return reply.code(400).send({ error: 'customer_required' });
+
+    // Mavjud mijozning raqami yo'q bo'lsa — shu yerda to'ldiriladi yoki so'raladi
+    const customer = db.prepare('SELECT id, name, phone FROM customers WHERE id = ? AND shop_id = ?').get(cid, req.shopId) as any;
+    if (!customer) return reply.code(404).send({ error: 'customer_not_found' });
+    if (!customer.phone) {
+      if (!phone) {
+        return reply.code(400).send({
+          error: 'customer_phone_required',
+          customer: { id: customer.id, name: customer.name },
+        });
+      }
+      db.prepare('UPDATE customers SET phone = ? WHERE id = ?').run(phone, customer.id);
+    }
     const info = db
       .prepare(
         'INSERT INTO debts (shop_id, customer_id, amount, note, due_date, source, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)'
@@ -869,7 +911,7 @@ app.post<{ Body: { items: { product_id: number; actual: number }[] } }>(
 );
 
 // ---------- KASSA ----------
-app.post<{ Body: { items: { product_id: number; qty: number }[]; payment_type: 'cash' | 'card' | 'debt'; customer_id?: number; customer_name?: string; due_date?: string; allow_negative?: boolean } }>(
+app.post<{ Body: { items: { product_id: number; qty: number }[]; payment_type: 'cash' | 'card' | 'debt'; customer_id?: number; customer_name?: string; customer_phone?: string; due_date?: string; allow_negative?: boolean } }>(
   '/sales',
   { preHandler: requireAuth },
   async (req, reply) => {
@@ -889,6 +931,29 @@ app.post<{ Body: { items: { product_id: number; qty: number }[]; payment_type: '
     }
     if (shortage.length > 0 && !req.body.allow_negative) {
       return reply.code(409).send({ error: 'insufficient_stock', items: shortage });
+    }
+
+    // Qarzga sotishda qarzdorning telefoni shart — eslatma va qo'ng'iroq shunga boradi
+    const debtPhone = normalizePhone(req.body.customer_phone);
+    if (payment_type === 'debt') {
+      let known: any = customer_id
+        ? db.prepare('SELECT * FROM customers WHERE id = ? AND shop_id = ?').get(customer_id, req.shopId)
+        : null;
+      if (!known && debtPhone) {
+        known = db.prepare('SELECT * FROM customers WHERE shop_id = ? AND phone = ?').get(req.shopId, debtPhone);
+      }
+      if (!known && customer_name?.trim()) {
+        known = db
+          .prepare('SELECT * FROM customers WHERE shop_id = ? AND name = ? COLLATE NOCASE')
+          .get(req.shopId, customer_name.trim());
+      }
+      if (!known && !customer_name?.trim()) return reply.code(400).send({ error: 'customer_required_for_debt' });
+      if ((!known || !known.phone) && !debtPhone) {
+        return reply.code(400).send({
+          error: 'customer_phone_required',
+          customer: known ? { id: known.id, name: known.name } : null,
+        });
+      }
     }
 
     const tx = db.transaction(() => {
@@ -924,16 +989,30 @@ app.post<{ Body: { items: { product_id: number; qty: number }[]; payment_type: '
       // "Qarzga sotish" — savdo avtomatik qarz daftariga tushadi
       if (payment_type === 'debt') {
         let cid = customer_id;
-        if (!cid && customer_name) {
-          const existing = db
-            .prepare('SELECT id FROM customers WHERE shop_id = ? AND name = ? COLLATE NOCASE')
-            .get(req.shopId, customer_name.trim()) as any;
-          cid = existing
-            ? existing.id
-            : Number(
-                db.prepare('INSERT INTO customers (shop_id, name) VALUES (?, ?)').run(req.shopId, customer_name.trim())
-                  .lastInsertRowid
-              );
+        if (!cid) {
+          const existing = ((debtPhone
+            ? db.prepare('SELECT * FROM customers WHERE shop_id = ? AND phone = ?').get(req.shopId, debtPhone)
+            : null) ??
+            (customer_name
+              ? db
+                  .prepare('SELECT * FROM customers WHERE shop_id = ? AND name = ? COLLATE NOCASE')
+                  .get(req.shopId, customer_name.trim())
+              : null)) as any;
+          if (existing) {
+            cid = existing.id;
+            if (!existing.phone && debtPhone) {
+              db.prepare('UPDATE customers SET phone = ? WHERE id = ?').run(debtPhone, existing.id);
+            }
+          } else {
+            const shop = db.prepare('SELECT default_reminder_mode FROM shops WHERE id = ?').get(req.shopId) as any;
+            cid = Number(
+              db
+                .prepare('INSERT INTO customers (shop_id, name, phone, reminder_mode) VALUES (?, ?, ?, ?)')
+                .run(req.shopId, customer_name!.trim(), debtPhone, shop.default_reminder_mode).lastInsertRowid
+            );
+          }
+        } else if (debtPhone) {
+          db.prepare('UPDATE customers SET phone = COALESCE(NULLIF(phone, ""), ?) WHERE id = ?').run(debtPhone, cid);
         }
         if (!cid) throw new Error('customer_required_for_debt');
         const noteText = lines.map((l) => `${l.product.name} x${l.qty}`).join(', ');

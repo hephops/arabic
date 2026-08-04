@@ -4,7 +4,7 @@ import { AppIcon, Glyph } from '../icons';
 import { NavBar } from '../ui';
 import { useT, LANG_NAMES, type Lang } from '../i18n';
 import { MODES } from './Reminders';
-import { formatAmount, formatPhoneSoft, phoneStore } from '../format';
+import { formatAmount, formatPhoneSoft, phoneStore, formatPhone, phoneDigits, phoneE164, isPhoneComplete } from '../format';
 import { toast } from '../toast';
 
 export default function Customers() {
@@ -273,12 +273,28 @@ export default function Customers() {
           <label>{t('name')}</label>
           <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Karim aka" autoFocus />
           <label>{t('phoneForReminders')}</label>
-          <input value={formatPhoneSoft(newPhone)} onChange={(e) => setNewPhone(phoneStore(e.target.value))} inputMode="tel" placeholder="+998 90 123 45 67" />
+          <div className="phone-field inline">
+            <span className="cc">+998</span>
+            <input
+              className="phone-input"
+              value={formatPhone(newPhone).replace('+998', '').trim()}
+              onChange={(e) => setNewPhone(phoneDigits(e.target.value))}
+              inputMode="tel"
+              placeholder="90 123 45 67"
+            />
+          </div>
+          <p className="field-note">{t('phoneWhy')}</p>
           <button
             className="btn-primary"
+            disabled={!newName.trim() || !isPhoneComplete(newPhone)}
             onClick={async () => {
-              if (!newName.trim()) return;
-              await api.createCustomer({ name: newName.trim(), phone: newPhone.trim() || undefined });
+              if (!newName.trim() || !isPhoneComplete(newPhone)) return;
+              try {
+                await api.createCustomer({ name: newName.trim(), phone: phoneE164(newPhone) });
+              } catch (err: any) {
+                toast.error(err.message === 'phone_taken' ? t('phoneTaken') : t('error'));
+                return;
+              }
               toast.success(t('toastCustomerAdded'), newName.trim());
               setNewName('');
               setNewPhone('');

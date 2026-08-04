@@ -67,7 +67,7 @@ export const api = {
   customer: (id: number) => request<CustomerDetail>(`/customers/${id}`),
   createCustomer: (data: { name: string; phone?: string }) =>
     request<Customer>('/customers', { method: 'POST', body: JSON.stringify(data) }),
-  createDebt: (data: { customer_id?: number; customer_name?: string; amount: number; note?: string; due_date?: string; source?: string }) =>
+  createDebt: (data: { customer_id?: number; customer_name?: string; customer_phone?: string; amount: number; note?: string; due_date?: string; source?: string }) =>
     request<Debt>('/debts', { method: 'POST', body: JSON.stringify(data) }),
   payDebt: (id: number, amount: number) =>
     request<Debt>(`/debts/${id}/payments`, { method: 'POST', body: JSON.stringify({ amount }) }),
@@ -82,7 +82,7 @@ export const api = {
   },
   intake: (data: { barcode?: string; name: string; unit?: string; cost_price?: number; sell_price?: number; qty?: number; expiry_date?: string; image?: string }) =>
     request<Product>('/products/intake', { method: 'POST', body: JSON.stringify(data) }),
-  createSale: (data: { items: { product_id: number; qty: number }[]; payment_type: 'cash' | 'card' | 'debt'; customer_id?: number; customer_name?: string; due_date?: string; allow_negative?: boolean }) =>
+  createSale: (data: { items: { product_id: number; qty: number }[]; payment_type: 'cash' | 'card' | 'debt'; customer_id?: number; customer_name?: string; customer_phone?: string; due_date?: string; allow_negative?: boolean }) =>
     request<Sale>('/sales', { method: 'POST', body: JSON.stringify(data) }),
   reports: (period: 'day' | 'week' | 'month') => request<Report>(`/reports/summary?period=${period}`),
   suppliers: () => request<Supplier[]>('/suppliers'),

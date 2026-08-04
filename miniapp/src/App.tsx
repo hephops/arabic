@@ -114,6 +114,7 @@ export default function App() {
 
       <Dock
         tab={tab}
+        sub={sub}
         active={!sub}
         onNavigate={(target: NavTarget) => {
           setSub(target.sub ?? null);

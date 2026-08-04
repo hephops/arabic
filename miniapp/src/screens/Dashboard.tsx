@@ -128,6 +128,8 @@ export default function Dashboard({
         ))}
       </div>
 
+      <div className="home-cols">
+        <div>
       {data.overdue.length > 0 && (
         <>
           <div className="section-title">{t('overdueDebts')}</div>
@@ -161,6 +163,8 @@ export default function Dashboard({
         </>
       )}
 
+        </div>
+        <div>
       {data.recent_sales.length > 0 && (
         <>
           <div className="section-title">{t('recentSales')}</div>
@@ -246,6 +250,9 @@ export default function Dashboard({
           </div>
         </>
       )}
+
+        </div>
+      </div>
 
       {data.overdue.length === 0 &&
         data.due_today.length === 0 &&

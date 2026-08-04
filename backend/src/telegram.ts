@@ -1,6 +1,7 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { db } from './db.js';
 import { parseDebtText } from './voice.js';
+import { normalizePhone } from './phone.js';
 
 // Telegram Bot API va Mini App integratsiyasi.
 // Token .env faylida (TELEGRAM_BOT_TOKEN) — kodga yozilmaydi.
@@ -147,15 +148,45 @@ export async function handleUpdate(update: any) {
     return;
   }
 
+  // Matndagi telefon raqami (bo'lsa) — qarzdorga eslatma shunga boradi
+  const phoneInText = normalizePhone((cleaned.match(/(\+?998[\s-]?\d[\d\s-]{7,})|(\b\d{2}[\s-]?\d{3}[\s-]?\d{2}[\s-]?\d{2}\b)/) ?? [])[0] ?? '');
+
   // Mijozni topamiz yoki yaratamiz
-  let customer = db
-    .prepare('SELECT * FROM customers WHERE shop_id = ? AND name = ? COLLATE NOCASE')
-    .get(shop.id, parsed.customer_name) as any;
+  let customer = ((phoneInText
+    ? db.prepare('SELECT * FROM customers WHERE shop_id = ? AND phone = ?').get(shop.id, phoneInText)
+    : null) ??
+    db
+      .prepare('SELECT * FROM customers WHERE shop_id = ? AND name = ? COLLATE NOCASE')
+      .get(shop.id, parsed.customer_name)) as any;
+
   if (!customer) {
+    // Yangi qarzdor — telefonsiz yozilmaydi, aks holda eslatma yubora olmaymiz
+    if (!phoneInText) {
+      await sendMessage(
+        chatId,
+        `📞 <b>${parsed.customer_name}</b> hali ro'yxatda yo'q.\n\n` +
+          "Yangi qarzdorning telefon raqamini ham yozing — eslatma va qo'ng'iroq o'sha raqamga boradi.\n\n" +
+          `Masalan: «${cleaned} 90 123 45 67»`,
+        { reply_markup: miniAppKeyboard() }
+      );
+      return;
+    }
     const info = db
-      .prepare('INSERT INTO customers (shop_id, name, reminder_mode) VALUES (?, ?, ?)')
-      .run(shop.id, parsed.customer_name, shop.default_reminder_mode ?? 'soft');
+      .prepare('INSERT INTO customers (shop_id, name, phone, reminder_mode) VALUES (?, ?, ?, ?)')
+      .run(shop.id, parsed.customer_name, phoneInText, shop.default_reminder_mode ?? 'soft');
     customer = db.prepare('SELECT * FROM customers WHERE id = ?').get(info.lastInsertRowid);
+  } else if (!customer.phone) {
+    if (!phoneInText) {
+      await sendMessage(
+        chatId,
+        `📞 <b>${customer.name}</b> ning telefon raqami yo'q.\n\n` +
+          "Raqamni ham qo'shib yozing — eslatma va qo'ng'iroq o'sha raqamga boradi.",
+        { reply_markup: miniAppKeyboard() }
+      );
+      return;
+    }
+    db.prepare('UPDATE customers SET phone = ? WHERE id = ?').run(phoneInText, customer.id);
+    customer.phone = phoneInText;
   }
   db.prepare(
     "INSERT INTO debts (shop_id, customer_id, amount, note, due_date, source) VALUES (?, ?, ?, ?, ?, 'voice')"
