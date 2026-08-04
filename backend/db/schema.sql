@@ -59,9 +59,14 @@ INSERT OR IGNORE INTO settings (key, value) VALUES
 CREATE TABLE IF NOT EXISTS balance_transactions (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   shop_id INTEGER NOT NULL REFERENCES shops(id),
-  type TEXT NOT NULL,                            -- topup | subscription
+  type TEXT NOT NULL,                            -- topup | subscription | refund
   amount INTEGER NOT NULL,                       -- + to'ldirish, - yechim
   note TEXT,
+  method TEXT,                                   -- naqd | karta | bank | payme | click | uzum
+  doc_no TEXT,                                   -- hujjat/kvitansiya raqami
+  payer TEXT,                                    -- to'lovchi ismi
+  admin_id INTEGER,                              -- qo'lda kiritgan admin
+  paid_at TEXT,                                  -- to'lov sanasi (kiritilgan)
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 

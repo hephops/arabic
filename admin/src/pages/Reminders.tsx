@@ -34,8 +34,6 @@ export default function Reminders() {
 
   return (
     <>
-      <div className="page-title">Eslatmalar</div>
-      <div className="page-sub">SMS, Telegram va AI qo'ng'iroqlar tarixi</div>
 
       <div className="cards">
         {stats.map((s) => (
@@ -99,7 +97,7 @@ export default function Reminders() {
       </div>
 
       {open && (
-        <div className="modal-back" onClick={() => setOpen(null)}>
+        <div className="modal-wrap" onClick={() => setOpen(null)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <h3>{CHANNEL_LABEL[open.channel] ?? open.channel}</h3>
             <div className="sub">

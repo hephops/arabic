@@ -49,7 +49,16 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ amount, note }),
     }),
-  payments: (type = 'all') => request<Payment[]>(`/admin/payments?type=${type}`),
+  payments: (params: PaymentQuery = {}) => {
+    const qs = new URLSearchParams(
+      Object.entries(params).filter(([, v]) => v !== undefined && v !== '') as [string, string][]
+    ).toString();
+    return request<PaymentsPage>(`/admin/payments${qs ? `?${qs}` : ''}`);
+  },
+  addPayment: (data: NewPayment) =>
+    request<Payment>('/admin/payments', { method: 'POST', body: JSON.stringify(data) }),
+  deletePayment: (id: number) => request<{ ok: boolean }>(`/admin/payments/${id}`, { method: 'DELETE' }),
+  shopsSummary: () => request<ShopsSummary>('/admin/shops/summary'),
   reminders: (channel = 'all') =>
     request<{ rows: ReminderLog[]; stats: { channel: string; c: number }[] }>(`/admin/reminders?channel=${channel}`),
   settings: () => request<Record<string, string>>('/admin/settings'),
@@ -127,8 +136,56 @@ export interface Payment {
   amount: number;
   note: string | null;
   created_at: string;
+  method?: string | null;
+  doc_no?: string | null;
+  payer?: string | null;
+  paid_at?: string | null;
+  admin_username?: string | null;
   shop_name?: string;
   shop_phone?: string;
+}
+
+export interface PaymentQuery {
+  type?: string;
+  shop_id?: number;
+  from?: string;
+  to?: string;
+  q?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export interface PaymentsPage {
+  rows: Payment[];
+  total: number;
+  summary: {
+    kirim: number;
+    chiqim: number;
+    qaytarilgan: number;
+    qoldiq: number;
+    qarz: number;
+    count: number;
+  };
+}
+
+export interface NewPayment {
+  shop_id: number;
+  direction: 'in' | 'out';
+  amount: number;
+  paid_at?: string;
+  method?: string;
+  doc_no?: string;
+  payer?: string;
+  note?: string;
+}
+
+export interface ShopsSummary {
+  jami: number;
+  faol: number;
+  bloklangan: number;
+  bepul: number;
+  premium: number;
+  biznes: number;
 }
 
 export interface ReminderLog {

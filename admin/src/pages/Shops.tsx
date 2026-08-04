@@ -1,48 +1,109 @@
 import { useEffect, useState } from 'react';
-import { api, fmt, fmtNum, type Shop, type ShopDetail, fmtPhone } from '../api';
+import { api, fmt, fmtNum, fmtPhone, type Shop, type ShopDetail, type ShopsSummary } from '../api';
+import { AppIcon, Glyph } from '../icons';
 
 const PLAN_LABEL: Record<string, string> = { free: 'Bepul', premium: 'Premium', business: 'Biznes' };
+const PAGE_SIZES = [10, 25, 50, 100];
 
 export default function Shops() {
   const [rows, setRows] = useState<Shop[]>([]);
   const [total, setTotal] = useState(0);
+  const [sum, setSum] = useState<ShopsSummary | null>(null);
   const [q, setQ] = useState('');
   const [plan, setPlan] = useState('all');
+  const [status, setStatus] = useState('all');
+  const [limit, setLimit] = useState(10);
+  const [offset, setOffset] = useState(0);
   const [selected, setSelected] = useState<ShopDetail | null>(null);
 
   function load() {
-    api.shops({ q, plan }).then((r) => {
+    api.shops({ q, plan, limit, offset }).then((r) => {
       setRows(r.rows);
       setTotal(r.total);
     });
+    api.shopsSummary().then(setSum).catch(() => {});
   }
 
   useEffect(() => {
     const timer = setTimeout(load, q ? 300 : 0);
     return () => clearTimeout(timer);
-  }, [q, plan]);
+  }, [q, plan, limit, offset]);
+  useEffect(() => setOffset(0), [q, plan, status, limit]);
+
+  // Holat bo'yicha filtr ro'yxat ichida qo'llanadi
+  const shown = rows.filter((s) =>
+    status === 'all' ? true : status === 'blocked' ? !!s.is_blocked : !s.is_blocked
+  );
+  const pageFrom = total === 0 ? 0 : offset + 1;
+  const pageTo = Math.min(offset + limit, total);
+  const filtered = !!q || plan !== 'all' || status !== 'all';
 
   return (
     <>
-      <div className="page-title">Do'konlar</div>
-      <div className="page-sub">Jami: {fmtNum(total)}</div>
-
-      <div className="toolbar">
-        <input
-          placeholder="Nomi, telefoni yoki ega ismi bo'yicha qidirish..."
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          style={{ flex: 1, minWidth: 260 }}
-        />
-        <select value={plan} onChange={(e) => setPlan(e.target.value)}>
-          <option value="all">Barcha tariflar</option>
-          <option value="free">Bepul</option>
-          <option value="premium">Premium</option>
-          <option value="business">Biznes</option>
-        </select>
+      <div className="cards">
+        <Stat glyph="house" color="accent" k="Jami do'konlar" v={fmtNum(sum?.jami ?? 0)} />
+        <Stat glyph="people" color="green" k="Faol" v={fmtNum(sum?.faol ?? 0)} />
+        <Stat glyph="warning" color="red" k="Bloklangan" v={fmtNum(sum?.bloklangan ?? 0)} />
+        <Stat glyph="box" color="" k="Bepul" v={fmtNum(sum?.bepul ?? 0)} />
+        <Stat glyph="crown" color="accent" k="Premium" v={fmtNum(sum?.premium ?? 0)} />
+        <Stat glyph="banknote" color="indigo" k="Biznes" v={fmtNum(sum?.biznes ?? 0)} />
       </div>
 
-      <div className="panel" style={{ padding: 0, overflowX: 'auto' }}>
+      <div className="panel">
+        <div className="filters">
+          <div className="f wide">
+            <label>Qidiruv</label>
+            <input
+              placeholder="Nomi, telefoni yoki ega ismi bo'yicha qidirish..."
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+            />
+          </div>
+          <div className="f">
+            <label>Tarif</label>
+            <select value={plan} onChange={(e) => setPlan(e.target.value)}>
+              <option value="all">Barcha tariflar</option>
+              <option value="free">Bepul</option>
+              <option value="premium">Premium</option>
+              <option value="business">Biznes</option>
+            </select>
+          </div>
+          <div className="f">
+            <label>Holat</label>
+            <select value={status} onChange={(e) => setStatus(e.target.value)}>
+              <option value="all">Barcha holat</option>
+              <option value="active">Faol</option>
+              <option value="blocked">Bloklangan</option>
+            </select>
+          </div>
+          <div className="f clear">
+            <button
+              className="btn ghost"
+              onClick={() => { setQ(''); setPlan('all'); setStatus('all'); }}
+              disabled={!filtered}
+            >
+              <Glyph name="close" size={15} /> Tozalash
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div className="toolbar">
+        <div className="panel-title" style={{ margin: 0 }}>Do'konlar ro'yxati</div>
+        <div className="spacer" />
+        <select value={limit} onChange={(e) => setLimit(Number(e.target.value))} style={{ width: 90 }}>
+          {PAGE_SIZES.map((n) => <option key={n} value={n}>{n}</option>)}
+        </select>
+        <button className="btn ghost sm" onClick={() => setOffset(Math.max(0, offset - limit))} disabled={offset === 0}>
+          Oldingi
+        </button>
+        <button className="btn ghost sm" onClick={() => setOffset(offset + limit)} disabled={pageTo >= total}>
+          Keyingi
+        </button>
+        <span className="muted" style={{ fontSize: 13 }}>{pageFrom}–{pageTo} / {fmtNum(total)}</span>
+      </div>
+
+      <div className="table-wrap">
         <table>
           <thead>
             <tr>
@@ -52,37 +113,56 @@ export default function Shops() {
               <th className="num">Balans</th>
               <th className="num">Mijoz</th>
               <th className="num">Qarz</th>
+              <th>Holat</th>
               <th>Ro'yxatdan</th>
               <th />
             </tr>
           </thead>
           <tbody>
-            {rows.map((s) => (
+            {shown.map((s) => (
               <tr key={s.id} className="clickable" onClick={async () => setSelected(await api.shop(s.id))}>
                 <td>
-                  <b>{s.name}</b>
-                  {s.owner_name && <span className="muted"> · {s.owner_name}</span>}
-                  {!!s.is_blocked && <span className="badge blocked" style={{ marginLeft: 6 }}>bloklangan</span>}
+                  <div className="cell-main">{s.name}</div>
+                  <div className="cell-sub">{s.owner_name ?? '—'}</div>
                 </td>
                 <td className="muted">{fmtPhone(s.phone)}</td>
                 <td>
                   <span className={`badge ${s.plan}`}>{PLAN_LABEL[s.plan] ?? s.plan}</span>
-                  {s.plan_expires_at && <div className="muted" style={{ fontSize: 12 }}>{s.plan_expires_at}</div>}
+                  {s.plan_expires_at && <div className="cell-sub">{s.plan_expires_at}</div>}
                 </td>
-                <td className="num">{fmtNum(s.balance)}</td>
+                <td className="num" style={{ fontWeight: 600, color: s.balance < 0 ? 'var(--red)' : undefined }}>
+                  {fmtNum(s.balance)} so'm
+                </td>
                 <td className="num">{s.customers_count ?? 0}</td>
                 <td className="num">{s.debts_count ?? 0}</td>
+                <td>
+                  <span className={`badge ${s.is_blocked ? 'bad' : 'ok'}`}>
+                    {s.is_blocked ? 'Bloklangan' : 'Faol'}
+                  </span>
+                </td>
                 <td className="muted">{s.created_at.slice(0, 10)}</td>
-                <td className="num">›</td>
+                <td className="num"><Glyph name="chevron" size={15} color="#c7c7cc" /></td>
               </tr>
             ))}
           </tbody>
         </table>
-        {rows.length === 0 && <div className="empty">Do'kon topilmadi</div>}
+        {shown.length === 0 && <div className="empty">Do'kon topilmadi</div>}
       </div>
 
       {selected && <ShopModal shop={selected} onClose={() => setSelected(null)} onChanged={load} />}
     </>
+  );
+}
+
+function Stat({ glyph, color, k, v }: { glyph: string; color: string; k: string; v: string }) {
+  return (
+    <div className="stat">
+      <AppIcon glyph={glyph} size={38} />
+      <div className="txt">
+        <div className="k">{k}</div>
+        <div className={`v ${color}`}>{v}</div>
+      </div>
+    </div>
   );
 }
 
@@ -108,31 +188,40 @@ function ShopModal({
   }
 
   return (
-    <div className="modal-back" onClick={onClose}>
+    <div className="modal-wrap" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <h3>{data.name}</h3>
-        <div className="sub">
+        <div className="modal-head">
+          <AppIcon glyph="house" size={34} />
+          <div className="modal-title">{data.name}</div>
+        </div>
+        <div className="modal-sub">
           {fmtPhone(data.phone)} {data.owner_name && `· ${data.owner_name}`}
           {data.telegram_user_id ? ' · Telegram ulangan' : ''}
         </div>
 
         <div className="cards" style={{ gridTemplateColumns: 'repeat(3, 1fr)', marginBottom: 14 }}>
           <div className="stat">
-            <div className="k">Mijozlar</div>
-            <div className="v" style={{ fontSize: 18 }}>{data.stats.customers}</div>
+            <div className="txt">
+              <div className="k">Mijozlar</div>
+              <div className="v" style={{ fontSize: 18 }}>{data.stats.customers}</div>
+            </div>
           </div>
           <div className="stat">
-            <div className="k">Ochiq qarz</div>
-            <div className="v red" style={{ fontSize: 18 }}>{fmtNum(data.stats.open_debt)}</div>
+            <div className="txt">
+              <div className="k">Ochiq qarz</div>
+              <div className="v red" style={{ fontSize: 18 }}>{fmtNum(data.stats.open_debt)}</div>
+            </div>
           </div>
           <div className="stat">
-            <div className="k">Sotuvlar</div>
-            <div className="v" style={{ fontSize: 18 }}>{data.stats.sales}</div>
+            <div className="txt">
+              <div className="k">Sotuvlar</div>
+              <div className="v" style={{ fontSize: 18 }}>{data.stats.sales}</div>
+            </div>
           </div>
         </div>
 
         <div className="panel" style={{ marginBottom: 12 }}>
-          <h3>Tarif va balans</h3>
+          <div className="panel-title">Tarif va balans</div>
           <div className="muted" style={{ marginBottom: 10 }}>
             Joriy: <b>{PLAN_LABEL[data.plan] ?? data.plan}</b>
             {data.plan_expires_at && ` (${data.plan_expires_at} gacha)`} · Balans: <b>{fmt(data.balance)}</b>
@@ -184,7 +273,7 @@ function ShopModal({
         </div>
 
         <div className="panel">
-          <h3>Kirish huquqi</h3>
+          <div className="panel-title">Kirish huquqi</div>
           {data.is_blocked ? (
             <>
               <div className="muted" style={{ marginBottom: 8 }}>
@@ -225,7 +314,7 @@ function ShopModal({
 
         {data.transactions.length > 0 && (
           <div className="panel">
-            <h3>Balans tarixi</h3>
+            <div className="panel-title">Balans tarixi</div>
             <table>
               <tbody>
                 {data.transactions.slice(0, 10).map((t) => (
@@ -243,7 +332,7 @@ function ShopModal({
           </div>
         )}
 
-        {msg && <p className="ok-msg">{msg}</p>}
+        {msg && <p className="hint" style={{ color: 'var(--green)' }}>{msg}</p>}
         <div className="modal-actions">
           <button className="btn ghost" onClick={onClose}>
             Yopish

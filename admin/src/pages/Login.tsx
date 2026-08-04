@@ -24,12 +24,18 @@ export default function Login({ onLogin }: { onLogin: (a: Admin) => void }) {
 
   return (
     <div className="login-page">
-      <form className="login-box" onSubmit={submit}>
-        <div className="brand-logo">A</div>
-        <h2>ARABIC.ONE</h2>
-        <p className="sub">Admin panelga kirish</p>
-        <input placeholder="Login" value={username} onChange={(e) => setUsername(e.target.value)} autoFocus />
-        <input placeholder="Parol" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+      <form className="login-card" onSubmit={submit}>
+        <div className="login-logo">A</div>
+        <div className="login-title">ARABIC.ONE</div>
+        <div className="login-sub">Admin panelga kirish</div>
+        <div className="field">
+          <label>Login</label>
+          <input placeholder="admin" value={username} onChange={(e) => setUsername(e.target.value)} autoFocus />
+        </div>
+        <div className="field">
+          <label>Parol</label>
+          <input placeholder="••••••••" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+        </div>
         <button className="btn" type="submit" disabled={busy || !username || !password}>
           Kirish
         </button>

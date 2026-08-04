@@ -15,8 +15,6 @@ export default function Referrals() {
 
   return (
     <>
-      <div className="page-title">Referallar</div>
-      <div className="page-sub">Kim orqali qancha do'kon qo'shildi</div>
 
       <div className="cards">
         <div className="stat">

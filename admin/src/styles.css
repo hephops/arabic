@@ -1,182 +1,387 @@
-/* ARABIC.ONE admin panel — desktop, brend ranglarida */
+/* ARABIC.ONE admin panel — do'kon ilovasi bilan bir xil dizayn tili:
+   iOS uslubidagi kartochkalar, squircle ikonkalar, yig'iladigan yon menyu
+   va pastdagi yashirin panel. */
+
 :root {
-  --bg: #f5f6f8;
-  --sidebar: #0f1b33;
-  --sidebar-2: #16264a;
+  --bg: #f2f2f7;
   --card: #ffffff;
-  --accent: #0a6be8;
-  --text: #16181d;
-  --muted: #6f7683;
-  --border: #e6e8ec;
-  --green: #1cb33f;
-  --red: #e5372a;
-  --yellow: #f5a300;
+  --accent: #007aff;
+  --text: #000000;
+  --muted: #8a8a8e;
+  --separator: rgba(60, 60, 67, 0.1);
+  --fill: #e9e9eb;
+  --green: #34c759;
+  --red: #ff3b30;
+  --yellow: #ff9500;
+  --indigo: #5856d6;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
+html, body { height: 100%; }
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto, sans-serif;
   background: var(--bg);
   color: var(--text);
-  font-size: 14px;
+  font-size: 15px;
   -webkit-font-smoothing: antialiased;
+  overflow: hidden;
 }
+#root { height: 100%; }
 
-/* ── Tuzilma ── */
-.layout { display: flex; min-height: 100vh; }
+button { font-family: inherit; border: none; border-radius: 11px; cursor: pointer; font-size: 15px; font-weight: 500; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 8px; }
+a { color: var(--accent); text-decoration: none; }
 
-.sidebar {
-  width: 232px; flex-shrink: 0;
-  background: linear-gradient(180deg, var(--sidebar), var(--sidebar-2));
-  color: #fff; padding: 18px 12px; position: sticky; top: 0; height: 100vh;
-  display: flex; flex-direction: column;
+input, select, textarea {
+  font-family: inherit; width: 100%; padding: 10px 12px; border-radius: 10px;
+  border: none; background: var(--card); color: var(--text); font-size: 15px; outline: none;
+  box-shadow: inset 0 0 0 0.5px rgba(60, 60, 67, 0.16);
 }
-.brand { display: flex; align-items: center; gap: 10px; padding: 0 8px 18px; }
-.brand-logo {
-  width: 34px; height: 34px; border-radius: 9px;
-  background: linear-gradient(180deg, #3e97f7, #0a6be8);
-  display: flex; align-items: center; justify-content: center;
-  font-weight: 800; font-size: 19px;
-}
-.brand-name { font-weight: 700; font-size: 15px; letter-spacing: 0.2px; }
-.brand-sub { font-size: 11px; opacity: 0.6; }
+input:focus, select:focus, textarea:focus { box-shadow: 0 0 0 1.5px var(--accent); }
+input::placeholder { color: #b9b9be; }
+label { font-size: 12.5px; color: var(--muted); display: block; margin: 0 2px 5px; }
 
-.nav { display: flex; flex-direction: column; gap: 2px; flex: 1; }
-.nav button {
+/* ═══════════ Sahifa ramkasi ═══════════ */
+
+.layout { height: 100vh; }
+.main {
+  height: 100vh; overflow-y: auto;
+  padding-left: 260px;
+  transition: padding-left 0.22s cubic-bezier(0.32, 0.72, 0, 1);
+}
+:root[data-side='min'] .main { padding-left: 68px; }
+.page { max-width: 1240px; margin: 0 auto; padding: 20px 28px 64px; }
+
+.topbar {
+  position: sticky; top: 0; z-index: 40;
   display: flex; align-items: center; gap: 10px;
-  padding: 9px 10px; border-radius: 9px; border: none; cursor: pointer;
-  background: transparent; color: rgba(255, 255, 255, 0.75);
-  font-size: 14px; font-family: inherit; text-align: left; width: 100%;
+  height: 56px; padding: 0 28px;
+  background: rgba(249, 249, 251, 0.9);
+  backdrop-filter: saturate(180%) blur(20px); -webkit-backdrop-filter: saturate(180%) blur(20px);
+  border-bottom: 0.5px solid var(--separator);
 }
-.nav button:hover { background: rgba(255, 255, 255, 0.07); color: #fff; }
-.nav button.active { background: rgba(255, 255, 255, 0.14); color: #fff; font-weight: 600; }
-.nav .ico { width: 18px; text-align: center; opacity: 0.9; }
-
-.sidebar-foot { border-top: 1px solid rgba(255, 255, 255, 0.12); padding-top: 12px; font-size: 12px; }
-.sidebar-foot .who { opacity: 0.75; margin-bottom: 8px; }
-.sidebar-foot button {
-  background: rgba(255, 255, 255, 0.1); color: #fff; border: none; border-radius: 8px;
-  padding: 7px 10px; cursor: pointer; font-family: inherit; font-size: 13px; width: 100%;
+.side-toggle {
+  display: flex; align-items: center; justify-content: center;
+  width: 34px; height: 34px; border-radius: 9px; background: none; color: var(--text);
 }
+.side-toggle:hover { background: rgba(120, 120, 128, 0.12); }
+.topbar-title { font-size: 19px; font-weight: 700; letter-spacing: -0.4px; }
+.topbar-sub { font-size: 12.5px; color: var(--muted); margin-top: -1px; }
+.topbar-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+.who-chip {
+  display: flex; align-items: center; gap: 9px;
+  background: var(--card); border-radius: 12px; padding: 6px 12px 6px 8px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05), 0 0 0 0.5px rgba(60, 60, 67, 0.08);
+}
+.who-chip .nm { font-size: 13.5px; font-weight: 600; line-height: 1.2; }
+.who-chip .rl { font-size: 11.5px; color: var(--muted); }
 
-.main { flex: 1; min-width: 0; padding: 22px 26px 40px; }
-.page-title { font-size: 22px; font-weight: 700; letter-spacing: -0.3px; margin-bottom: 4px; }
-.page-sub { color: var(--muted); margin-bottom: 18px; font-size: 13.5px; }
+/* ═══════════ Yon menyu ═══════════ */
 
-/* ── Kartochkalar ── */
-.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin-bottom: 20px; }
+.side {
+  position: fixed; top: 0; left: 0; bottom: 0; width: 260px; z-index: 60;
+  display: flex; flex-direction: column;
+  padding: 16px 14px 14px;
+  background: rgba(250, 250, 252, 0.92);
+  backdrop-filter: blur(24px) saturate(180%); -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border-right: 0.5px solid var(--separator);
+  overflow: hidden;
+  transition: width 0.22s cubic-bezier(0.32, 0.72, 0, 1), padding 0.22s ease;
+}
+.side-brand {
+  display: flex; align-items: center; gap: 11px; padding: 4px 6px 8px;
+  background: none; text-align: left; width: 100%; flex-shrink: 0;
+  border-bottom: 0.5px solid var(--separator);
+}
+.side-logo {
+  width: 40px; height: 40px; border-radius: 11px; flex-shrink: 0;
+  background: linear-gradient(165deg, #5cabff, #0a5fe0);
+  display: flex; align-items: center; justify-content: center;
+  color: #fff; font-size: 21px; font-weight: 800;
+  box-shadow: 0 6px 14px -6px rgba(10, 95, 224, 0.6);
+}
+.side-brand-text { min-width: 0; overflow: hidden; }
+.side-name { font-size: 15.5px; font-weight: 700; letter-spacing: -0.3px; white-space: nowrap; }
+.side-sub { font-size: 11.5px; color: var(--muted); white-space: nowrap; }
+
+.side-scroll {
+  flex: 1; overflow-y: auto; overflow-x: hidden;
+  display: flex; flex-direction: column; gap: 16px; padding-top: 14px;
+  scrollbar-width: none;
+}
+.side-scroll::-webkit-scrollbar { display: none; }
+.side-group { display: flex; flex-direction: column; gap: 2px; }
+.side-group + .side-group { border-top: 0.5px solid var(--separator); padding-top: 14px; }
+.side-item {
+  display: flex; align-items: center; gap: 11px;
+  padding: 9px 10px; border-radius: 11px; background: none;
+  font-size: 14.5px; font-weight: 500; color: var(--text); text-align: left; width: 100%;
+  white-space: nowrap;
+}
+.side-item:hover { background: rgba(120, 120, 128, 0.1); }
+.side-item.active { background: rgba(0, 122, 255, 0.11); color: var(--accent); font-weight: 600; }
+.side-foot { flex-shrink: 0; padding-top: 12px; border-top: 0.5px solid var(--separator); }
+.side-out {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  padding: 9px 10px; border-radius: 11px; background: none;
+  color: var(--red); font-size: 14px; font-weight: 500; white-space: nowrap;
+}
+.side-out:hover { background: rgba(255, 59, 48, 0.09); }
+
+:root[data-side='min'] .side { width: 68px; padding-left: 10px; padding-right: 10px; }
+:root[data-side='min'] .side-label,
+:root[data-side='min'] .side-brand-text { display: none; }
+:root[data-side='min'] .side-item,
+:root[data-side='min'] .side-brand,
+:root[data-side='min'] .side-out { justify-content: center; padding-left: 0; padding-right: 0; gap: 0; }
+
+/* ═══════════ Pastdagi yashirin panel ═══════════ */
+
+.deck {
+  display: flex; flex-direction: column; align-items: center;
+  position: fixed; left: 260px; right: 0; bottom: 0;
+  z-index: 56; pointer-events: none;
+  transition: left 0.22s cubic-bezier(0.32, 0.72, 0, 1);
+}
+:root[data-side='min'] .deck { left: 68px; }
+.deck-backdrop { position: fixed; inset: 0; z-index: 55; }
+.deck-items {
+  display: flex; align-items: flex-end; gap: 8px; padding: 12px 14px;
+  background: rgba(248, 248, 250, 0.9);
+  backdrop-filter: blur(30px) saturate(180%); -webkit-backdrop-filter: blur(30px) saturate(180%);
+  border-radius: 24px;
+  box-shadow: 0 14px 44px rgba(0, 0, 0, 0.22), 0 0 0 0.5px rgba(0, 0, 0, 0.07);
+  max-width: min(1060px, calc(100% - 32px)); flex-wrap: wrap; justify-content: center;
+  transform: translateY(150%); opacity: 0; pointer-events: none;
+  transition: transform 0.3s cubic-bezier(0.32, 0.72, 0, 1), opacity 0.2s ease;
+}
+.deck.open .deck-items { transform: translateY(0); opacity: 1; pointer-events: auto; }
+.deck-item {
+  position: relative; flex-shrink: 0; background: none; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  transition: transform 0.16s ease;
+}
+.deck-item:hover { transform: translateY(-6px) scale(1.06); }
+.deck-tip {
+  position: absolute; bottom: calc(100% + 10px); left: 50%; transform: translateX(-50%);
+  background: rgba(30, 30, 32, 0.92); color: #fff;
+  font-size: 12px; font-weight: 500; white-space: nowrap;
+  padding: 5px 10px; border-radius: 8px;
+  opacity: 0; pointer-events: none; transition: opacity 0.14s ease;
+}
+.deck-item:hover .deck-tip { opacity: 1; }
+.deck-handle {
+  width: 120px; height: 6px; border-radius: 3px; margin: 9px 0 10px;
+  background: rgba(60, 60, 67, 0.3); pointer-events: auto;
+  transition: background 0.15s ease, width 0.15s ease;
+}
+.deck-handle:hover { background: rgba(60, 60, 67, 0.55); width: 150px; }
+.deck.open .deck-handle { background: var(--accent); }
+
+/* ═══════════ Sahifa elementlari ═══════════ */
+
+.page-title { font-size: 26px; font-weight: 800; letter-spacing: -0.7px; }
+.page-sub { font-size: 13.5px; color: var(--muted); margin: 2px 0 18px; }
+
+/* Ko'rsatkich kartochkalari */
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(168px, 1fr)); gap: 12px; margin-bottom: 16px; }
 .stat {
-  background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px;
+  background: var(--card); border-radius: 16px; padding: 14px 16px;
+  display: flex; align-items: center; gap: 12px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05), 0 0 0 0.5px rgba(60, 60, 67, 0.08);
 }
-.stat .k { font-size: 12.5px; color: var(--muted); margin-bottom: 6px; }
-.stat .v { font-size: 22px; font-weight: 700; letter-spacing: -0.4px; }
+/* Ikonkasiz kartochkalar (eski ko'rinish) ustma-ust joylashadi */
+.stat:not(:has(.txt)) { display: block; }
+.stat .txt { min-width: 0; }
+.stat .k { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stat .v { font-size: 21px; font-weight: 750; letter-spacing: -0.6px; margin-top: 1px; white-space: nowrap; }
 .stat .v.green { color: var(--green); }
 .stat .v.red { color: var(--red); }
 .stat .v.accent { color: var(--accent); }
+.stat .v.yellow { color: var(--yellow); }
+.stat .v.indigo { color: var(--indigo); }
 
+/* Panel (jadval va formalar ostidagi oq maydon) */
 .panel {
-  background: var(--card); border: 1px solid var(--border); border-radius: 12px;
-  padding: 16px 18px; margin-bottom: 16px;
+  background: var(--card); border-radius: 16px; padding: 16px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05), 0 0 0 0.5px rgba(60, 60, 67, 0.08);
+  margin-bottom: 14px;
 }
-.panel h3 { font-size: 15px; font-weight: 650; margin-bottom: 12px; }
+.panel-title {
+  font-size: 12.5px; color: var(--muted); font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 10px;
+}
+/* Sozlamalar kabi sahifalardagi bo'lim sarlavhalari */
+.panel h3 { font-size: 16px; font-weight: 700; letter-spacing: -0.3px; margin-bottom: 2px; }
+.panel h3 + .sub, .panel > .sub { font-size: 12.5px; color: var(--muted); margin-bottom: 12px; }
+.panel .field + .field { margin-top: 12px; }
 
-/* ── Jadval ── */
-table { width: 100%; border-collapse: collapse; }
-th {
-  text-align: left; font-size: 12px; font-weight: 600; color: var(--muted);
-  text-transform: uppercase; letter-spacing: 0.4px; padding: 8px 10px;
-  border-bottom: 1px solid var(--border);
+/* Filtrlar qatori */
+.filters {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px;
+  align-items: end;
 }
-td { padding: 10px; border-bottom: 1px solid var(--border); font-size: 13.5px; vertical-align: middle; }
-tbody tr:hover { background: #fafbfc; }
+.filters .clear { display: flex; gap: 8px; align-items: center; }
+.filters .clear .btn { padding: 10px 14px; }
+.filters .f label { margin-bottom: 4px; }
+.filters .wide { grid-column: span 2; }
+
+/* Tugmalar */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  padding: 10px 18px; border-radius: 11px;
+  background: var(--accent); color: #fff; font-weight: 600; font-size: 14.5px;
+  white-space: nowrap;
+}
+.btn:hover { filter: brightness(1.07); }
+.btn:disabled { opacity: 0.4; cursor: default; filter: none; }
+.btn.ghost { background: var(--card); color: var(--text); box-shadow: 0 0 0 0.5px rgba(60, 60, 67, 0.16); }
+.btn.ghost:hover { background: #f7f7fa; filter: none; }
+.btn.danger { background: var(--red); }
+.btn.sm { padding: 7px 13px; font-size: 13px; border-radius: 9px; }
+.icon-btn {
+  width: 30px; height: 30px; border-radius: 9px; background: rgba(120, 120, 128, 0.1);
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.icon-btn:hover { background: rgba(120, 120, 128, 0.2); }
+.icon-btn.danger:hover { background: rgba(255, 59, 48, 0.15); }
+
+.toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+.toolbar .spacer { flex: 1; }
+
+/* Jadval */
+.table-wrap { overflow-x: auto; border-radius: 16px; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+thead th {
+  text-align: left; font-size: 11.5px; font-weight: 600; color: var(--muted);
+  text-transform: uppercase; letter-spacing: 0.4px;
+  padding: 0 14px 10px; white-space: nowrap;
+}
+tbody tr { background: var(--card); }
+tbody tr:not(:last-child) td { border-bottom: 0.5px solid var(--separator); }
+tbody td { padding: 12px 14px; vertical-align: middle; }
+tbody tr:hover { background: #fafafc; }
 tbody tr.clickable { cursor: pointer; }
-.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+td.num, th.num { text-align: right; white-space: nowrap; }
 .muted { color: var(--muted); }
-
-/* ── Boshqaruv elementlari ── */
-.toolbar { display: flex; gap: 8px; align-items: center; margin-bottom: 14px; flex-wrap: wrap; }
-input, select {
-  font-family: inherit; font-size: 14px; padding: 8px 11px;
-  border: 1px solid var(--border); border-radius: 9px; background: #fff; color: var(--text);
-  outline: none;
-}
-input:focus, select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(10, 107, 232, 0.12); }
-label { display: block; font-size: 12.5px; color: var(--muted); margin-bottom: 5px; }
-.field { margin-bottom: 12px; }
-
-button.btn {
-  font-family: inherit; font-size: 14px; font-weight: 600; padding: 8px 15px;
-  border-radius: 9px; border: none; cursor: pointer;
-  background: var(--accent); color: #fff;
-}
-button.btn:hover { filter: brightness(1.06); }
-button.btn:disabled { opacity: 0.45; cursor: default; }
-button.btn.ghost { background: #eef0f3; color: var(--text); }
-button.btn.danger { background: var(--red); }
-button.btn.sm { padding: 5px 11px; font-size: 13px; }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; }
+.cell-main { font-weight: 600; }
+.cell-sub { font-size: 12px; color: var(--muted); margin-top: 1px; }
 
 .badge {
-  display: inline-block; padding: 2px 9px; border-radius: 20px; font-size: 12px; font-weight: 600;
+  display: inline-block; font-size: 11.5px; font-weight: 600;
+  padding: 3px 9px; border-radius: 8px; white-space: nowrap;
 }
-.badge.free { background: #eef0f3; color: var(--muted); }
-.badge.premium { background: rgba(10, 107, 232, 0.1); color: var(--accent); }
-.badge.business { background: rgba(139, 61, 219, 0.12); color: #8b3ddb; }
-.badge.blocked { background: rgba(229, 55, 42, 0.12); color: var(--red); }
-.badge.ok { background: rgba(28, 179, 63, 0.12); color: var(--green); }
+.badge.ok { background: rgba(52, 199, 89, 0.14); color: #1e8e3e; }
+.badge.premium { background: rgba(0, 122, 255, 0.12); color: var(--accent); }
+.badge.business { background: rgba(88, 86, 214, 0.14); color: var(--indigo); }
+.badge.free { background: rgba(120, 120, 128, 0.14); color: var(--muted); }
+.badge.warn { background: rgba(255, 149, 0, 0.16); color: #b36b00; }
+.badge.bad { background: rgba(255, 59, 48, 0.12); color: var(--red); }
 
-/* ── Grafik ── */
-.chart { display: flex; align-items: flex-end; gap: 5px; height: 110px; padding-top: 6px; }
-.chart .col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 5px; }
-.chart .bar { width: 100%; background: var(--accent); border-radius: 4px 4px 0 0; min-height: 2px; opacity: 0.85; }
-.chart .bar:hover { opacity: 1; }
-.chart .lbl { font-size: 10px; color: var(--muted); }
+.pager { display: flex; align-items: center; gap: 8px; justify-content: flex-end; padding: 10px 2px 0; }
+.pager .info { font-size: 13px; color: var(--muted); margin-left: 4px; }
 
-/* ── Kirish sahifasi ── */
-.login-page {
-  min-height: 100vh; display: flex; align-items: center; justify-content: center;
-  background: linear-gradient(135deg, #0f1b33, #16264a 60%, #1d3a72);
-}
-.login-box {
-  background: #fff; border-radius: 16px; padding: 30px 28px; width: 360px;
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
-}
-.login-box .brand-logo { width: 52px; height: 52px; border-radius: 13px; font-size: 27px; margin: 0 auto 14px; color: #fff; }
-.login-box h2 { text-align: center; font-size: 19px; margin-bottom: 3px; }
-.login-box p.sub { text-align: center; color: var(--muted); font-size: 13px; margin-bottom: 20px; }
-.login-box input { width: 100%; margin-bottom: 10px; }
-.login-box button { width: 100%; margin-top: 4px; }
+.empty { text-align: center; padding: 40px 16px; color: var(--muted); font-size: 14px; }
 
-/* Saqlash paneli — sahifa pastida yopishib turadi */
-.save-bar {
-  position: sticky; bottom: 0; z-index: 20;
-  display: flex; gap: 10px; align-items: center;
-  background: #fff; border: 1px solid var(--border); border-radius: 12px;
-  padding: 12px 16px; margin-top: 4px;
-  box-shadow: 0 -6px 18px rgba(15, 27, 51, 0.06);
-}
-.save-bar .error, .save-bar .ok-msg { margin-top: 0; }
-
-.error { color: var(--red); font-size: 13px; margin-top: 8px; }
-.ok-msg { color: var(--green); font-size: 13px; margin-top: 8px; }
-.empty { text-align: center; color: var(--muted); padding: 30px 0; }
-
-/* ── Modal ── */
-.modal-back {
-  position: fixed; inset: 0; background: rgba(15, 27, 51, 0.45); z-index: 100;
+/* Modal oyna */
+.modal-wrap {
+  position: fixed; inset: 0; z-index: 90;
+  background: rgba(0, 0, 0, 0.32);
+  backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
   display: flex; align-items: center; justify-content: center; padding: 20px;
+  animation: fadeIn 0.16s ease-out;
 }
 .modal {
-  background: #fff; border-radius: 14px; padding: 20px 22px; width: 460px; max-width: 100%;
-  max-height: 88vh; overflow-y: auto;
+  width: 100%; max-width: 560px; max-height: 90vh; overflow-y: auto;
+  background: var(--card); border-radius: 20px; padding: 22px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.28);
+  animation: pop 0.2s cubic-bezier(0.32, 0.72, 0, 1);
 }
-.modal h3 { font-size: 17px; margin-bottom: 4px; }
-.modal .sub { color: var(--muted); font-size: 13px; margin-bottom: 16px; }
-.modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+.modal-head { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+.modal-title { font-size: 19px; font-weight: 700; letter-spacing: -0.4px; }
+.modal-sub { font-size: 13px; color: var(--muted); margin-bottom: 16px; }
+.modal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.modal-grid .full { grid-column: span 2; }
+.modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 18px; }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes pop {
+  from { opacity: 0; transform: scale(0.96) translateY(8px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
 
-@media (max-width: 860px) {
-  .sidebar { width: 62px; padding: 14px 8px; }
-  .brand-name, .brand-sub, .nav button span:not(.ico), .sidebar-foot .who { display: none; }
-  .nav button { justify-content: center; }
-  .main { padding: 16px; }
+/* Tanlanadigan ro'yxat (do'kon qidirish) */
+.picker { position: relative; }
+.picker-list {
+  position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 5;
+  background: var(--card); border-radius: 12px; overflow: hidden; max-height: 220px; overflow-y: auto;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18), 0 0 0 0.5px rgba(60, 60, 67, 0.12);
+}
+.picker-item { display: block; width: 100%; text-align: left; background: none; padding: 9px 12px; border-radius: 0; }
+.picker-item:hover { background: rgba(0, 122, 255, 0.08); }
+.picker-item .nm { font-size: 14px; font-weight: 600; }
+.picker-item .sb { font-size: 12px; color: var(--muted); }
+
+/* Kirish sahifasi */
+.login-page {
+  height: 100vh; display: flex; align-items: center; justify-content: center;
+  background:
+    radial-gradient(120% 55% at 50% -12%, #dceaff 0%, rgba(220, 234, 255, 0) 60%),
+    linear-gradient(180deg, #f7f9fc 0%, #eef1f6 100%);
+}
+.login-card {
+  width: 100%; max-width: 380px; background: var(--card);
+  border-radius: 20px; padding: 26px 22px;
+  box-shadow: 0 20px 50px -20px rgba(0, 0, 0, 0.28), 0 0 0 0.5px rgba(60, 60, 67, 0.08);
+}
+.login-logo {
+  width: 76px; height: 76px; border-radius: 20px; margin: 0 auto 14px;
+  background: linear-gradient(165deg, #5cabff 0%, #1f7bf5 48%, #0a5fe0 100%);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 38px; font-weight: 800; color: #fff;
+  box-shadow: 0 14px 28px -12px rgba(10, 95, 224, 0.8);
+}
+.login-title { text-align: center; font-size: 21px; font-weight: 800; letter-spacing: -0.5px; }
+.login-sub { text-align: center; font-size: 13px; color: var(--muted); margin: 3px 0 20px; }
+.login-card .field + .field { margin-top: 10px; }
+.login-card .btn { width: 100%; margin-top: 16px; padding: 13px; font-size: 16px; }
+.error { color: var(--red); font-size: 13.5px; margin-top: 10px; text-align: center; }
+
+/* Grafik (Panel sahifasi) */
+.chart { display: flex; align-items: flex-end; gap: 8px; height: 130px; padding-top: 6px; }
+.chart .col {
+  flex: 1; height: 100%;
+  display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 6px;
+}
+.chart .bar {
+  width: 100%; max-width: 36px; border-radius: 6px 6px 3px 3px;
+  background: linear-gradient(180deg, #3e97f7, #0a6be8);
+}
+.chart .lbl { font-size: 11px; color: var(--muted); }
+
+/* Saqlash qatori (Sozlamalar) */
+.save-bar {
+  position: sticky; bottom: 0; z-index: 10;
+  display: flex; align-items: center; gap: 12px;
+  padding: 14px 0 4px; background: linear-gradient(180deg, rgba(242,242,247,0), var(--bg) 40%);
+}
+.ok-msg { color: var(--green); font-size: 13.5px; font-weight: 600; }
+
+/* Sozlamalar va boshqa formalar */
+.form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+.hint { font-size: 12.5px; color: var(--muted); margin-top: 4px; }
+.row { display: flex; align-items: center; gap: 10px; }
+
+/* Kichik ekran (planshet) */
+@media (max-width: 900px) {
+  .main { padding-left: 68px; }
+  .side { width: 68px; padding-left: 10px; padding-right: 10px; }
+  .side-label, .side-brand-text { display: none; }
+  .side-item, .side-brand, .side-out { justify-content: center; padding-left: 0; padding-right: 0; gap: 0; }
+  .deck { left: 68px; }
+  .page { padding: 16px; }
+  .topbar { padding: 0 16px; }
+  .modal-grid { grid-template-columns: 1fr; }
+  .modal-grid .full { grid-column: span 1; }
 }

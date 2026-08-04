@@ -28,8 +28,6 @@ export default function Logs() {
 
   return (
     <>
-      <div className="page-title">Audit jurnali</div>
-      <div className="page-sub">Adminlarning barcha harakatlari yozib boriladi</div>
 
       <div className="toolbar">
         <input

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api, fmt, fmtNum, type Stats } from '../api';
+import { AppIcon } from '../icons';
 
 export default function Dashboard({ onOpenShops }: { onOpenShops: () => void }) {
   const [s, setStats] = useState<Stats | null>(null);
@@ -13,45 +14,64 @@ export default function Dashboard({ onOpenShops }: { onOpenShops: () => void }) 
 
   return (
     <>
-      <div className="page-title">Panel</div>
-      <div className="page-sub">Tizimning umumiy holati</div>
 
       <div className="cards">
         <div className="stat" onClick={onOpenShops} style={{ cursor: 'pointer' }}>
-          <div className="k">Jami do'konlar</div>
-          <div className="v">{fmtNum(s.shops)}</div>
+          <AppIcon glyph="house" size={38} />
+          <div className="txt">
+            <div className="k">Jami do'konlar</div>
+            <div className="v">{fmtNum(s.shops)}</div>
+          </div>
         </div>
         <div className="stat">
-          <div className="k">Faol obunalar</div>
-          <div className="v green">{fmtNum(s.active_subs)}</div>
+          <AppIcon glyph="crown" size={38} />
+          <div className="txt">
+            <div className="k">Faol obunalar</div>
+            <div className="v green">{fmtNum(s.active_subs)}</div>
+          </div>
         </div>
         <div className="stat">
-          <div className="k">Bugun ro'yxatdan o'tdi</div>
-          <div className="v accent">{fmtNum(s.today_new)}</div>
+          <AppIcon glyph="people" size={38} />
+          <div className="txt">
+            <div className="k">Bugun ro'yxatdan o'tdi</div>
+            <div className="v accent">{fmtNum(s.today_new)}</div>
+          </div>
         </div>
         <div className="stat">
-          <div className="k">Bloklangan</div>
-          <div className="v red">{fmtNum(s.blocked)}</div>
+          <AppIcon glyph="warning" size={38} />
+          <div className="txt">
+            <div className="k">Bloklangan</div>
+            <div className="v red">{fmtNum(s.blocked)}</div>
+          </div>
         </div>
       </div>
 
       <div className="cards">
         <div className="stat">
-          <div className="k">Oylik tushum (MRR)</div>
-          <div className="v green">{fmt(s.mrr)}</div>
+          <AppIcon glyph="banknote" size={38} />
+          <div className="txt">
+            <div className="k">Oylik tushum (MRR)</div>
+            <div className="v green">{fmt(s.mrr)}</div>
+          </div>
         </div>
         <div className="stat">
-          <div className="k">Oxirgi 30 kun to'ldirish</div>
-          <div className="v">{fmt(s.month_topups)}</div>
+          <AppIcon glyph="card" size={38} />
+          <div className="txt">
+            <div className="k">Oxirgi 30 kun to'ldirish</div>
+            <div className="v">{fmt(s.month_topups)}</div>
+          </div>
         </div>
         <div className="stat">
-          <div className="k">Jami to'ldirish</div>
-          <div className="v">{fmt(s.total_topups)}</div>
+          <AppIcon glyph="chart" size={38} />
+          <div className="txt">
+            <div className="k">Jami to'ldirish</div>
+            <div className="v">{fmt(s.total_topups)}</div>
+          </div>
         </div>
       </div>
 
       <div className="panel">
-        <h3>Ro'yxatdan o'tishlar — oxirgi 14 kun</h3>
+        <div className="panel-title">Ro'yxatdan o'tishlar — oxirgi 14 kun</div>
         <div className="chart">
           {s.signups.map((d) => (
             <div className="col" key={d.day} title={`${d.day}: ${d.count}`}>
@@ -64,16 +84,25 @@ export default function Dashboard({ onOpenShops }: { onOpenShops: () => void }) 
 
       <div className="cards">
         <div className="stat">
-          <div className="k">Qarz yozuvlari</div>
-          <div className="v">{fmtNum(s.debts)}</div>
+          <AppIcon glyph="note" size={38} />
+          <div className="txt">
+            <div className="k">Qarz yozuvlari</div>
+            <div className="v">{fmtNum(s.debts)}</div>
+          </div>
         </div>
         <div className="stat">
-          <div className="k">Yuborilgan eslatmalar</div>
-          <div className="v">{fmtNum(s.reminders)}</div>
+          <AppIcon glyph="calendar" size={38} />
+          <div className="txt">
+            <div className="k">Yuborilgan eslatmalar</div>
+            <div className="v">{fmtNum(s.reminders)}</div>
+          </div>
         </div>
         <div className="stat">
-          <div className="k">AI qo'ng'iroqlar</div>
-          <div className="v accent">{fmtNum(s.calls)}</div>
+          <AppIcon glyph="mic" size={38} />
+          <div className="txt">
+            <div className="k">AI qo'ng'iroqlar</div>
+            <div className="v accent">{fmtNum(s.calls)}</div>
+          </div>
         </div>
       </div>
     </>

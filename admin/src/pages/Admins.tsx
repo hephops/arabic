@@ -15,8 +15,6 @@ export default function Admins({ me }: { me: Admin }) {
 
   return (
     <>
-      <div className="page-title">Adminlar</div>
-      <div className="page-sub">Panelga kirish huquqiga ega xodimlar</div>
 
       <div className="toolbar">
         <button className="btn sm" onClick={() => setAdding(true)}>
@@ -122,7 +120,7 @@ function AddAdmin({ onClose, onDone }: { onClose: () => void; onDone: () => void
   }
 
   return (
-    <div className="modal-back" onClick={onClose}>
+    <div className="modal-wrap" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <h3>Yangi admin</h3>
         <div className="sub">Kamida 6 belgili parol kiriting</div>
@@ -169,7 +167,7 @@ function ResetPassword({ admin, onClose, onDone }: { admin: Admin; onClose: () =
   const [err, setErr] = useState('');
 
   return (
-    <div className="modal-back" onClick={onClose}>
+    <div className="modal-wrap" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <h3>Parolni almashtirish</h3>
         <div className="sub">{admin.username}</div>

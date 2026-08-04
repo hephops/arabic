@@ -36,6 +36,12 @@ for (const sql of [
   'ALTER TABLE reminder_logs ADD COLUMN kind TEXT',
   'ALTER TABLE shops ADD COLUMN is_blocked INTEGER NOT NULL DEFAULT 0',
   'ALTER TABLE shops ADD COLUMN blocked_reason TEXT',
+  // Admin qo'lda kiritgan to'lovlar uchun qo'shimcha maydonlar
+  'ALTER TABLE balance_transactions ADD COLUMN method TEXT',
+  'ALTER TABLE balance_transactions ADD COLUMN doc_no TEXT',
+  'ALTER TABLE balance_transactions ADD COLUMN payer TEXT',
+  'ALTER TABLE balance_transactions ADD COLUMN admin_id INTEGER',
+  'ALTER TABLE balance_transactions ADD COLUMN paid_at TEXT',
 ]) {
   try {
     db.exec(sql);

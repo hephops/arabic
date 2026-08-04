@@ -85,8 +85,6 @@ export default function Settings() {
 
   return (
     <>
-      <div className="page-title">Sozlamalar</div>
-      <div className="page-sub">Tizim bo'ylab amal qiladigan qiymatlar</div>
 
       {GROUPS.map((g) => (
         <div className="panel" key={g.title}>

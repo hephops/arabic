@@ -299,22 +299,155 @@ export function registerAdminRoutes(app: FastifyInstance) {
     }
   );
 
-  // To'lovlar jurnali
-  app.get<{ Querystring: { type?: string; limit?: string } }>(
-    '/admin/payments',
-    { preHandler: requireAdmin },
-    async (req) => {
-      const limit = Math.min(Number(req.query.limit ?? 100), 500);
-      const type = req.query.type && req.query.type !== 'all' ? req.query.type : null;
-      return db
-        .prepare(
-          `SELECT b.*, s.name AS shop_name, s.phone AS shop_phone
-           FROM balance_transactions b JOIN shops s ON s.id = b.shop_id
-           ${type ? 'WHERE b.type = ?' : ''}
-           ORDER BY b.created_at DESC, b.id DESC LIMIT ?`
-        )
-        .all(...(type ? [type, limit] : [limit]));
+  // To'lovlar jurnali — filtrlar, sahifalash va umumiy ko'rsatkichlar bilan
+  app.get<{
+    Querystring: { type?: string; shop_id?: string; from?: string; to?: string; q?: string; limit?: string; offset?: string };
+  }>('/admin/payments', { preHandler: requireAdmin }, async (req) => {
+    const limit = Math.min(Number(req.query.limit ?? 20), 200);
+    const offset = Math.max(Number(req.query.offset ?? 0), 0);
+    const where: string[] = [];
+    const params: any[] = [];
+    if (req.query.type && req.query.type !== 'all') {
+      // "kirim" va "chiqim" — summaning ishorasi bo'yicha
+      if (req.query.type === 'in') where.push('b.amount > 0');
+      else if (req.query.type === 'out') where.push('b.amount < 0');
+      else {
+        where.push('b.type = ?');
+        params.push(req.query.type);
+      }
     }
+    if (req.query.shop_id) {
+      where.push('b.shop_id = ?');
+      params.push(Number(req.query.shop_id));
+    }
+    if (req.query.from) {
+      where.push("date(COALESCE(b.paid_at, b.created_at)) >= date(?)");
+      params.push(req.query.from);
+    }
+    if (req.query.to) {
+      where.push("date(COALESCE(b.paid_at, b.created_at)) <= date(?)");
+      params.push(req.query.to);
+    }
+    if (req.query.q) {
+      where.push('(s.name LIKE ? OR s.phone LIKE ? OR b.note LIKE ? OR b.doc_no LIKE ? OR b.payer LIKE ?)');
+      const like = `%${req.query.q}%`;
+      params.push(like, like, like, like, like);
+    }
+    const clause = where.length ? `WHERE ${where.join(' AND ')}` : '';
+
+    const rows = db
+      .prepare(
+        `SELECT b.*, s.name AS shop_name, s.phone AS shop_phone, a.username AS admin_username
+         FROM balance_transactions b
+         JOIN shops s ON s.id = b.shop_id
+         LEFT JOIN admins a ON a.id = b.admin_id
+         ${clause}
+         ORDER BY COALESCE(b.paid_at, b.created_at) DESC, b.id DESC
+         LIMIT ? OFFSET ?`
+      )
+      .all(...params, limit, offset);
+
+    const total = (db
+      .prepare(`SELECT COUNT(*) AS c FROM balance_transactions b JOIN shops s ON s.id = b.shop_id ${clause}`)
+      .get(...params) as any).c;
+
+    // Filtr bo'yicha jamlanma (sahifadagi emas, butun tanlov bo'yicha)
+    const agg = db
+      .prepare(
+        `SELECT
+           COALESCE(SUM(CASE WHEN b.amount > 0 AND b.type != 'refund' THEN b.amount END), 0) AS kirim,
+           COALESCE(-SUM(CASE WHEN b.amount < 0 THEN b.amount END), 0) AS chiqim,
+           COALESCE(SUM(CASE WHEN b.type = 'refund' THEN ABS(b.amount) END), 0) AS qaytarilgan
+         FROM balance_transactions b JOIN shops s ON s.id = b.shop_id ${clause}`
+      )
+      .get(...params) as any;
+
+    // Qoldiq — barcha do'konlar balansi; Qarz — minusga tushganlari
+    const bal = db
+      .prepare(
+        `SELECT COALESCE(SUM(CASE WHEN balance > 0 THEN balance END), 0) AS qoldiq,
+                COALESCE(-SUM(CASE WHEN balance < 0 THEN balance END), 0) AS qarz
+         FROM shops`
+      )
+      .get() as any;
+
+    return { rows, total, summary: { ...agg, ...bal, count: total } };
+  });
+
+  // Qo'lda to'lov kiritish (bank o'tkazmasi, naqd va h.k.)
+  app.post<{
+    Body: {
+      shop_id: number;
+      direction?: 'in' | 'out';
+      amount: number;
+      paid_at?: string;
+      method?: string;
+      doc_no?: string;
+      payer?: string;
+      note?: string;
+      type?: string;
+    };
+  }>('/admin/payments', { preHandler: requireAdmin }, async (req, reply) => {
+    const b = req.body ?? ({} as any);
+    const shop = db.prepare('SELECT * FROM shops WHERE id = ?').get(b.shop_id) as any;
+    if (!shop) return reply.code(404).send({ error: 'shop_not_found' });
+    const abs = Math.abs(Math.round(Number(b.amount) || 0));
+    if (!abs) return reply.code(400).send({ error: 'amount_required' });
+    // Chiqim bo'lsa balansdan yechiladi
+    const signed = b.direction === 'out' ? -abs : abs;
+    const type = b.type ?? (b.direction === 'out' ? 'withdraw' : 'topup');
+
+    const tx = db.transaction(() => {
+      db.prepare('UPDATE shops SET balance = balance + ? WHERE id = ?').run(signed, shop.id);
+      const info = db
+        .prepare(
+          `INSERT INTO balance_transactions (shop_id, type, amount, note, method, doc_no, payer, admin_id, paid_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        )
+        .run(
+          shop.id,
+          type,
+          signed,
+          b.note ?? null,
+          b.method ?? null,
+          b.doc_no ?? null,
+          b.payer ?? null,
+          req.admin!.id,
+          b.paid_at ?? null
+        );
+      return info.lastInsertRowid;
+    });
+    const id = tx();
+    log(req.admin!.id, 'add_payment', `shop:${shop.id}`, String(signed));
+    return db.prepare('SELECT * FROM balance_transactions WHERE id = ?').get(id);
+  });
+
+  // To'lovni o'chirish (xato kiritilgan bo'lsa) — balans qaytariladi
+  app.delete<{ Params: { id: string } }>('/admin/payments/:id', { preHandler: requireAdmin }, async (req, reply) => {
+    const row = db.prepare('SELECT * FROM balance_transactions WHERE id = ?').get(req.params.id) as any;
+    if (!row) return reply.code(404).send({ error: 'not_found' });
+    db.transaction(() => {
+      db.prepare('UPDATE shops SET balance = balance - ? WHERE id = ?').run(row.amount, row.shop_id);
+      db.prepare('DELETE FROM balance_transactions WHERE id = ?').run(row.id);
+    })();
+    log(req.admin!.id, 'delete_payment', `tx:${row.id}`, String(row.amount));
+    return { ok: true };
+  });
+
+  // Do'konlar bo'yicha umumiy ko'rsatkichlar (ro'yxat tepasidagi kartochkalar)
+  app.get('/admin/shops/summary', { preHandler: requireAdmin }, async () =>
+    db
+      .prepare(
+        `SELECT
+           COUNT(*) AS jami,
+           COALESCE(SUM(CASE WHEN is_blocked = 0 THEN 1 END), 0) AS faol,
+           COALESCE(SUM(CASE WHEN is_blocked = 1 THEN 1 END), 0) AS bloklangan,
+           COALESCE(SUM(CASE WHEN plan = 'free' THEN 1 END), 0) AS bepul,
+           COALESCE(SUM(CASE WHEN plan = 'premium' THEN 1 END), 0) AS premium,
+           COALESCE(SUM(CASE WHEN plan = 'business' THEN 1 END), 0) AS biznes
+         FROM shops`
+      )
+      .get()
   );
 
   // Eslatmalar va qo'ng'iroqlar monitoringi
