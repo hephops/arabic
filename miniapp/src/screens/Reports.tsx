@@ -21,8 +21,9 @@ export default function Reports({ onBack }: { onBack: () => void }) {
   }, [period]);
 
   return (
-    <div className="screen">
+    <>
       <SubHeader title={t('navReports')} onBack={onBack} />
+      <div className="screen">
       <Segmented
         value={period}
         onChange={setPeriod}
@@ -105,5 +106,6 @@ export default function Reports({ onBack }: { onBack: () => void }) {
         </>
       )}
     </div>
+    </>
   );
 }

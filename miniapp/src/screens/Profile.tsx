@@ -46,12 +46,19 @@ export default function Profile({
   onLogout,
   initialView = 'main',
   isEmployee = false,
+  onViewChange,
 }: {
   onLogout: () => void;
   initialView?: string;
   isEmployee?: boolean;
+  /** Ochilgan ichki bo'lim — App yuqoridagi panelni takrorlamasligi uchun */
+  onViewChange?: (v: string) => void;
 }) {
-  const [view, setView] = useState<View>(initialView as View);
+  const [view, setViewRaw] = useState<View>(initialView as View);
+  const setView = (v: View) => {
+    setViewRaw(v);
+    onViewChange?.(v);
+  };
   const [shop, setShop] = useState<Shop | null>(null);
   const [balance, setBalance] = useState<BalanceInfo | null>(null);
   const { t } = useT();
@@ -179,8 +186,9 @@ function BalanceView({ shop, balance, onBack, reload }: { shop: Shop; balance: B
   }
 
   return (
-    <div className="screen">
+    <>
       <SubHeader title={t('navBalance')} onBack={onBack} />
+      <div className="screen">
       <div className="card center" style={{ padding: '22px 16px' }}>
         <AppIcon glyph="banknote" size={52} />
         <div style={{ fontSize: 32, fontWeight: 800, letterSpacing: -1, margin: '10px 0 2px' }}>{fmt(shop.balance)}</div>
@@ -216,7 +224,8 @@ function BalanceView({ shop, balance, onBack, reload }: { shop: Shop; balance: B
           </div>
         </>
       )}
-    </div>
+      </div>
+    </>
   );
 }
 
@@ -243,8 +252,9 @@ function PlanView({ shop, balance, onBack, reload }: { shop: Shop; balance: Bala
   };
 
   return (
-    <div className="screen">
+    <>
       <SubHeader title={t('navPlan')} onBack={onBack} />
+      <div className="screen">
       <div className="card center">
         <div className="hint">{t('currentPlan')}</div>
         <div style={{ fontSize: 22, fontWeight: 800 }}>
@@ -253,6 +263,7 @@ function PlanView({ shop, balance, onBack, reload }: { shop: Shop; balance: Bala
         {shop.plan_expires_at && <div className="hint">{shop.plan_expires_at}</div>}
       </div>
 
+      <div className="plan-cols">
       {Object.entries(balance.plans).map(([id, p]) => (
         <div className="card" key={id}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
@@ -274,9 +285,11 @@ function PlanView({ shop, balance, onBack, reload }: { shop: Shop; balance: Bala
           </button>
         </div>
       ))}
+      </div>
       {message && <p className="hint center">{message}</p>}
       {error && <p className="error">{error}</p>}
-    </div>
+      </div>
+    </>
   );
 }
 
@@ -306,8 +319,9 @@ function ShopView({ shop, onBack, reload }: { shop: Shop; onBack: () => void; re
   const cardBad = cardLen > 0 && cardLen < 16;
 
   return (
-    <div className="screen">
+    <>
       <SubHeader title={t('shopInfo')} onBack={onBack} />
+      <div className="screen">
 
       <div className="form-group">
         <div className="form-row">
@@ -359,7 +373,8 @@ function ShopView({ shop, onBack, reload }: { shop: Shop; onBack: () => void; re
       {cardBad && <p className="error center">{t('cardInvalid')}</p>}
       {message && <p className="hint center">{message}</p>}
       {error && <p className="error center">{error}</p>}
-    </div>
+      </div>
+    </>
   );
 }
 
@@ -374,8 +389,9 @@ function LanguageView({ shop, onBack, reload }: { shop: Shop; onBack: () => void
   }
 
   return (
-    <div className="screen">
+    <>
       <SubHeader title={t('navLanguage')} onBack={onBack} />
+      <div className="screen">
       <div className="list-group">
         {Object.entries(LANG_NAMES).map(([id, label]) => (
           <div className="list-item" key={id} onClick={() => pick(id)}>
@@ -384,7 +400,8 @@ function LanguageView({ shop, onBack, reload }: { shop: Shop; onBack: () => void
           </div>
         ))}
       </div>
-    </div>
+      </div>
+    </>
   );
 }
 
@@ -433,8 +450,9 @@ function EmployeesView({ shopPhone, onBack }: { shopPhone: string; onBack: () =>
   }
 
   return (
-    <div className="screen">
+    <>
       <SubHeader title={t('navEmployees')} onBack={onBack} />
+      <div className="screen">
       <p className="hint">{t('employeesHint')}</p>
 
       {!adding ? (
@@ -488,7 +506,8 @@ function EmployeesView({ shopPhone, onBack }: { shopPhone: string; onBack: () =>
       {employees.length === 0 && !adding && (
         <EmptyState icon="employee" title={t('noEmployees')} sub={t('noEmployeesSub')} />
       )}
-    </div>
+      </div>
+    </>
   );
 }
 
@@ -510,8 +529,9 @@ function EmployeeCard({
   const { t } = useT();
 
   return (
-    <div className="screen">
+    <>
       <SubHeader title={employee.name} onBack={onBack} />
+      <div className="screen">
 
       <div className="card center" style={{ padding: '20px 16px' }}>
         <AppIcon glyph="employee" color={employee.is_active ? 'teal' : 'gray'} size={54} />
@@ -558,7 +578,8 @@ function EmployeeCard({
       >
         {employee.is_active ? t('block') : t('unblock')}
       </button>
-    </div>
+      </div>
+    </>
   );
 }
 
@@ -576,8 +597,9 @@ function ReferralView({ onBack }: { onBack: () => void }) {
   const shareText = `Arabic.One — Do'kon Daftari ilovasiga qo'shiling! Promo-kodim: ${data.code}. ${data.reward_text}.`;
 
   return (
-    <div className="screen">
+    <>
       <SubHeader title={t('inviteFriend')} onBack={onBack} />
+      <div className="screen">
       <div className="card center" style={{ padding: '24px 16px' }}>
         <AppIcon glyph="gift" size={52} />
         <div className="hint" style={{ marginTop: 10 }}>{t('yourPromoCode')}</div>
@@ -601,6 +623,7 @@ function ReferralView({ onBack }: { onBack: () => void }) {
         <div className="hint">{t('invitedCount')}</div>
         <div style={{ fontSize: 26, fontWeight: 800 }}>{data.invited_count} {t('shops')}</div>
       </div>
-    </div>
+      </div>
+    </>
   );
 }

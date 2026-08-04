@@ -21,7 +21,7 @@ export default function AddDebt({ onDone }: { onDone: () => void }) {
   const { t } = useT();
 
   return (
-    <div className="screen">
+    <div className="screen narrow">
       <div className="segmented">
         <button className={mode === 'voice' ? 'on' : ''} onClick={() => { setMode('voice'); haptic.select(); }}>
           <Glyph name="mic" size={16} /> {t('byVoice')}

@@ -58,8 +58,9 @@ export default function Suppliers({ onBack }: { onBack: () => void }) {
 
   if (selected) {
     return (
-      <div className="screen">
+      <>
         <SubHeader title={selected.name} onBack={() => setSelected(null)} />
+        <div className="screen">
         <Summary
           icon="truck"
           label={t('myDebt')}
@@ -102,13 +103,15 @@ export default function Suppliers({ onBack }: { onBack: () => void }) {
           ))}
         </div>
         {selected.debts.length === 0 && <div className="empty">{t('noDebts')}</div>}
-      </div>
+        </div>
+      </>
     );
   }
 
   return (
-    <div className="screen">
+    <>
       <SubHeader title={t('navSuppliers')} onBack={onBack} />
+      <div className="screen">
       <Summary
         icon="truck"
         label={t('myTotalDebt')}
@@ -170,5 +173,6 @@ export default function Suppliers({ onBack }: { onBack: () => void }) {
         <EmptyState icon="truck" title={t('noSuppliers')} sub={t('noSuppliersSub')} />
       )}
     </div>
+    </>
   );
 }

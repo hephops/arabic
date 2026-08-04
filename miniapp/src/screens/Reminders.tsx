@@ -152,7 +152,9 @@ export default function Reminders({ onBack }: { onBack: () => void }) {
                       <AppIcon glyph={mode.icon} color={mode.color} size={29} />
                       <div>
                         <div className="name">{c.name}</div>
-                        <div className="sub">{c.phone ? formatPhoneSoft(c.phone) : t('noPhone')}</div>
+                        <div className="sub" style={c.phone ? undefined : { color: 'var(--red)' }}>
+                          {c.phone ? formatPhoneSoft(c.phone) : t('noPhone')}
+                        </div>
                       </div>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>

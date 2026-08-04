@@ -27,6 +27,9 @@ export default function App() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [sub, setSub] = useState<SubScreen>(null);
   const [profileView, setProfileView] = useState<string>('main');
+  // Menyudan Profilning ichki bo'limiga o'tilganda ekran qaytadan ochiladi;
+  // ichkarida yurilganda esa qayta yuklanmaydi (shu sababli alohida hisoblagich)
+  const [profileNav, setProfileNav] = useState(0);
   const [shop, setShop] = useState<Shop | null>(null);
   const [kassaMode, setKassaMode] = useState<KassaMode>('sale');
   const { t, lang, setLang } = useT();
@@ -67,8 +70,9 @@ export default function App() {
 
   return (
     <div className="app-shell">
-      {/* Ichki ekranlar o'z navigatsiya panelini chizadi */}
-      {!sub && <NavBar title={TITLES[tab]} />}
+      {/* Ichki ekranlar o'z navigatsiya panelini chizadi — bu yerda
+          ikkinchi panel chiqib qolmasligi uchun ularni chetlab o'tamiz */}
+      {!sub && !(tab === 'profile' && profileView !== 'main') && <NavBar title={TITLES[tab]} />}
       <ToastHost />
       <InstallPrompt />
 
@@ -92,9 +96,10 @@ export default function App() {
       {!sub && tab === 'kassa' && <Kassa onDone={refresh} isEmployee={isEmployee} initialMode={kassaMode} />}
       {!sub && tab === 'profile' && (
         <Profile
-          key={profileView + refreshKey}
+          key={`${profileNav}-${refreshKey}`}
           initialView={profileView}
           isEmployee={isEmployee}
+          onViewChange={setProfileView}
           onLogout={() => {
             setShop(null);
             setAuthed(false);
@@ -122,6 +127,7 @@ export default function App() {
           if (target.tab === 'kassa') setKassaMode('sale');
           if (target.tab) setTab(target.tab);
           setProfileView(target.profileView ?? 'main');
+          setProfileNav((n) => n + 1);
         }}
       />
     </div>

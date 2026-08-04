@@ -41,7 +41,10 @@ body {
   font-size: 17px; font-weight: 600; letter-spacing: -0.4px; text-align: center;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.nav-left { justify-self: start; }
+/* Chapdagi tugmalar bir qatorda tursin — menyu tugmasi qo'shilganda
+   "Orqaga" pastga tushib ketmasligi uchun */
+.nav-left { justify-self: start; display: flex; align-items: center; gap: 2px; min-width: 0; }
+.nav-left > * { flex-shrink: 0; }
 .nav-right { justify-self: end; padding-right: 6px; }
 .nav-btn {
   background: none; color: var(--accent); font-size: 17px; font-weight: 400;
@@ -896,6 +899,9 @@ button.link { background: none; color: var(--accent); font-size: 15px; font-weig
   .auth { height: 100vh; overflow-y: auto; }
   .auth-body { padding-top: 0; min-height: 100vh; display: flex; flex-direction: column; justify-content: center; }
   .screen { padding: 20px 28px 40px; max-width: 1080px; margin: 0 auto; }
+  /* Forma ko'rinishidagi ekranlar tor ustunda — o'qish oson bo'lsin */
+  .screen.narrow { max-width: 620px; }
+  .screen.narrow .segmented { max-width: none; }
 
   /* ── Chapdagi doimiy menyu ── */
   .side {
@@ -1101,6 +1107,13 @@ button.link { background: none; color: var(--accent); font-size: 15px; font-weig
   .home-top .stat-card {
     flex: 1; display: flex; flex-direction: column; justify-content: center;
   }
+
+  /* Tariflar yonma-yon, uzun izohlar cho'zilib ketmaydi */
+  .plan-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; align-items: stretch; }
+  .plan-cols .card { margin-bottom: 0; display: flex; flex-direction: column; }
+  .plan-cols .card > button { margin-top: auto; }
+  .hint, .form-note, .field-note { max-width: 680px; }
+  .hint.center, .center .hint, .card.center .hint { max-width: none; }
 
   /* Asosiy ekran: qarzlar va sotuvlar yonma-yon */
   .home-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 0 20px; align-items: start; }
