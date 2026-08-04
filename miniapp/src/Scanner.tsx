@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Glyph } from './icons';
 import { useT } from './i18n';
+import { createVoter } from './barcode';
 
 // Kamera orqali shtrix-kod skaneri.
 // Brauzerning BarcodeDetector API'si ishlatiladi (Android/Chrome, Telegram webview).
@@ -29,6 +30,7 @@ export default function Scanner({
   const [torch, setTorch] = useState(false);
   const [hasTorch, setHasTorch] = useState(false);
   const [manual, setManual] = useState('');
+  const [seen, setSeen] = useState('');
   const { t } = useT();
   const onScanRef = useRef(onScan);
   onScanRef.current = onScan;
@@ -40,13 +42,23 @@ export default function Scanner({
 
     let lastCode = '';
     let lastAt = 0;
-    /** Topilgan kodni qayta ishlaydi; true qaytsa — skanerlashni to'xtatamiz */
-    function handleCode(code: string): boolean {
+    const voter = createVoter();
+
+    /**
+     * Kadrdan o'qilgan kod. Bitta kadrga ishonmaymiz: nazorat raqami
+     * buzuq bo'lsa tashlab yuboriladi, to'g'ri bo'lsa ham bir necha marta
+     * bir xil o'qilishi kutiladi. true qaytsa — skanerlash to'xtaydi.
+     */
+    function handleCode(raw: string): boolean {
+      const code = voter.push(raw);
+      if (!code) return false;
+
       const now = Date.now();
       // bitta kodni ketma-ket qayta o'qib yubormaslik uchun 1.2s pauza
       if (code === lastCode && now - lastAt < 1200) return false;
       lastCode = code;
       lastAt = now;
+      setSeen(code);
       navigator.vibrate?.(60);
       setFlash(true);
       setTimeout(() => setFlash(false), 260);
@@ -64,8 +76,20 @@ export default function Scanner({
       }
 
       // 1-qadam: kamera. Ruxsat bo'lmasa — qo'lda kiritishga o'tamiz.
+      // Yuqoriroq o'lcham va uzluksiz fokus — shtrix-kod ancha aniq o'qiladi.
+      // Qurilma qo'llab-quvvatlamasa oddiy so'rovga qaytamiz.
+      const ideal: MediaStreamConstraints = {
+        video: {
+          facingMode: { ideal: 'environment' },
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+          advanced: [{ focusMode: 'continuous' } as any],
+        } as any,
+      };
       try {
-        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+        stream = await navigator.mediaDevices
+          .getUserMedia(ideal)
+          .catch(() => navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } }));
       } catch (e: any) {
         const kind = e?.name;
         setReason(
@@ -96,7 +120,11 @@ export default function Scanner({
       // Android/Chrome'da brauzerning o'z BarcodeDetector'i — eng tez yo'l.
       const BD = (window as any).BarcodeDetector;
       if (BD) {
-        const detector = new BD({ formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39', 'itf', 'qr_code'] });
+        // ITF ataylab yo'q: u kodning bir qismini ham "o'qib" noto'g'ri
+        // qisqa raqam qaytarishi mumkin
+        const detector = new BD({
+          formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39', 'qr_code'],
+        });
         const tick = async () => {
           if (stopped) return;
           try {
@@ -119,9 +147,11 @@ export default function Scanner({
         const hints = new Map();
         hints.set(DecodeHintType.POSSIBLE_FORMATS, [
           BarcodeFormat.EAN_13, BarcodeFormat.EAN_8, BarcodeFormat.UPC_A, BarcodeFormat.UPC_E,
-          BarcodeFormat.CODE_128, BarcodeFormat.CODE_39, BarcodeFormat.ITF, BarcodeFormat.QR_CODE,
+          BarcodeFormat.CODE_128, BarcodeFormat.CODE_39, BarcodeFormat.QR_CODE,
         ]);
-        const reader = new BrowserMultiFormatReader(hints as any, 250);
+        hints.set(DecodeHintType.TRY_HARDER, true);
+        // 150ms — tez-tez o'qiladi, shunda bir xil natija ikki marta tez to'planadi
+        const reader = new BrowserMultiFormatReader(hints as any, 150);
         zxing = reader;
         reader.decodeFromStream(stream, video, (result: any) => {
           if (stopped || !result) return;
@@ -221,6 +251,7 @@ export default function Scanner({
         ) : (
           <>
             <div className="scan-hint">{phase === 'starting' ? t('scanStarting') : t('scanHint')}</div>
+            {seen && <div className="scan-code">{seen}</div>}
             {status && <div className="scan-status">{status}</div>}
             <button className="scan-manual-link" onClick={() => setPhase('manual')}>
               {t('scanManual')}

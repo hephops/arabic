@@ -260,16 +260,15 @@ function SaleMode({ onDone }: { onDone: () => void }) {
         addToCart(res.product);
         return;
       }
-      // Topilmadi — kodni eslab qolamiz va nom bo'yicha qidirishga o'tkazamiz
+      // Topilmadi — kodni eslab qolamiz va tanlash uchun ro'yxatni ochamiz.
+      // Katalogda nomi bo'lsa shu nom bo'yicha, aks holda ombordagi barcha
+      // mahsulot chiqadi: do'konchi tovarni topib bossa, kod o'shanga bog'lanadi.
       toast.error(t('toastNotFound'), res.code);
       setPendingCode(res.code);
       setQuery('');
-      if (res.catalog) {
-        const byName = await api.products({ q: res.catalog.name });
-        setResults(byName.filter((p) => p.id !== null));
-      } else {
-        setResults([]);
-      }
+      const list = res.catalog ? await api.products({ q: res.catalog.name }) : await api.products();
+      const found = list.filter((p) => p.id !== null);
+      setResults(found.length ? found : (await api.products()).filter((p) => p.id !== null));
     } catch (e: any) {
       toast.error(t('error'), e.message);
     }

@@ -268,7 +268,7 @@ const UZ: Record<string, string> = {
   phoneInvalid: "Telefon raqami to'liq emas",
   phoneTaken: 'Bu raqam boshqa mijozga biriktirilgan',
   phoneWhy: "Eslatma va AI qo'ng'iroq shu raqamga yuboriladi",
-  codeAttachHint: "Mahsulotni nomi bo'yicha toping va tanlang — kod o'shanga biriktiriladi, keyingi safar skaner darhol topadi",
+  codeAttachHint: "Quyidagi ro'yxatdan mahsulotni tanlang — kod o'shanga biriktiriladi va keyingi safar skaner darhol topadi",
   barcodeAttached: "Kod «{name}» ga biriktirildi",
   barcodeTaken: 'Bu kod boshqa mahsulotga biriktirilgan',
   barcodeInvalid: "Kod xato ko'rinadi — nazorat raqami to'g'ri kelmadi",
