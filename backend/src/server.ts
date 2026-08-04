@@ -362,6 +362,16 @@ app.get('/dashboard', { preHandler: requireAuth }, async (req) => {
        WHERE s.shop_id = ? AND date(s.created_at) = date('now')`
     )
     .get(req.shopId) as any;
+  // Bugungi xarajatlar — "foyda" faqat tovar ustamasi bo'lib qolmasligi uchun
+  const todayExpenses = (db
+    .prepare(`SELECT COALESCE(SUM(amount), 0) AS s FROM expenses WHERE shop_id = ? AND spent_at = date('now')`)
+    .get(req.shopId) as any).s as number;
+  const monthExpenses = (db
+    .prepare(
+      `SELECT COALESCE(SUM(amount), 0) AS s FROM expenses
+       WHERE shop_id = ? AND spent_at >= date('now', 'start of month')`
+    )
+    .get(req.shopId) as any).s as number;
   // Oxirgi 7 kunlik savdo (grafik uchun) — bo'sh kunlar 0 bilan to'ldiriladi
   const raw = db
     .prepare(
@@ -382,7 +392,13 @@ app.get('/dashboard', { preHandler: requireAuth }, async (req) => {
     owed_to_me: owedToMe.s,
     i_owe: iOwe.s,
     net: owedToMe.s - iOwe.s,
-    today: { ...todayStats, profit: todayProfit.profit },
+    today: {
+      ...todayStats,
+      profit: todayProfit.profit,
+      expenses: todayExpenses,
+      net_profit: todayProfit.profit - todayExpenses,
+    },
+    month_expenses: monthExpenses,
     week,
     due_today: dueToday,
     overdue,
@@ -1277,39 +1293,248 @@ app.post<{ Params: { id: string } }>('/sales/:id/receipt', { preHandler: require
   return { ok: true, text };
 });
 
+// ---------- XARAJATLAR ----------
+// Ijara, svet, ish haqi, transport... Bularsiz "foyda" faqat tovar
+// ustamasi bo'lib qoladi — do'konchi aslida qancha ishlaganini bilmaydi.
+
+/** Tayyor kategoriyalar — ilova va hisobot bir xil tushunishi uchun bitta joyda */
+const EXPENSE_CATEGORIES = ['rent', 'utilities', 'salary', 'transport', 'tax', 'ads', 'repair', 'other'] as const;
+
+/**
+ * period → sana chegarasi. Kun bo'yicha hisoblaymiz: "Bugun" haqiqatan
+ * bugundan boshlanadi (ilgari oxirgi 24 soat edi va Bosh sahifadagi
+ * "bugungi savdo" bilan mos tushmasdi), "Hafta" — shu kun bilan 7 kun.
+ * null qaytsa — chegara yo'q (butun tarix).
+ */
+function expensePeriodSql(period?: string): string | null {
+  if (period === 'week') return '-6 days';
+  if (period === 'month') return '-29 days';
+  if (period === 'all') return null;
+  return '-0 days'; // bugun
+}
+
+/** Hisobotlarda "butun tarix" yo'q — har doim chegara qaytadi */
+const reportPeriodSql = (period?: string): string => expensePeriodSql(period) ?? '-0 days';
+
+/** Berilgan davr uchun xarajatlar jami (hisobotlarda ishlatiladi) */
+function expensesTotal(shopId: number, sinceDays: string): number {
+  const row = db
+    .prepare(
+      `SELECT COALESCE(SUM(amount), 0) AS s FROM expenses
+       WHERE shop_id = ? AND spent_at >= date('now', ?)`
+    )
+    .get(shopId, sinceDays) as any;
+  return row.s as number;
+}
+
+app.get<{ Querystring: { period?: string; category?: string; from?: string; to?: string } }>(
+  '/expenses',
+  { preHandler: requireOwner },
+  async (req) => {
+    // Ustunlar "e." bilan yoziladi — xodim jadvali qo'shilganda
+    // shop_id ikkala tomonda bo'lgani uchun ikkilanish chiqmasin
+    const where = ['e.shop_id = ?'];
+    const params: any[] = [req.shopId];
+    if (req.query.from) {
+      where.push('e.spent_at >= ?');
+      params.push(req.query.from);
+    }
+    if (req.query.to) {
+      where.push('e.spent_at <= ?');
+      params.push(req.query.to);
+    }
+    if (!req.query.from && !req.query.to) {
+      const since = expensePeriodSql(req.query.period);
+      if (since) {
+        where.push("e.spent_at >= date('now', ?)");
+        params.push(since);
+      }
+    }
+    if (req.query.category) {
+      where.push('e.category = ?');
+      params.push(req.query.category);
+    }
+    const cond = where.join(' AND ');
+
+    const items = db
+      .prepare(
+        `SELECT e.*, emp.name AS created_by_name FROM expenses e
+         LEFT JOIN employees emp ON emp.id = e.created_by
+         WHERE ${cond} ORDER BY e.spent_at DESC, e.id DESC LIMIT 300`
+      )
+      .all(...params);
+    const sum = db
+      .prepare(`SELECT COUNT(*) AS count, COALESCE(SUM(e.amount), 0) AS total FROM expenses e WHERE ${cond}`)
+      .get(...params) as any;
+    const byCategory = db
+      .prepare(
+        `SELECT e.category AS category, COUNT(*) AS count, SUM(e.amount) AS total FROM expenses e
+         WHERE ${cond} GROUP BY e.category ORDER BY total DESC`
+      )
+      .all(...params);
+
+    // Har oy takrorlanadigan xarajatlar (ijara, ish haqi) — shu oyda hali
+    // yozilmagan bo'lsa eslatib turamiz, bir bosishda qo'shiladi
+    const suggestions = db
+      .prepare(
+        `SELECT category, MAX(spent_at) AS last_at,
+                (SELECT amount FROM expenses e2
+                 WHERE e2.shop_id = e.shop_id AND e2.category = e.category AND e2.is_recurring = 1
+                 ORDER BY e2.spent_at DESC, e2.id DESC LIMIT 1) AS amount
+         FROM expenses e
+         WHERE e.shop_id = ? AND e.is_recurring = 1
+         GROUP BY e.category
+         HAVING MAX(e.spent_at) < date('now', 'start of month')`
+      )
+      .all(req.shopId);
+
+    return {
+      items,
+      count: sum.count,
+      total: sum.total,
+      by_category: byCategory,
+      suggestions,
+      known_categories: EXPENSE_CATEGORIES,
+    };
+  }
+);
+
+app.post<{ Body: { category?: string; amount?: number; note?: string; spent_at?: string; is_recurring?: boolean } }>(
+  '/expenses',
+  { preHandler: requireOwner },
+  async (req, reply) => {
+    const amount = Math.round(Number(req.body?.amount) || 0);
+    const category = (req.body?.category ?? '').trim();
+    if (amount <= 0) return reply.code(400).send({ error: 'amount_required' });
+    if (!category) return reply.code(400).send({ error: 'category_required' });
+    // Kelajakdagi sana — deyarli har doim terishdagi xato
+    const spentAt = (req.body?.spent_at ?? '').trim() || new Date().toISOString().slice(0, 10);
+    if (spentAt > new Date().toISOString().slice(0, 10)) return reply.code(400).send({ error: 'future_date' });
+
+    const info = db
+      .prepare(
+        `INSERT INTO expenses (shop_id, category, amount, note, spent_at, is_recurring, created_by)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`
+      )
+      .run(
+        req.shopId,
+        category,
+        amount,
+        req.body?.note?.trim() || null,
+        spentAt,
+        req.body?.is_recurring ? 1 : 0,
+        req.employeeId ?? null
+      );
+    return db.prepare('SELECT * FROM expenses WHERE id = ?').get(info.lastInsertRowid);
+  }
+);
+
+app.patch<{ Params: { id: string }; Body: Record<string, unknown> }>(
+  '/expenses/:id',
+  { preHandler: requireOwner },
+  async (req, reply) => {
+    const row = db.prepare('SELECT * FROM expenses WHERE id = ? AND shop_id = ?').get(req.params.id, req.shopId);
+    if (!row) return reply.code(404).send({ error: 'not_found' });
+    if ('amount' in req.body) {
+      const amount = Math.round(Number(req.body.amount) || 0);
+      if (amount <= 0) return reply.code(400).send({ error: 'amount_required' });
+      db.prepare('UPDATE expenses SET amount = ? WHERE id = ?').run(amount, req.params.id);
+    }
+    if ('spent_at' in req.body) {
+      const spentAt = String(req.body.spent_at ?? '').trim();
+      if (spentAt > new Date().toISOString().slice(0, 10)) return reply.code(400).send({ error: 'future_date' });
+      if (spentAt) db.prepare('UPDATE expenses SET spent_at = ? WHERE id = ?').run(spentAt, req.params.id);
+    }
+    if ('category' in req.body) {
+      const category = String(req.body.category ?? '').trim();
+      if (!category) return reply.code(400).send({ error: 'category_required' });
+      db.prepare('UPDATE expenses SET category = ? WHERE id = ?').run(category, req.params.id);
+    }
+    if ('note' in req.body) {
+      db.prepare('UPDATE expenses SET note = ? WHERE id = ?').run(String(req.body.note ?? '').trim() || null, req.params.id);
+    }
+    if ('is_recurring' in req.body) {
+      db.prepare('UPDATE expenses SET is_recurring = ? WHERE id = ?').run(req.body.is_recurring ? 1 : 0, req.params.id);
+    }
+    return db.prepare('SELECT * FROM expenses WHERE id = ?').get(req.params.id);
+  }
+);
+
+app.delete<{ Params: { id: string } }>('/expenses/:id', { preHandler: requireOwner }, async (req, reply) => {
+  const info = db.prepare('DELETE FROM expenses WHERE id = ? AND shop_id = ?').run(req.params.id, req.shopId);
+  if (!info.changes) return reply.code(404).send({ error: 'not_found' });
+  return { ok: true };
+});
+
+// Xarajatlarni CSV qilib yuklab olish (buxgalter yoki soliq uchun)
+app.get<{ Querystring: { period?: string } }>('/expenses/export', { preHandler: requireOwner }, async (req, reply) => {
+  const since = expensePeriodSql(req.query.period);
+  const rows = db
+    .prepare(
+      `SELECT spent_at, category, amount, COALESCE(note, '') AS note FROM expenses
+       WHERE shop_id = ?${since ? " AND spent_at >= date('now', ?)" : ''}
+       ORDER BY spent_at DESC, id DESC`
+    )
+    .all(...(since ? [req.shopId, since] : [req.shopId])) as any[];
+  const esc = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  const csv = [
+    ['Sana', 'Kategoriya', 'Summa', 'Izoh'].map(esc).join(','),
+    ...rows.map((r) => [r.spent_at, r.category, r.amount, r.note].map(esc).join(',')),
+  ].join('\n');
+  reply.header('Content-Type', 'text/csv; charset=utf-8');
+  reply.header('Content-Disposition', `attachment; filename="xarajatlar-${req.query.period ?? 'day'}.csv"`);
+  return reply.send('﻿' + csv); // BOM — Excel kirillchani to'g'ri ochadi
+});
+
 // ---------- HISOBOTLAR ----------
 app.get<{ Querystring: { period?: string } }>('/reports/summary', { preHandler: requireOwner }, async (req) => {
-  const period = req.query.period === 'week' ? '-7 days' : req.query.period === 'month' ? '-30 days' : '-1 day';
+  const period = reportPeriodSql(req.query.period);
   const sales = db
     .prepare(
       `SELECT COUNT(*) AS count, COALESCE(SUM(total), 0) AS revenue,
               COALESCE(SUM(CASE WHEN payment_type = 'cash' THEN total END), 0) AS cash,
               COALESCE(SUM(CASE WHEN payment_type = 'card' THEN total END), 0) AS card,
               COALESCE(SUM(CASE WHEN payment_type = 'debt' THEN total END), 0) AS debt
-       FROM sales WHERE shop_id = ? AND created_at >= datetime('now', ?)`
+       FROM sales WHERE shop_id = ? AND date(created_at) >= date('now', ?)`
     )
     .get(req.shopId, period) as any;
   const profit = db
     .prepare(
       `SELECT COALESCE(SUM((si.price - p.cost_price) * si.qty), 0) AS profit
        FROM sale_items si JOIN sales s ON s.id = si.sale_id JOIN products p ON p.id = si.product_id
-       WHERE s.shop_id = ? AND s.created_at >= datetime('now', ?)`
+       WHERE s.shop_id = ? AND date(s.created_at) >= date('now', ?)`
     )
     .get(req.shopId, period) as any;
   const topProducts = db
     .prepare(
       `SELECT p.name, SUM(si.qty) AS sold, SUM(si.price * si.qty) AS revenue
        FROM sale_items si JOIN sales s ON s.id = si.sale_id JOIN products p ON p.id = si.product_id
-       WHERE s.shop_id = ? AND s.created_at >= datetime('now', ?)
+       WHERE s.shop_id = ? AND date(s.created_at) >= date('now', ?)
        GROUP BY p.id ORDER BY sold DESC LIMIT 10`
     )
     .all(req.shopId, period);
-  return { ...sales, profit: profit.profit, top_products: topProducts };
+  // Xarajatlar shu davrda — sof foyda shulardan keyin qoladigan pul
+  const expenses = expensesTotal(req.shopId!, period);
+  const expensesByCategory = db
+    .prepare(
+      `SELECT category, SUM(amount) AS total FROM expenses
+       WHERE shop_id = ? AND spent_at >= date('now', ?)
+       GROUP BY category ORDER BY total DESC`
+    )
+    .all(req.shopId, period);
+  return {
+    ...sales,
+    profit: profit.profit, // yalpi foyda (tovar ustamasi)
+    expenses,
+    net_profit: profit.profit - expenses, // sof foyda
+    expenses_by_category: expensesByCategory,
+    top_products: topProducts,
+  };
 });
 
 // Hisobotni CSV (Excel ochadi) qilib yuklab olish
 app.get<{ Querystring: { period?: string } }>('/reports/export', { preHandler: requireOwner }, async (req, reply) => {
-  const period = req.query.period === 'week' ? '-7 days' : req.query.period === 'month' ? '-30 days' : '-1 day';
+  const period = reportPeriodSql(req.query.period);
   const rows = db
     .prepare(
       `SELECT s.created_at AS sana, s.total AS summa, s.payment_type AS tolov,
@@ -1317,7 +1542,7 @@ app.get<{ Querystring: { period?: string } }>('/reports/export', { preHandler: r
               (SELECT GROUP_CONCAT(p.name || ' x' || CAST(si.qty AS INTEGER), '; ')
                FROM sale_items si JOIN products p ON p.id = si.product_id WHERE si.sale_id = s.id) AS mahsulotlar
        FROM sales s LEFT JOIN customers c ON c.id = s.customer_id
-       WHERE s.shop_id = ? AND s.created_at >= datetime('now', ?)
+       WHERE s.shop_id = ? AND date(s.created_at) >= date('now', ?)
        ORDER BY s.created_at DESC`
     )
     .all(req.shopId, period) as any[];

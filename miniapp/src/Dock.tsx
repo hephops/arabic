@@ -34,6 +34,7 @@ const LAUNCHER_ITEMS: { key: string; glyph: string; target: NavTarget }[] = [
   { key: 'navSuppliers', glyph: 'truck', target: { sub: 'suppliers' } },
   { key: 'navReminders', glyph: 'calendar', target: { sub: 'reminders' } },
   { key: 'navReports', glyph: 'chart', target: { sub: 'reports' } },
+  { key: 'navExpenses', glyph: 'wallet', target: { sub: 'expenses' } },
   { key: 'navInventory', glyph: 'boxes', target: { sub: 'inventory' } },
   { key: 'navBalance', glyph: 'banknote', target: { tab: 'profile', profileView: 'balance' } },
   { key: 'navPlan', glyph: 'crown', target: { tab: 'profile', profileView: 'plan' } },
@@ -58,6 +59,7 @@ const SIDE_GROUPS: { key: string; glyph: string; target: NavTarget }[][] = [
     { key: 'navSuppliers', glyph: 'truck', target: { sub: 'suppliers' } },
     { key: 'navReminders', glyph: 'calendar', target: { sub: 'reminders' } },
     { key: 'navReports', glyph: 'chart', target: { sub: 'reports' } },
+    { key: 'navExpenses', glyph: 'wallet', target: { sub: 'expenses' } },
   ],
   [
     { key: 'navBalance', glyph: 'banknote', target: { tab: 'profile', profileView: 'balance' } },

@@ -347,6 +347,15 @@ const ART: Record<string, (bg: string) => ReactNode> = {
       <path d="M26 50h48" />
     </g>
   ),
+  // Hamyon — xarajatlar (ijara, svet, ish haqi)
+  wallet: () => (
+    <>
+      <rect x="14" y="27" width="72" height="49" rx="11" fill="#fff" />
+      <path d="M14 38h72v11H60a6.5 6.5 0 0 0 0 13h26v11H25a11 11 0 0 1-11-11Z" fill={INK_SOFT} opacity="0.45" />
+      <rect x="57" y="43" width="33" height="17" rx="8.5" fill={INK} />
+      <circle cx="70" cy="51.5" r="4.2" fill="#fff" />
+    </>
+  ),
 };
 
 // Har bir ikonkaning "tug'ma" rangi — color berilmasa shu ishlatiladi
@@ -356,7 +365,7 @@ const DEFAULT_COLOR: Record<string, IconColor> = {
   employee: 'gray', gift: 'pink', gear: 'gray', scan: 'indigo', mic: 'red',
   card: 'indigo', globe: 'teal', logout: 'red', arrowDown: 'green', arrowUp: 'red',
   star: 'yellow', book: 'amber', search: 'teal', warning: 'orange', clock: 'orange',
-  calendar: 'red', plus: 'green',
+  calendar: 'red', plus: 'green', wallet: 'pink',
 };
 
 // Eski nomlar bilan moslik

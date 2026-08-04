@@ -58,19 +58,28 @@ export default function Dashboard({
         </div>
         <div className="hero-stats">
           {!isEmployee && (
+            // Xarajat bo'lsa — "sof foyda", bo'lmasa oddiy foyda ko'rsatiladi.
+            // Do'konchi bosh sahifada allaqachon haqiqiy raqamni ko'radi.
             <div className="hero-stat">
-              <div className="k">{t('profit')}</div>
-              <div className="v">{fmtShort(data.today.profit)}</div>
+              <div className="k">{data.today.expenses > 0 ? t('netProfit') : t('profit')}</div>
+              <div className="v">{fmtShort(data.today.net_profit ?? data.today.profit)}</div>
             </div>
           )}
           <div className="hero-stat">
             <div className="k">{t('salesCount')}</div>
             <div className="v">{data.today.count}</div>
           </div>
-          <div className="hero-stat">
-            <div className="k">{t('payDebt')}</div>
-            <div className="v">{fmtShort(data.today.debt)}</div>
-          </div>
+          {!isEmployee && data.today.expenses > 0 ? (
+            <div className="hero-stat">
+              <div className="k">{t('expenses')}</div>
+              <div className="v">−{fmtShort(data.today.expenses)}</div>
+            </div>
+          ) : (
+            <div className="hero-stat">
+              <div className="k">{t('payDebt')}</div>
+              <div className="v">{fmtShort(data.today.debt)}</div>
+            </div>
+          )}
         </div>
         {weekTotal > 0 ? (
           <div className="spark">
@@ -122,7 +131,7 @@ export default function Dashboard({
           [
             ['reminders', 'calendar', 'tileReminder'],
             ['suppliers', 'truck', 'tileSupplier'],
-            ...(isEmployee ? [] : [['reports', 'chart', 'tileReport']]),
+            ...(isEmployee ? [] : ([['reports', 'chart', 'tileReport'], ['expenses', 'wallet', 'tileExpenses']] as [SubScreen, string, string][])),
             ['inventory', 'boxes', 'tileInventory'],
           ] as [SubScreen, string, string][]
         ).map(([id, glyph, key]) => (

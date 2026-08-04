@@ -142,6 +142,17 @@ export const api = {
       body: JSON.stringify({ plan, period }),
     }),
   categories: () => request<{ name: string; count: number }[]>('/categories'),
+  expenses: (period: ExpensePeriod, category?: string) =>
+    request<ExpensesInfo>(`/expenses?period=${period}${category ? `&category=${encodeURIComponent(category)}` : ''}`),
+  createExpense: (data: { category: string; amount: number; note?: string; spent_at?: string; is_recurring?: boolean }) =>
+    request<Expense>('/expenses', { method: 'POST', body: JSON.stringify(data) }),
+  updateExpense: (
+    id: number,
+    // is_recurring bu yerda boolean — server 0/1 ga o'giradi
+    data: { category?: string; amount?: number; note?: string; spent_at?: string; is_recurring?: boolean }
+  ) => request<Expense>(`/expenses/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteExpense: (id: number) => request<{ ok: boolean }>(`/expenses/${id}`, { method: 'DELETE' }),
+  expensesExportUrl: (period: string) => `${BASE}/expenses/export?period=${period}`,
 };
 
 export interface Shop {
@@ -337,7 +348,21 @@ export interface Dashboard {
   owed_to_me: number;
   i_owe: number;
   net: number;
-  today: { count: number; revenue: number; cash: number; card: number; debt: number; profit: number };
+  today: {
+    count: number;
+    revenue: number;
+    cash: number;
+    card: number;
+    debt: number;
+    /** yalpi foyda — tovar ustamasi */
+    profit: number;
+    /** bugungi xarajatlar */
+    expenses: number;
+    /** sof foyda = yalpi foyda − xarajatlar */
+    net_profit: number;
+  };
+  /** shu oy boshidan beri xarajatlar */
+  month_expenses: number;
   week: { day: string; revenue: number }[];
   due_today: (Debt & { customer_name: string })[];
   overdue: (Debt & { customer_name: string })[];
@@ -353,8 +378,37 @@ export interface Report {
   cash: number;
   card: number;
   debt: number;
+  /** yalpi foyda — tovar ustamasi */
   profit: number;
+  /** shu davrdagi xarajatlar */
+  expenses: number;
+  /** sof foyda = yalpi foyda − xarajatlar */
+  net_profit: number;
+  expenses_by_category: { category: string; total: number }[];
   top_products: { name: string; sold: number; revenue: number }[];
+}
+
+export type ExpensePeriod = 'day' | 'week' | 'month' | 'all';
+
+export interface Expense {
+  id: number;
+  category: string;
+  amount: number;
+  note: string | null;
+  spent_at: string;
+  is_recurring: number;
+  created_by_name?: string | null;
+  created_at: string;
+}
+
+export interface ExpensesInfo {
+  items: Expense[];
+  count: number;
+  total: number;
+  by_category: { category: string; count: number; total: number }[];
+  /** har oy takrorlanadigan, lekin bu oyda hali yozilmagan xarajatlar */
+  suggestions: { category: string; last_at: string; amount: number }[];
+  known_categories: string[];
 }
 
 export { fmt, fmtShort } from './i18n';

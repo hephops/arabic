@@ -220,8 +220,23 @@ CREATE TABLE IF NOT EXISTS reminder_logs (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- Do'kon xarajatlari: ijara, svet, ish haqi, transport...
+-- Bularsiz "foyda" faqat tovar ustamasi bo'lib qoladi va haqiqatdan uzoq.
+CREATE TABLE IF NOT EXISTS expenses (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  shop_id INTEGER NOT NULL REFERENCES shops(id),
+  category TEXT NOT NULL,                        -- rent | utilities | salary | ... yoki do'konchi yozgan matn
+  amount INTEGER NOT NULL,
+  note TEXT,
+  spent_at TEXT NOT NULL DEFAULT (date('now')),  -- xarajat sanasi (kiritilgan sana emas)
+  is_recurring INTEGER NOT NULL DEFAULT 0,       -- har oy takrorlanadimi (ijara, ish haqi)
+  created_by INTEGER REFERENCES employees(id),
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE INDEX IF NOT EXISTS idx_customers_shop ON customers(shop_id);
 CREATE INDEX IF NOT EXISTS idx_debts_shop ON debts(shop_id, status);
+CREATE INDEX IF NOT EXISTS idx_expenses_shop ON expenses(shop_id, spent_at);
 CREATE INDEX IF NOT EXISTS idx_debts_customer ON debts(customer_id);
 CREATE INDEX IF NOT EXISTS idx_products_shop ON products(shop_id);
 CREATE INDEX IF NOT EXISTS idx_products_barcode ON products(shop_id, barcode);

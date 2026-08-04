@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { api, fmt, getToken, Report } from '../api';
 import { AppIcon, Glyph } from '../icons';
 import { SubHeader, EmptyState, Segmented } from '../ui';
-import { useT } from '../i18n';
+import { useT, group } from '../i18n';
+import { expenseCatLabel, expenseCatIcon } from '../expenseCats';
 
 type Period = 'day' | 'week' | 'month';
 const PERIODS: [Period, string][] = [
@@ -11,7 +12,7 @@ const PERIODS: [Period, string][] = [
   ['month', 'periodMonth'],
 ];
 
-export default function Reports({ onBack }: { onBack: () => void }) {
+export default function Reports({ onBack, onOpenExpenses }: { onBack: () => void; onOpenExpenses: () => void }) {
   const [period, setPeriod] = useState<Period>('day');
   const [data, setData] = useState<Report | null>(null);
   const { t } = useT();
@@ -40,10 +41,47 @@ export default function Reports({ onBack }: { onBack: () => void }) {
               <div className="v">{fmt(data.revenue)}</div>
             </div>
             <div>
-              <div className="k">{t('profit')}</div>
+              <div className="k">{t('grossProfit')}</div>
               <div className="v green">{fmt(data.profit)}</div>
             </div>
           </div>
+
+          {/* Sof foyda: yalpi foydadan xarajatlar ayrilgani.
+              Do'konchi aslida qancha ishlaganini shu ko'rsatadi. */}
+          <div className="card net-card" onClick={onOpenExpenses} style={{ cursor: 'pointer' }}>
+            <div className="net-line">
+              <span className="k">{t('grossProfit')}</span>
+              <span className="v">{fmt(data.profit)}</span>
+            </div>
+            <div className="net-line">
+              <span className="k">
+                <AppIcon glyph="wallet" size={20} /> {t('expenses')}
+              </span>
+              <span className="v red">−{group(data.expenses)}</span>
+            </div>
+            <div className="net-line total">
+              <span className="k">{t('netProfit')}</span>
+              <span className={`v ${data.net_profit >= 0 ? 'green' : 'red'}`}>{fmt(data.net_profit)}</span>
+            </div>
+            {data.expenses === 0 && <div className="net-hint">{t('expenseEmptySub')}</div>}
+          </div>
+
+          {data.expenses_by_category.length > 0 && (
+            <>
+              <div className="section-title">{t('expenseByCategory')}</div>
+              <div className="list-group">
+                {data.expenses_by_category.map((c) => (
+                  <div className="list-item" key={c.category} onClick={onOpenExpenses} style={{ cursor: 'pointer' }}>
+                    <div className="lead">
+                      <AppIcon glyph={expenseCatIcon(c.category).glyph} color={expenseCatIcon(c.category).color} size={26} />
+                      <div className="name">{expenseCatLabel(c.category, t)}</div>
+                    </div>
+                    <div className="amount" style={{ color: 'var(--red)' }}>−{group(c.total)}</div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
 
           <div className="section-title">{t('paymentTypes')}</div>
           <div className="list-group">
