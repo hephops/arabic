@@ -6,11 +6,9 @@ import { haptic } from '../telegram';
 import { useT } from '../i18n';
 import { formatAmount, amountValue, formatPhone, formatPhoneSoft, phoneDigits, phoneE164, isPhoneComplete } from '../format';
 import { toast } from '../toast';
-
-interface CartLine {
-  product: Product;
-  qty: number;
-}
+import {
+  Cart, MAX_CARTS, cartQty, cartTotal, loadCarts, newCart, nextNo, saveCarts,
+} from '../carts';
 
 function ProductThumb({ product, size = 44 }: { product: Product; size?: number }) {
   if (product.image_url) {
@@ -161,15 +159,82 @@ function HistoryMode() {
 function SaleMode({ onDone }: { onDone: () => void }) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<Product[]>([]);
-  const [cart, setCart] = useState<CartLine[]>([]);
-  const [payment, setPayment] = useState<'cash' | 'card' | 'debt'>('cash');
-  const [customerName, setCustomerName] = useState('');
-  const [customerPhone, setCustomerPhone] = useState('');
+  // Bir nechta savat: har bir oluvchiga alohida. Yozuv localStorage'da —
+  // boshqa bo'limga o'tib qaytilsa ham savat joyida qoladi.
+  const [state, setState] = useState(loadCarts);
+  const { carts, activeId } = state;
+  const [renaming, setRenaming] = useState(false);
+  const [payment, setPaymentRaw] = useState<'cash' | 'card' | 'debt'>('cash');
   const [scanning, setScanning] = useState(false);
   // Skanerda topilmagan kod: mahsulot tanlansa, kod o'shanga biriktiriladi
   const [pendingCode, setPendingCode] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const { t } = useT();
+
+  const active = carts.find((c) => c.id === activeId) ?? carts[0];
+  const cart = active.lines;
+
+  // Skaner uzluksiz ishlaganda eski qiymatni o'qib qolmasligi uchun
+  const ref = useRef(state);
+  ref.current = state;
+
+  useEffect(() => {
+    saveCarts(state);
+  }, [state]);
+
+  const cartName = (c: Cart) => c.name.trim() || `${t('cartNo')} ${c.no}`;
+
+  /** Faol savatni o'zgartirish (har doim eng so'nggi holatdan) */
+  function patchActive(fn: (c: Cart) => Cart) {
+    setState((s) => ({ ...s, carts: s.carts.map((c) => (c.id === s.activeId ? fn(c) : c)) }));
+  }
+
+  function addCart() {
+    if (carts.length >= MAX_CARTS) {
+      toast.error(t('cartsLimit'));
+      return;
+    }
+    haptic.tap();
+    const c = newCart(nextNo(carts));
+    setState((s) => ({ carts: [...s.carts, c], activeId: c.id }));
+    setQuery(''); setResults([]); setPendingCode(null); setRenaming(false);
+    toast.success(t('cartAdded'), `${t('cartNo')} ${c.no}`);
+  }
+
+  function selectCart(id: number) {
+    if (id === activeId) {
+      setRenaming((v) => !v);
+      return;
+    }
+    haptic.select();
+    setState((s) => ({ ...s, activeId: id }));
+    setQuery(''); setResults([]); setPendingCode(null); setRenaming(false);
+  }
+
+  function removeCart(id: number) {
+    const c = carts.find((x) => x.id === id);
+    if (!c) return;
+    if (c.lines.length > 0 && !confirm(t('cartDeleteAsk'))) return;
+    setRenaming(false);
+    setState((s) => {
+      const rest = s.carts.filter((x) => x.id !== id);
+      if (rest.length === 0) {
+        const fresh = newCart(1);
+        return { carts: [fresh], activeId: fresh.id };
+      }
+      return { carts: rest, activeId: s.activeId === id ? rest[0].id : s.activeId };
+    });
+    toast.info(t('cartDeleted'), cartName(c));
+  }
+
+  const setPayment = (p: 'cash' | 'card' | 'debt') => {
+    setPaymentRaw(p);
+    patchActive((c) => ({ ...c, payment: p }));
+  };
+  // Savat almashsa — to'lov turi ham o'sha savatniki bo'ladi
+  useEffect(() => {
+    setPaymentRaw(active.payment);
+  }, [activeId]);
 
   async function search(q: string) {
     setQuery(q);
@@ -221,22 +286,24 @@ function SaleMode({ onDone }: { onDone: () => void }) {
       }
       setPendingCode(null);
     }
-    const inCart = cart.find((l) => l.product.id === p.id);
+    // Eng so'nggi holat (skaner uzluksiz otganda ham to'g'ri sanaladi)
+    const cur = ref.current.carts.find((c) => c.id === ref.current.activeId)!;
+    const inCart = cur.lines.find((l) => l.product.id === p.id);
     const want = (inCart?.qty ?? 0) + 1;
 
     // Qoldiqdan oshib ketmaydi: savatdagi son omborda borichadan ko'p bo'lmaydi
     if (want > p.stock) {
       toast.error(p.name, `${t('stockShort')}: ${p.stock} ${p.unit}`);
-      if (!inCart && p.stock <= 0) return;   // umuman yo'q — savatga tushmaydi
       return;
     }
 
-    setCart((prev) => {
-      const existing = prev.find((l) => l.product.id === p.id);
-      if (existing) return prev.map((l) => (l.product.id === p.id ? { ...l, qty: want } : l));
-      return [...prev, { product: p, qty: 1 }];
-    });
-    toast.success(p.name, `${want} ${t('pcs')} · ${fmt(p.sell_price * want)}`);
+    patchActive((c) => ({
+      ...c,
+      lines: c.lines.find((l) => l.product.id === p.id)
+        ? c.lines.map((l) => (l.product.id === p.id ? { ...l, qty: want } : l))
+        : [...c.lines, { product: p, qty: 1 }],
+    }));
+    toast.success(p.name, `${want} ${t('pcs')} · ${fmt(p.sell_price * want)} · ${cartName(cur)}`);
     setQuery('');
     setResults([]);
   }
@@ -252,20 +319,22 @@ function SaleMode({ onDone }: { onDone: () => void }) {
       return;
     }
     if (qty <= 0) toast.info(line.product.name, t('toastRemoved'));
-    setCart((prev) =>
-      prev.map((l) => (l.product.id === id ? { ...l, qty } : l)).filter((l) => l.qty > 0)
-    );
+    patchActive((c) => ({
+      ...c,
+      lines: c.lines.map((l) => (l.product.id === id ? { ...l, qty } : l)).filter((l) => l.qty > 0),
+    }));
   }
 
-  const total = cart.reduce((s, l) => s + l.product.sell_price * l.qty, 0);
+  const total = cartTotal(active);
+  const qtyTotal = cartQty(active);
 
   async function checkout(allowNegative = false) {
     if (busy) return;
-    if (payment === 'debt' && !customerName.trim()) {
+    if (payment === 'debt' && !active.customerName.trim()) {
       toast.error(t('debtNeedsCustomer'));
       return;
     }
-    if (payment === 'debt' && !isPhoneComplete(customerPhone)) {
+    if (payment === 'debt' && !isPhoneComplete(active.customerPhone)) {
       toast.error(t('phoneRequired'));
       return;
     }
@@ -274,14 +343,22 @@ function SaleMode({ onDone }: { onDone: () => void }) {
       await api.createSale({
         items: cart.map((l) => ({ product_id: l.product.id!, qty: l.qty })),
         payment_type: payment,
-        customer_name: payment === 'debt' ? customerName.trim() : undefined,
-        customer_phone: payment === 'debt' ? phoneE164(customerPhone) : undefined,
+        customer_name: payment === 'debt' ? active.customerName.trim() : undefined,
+        customer_phone: payment === 'debt' ? phoneE164(active.customerPhone) : undefined,
         allow_negative: allowNegative || undefined,
       });
       toast.success(t('saleSaved'), `${fmt(total)}${payment === 'debt' ? ` · ${t('writtenToDebts')}` : ''}`);
-      setCart([]);
-      setCustomerName('');
-      setCustomerPhone('');
+      // Yakunlangan savat yopiladi, qolganlari joyida turadi
+      const closedId = active.id;
+      setState((s) => {
+        const rest = s.carts.filter((c) => c.id !== closedId);
+        if (rest.length === 0) {
+          const fresh = newCart(1);
+          return { carts: [fresh], activeId: fresh.id };
+        }
+        return { carts: rest, activeId: rest[0].id };
+      });
+      setPaymentRaw('cash');
       onDone();
     } catch (e: any) {
       // Omborda yetarli emas — do'konchidan so'raymiz
@@ -306,11 +383,50 @@ function SaleMode({ onDone }: { onDone: () => void }) {
     }
   }
 
-  const qtyTotal = cart.reduce((s, l) => s + l.qty, 0);
-
   return (
     <div className="kassa-cols">
       <div className="kassa-main">
+        {/* Savatlar qatori — har bir oluvchiga alohida savat */}
+        <div className="cart-tabs">
+          <div className="cart-tabs-scroll">
+            {carts.map((c) => (
+              <button
+                key={c.id}
+                className={`cart-tab ${c.id === activeId ? 'on' : ''}`}
+                onClick={() => selectCart(c.id)}
+              >
+                <span className="cart-tab-name">{cartName(c)}</span>
+                {c.lines.length > 0 && <span className="cart-tab-count">{cartQty(c)}</span>}
+                {c.id === activeId && <Glyph name="pencil" size={12} color="currentColor" />}
+              </button>
+            ))}
+          </div>
+          <button className="cart-tab-add" onClick={addCart} aria-label={t('newCart')}>
+            <Glyph name="plus" size={18} color="var(--accent)" />
+          </button>
+        </div>
+
+        {renaming && (
+          <div className="cart-rename">
+            <label>{t('renameCart')}</label>
+            <input
+              autoFocus
+              value={active.name}
+              onChange={(e) => patchActive((c) => ({ ...c, name: e.target.value }))}
+              placeholder={t('cartNamePlaceholder')}
+              onKeyDown={(e) => e.key === 'Enter' && setRenaming(false)}
+            />
+            <div className="cart-rename-actions">
+              {carts.length > 1 && (
+                <button className="btn-ghost" style={{ color: 'var(--red)' }} onClick={() => removeCart(active.id)}>
+                  <Glyph name="trash" size={16} color="var(--red)" /> {t('delete')}
+                </button>
+              )}
+              <button className="btn-ghost" onClick={() => setRenaming(false)}>{t('save')}</button>
+            </div>
+          </div>
+        )}
+
         <div className="search-row">
           <div className="search-field">
             <Glyph name="search" size={17} color="#8a8a8e" />
@@ -330,9 +446,7 @@ function SaleMode({ onDone }: { onDone: () => void }) {
           <Scanner
             continuous
             status={
-              cart.length > 0
-                ? `${cart.reduce((s, l) => s + l.qty, 0)} ${t('pcs')} · ${fmt(total)}`
-                : t('searchOrScan')
+              cart.length > 0 ? `${cartName(active)} · ${qtyTotal} ${t('pcs')} · ${fmt(total)}` : cartName(active)
             }
             onScan={async (code) => {
               // topilgan mahsulot darhol savatga tushadi — skaner ochiq qoladi
@@ -385,7 +499,7 @@ function SaleMode({ onDone }: { onDone: () => void }) {
         {cart.length > 0 && (
           <>
             <div className="section-title">
-              {t('cart')} · {qtyTotal} {t('pcs')}
+              {cartName(active)} · {qtyTotal} {t('pcs')}
             </div>
             <div className="list-group">
               {cart.map((l) => (
@@ -433,6 +547,7 @@ function SaleMode({ onDone }: { onDone: () => void }) {
 
       {cart.length > 0 && (
         <div className="checkout">
+          <div className="checkout-cart">{cartName(active)}</div>
           <div className="checkout-total">
             <span>{t('total')}</span>
             <b>{fmt(total)}</b>
@@ -453,16 +568,16 @@ function SaleMode({ onDone }: { onDone: () => void }) {
           {payment === 'debt' && (
             <div className="debt-fields">
               <input
-                value={customerName}
-                onChange={(e) => setCustomerName(e.target.value)}
+                value={active.customerName}
+                onChange={(e) => patchActive((c) => ({ ...c, customerName: e.target.value }))}
                 placeholder={t('debtCustomerPlaceholder')}
               />
               <div className="phone-field inline">
                 <span className="cc">+998</span>
                 <input
                   className="phone-input"
-                  value={formatPhone(customerPhone).replace('+998', '').trim()}
-                  onChange={(e) => setCustomerPhone(phoneDigits(e.target.value))}
+                  value={formatPhone(active.customerPhone).replace('+998', '').trim()}
+                  onChange={(e) => patchActive((c) => ({ ...c, customerPhone: phoneDigits(e.target.value) }))}
                   inputMode="tel"
                   placeholder="90 123 45 67"
                 />

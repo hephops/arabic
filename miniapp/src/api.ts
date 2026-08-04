@@ -10,6 +10,8 @@ export function setToken(token: string) {
 
 export function logout() {
   localStorage.removeItem('token');
+  // Ochiq savatlar keyingi kirgan odamga qolib ketmasin
+  localStorage.removeItem('arabic.carts.v1');
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {

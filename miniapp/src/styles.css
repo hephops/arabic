@@ -191,8 +191,16 @@ label { font-size: 13px; color: var(--muted); display: block; margin: 6px 4px 5p
   content: ''; position: absolute; inset: -8px -20px;
 }
 .dock button.dock-item {
-  background: none; padding: 0 6px;
+  background: none; padding: 0 6px; position: relative;
   display: flex; flex-direction: column; align-items: center; gap: 4px;
+}
+/* Ochiq savatlar soni — Kassa ikonkasi burchagida */
+.nav-badge {
+  position: absolute; top: -3px; right: 0;
+  min-width: 19px; height: 19px; padding: 0 5px; border-radius: 10px;
+  background: var(--red); color: #fff; font-size: 11.5px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  border: 2px solid #fff;
 }
 .dock .dot {
   width: 4px; height: 4px; border-radius: 50%; background: transparent;
@@ -519,6 +527,51 @@ button.link { background: none; color: var(--accent); font-size: 15px; font-weig
 
 /* ═══════════ Kassa ═══════════ */
 
+/* ═══════════ Savatlar qatori (har oluvchiga alohida savat) ═══════════ */
+
+.cart-tabs { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.cart-tabs-scroll {
+  /* faqat kerakligicha joy oladi — "+" tugmasi chiplarga yopishib turadi */
+  flex: 0 1 auto; display: flex; gap: 7px; overflow-x: auto; padding: 2px 2px 4px;
+  scrollbar-width: none;
+}
+.cart-tabs-scroll::-webkit-scrollbar { display: none; }
+.cart-tab {
+  flex-shrink: 0; display: flex; align-items: center; gap: 6px;
+  height: 34px; padding: 0 12px; border-radius: 17px;
+  background: var(--card); color: var(--text);
+  font-size: 14px; font-weight: 600; letter-spacing: -0.2px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  max-width: 190px;
+}
+.cart-tab-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cart-tab.on { background: var(--accent); color: #fff; box-shadow: 0 3px 10px rgba(0, 122, 255, 0.28); }
+.cart-tab-count {
+  min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px;
+  background: rgba(120, 120, 128, 0.16); color: var(--muted);
+  font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center;
+}
+.cart-tab.on .cart-tab-count { background: rgba(255, 255, 255, 0.28); color: #fff; }
+.cart-tab-add {
+  flex-shrink: 0; width: 34px; height: 34px; border-radius: 17px;
+  background: var(--card); display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+.cart-rename { background: var(--card); border-radius: 14px; padding: 12px; margin-bottom: 10px; }
+.cart-rename label { margin: 0 2px 5px; }
+.cart-rename input { margin-bottom: 6px; background: var(--bg); }
+.cart-rename-actions { display: flex; gap: 8px; }
+.cart-rename-actions .btn-ghost {
+  flex: 1; width: auto; min-width: 0; padding: 8px;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+}
+
+.checkout-cart {
+  font-size: 12px; font-weight: 700; letter-spacing: 0.4px; text-transform: uppercase;
+  color: var(--accent); margin-bottom: 6px;
+}
+
 .search-row { display: flex; gap: 9px; margin-bottom: 14px; }
 .search-field {
   flex: 1; display: flex; align-items: center; gap: 8px;
@@ -814,6 +867,11 @@ button.link { background: none; color: var(--accent); font-size: 15px; font-weig
     font-size: 14.5px; font-weight: 500; color: var(--text); text-align: left; width: 100%;
   }
   .side-item:hover { background: rgba(120, 120, 128, 0.1); }
+  .side-badge {
+    margin-left: auto; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px;
+    background: var(--red); color: #fff; font-size: 12px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+  }
   .side-item.active { background: rgba(0, 122, 255, 0.11); color: var(--accent); font-weight: 600; }
 
   /* Telefon uchun mo'ljallangan qismlar keng ekranda kerak emas */

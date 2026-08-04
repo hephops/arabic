@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AppIcon, Glyph } from './icons';
 import { haptic } from './telegram';
 import type { Tab, SubScreen } from './App';
 import { useT } from './i18n';
+import { onCartsChanged, openCartCount } from './carts';
 
 // Suzuvchi dock + to'liq ekran menyu (launcher).
 // Dock'dagi chiziqcha bosilsa — barcha bo'limlar grid bo'lib ochiladi.
@@ -78,6 +79,9 @@ export default function Dock({
 }) {
   const [open, setOpen] = useState(false);
   const { t } = useT();
+  // Ochiq savatlar soni — qaysi bo'limda bo'lsa ham ko'rinib turadi
+  const [openCarts, setOpenCarts] = useState(openCartCount);
+  useEffect(() => onCartsChanged(() => setOpenCarts(openCartCount())), []);
 
   const isActive = (target: NavTarget) =>
     target.sub
@@ -105,6 +109,9 @@ export default function Dock({
               >
                 <AppIcon glyph={item.glyph} size={26} />
                 <span>{t(item.key)}</span>
+                {item.target.tab === 'kassa' && openCarts > 0 && (
+                  <span className="side-badge">{openCarts}</span>
+                )}
               </button>
             ))}
           </div>
@@ -120,6 +127,7 @@ export default function Dock({
             onClick={() => onNavigate({ tab: item.id })}
           >
             <AppIcon glyph={item.glyph} size={46} />
+            {item.id === 'kassa' && openCarts > 0 && <span className="nav-badge">{openCarts}</span>}
             <span className="dot" />
           </button>
         ))}
