@@ -81,6 +81,7 @@ export default function Dock({
   onNavigate: (t: NavTarget) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [deck, setDeck] = useState(false);   // kompyuterdagi pastki panel
   const { t } = useT();
   // Ochiq savatlar soni — qaysi bo'limda bo'lsa ham ko'rinib turadi
   const [openCarts, setOpenCarts] = useState(openCartCount);
@@ -154,6 +155,34 @@ export default function Dock({
           </div>
         )}
       </nav>
+
+      {/* Kompyuterda pastdagi yashirin panel: chiziqcha bosilsa
+          barcha bo'lim ikonkalari ko'tarilib chiqadi (macOS dock kabi) */}
+      {deck && <div className="deck-backdrop" onClick={() => setDeck(false)} />}
+      <div className={`deck ${deck ? 'open' : ''}`}>
+        <div className="deck-items">
+          {LAUNCHER_ITEMS.map((item) => (
+            <button
+              key={item.key}
+              className="deck-item"
+              title={t(item.key)}
+              onClick={() => {
+                setDeck(false);
+                onNavigate(item.target);
+              }}
+            >
+              <AppIcon glyph={item.glyph} size={44} />
+              <span className="deck-tip">{t(item.key)}</span>
+            </button>
+          ))}
+        </div>
+        <button
+          className="deck-handle"
+          aria-label="Menyu"
+          aria-expanded={deck}
+          onClick={() => setDeck((v) => !v)}
+        />
+      </div>
 
       <div className="dock">
         <button className="dock-handle" aria-label="Menyu" onClick={() => { haptic.tap(); setOpen(true); }} />
