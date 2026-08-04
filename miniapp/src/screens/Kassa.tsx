@@ -396,40 +396,46 @@ function SaleMode({ onDone }: { onDone: () => void }) {
               onClick={() => selectCart(c.id)}
             >
               <div className="cc-top">
+                <span className="cc-no">{c.no}</span>
                 <span className="cc-name">{cartName(c)}</span>
-                {c.id === activeId && <Glyph name="pencil" size={13} color="var(--accent)" />}
+                {c.id === activeId && <Glyph name="pencil" size={13} color="currentColor" />}
               </div>
+              <div className="cc-total">{fmt(cartTotal(c))}</div>
               <div className="cc-sub">
                 {c.lines.length > 0 ? `${cartQty(c)} ${t('pcs')}` : t('cartEmptyShort')}
               </div>
-              <div className="cc-total">{fmt(cartTotal(c))}</div>
             </button>
           ))}
           {carts.length < MAX_CARTS && (
-            <button className="cart-add" onClick={addCart}>
-              <Glyph name="plus" size={22} color="var(--accent)" />
-              <span>{t('newCart')}</span>
+            <button className="cart-add" onClick={addCart} title={t('newCart')}>
+              <Glyph name="plus" size={20} color="var(--accent)" />
+              <span>{t('newCartShort')}</span>
             </button>
           )}
         </div>
 
+        {/* Savat nomi — pastdan chiqadigan oyna (kompyuterda o'rtada) */}
         {renaming && (
-          <div className="cart-rename">
-            <label>{t('renameCart')}</label>
-            <input
-              autoFocus
-              value={active.name}
-              onChange={(e) => patchActive((c) => ({ ...c, name: e.target.value }))}
-              placeholder={t('cartNamePlaceholder')}
-              onKeyDown={(e) => e.key === 'Enter' && setRenaming(false)}
-            />
-            <div className="cart-rename-actions">
+          <div className="sheet-wrap" onClick={() => setRenaming(false)}>
+            <div className="sheet" onClick={(e) => e.stopPropagation()}>
+              <div className="sheet-grip" />
+              <div className="sheet-title">{t('renameCart')}</div>
+              <div className="sheet-sub">{t('cartNameWhy')}</div>
+              <input
+                autoFocus
+                value={active.name}
+                onChange={(e) => patchActive((c) => ({ ...c, name: e.target.value }))}
+                placeholder={t('cartNamePlaceholder')}
+                onKeyDown={(e) => e.key === 'Enter' && setRenaming(false)}
+              />
+              <button className="btn-primary btn-lg" onClick={() => setRenaming(false)}>
+                <Glyph name="check" size={18} color="#fff" /> {t('save')}
+              </button>
               {carts.length > 1 && (
-                <button className="btn-ghost" style={{ color: 'var(--red)' }} onClick={() => removeCart(active.id)}>
-                  <Glyph name="trash" size={16} color="var(--red)" /> {t('delete')}
+                <button className="btn-ghost sheet-danger" onClick={() => removeCart(active.id)}>
+                  <Glyph name="trash" size={16} color="var(--red)" /> {t('deleteCart')}
                 </button>
               )}
-              <button className="btn-ghost" onClick={() => setRenaming(false)}>{t('save')}</button>
             </div>
           </div>
         )}

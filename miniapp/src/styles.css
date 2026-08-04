@@ -530,49 +530,88 @@ button.link { background: none; color: var(--accent); font-size: 15px; font-weig
 /* ═══════════ Savatlar qatori (har oluvchiga alohida savat) ═══════════ */
 
 .cart-cards {
-  display: flex; gap: 10px; overflow-x: auto; padding: 2px 2px 10px;
+  display: flex; align-items: stretch; gap: 9px;
+  overflow-x: auto; padding: 3px 2px 12px;
   scrollbar-width: none;
 }
 .cart-cards::-webkit-scrollbar { display: none; }
+
 .cart-card {
-  flex: 0 0 auto; width: 148px; text-align: left;
-  background: var(--card); border-radius: 14px; padding: 10px 12px 11px;
-  display: flex; flex-direction: column; gap: 1px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
-  border: 1.5px solid transparent;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  flex: 0 0 auto; width: 164px; text-align: left;
+  background: var(--card); color: var(--text);
+  border-radius: 16px; padding: 11px 13px 12px;
+  display: flex; flex-direction: column;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05), 0 0 0 0.5px rgba(60, 60, 67, 0.09);
+  transition: transform 0.16s ease, box-shadow 0.16s ease;
 }
-.cart-card .cc-top { display: flex; align-items: center; gap: 5px; min-width: 0; }
+.cart-card .cc-top { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.cart-card .cc-no {
+  width: 21px; height: 21px; border-radius: 7px; flex-shrink: 0;
+  background: rgba(120, 120, 128, 0.14); color: var(--muted);
+  font-size: 11.5px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+}
 .cart-card .cc-name {
   flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  font-size: 14.5px; font-weight: 600; letter-spacing: -0.25px;
+  font-size: 14px; font-weight: 600; letter-spacing: -0.25px;
 }
-.cart-card .cc-sub { font-size: 11.5px; color: var(--muted); }
 .cart-card .cc-total {
-  font-size: 16px; font-weight: 700; letter-spacing: -0.4px; margin-top: 3px;
+  font-size: 19px; font-weight: 750; letter-spacing: -0.6px; margin-top: 7px; line-height: 1.1;
 }
+.cart-card .cc-sub { font-size: 11.5px; color: var(--muted); margin-top: 2px; }
+
+/* Faol savat — asosiy karta bilan bir uslubda, ko'k gradient */
 .cart-card.on {
-  border-color: var(--accent);
-  box-shadow: 0 6px 18px -8px rgba(0, 122, 255, 0.6);
+  background: linear-gradient(135deg, #2E93FF 0%, #0A63E8 62%, #4A38DE 135%);
+  color: #fff;
+  box-shadow: 0 10px 24px -12px rgba(10, 99, 232, 0.95), 0 1px 2px rgba(0, 0, 0, 0.08);
+  transform: translateY(-1px);
 }
-.cart-card.on .cc-total { color: var(--accent); }
+.cart-card.on .cc-no { background: rgba(255, 255, 255, 0.24); color: #fff; }
+.cart-card.on .cc-sub { color: rgba(255, 255, 255, 0.82); }
 
 .cart-add {
-  flex: 0 0 auto; width: 96px; border-radius: 14px;
-  border: 1.5px dashed rgba(0, 122, 255, 0.4); background: rgba(0, 122, 255, 0.05);
-  color: var(--accent); font-size: 12.5px; font-weight: 600; line-height: 1.2;
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px;
-  padding: 8px; text-align: center;
+  flex: 0 0 auto; width: 82px; border-radius: 16px;
+  border: 1.5px dashed rgba(0, 122, 255, 0.38); background: rgba(0, 122, 255, 0.05);
+  color: var(--accent); font-size: 12.5px; font-weight: 600;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+  padding: 8px;
 }
-.cart-add:active { background: rgba(0, 122, 255, 0.12); }
+.cart-add:active { background: rgba(0, 122, 255, 0.13); }
 
-.cart-rename { background: var(--card); border-radius: 14px; padding: 12px; margin-bottom: 10px; }
-.cart-rename label { margin: 0 2px 5px; }
-.cart-rename input { margin-bottom: 6px; background: var(--bg); }
-.cart-rename-actions { display: flex; gap: 8px; }
-.cart-rename-actions .btn-ghost {
-  flex: 1; width: auto; min-width: 0; padding: 8px;
-  display: flex; align-items: center; justify-content: center; gap: 6px;
+/* ── Pastdan chiqadigan oyna (savat nomi va shunga o'xshashlar) ── */
+
+.sheet-wrap {
+  position: fixed; inset: 0; z-index: 90;
+  background: rgba(0, 0, 0, 0.32);
+  backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
+  display: flex; align-items: flex-end; justify-content: center;
+  animation: sheetFade 0.18s ease-out;
+}
+.sheet {
+  width: 100%; max-width: 480px;
+  background: var(--card);
+  border-radius: 22px 22px 0 0;
+  padding: 8px 18px max(20px, env(safe-area-inset-bottom));
+  animation: sheetUp 0.24s cubic-bezier(0.32, 0.72, 0, 1);
+  box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.18);
+}
+.sheet-grip {
+  width: 38px; height: 5px; border-radius: 3px; margin: 0 auto 14px;
+  background: rgba(60, 60, 67, 0.2);
+}
+.sheet-title { font-size: 19px; font-weight: 700; letter-spacing: -0.4px; }
+.sheet-sub { font-size: 13px; color: var(--muted); margin: 4px 0 14px; line-height: 1.35; }
+.sheet input { background: var(--bg); font-size: 17px; padding: 13px 14px; margin-bottom: 4px; }
+.sheet-danger {
+  display: flex; align-items: center; justify-content: center; gap: 7px;
+  color: var(--red); margin-top: 2px;
+}
+@keyframes sheetFade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes sheetUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+@keyframes sheetPop {
+  from { opacity: 0; transform: scale(0.96) translateY(8px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
 }
 
 .checkout-cart {
@@ -960,9 +999,18 @@ button.link { background: none; color: var(--accent); font-size: 15px; font-weig
   .home-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 0 20px; align-items: start; }
 
   /* Savat kartochkalari keng ekranda kattaroq */
-  .cart-card { width: 178px; padding: 12px 14px 13px; }
-  .cart-add { width: 112px; }
-  .cart-rename { max-width: 520px; }
+  .cart-card { width: 186px; padding: 13px 15px 14px; }
+  .cart-card .cc-total { font-size: 20px; }
+  .cart-add { width: 92px; }
+
+  /* Oynacha kompyuterda o'rtada turadi */
+  .sheet-wrap { align-items: center; }
+  .sheet {
+    max-width: 440px; border-radius: 20px; padding: 22px 22px 20px;
+    animation: sheetPop 0.2s cubic-bezier(0.32, 0.72, 0, 1);
+  }
+  .sheet-grip { display: none; }
+  .sheet .btn-primary, .sheet .btn-ghost { width: 100%; }
 
   /* Kassa: chapda qidiruv va savat, o'ngda hisob */
   .kassa-cols { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(300px, 0.65fr); gap: 20px; align-items: start; }
