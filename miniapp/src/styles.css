@@ -529,34 +529,42 @@ button.link { background: none; color: var(--accent); font-size: 15px; font-weig
 
 /* ═══════════ Savatlar qatori (har oluvchiga alohida savat) ═══════════ */
 
-.cart-tabs { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
-.cart-tabs-scroll {
-  /* faqat kerakligicha joy oladi — "+" tugmasi chiplarga yopishib turadi */
-  flex: 0 1 auto; display: flex; gap: 7px; overflow-x: auto; padding: 2px 2px 4px;
+.cart-cards {
+  display: flex; gap: 10px; overflow-x: auto; padding: 2px 2px 10px;
   scrollbar-width: none;
 }
-.cart-tabs-scroll::-webkit-scrollbar { display: none; }
-.cart-tab {
-  flex-shrink: 0; display: flex; align-items: center; gap: 6px;
-  height: 34px; padding: 0 12px; border-radius: 17px;
-  background: var(--card); color: var(--text);
-  font-size: 14px; font-weight: 600; letter-spacing: -0.2px;
+.cart-cards::-webkit-scrollbar { display: none; }
+.cart-card {
+  flex: 0 0 auto; width: 148px; text-align: left;
+  background: var(--card); border-radius: 14px; padding: 10px 12px 11px;
+  display: flex; flex-direction: column; gap: 1px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
-  max-width: 190px;
+  border: 1.5px solid transparent;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
-.cart-tab-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cart-tab.on { background: var(--accent); color: #fff; box-shadow: 0 3px 10px rgba(0, 122, 255, 0.28); }
-.cart-tab-count {
-  min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px;
-  background: rgba(120, 120, 128, 0.16); color: var(--muted);
-  font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center;
+.cart-card .cc-top { display: flex; align-items: center; gap: 5px; min-width: 0; }
+.cart-card .cc-name {
+  flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: 14.5px; font-weight: 600; letter-spacing: -0.25px;
 }
-.cart-tab.on .cart-tab-count { background: rgba(255, 255, 255, 0.28); color: #fff; }
-.cart-tab-add {
-  flex-shrink: 0; width: 34px; height: 34px; border-radius: 17px;
-  background: var(--card); display: flex; align-items: center; justify-content: center;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+.cart-card .cc-sub { font-size: 11.5px; color: var(--muted); }
+.cart-card .cc-total {
+  font-size: 16px; font-weight: 700; letter-spacing: -0.4px; margin-top: 3px;
 }
+.cart-card.on {
+  border-color: var(--accent);
+  box-shadow: 0 6px 18px -8px rgba(0, 122, 255, 0.6);
+}
+.cart-card.on .cc-total { color: var(--accent); }
+
+.cart-add {
+  flex: 0 0 auto; width: 96px; border-radius: 14px;
+  border: 1.5px dashed rgba(0, 122, 255, 0.4); background: rgba(0, 122, 255, 0.05);
+  color: var(--accent); font-size: 12.5px; font-weight: 600; line-height: 1.2;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px;
+  padding: 8px; text-align: center;
+}
+.cart-add:active { background: rgba(0, 122, 255, 0.12); }
 
 .cart-rename { background: var(--card); border-radius: 14px; padding: 12px; margin-bottom: 10px; }
 .cart-rename label { margin: 0 2px 5px; }
@@ -828,15 +836,21 @@ button.link { background: none; color: var(--accent); font-size: 15px; font-weig
   /* Kontent chapdagi menyudan keyin boshlanadi.
      Surilish .app-shell'da — yon menyu faqat shu ichida chiziladi.
      #root'ga qo'yilsa kirish sahifasi ham o'ngga surilib qolardi. */
+  /* Oyna o'zi sirg'anmaydi — faqat kontent qismi ichkarida sirg'anadi.
+     Shunda chapdagi menyu va sarlavha doim joyida turadi (ilova kabi). */
+  html, body { height: 100%; overflow: hidden; }
   #root {
     max-width: none;
     margin: 0;
-    padding: 0 0 40px;
+    padding: 0;
+    height: 100%;
+    overflow: hidden;
   }
-  .app-shell { padding-left: 260px; }
+  .app-shell { padding-left: 260px; height: 100vh; overflow-y: auto; }
   /* Kirish sahifasi keng ekranda o'rtada tursin */
+  .auth { height: 100vh; overflow-y: auto; }
   .auth-body { padding-top: 0; min-height: 100vh; display: flex; flex-direction: column; justify-content: center; }
-  .screen { padding: 20px 28px; max-width: 1080px; margin: 0 auto; }
+  .screen { padding: 20px 28px 40px; max-width: 1080px; margin: 0 auto; }
 
   /* ── Chapdagi doimiy menyu ── */
   .side {
@@ -930,8 +944,25 @@ button.link { background: none; color: var(--accent); font-size: 15px; font-weig
   .list-item { padding: 13px 16px; }
   .form-group, .card, .list-group { border-radius: 14px; }
 
+  /* Asosiy ekran: yuqorida savdo kartasi va ko'rsatkichlar yonma-yon —
+     shunda ekranga ko'proq sig'adi, sirg'anish kamayadi */
+  .home-top {
+    display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(250px, 1fr);
+    gap: 14px; align-items: stretch; margin-bottom: 4px;
+  }
+  .home-top .hero { margin-bottom: 0; height: 100%; }
+  .home-top .stat-row { flex-direction: column; gap: 10px; margin: 0; }
+  .home-top .stat-card {
+    flex: 1; display: flex; flex-direction: column; justify-content: center;
+  }
+
   /* Asosiy ekran: qarzlar va sotuvlar yonma-yon */
   .home-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 0 20px; align-items: start; }
+
+  /* Savat kartochkalari keng ekranda kattaroq */
+  .cart-card { width: 178px; padding: 12px 14px 13px; }
+  .cart-add { width: 112px; }
+  .cart-rename { max-width: 520px; }
 
   /* Kassa: chapda qidiruv va savat, o'ngda hisob */
   .kassa-cols { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(300px, 0.65fr); gap: 20px; align-items: start; }

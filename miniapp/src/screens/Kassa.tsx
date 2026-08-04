@@ -386,24 +386,31 @@ function SaleMode({ onDone }: { onDone: () => void }) {
   return (
     <div className="kassa-cols">
       <div className="kassa-main">
-        {/* Savatlar qatori — har bir oluvchiga alohida savat */}
-        <div className="cart-tabs">
-          <div className="cart-tabs-scroll">
-            {carts.map((c) => (
-              <button
-                key={c.id}
-                className={`cart-tab ${c.id === activeId ? 'on' : ''}`}
-                onClick={() => selectCart(c.id)}
-              >
-                <span className="cart-tab-name">{cartName(c)}</span>
-                {c.lines.length > 0 && <span className="cart-tab-count">{cartQty(c)}</span>}
-                {c.id === activeId && <Glyph name="pencil" size={12} color="currentColor" />}
-              </button>
-            ))}
-          </div>
-          <button className="cart-tab-add" onClick={addCart} aria-label={t('newCart')}>
-            <Glyph name="plus" size={18} color="var(--accent)" />
-          </button>
+        {/* Ochiq savatlar — har bir oluvchiga alohida.
+            Har birida nomi, dona soni va summasi ko'rinib turadi. */}
+        <div className="cart-cards">
+          {carts.map((c) => (
+            <button
+              key={c.id}
+              className={`cart-card ${c.id === activeId ? 'on' : ''}`}
+              onClick={() => selectCart(c.id)}
+            >
+              <div className="cc-top">
+                <span className="cc-name">{cartName(c)}</span>
+                {c.id === activeId && <Glyph name="pencil" size={13} color="var(--accent)" />}
+              </div>
+              <div className="cc-sub">
+                {c.lines.length > 0 ? `${cartQty(c)} ${t('pcs')}` : t('cartEmptyShort')}
+              </div>
+              <div className="cc-total">{fmt(cartTotal(c))}</div>
+            </button>
+          ))}
+          {carts.length < MAX_CARTS && (
+            <button className="cart-add" onClick={addCart}>
+              <Glyph name="plus" size={22} color="var(--accent)" />
+              <span>{t('newCart')}</span>
+            </button>
+          )}
         </div>
 
         {renaming && (

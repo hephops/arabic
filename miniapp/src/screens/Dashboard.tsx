@@ -41,6 +41,8 @@ export default function Dashboard({
         </div>
       )}
 
+      {/* Keng ekranda: chapda savdo kartasi, o'ngda ko'rsatkichlar — bir qatorda */}
+      <div className="home-top">
       {/* Bugungi savdo — asosiy karta */}
       <div
         className="hero"
@@ -112,6 +114,8 @@ export default function Dashboard({
         </div>
       </div>
 
+      </div>
+
       {/* Tez kirish */}
       <div className="tile-row">
         {(
@@ -158,38 +162,6 @@ export default function Dashboard({
               <div className="list-item" key={d.id}>
                 <div className="name">{d.customer_name}</div>
                 <div className="amount">{fmt(d.amount - d.paid_amount)}</div>
-              </div>
-            ))}
-          </div>
-        </>
-      )}
-
-        </div>
-        <div>
-      {data.recent_sales.length > 0 && (
-        <>
-          <div className="section-title">{t('recentSales')}</div>
-          <div className="list-group">
-            {data.recent_sales.map((s) => (
-              <div className="list-item" key={s.id} onClick={() => onNavigate('reports')}>
-                <div className="lead">
-                  <AppIcon
-                    glyph={s.payment_type === 'debt' ? 'note' : s.payment_type === 'card' ? 'card' : 'banknote'}
-                    color={s.payment_type === 'debt' ? 'yellow' : s.payment_type === 'card' ? 'indigo' : 'green'}
-                    size={29}
-                  />
-                  <div style={{ minWidth: 0 }}>
-                    <div className="name" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {s.items ?? '—'}
-                    </div>
-                    <div className="sub">
-                      {s.created_at.slice(5, 16)} ·{' '}
-                      {s.payment_type === 'cash' ? t('payCash') : s.payment_type === 'card' ? t('payCard') : t('payDebt')}
-                      {s.customer_name ? ` · ${s.customer_name}` : ''}
-                    </div>
-                  </div>
-                </div>
-                <div className="amount">{fmt(s.total)}</div>
               </div>
             ))}
           </div>
@@ -246,6 +218,38 @@ export default function Dashboard({
               <div className="list-item" key={p.id}>
                 <div className="name">{p.name}</div>
                 <div className="sub">{p.expiry_date}</div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+        </div>
+        <div>
+      {data.recent_sales.length > 0 && (
+        <>
+          <div className="section-title">{t('recentSales')}</div>
+          <div className="list-group">
+            {data.recent_sales.map((s) => (
+              <div className="list-item" key={s.id} onClick={() => onNavigate('reports')}>
+                <div className="lead">
+                  <AppIcon
+                    glyph={s.payment_type === 'debt' ? 'note' : s.payment_type === 'card' ? 'card' : 'banknote'}
+                    color={s.payment_type === 'debt' ? 'yellow' : s.payment_type === 'card' ? 'indigo' : 'green'}
+                    size={29}
+                  />
+                  <div style={{ minWidth: 0 }}>
+                    <div className="name" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {s.items ?? '—'}
+                    </div>
+                    <div className="sub">
+                      {s.created_at.slice(5, 16)} ·{' '}
+                      {s.payment_type === 'cash' ? t('payCash') : s.payment_type === 'card' ? t('payCard') : t('payDebt')}
+                      {s.customer_name ? ` · ${s.customer_name}` : ''}
+                    </div>
+                  </div>
+                </div>
+                <div className="amount">{fmt(s.total)}</div>
               </div>
             ))}
           </div>
