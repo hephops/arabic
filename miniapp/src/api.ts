@@ -33,6 +33,8 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 }
 
 export const api = {
+  // Yordam kontaktlari (kirish shart emas)
+  support: () => request<{ phone: string; telegram: string }>('/public/support'),
   // Xodim (sotuvchi) kirishi: do'kon telefoni + 4 xonali PIN
   // Shtrix-kod bo'yicha to'liq javob: tovar bormi, katalogda bormi, kod to'g'rimi
   lookupBarcode: (code: string) =>

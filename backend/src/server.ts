@@ -113,6 +113,13 @@ app.post('/telegram/webhook', async (req, reply) => {
   handleUpdate(req.body).catch((e) => app.log.error(e));
 });
 
+// Ilovaning quyi qismida ko'rsatiladigan yordam kontaktlari.
+// Admin panelning sozlamalaridan olinadi — kirmagan foydalanuvchi ham ko'radi.
+app.get('/public/support', async () => ({
+  phone: getSetting('support_phone', ''),
+  telegram: getSetting('support_telegram', ''),
+}));
+
 // ---------- PROFIL ----------
 app.get('/me', { preHandler: requireAuth }, async (req) => {
   const shop = db.prepare('SELECT * FROM shops WHERE id = ?').get(req.shopId) as any;

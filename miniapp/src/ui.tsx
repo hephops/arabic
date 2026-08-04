@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { AppIcon, Glyph } from './icons';
 import { useT } from './i18n';
+import { toggleSide } from './sidebar';
 
 // iOS navigatsiya paneli: 44px balandlik, markazda 17px sarlavha,
 // chapda "‹ Orqaga", fon blur bilan yopishib turadi.
@@ -21,6 +22,10 @@ export function NavBar({
   return (
     <div className="navbar">
       <div className="nav-left">
+        {/* Menyuni yig'ish/yoyish — faqat kompyuterda ko'rinadi */}
+        <button className="side-toggle" onClick={toggleSide} aria-label="Menyu" title="Menyu">
+          <Glyph name="menu" size={20} />
+        </button>
         {onBack && (
           <button className="nav-btn" onClick={onBack}>
             <span style={{ display: 'inline-flex', transform: 'rotate(180deg)', marginRight: 1 }}>

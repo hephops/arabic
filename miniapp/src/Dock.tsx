@@ -4,6 +4,9 @@ import { haptic } from './telegram';
 import type { Tab, SubScreen } from './App';
 import { useT } from './i18n';
 import { onCartsChanged, openCartCount } from './carts';
+import { toggleSide } from './sidebar';
+import { api } from './api';
+import { formatPhoneSoft } from './format';
 
 // Suzuvchi dock + to'liq ekran menyu (launcher).
 // Dock'dagi chiziqcha bosilsa — barcha bo'limlar grid bo'lib ochiladi.
@@ -82,6 +85,11 @@ export default function Dock({
   // Ochiq savatlar soni — qaysi bo'limda bo'lsa ham ko'rinib turadi
   const [openCarts, setOpenCarts] = useState(openCartCount);
   useEffect(() => onCartsChanged(() => setOpenCarts(openCartCount())), []);
+  // Yordam kontaktlari admin panel sozlamalaridan keladi
+  const [support, setSupport] = useState<{ phone: string; telegram: string }>({ phone: '', telegram: '' });
+  useEffect(() => {
+    api.support().then(setSupport).catch(() => {});
+  }, []);
 
   const isActive = (target: NavTarget) =>
     target.sub
@@ -90,32 +98,61 @@ export default function Dock({
 
   return (
     <>
-      {/* Kompyuter uchun yon menyu */}
+      {/* Kompyuter uchun yon menyu — yig'ilganda faqat ikonkalar qoladi */}
       <nav className="side">
-        <div className="side-brand">
+        <button className="side-brand" onClick={toggleSide} title="Menyu">
           <div className="side-logo">A</div>
-          <div>
+          <div className="side-brand-text">
             <div className="side-name">Arabic.One</div>
             <div className="side-sub">{t('loginSubtitle')}</div>
           </div>
+        </button>
+        <div className="side-scroll">
+          {SIDE_GROUPS.map((group, i) => (
+            <div className="side-group" key={i}>
+              {group.map((item) => (
+                <button
+                  key={item.key}
+                  className={`side-item ${isActive(item.target) ? 'active' : ''}`}
+                  onClick={() => onNavigate(item.target)}
+                  title={t(item.key)}
+                >
+                  <AppIcon glyph={item.glyph} size={26} />
+                  <span className="side-label">{t(item.key)}</span>
+                  {item.target.tab === 'kassa' && openCarts > 0 && (
+                    <span className="side-badge">{openCarts}</span>
+                  )}
+                </button>
+              ))}
+            </div>
+          ))}
         </div>
-        {SIDE_GROUPS.map((group, i) => (
-          <div className="side-group" key={i}>
-            {group.map((item) => (
-              <button
-                key={item.key}
-                className={`side-item ${isActive(item.target) ? 'active' : ''}`}
-                onClick={() => onNavigate(item.target)}
+        {(support.phone || support.telegram) && (
+          <div className="side-foot">
+            <div className="side-foot-title">
+              <Glyph name="help" size={15} color="var(--muted)" />
+              <span className="side-label">{t('techSupport')}</span>
+            </div>
+            {support.phone && (
+              <a className="side-foot-row" href={`tel:${support.phone}`} title={support.phone}>
+                <Glyph name="call" size={14} color="var(--muted)" />
+                <span className="side-label">{formatPhoneSoft(support.phone) || support.phone}</span>
+              </a>
+            )}
+            {support.telegram && (
+              <a
+                className="side-foot-row"
+                href={`https://t.me/${support.telegram.replace(/^@/, '')}`}
+                target="_blank"
+                rel="noreferrer"
+                title={support.telegram}
               >
-                <AppIcon glyph={item.glyph} size={26} />
-                <span>{t(item.key)}</span>
-                {item.target.tab === 'kassa' && openCarts > 0 && (
-                  <span className="side-badge">{openCarts}</span>
-                )}
-              </button>
-            ))}
+                <Glyph name="send" size={14} color="var(--muted)" />
+                <span className="side-label">{support.telegram}</span>
+              </a>
+            )}
           </div>
-        ))}
+        )}
       </nav>
 
       <div className="dock">

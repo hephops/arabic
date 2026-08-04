@@ -48,6 +48,8 @@ body {
   display: flex; align-items: center; padding: 5px 6px;
 }
 .nav-btn:active { opacity: 0.5; }
+/* Menyuni yig'ish tugmasi faqat kompyuterda kerak */
+.side-toggle { display: none; }
 
 /* Kartochka — tekis, soyasiz */
 .card {
@@ -885,7 +887,10 @@ button.link { background: none; color: var(--accent); font-size: 15px; font-weig
     height: 100%;
     overflow: hidden;
   }
-  .app-shell { padding-left: 260px; height: 100vh; overflow-y: auto; }
+  .app-shell {
+    padding-left: 260px; height: 100vh; overflow-y: auto;
+    transition: padding-left 0.22s cubic-bezier(0.32, 0.72, 0, 1);
+  }
   /* Kirish sahifasi keng ekranda o'rtada tursin */
   .auth { height: 100vh; overflow-y: auto; }
   .auth-body { padding-top: 0; min-height: 100vh; display: flex; flex-direction: column; justify-content: center; }
@@ -894,14 +899,26 @@ button.link { background: none; color: var(--accent); font-size: 15px; font-weig
   /* ── Chapdagi doimiy menyu ── */
   .side {
     position: fixed; top: 0; left: 0; bottom: 0; width: 260px; z-index: 60;
-    display: flex; flex-direction: column; gap: 18px;
-    padding: 20px 14px;
+    display: flex; flex-direction: column;
+    padding: 16px 14px 14px;
     background: rgba(250, 250, 252, 0.92);
     backdrop-filter: blur(24px) saturate(180%); -webkit-backdrop-filter: blur(24px) saturate(180%);
     border-right: 0.5px solid var(--separator);
-    overflow-y: auto;
+    overflow: hidden;
+    transition: width 0.22s cubic-bezier(0.32, 0.72, 0, 1), padding 0.22s ease;
   }
-  .side-brand { display: flex; align-items: center; gap: 11px; padding: 4px 8px 6px; }
+  .side-scroll {
+    flex: 1; overflow-y: auto; overflow-x: hidden;
+    display: flex; flex-direction: column; gap: 16px; padding-top: 14px;
+    scrollbar-width: none;
+  }
+  .side-scroll::-webkit-scrollbar { display: none; }
+  .side-brand {
+    display: flex; align-items: center; gap: 11px; padding: 4px 6px 8px;
+    background: none; text-align: left; width: 100%; flex-shrink: 0;
+    border-bottom: 0.5px solid var(--separator);
+  }
+  .side-brand-text { min-width: 0; overflow: hidden; }
   .side-logo {
     width: 40px; height: 40px; border-radius: 11px; flex-shrink: 0;
     background: linear-gradient(165deg, #5cabff, #0a5fe0);
@@ -918,7 +935,48 @@ button.link { background: none; color: var(--accent); font-size: 15px; font-weig
     display: flex; align-items: center; gap: 11px;
     padding: 9px 10px; border-radius: 11px; background: none;
     font-size: 14.5px; font-weight: 500; color: var(--text); text-align: left; width: 100%;
+    white-space: nowrap;
   }
+
+  /* Menyu tagida — texnik yordam */
+  .side-foot {
+    flex-shrink: 0; padding-top: 12px; border-top: 0.5px solid var(--separator);
+    display: flex; flex-direction: column; gap: 5px;
+  }
+  .side-foot-title {
+    display: flex; align-items: center; gap: 8px; padding: 0 10px 3px;
+    font-size: 12px; font-weight: 600; color: var(--muted); white-space: nowrap;
+  }
+  .side-foot-row {
+    display: flex; align-items: center; gap: 9px; padding: 4px 10px;
+    font-size: 12.5px; color: var(--muted); text-decoration: none; white-space: nowrap;
+    border-radius: 8px;
+  }
+  .side-foot-row:hover { color: var(--accent); background: rgba(120, 120, 128, 0.08); }
+
+  /* Menyuni yig'ish tugmasi sarlavhada */
+  .side-toggle {
+    display: flex; align-items: center; justify-content: center;
+    width: 34px; height: 34px; border-radius: 9px; background: none; color: var(--text);
+    margin-right: 2px;
+  }
+  .side-toggle:hover { background: rgba(120, 120, 128, 0.12); }
+
+  /* ── Yig'ilgan holat: faqat ikonkalar ── */
+  :root[data-side='min'] .side { width: 68px; padding-left: 10px; padding-right: 10px; }
+  :root[data-side='min'] .app-shell { padding-left: 68px; }
+  :root[data-side='min'] .side-label,
+  :root[data-side='min'] .side-brand-text { display: none; }
+  :root[data-side='min'] .side-item,
+  :root[data-side='min'] .side-brand,
+  :root[data-side='min'] .side-foot-title,
+  :root[data-side='min'] .side-foot-row { justify-content: center; padding-left: 0; padding-right: 0; gap: 0; }
+  :root[data-side='min'] .side-badge {
+    position: absolute; top: 3px; right: 5px; margin: 0;
+    min-width: 17px; height: 17px; font-size: 10.5px; border: 2px solid #fafafc;
+  }
+  :root[data-side='min'] .side-item { position: relative; }
+  :root[data-side='min'] .scan { left: 68px; width: min(720px, calc(100vw - 128px)); }
   .side-item:hover { background: rgba(120, 120, 128, 0.1); }
   .side-badge {
     margin-left: auto; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px;
