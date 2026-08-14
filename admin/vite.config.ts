@@ -11,4 +11,6 @@ const apiProxy = Object.fromEntries(
 export default defineConfig({
   plugins: [react()],
   server: { port: 5174, host: true, allowedHosts: true, proxy: apiProxy },
+  // Ishlab chiqarishga chiqargan `dist/` ni tekshirish uchun ("npm run preview")
+  preview: { port: 5174, host: true, allowedHosts: true, proxy: apiProxy },
 });

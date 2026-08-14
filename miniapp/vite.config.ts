@@ -24,4 +24,9 @@ const apiProxy = Object.fromEntries(
 export default defineConfig({
   plugins: [react(), ...(https ? [basicSsl()] : [])],
   server: { port: 5173, host: true, allowedHosts: true, proxy: apiProxy },
+  // Ishlab chiqarishga chiqargan `dist/` ni tekshirish uchun ("npm run preview").
+  // MUHIM: haqiqiy do'konchilarga shu orqali xizmat qiling, `vite`/`dev` emas —
+  // dev-server fayllari versiyalanmagan nom bilan berilib, brauzer ularni
+  // keshlab qoladi va F5 yangi deployni ko'rsatmay qoladi.
+  preview: { port: 5173, host: true, allowedHosts: true, proxy: apiProxy },
 });

@@ -13,9 +13,22 @@ if ((Test-Path $nodeBin) -and (-not (Get-Command npm -ErrorAction SilentlyContin
 
 # -ExecutionPolicy Bypass: yangi ochilgan oynalarda ham npm.ps1 bloklanmasin
 # (tizimning umumiy skript siyosatiga bog'liq bo'lmasligi uchun)
+#
+# DIQQAT: Mini App va Admin panel endi "npm run build" bilan tayyor
+# versiya (dist/) qilib chiqariladi va SHUNI ko'rsatadi ("preview"),
+# dev-serverni (`vite`/`npm run dev`) EMAS. Sabab: dev-server fayllari
+# hech qanday versiya belgisiz (hash'siz) beriladi, brauzer ularni
+# keshlab qoladi va do'konchi F5 bosganda ham eski versiyani ko'raveradi
+# (faqat Ctrl+Shift+R yordam beradi). Build qilingan fayllar esa har
+# safar yangi nom bilan chiqadi, shuning uchun har doim eng so'nggi
+# versiya ko'rinadi — F5 ham to'g'ri ishlaydi.
+#
+# Kod yangilanganda (masalan "git pull" qilgandan keyin) o'zgarish
+# ko'rinishi uchun bu skriptni QAYTA ishga tushirish kerak (avval
+# stop.bat, keyin start.bat) — u har safar qaytadan build qiladi.
 Start-Process powershell -ArgumentList "-NoExit", "-ExecutionPolicy", "Bypass", "-Command", "cd '$root\backend'; npm run dev"
-Start-Process powershell -ArgumentList "-NoExit", "-ExecutionPolicy", "Bypass", "-Command", "cd '$root\miniapp'; npm run dev:https"
-Start-Process powershell -ArgumentList "-NoExit", "-ExecutionPolicy", "Bypass", "-Command", "cd '$root\admin'; npm run dev"
+Start-Process powershell -ArgumentList "-NoExit", "-ExecutionPolicy", "Bypass", "-Command", "cd '$root\miniapp'; npm run build; npm run preview:https"
+Start-Process powershell -ArgumentList "-NoExit", "-ExecutionPolicy", "Bypass", "-Command", "cd '$root\admin'; npm run build; npm run preview"
 
 # Cloudflare Tunnel: duk.goybusut.uz -> Mini App (5173)
 #                    admin.goybusut.uz -> Admin panel (5174)
