@@ -1,6 +1,7 @@
 import { useEffect, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { ean13Svg } from './ean13';
+import { qrSvg } from './qr';
 import { group } from './i18n';
 
 // Chek va yorliq chop etish.
@@ -46,6 +47,7 @@ export interface ReceiptData {
 export function Receipt({ data, t }: { data: ReceiptData; t: (k: string) => string }) {
   const payLabel =
     data.payment_type === 'cash' ? t('payCash') : data.payment_type === 'card' ? t('payCard') : t('payDebt');
+  const qr = qrSvg(receiptQrText(data, t), { size: 3 });
   return (
     <div className="receipt">
       <div className="r-head">
@@ -115,9 +117,31 @@ export function Receipt({ data, t }: { data: ReceiptData; t: (k: string) => stri
         </>
       )}
 
+      {/* QR — xaridor telefoni bilan o'qiydi: do'kon, chek raqami, sana,
+          summa; qarzga olingan bo'lsa karta raqami ham shu yerda */}
+      {qr && (
+        <div className="r-qr" dangerouslySetInnerHTML={{ __html: qr }} />
+      )}
+
       <div className="r-thanks">{t('receiptThanks')}</div>
     </div>
   );
+}
+
+/** Chekdagi QR ichiga yoziladigan matn */
+export function receiptQrText(data: ReceiptData, t: (k: string) => string): string {
+  const lines = [
+    data.shop?.name ?? '',
+    `${t('receipt')} #${data.id} · ${data.created_at.slice(0, 16).replace('T', ' ')}`,
+    `${t('total')}: ${group(data.total)} ${t('currency')}`,
+  ];
+  if (data.payment_type === 'debt') {
+    lines.push(t('payDebt'));
+    if (data.customer?.name) lines.push(data.customer.name);
+    if (data.shop?.card_number) lines.push(`${t('cardNumber')}: ${data.shop.card_number}`);
+  }
+  if (data.shop?.phone) lines.push(data.shop.phone);
+  return lines.filter(Boolean).join('\n');
 }
 
 export interface LabelItem {

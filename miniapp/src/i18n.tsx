@@ -506,6 +506,8 @@ const UZ: Record<string, string> = {
 
   // Chek chop etish
   printReceipt: 'Chekni chop etish',
+  printAsk: 'Xaridorga chek kerakmi?',
+  printSkip: 'Kerak emas',
   receiptThanks: 'Xaridingiz uchun rahmat!',
   seller: 'Sotuvchi',
 
@@ -1001,6 +1003,8 @@ const RU: Record<string, string> = {
 
   // Печать чека
   printReceipt: 'Напечатать чек',
+  printAsk: 'Покупателю нужен чек?',
+  printSkip: 'Не нужно',
   receiptThanks: 'Спасибо за покупку!',
   seller: 'Продавец',
 

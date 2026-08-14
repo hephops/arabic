@@ -343,6 +343,9 @@ function SaleMode({ onDone }: { onDone: () => void }) {
   // Skanerda topilmagan kod: mahsulot tanlansa, kod o'shanga biriktiriladi
   const [pendingCode, setPendingCode] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // Endigina yakunlangan sotuv — "chek chiqaraymi?" deb so'raymiz
+  const [justSold, setJustSold] = useState<SaleDetail | null>(null);
+  const [printing, setPrinting] = useState(false);
   const { t } = useT();
 
   const active = carts.find((c) => c.id === activeId) ?? carts[0];
@@ -526,7 +529,7 @@ function SaleMode({ onDone }: { onDone: () => void }) {
     }
     setBusy(true);
     try {
-      await api.createSale({
+      const sale = await api.createSale({
         items: cart.map((l) => ({ product_id: l.product.id!, qty: l.qty })),
         payment_type: payment,
         customer_name: payment === 'debt' ? active.customerName.trim() : undefined,
@@ -534,6 +537,12 @@ function SaleMode({ onDone }: { onDone: () => void }) {
         allow_negative: allowNegative || undefined,
       });
       toast.success(t('saleSaved'), `${fmt(total)}${payment === 'debt' ? ` · ${t('writtenToDebts')}` : ''}`);
+      // Chek chiqaramizmi? Do'konchi har safar o'zi hal qiladi —
+      // ba'zi xaridor chek so'raydi, ba'zisi yo'q
+      api
+        .sale(sale.id)
+        .then(setJustSold)
+        .catch(() => {});
       // Yakunlangan savat yopiladi, qolganlari joyida turadi
       const closedId = active.id;
       setState((s) => {
@@ -611,6 +620,50 @@ function SaleMode({ onDone }: { onDone: () => void }) {
             </button>
           )}
         </div>
+
+        {/* Sotuv yakunlandi — chek chiqaraymizmi? */}
+        {justSold && (
+          <div className="sheet-wrap" onClick={() => setJustSold(null)}>
+            <div className="sheet" onClick={(e) => e.stopPropagation()}>
+              <div className="sheet-grip" />
+              <div className="sold-mark">
+                <Glyph name="check" size={30} color="#fff" strokeWidth={3} />
+              </div>
+              <div className="sheet-title center">{t('saleSaved')}</div>
+              <div className="sold-total">{fmt(justSold.total)}</div>
+              <div className="sheet-sub center">{t('printAsk')}</div>
+              <button className="btn-primary btn-lg" onClick={() => setPrinting(true)}>
+                <Glyph name="note" size={18} color="#fff" /> {t('printReceipt')}
+              </button>
+              <button className="btn-ghost" onClick={() => setJustSold(null)}>
+                {t('printSkip')}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {printing && justSold && (
+          <PrintSheet
+            onDone={() => {
+              setPrinting(false);
+              setJustSold(null);
+            }}
+          >
+            <Receipt
+              t={t}
+              data={{
+                id: justSold.id,
+                created_at: justSold.created_at,
+                total: justSold.total,
+                payment_type: justSold.payment_type,
+                items: justSold.items.map((i) => ({ name: i.name, qty: i.qty, price: i.price, unit: i.unit })),
+                shop: justSold.shop,
+                customer: justSold.customer,
+                seller: justSold.seller,
+              }}
+            />
+          </PrintSheet>
+        )}
 
         {/* Savat nomi — pastdan chiqadigan oyna (kompyuterda o'rtada) */}
         {renaming && (
