@@ -50,3 +50,27 @@ export function checkGtin(raw: string): boolean | null {
   const sum = digits.reverse().reduce((s, d, i) => s + d * (i % 2 === 0 ? 3 : 1), 0);
   return (10 - (sum % 10)) % 10 === check;
 }
+
+/** 12 xonadan EAN-13 ning nazorat raqamini hisoblaydi */
+export function gtinCheckDigit(digits12: string): number {
+  const digits = digits12.split('').map(Number);
+  const sum = digits.reverse().reduce((s, d, i) => s + d * (i % 2 === 0 ? 3 : 1), 0);
+  return (10 - (sum % 10)) % 10;
+}
+
+/**
+ * Do'konning o'z tovari uchun EAN-13 yasaydi (tarozidagi go'sht, uy mahsuloti —
+ * zavod kodi yo'q narsalar).
+ *
+ * Boshida "20" turadi: GS1 bu oraliqni (20–29) korxona ichida erkin
+ * ishlatish uchun ajratgan, ya'ni bu kod hech qachon haqiqiy zavod kodi
+ * bilan to'qnashmaydi.
+ *
+ *   2 0 | do'kon (4 xona) | tovar (6 xona) | nazorat raqami
+ */
+export function makeInStoreEan13(shopId: number, productId: number, attempt = 0): string {
+  const shopPart = String(shopId % 10000).padStart(4, '0');
+  const itemPart = String((productId + attempt * 7919) % 1000000).padStart(6, '0');
+  const body = `20${shopPart}${itemPart}`;
+  return body + gtinCheckDigit(body);
+}

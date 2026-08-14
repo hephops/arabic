@@ -10,6 +10,7 @@ import { toast } from '../toast';
 import {
   Cart, MAX_CARTS, cartQty, cartTotal, loadCarts, newCart, nextNo, saveCarts,
 } from '../carts';
+import { PrintSheet, Receipt } from '../print';
 
 function ProductThumb({ product, size = 44 }: { product: Product; size?: number }) {
   if (product.image_url) {
@@ -71,9 +72,17 @@ function HistoryMode() {
   const { t } = useT();
   const [sales, setSales] = useState<SaleRow[]>([]);
   const [detail, setDetail] = useState<SaleDetail | null>(null);
+  const [returning, setReturning] = useState(false);
+  // Qaytariladigan miqdorlar: sale_item_id → matn (do'konchi tahrirlaydi)
+  const [retQty, setRetQty] = useState<Record<number, string>>({});
+  const [reason, setReason] = useState('');
+  const [refund, setRefund] = useState<'cash' | 'card' | 'debt'>('cash');
+  const [busy, setBusy] = useState(false);
+  const [printing, setPrinting] = useState(false);
 
+  const loadSales = () => api.sales(50).then(setSales).catch(() => {});
   useEffect(() => {
-    api.sales(50).then(setSales).catch(() => {});
+    loadSales();
   }, []);
 
   async function sendReceipt(id: number) {
@@ -87,9 +96,60 @@ function HistoryMode() {
     }
   }
 
+  /** Qaytarish oynasini ochish — miqdorlar bo'sh boshlanadi */
+  function openReturn() {
+    setRetQty({});
+    setReason('');
+    setRefund(detail?.payment_type === 'debt' ? 'debt' : 'cash');
+    setReturning(true);
+  }
+
+  async function submitReturn() {
+    if (!detail) return;
+    const items = detail.items
+      .map((i) => ({ sale_item_id: i.id, qty: Number((retQty[i.id] ?? '').replace(',', '.')) || 0 }))
+      .filter((i) => i.qty > 0);
+    if (!items.length) return toast.error(t('returnNothing'));
+    setBusy(true);
+    try {
+      await api.createReturn(detail.id, { items, reason: reason.trim() || undefined, refund_type: refund });
+      haptic.success();
+      toast.success(t('returnDone'));
+      setReturning(false);
+      setDetail(await api.sale(detail.id));
+      loadSales();
+    } catch (e: any) {
+      toast.error(e.message === 'too_many' ? t('returnTooMany') : t('error') + ': ' + e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (detail) {
+    const returnedTotal = detail.returns.reduce((s, r) => s + r.total, 0);
+    const canReturn = detail.items.some((i) => i.qty - (i.returned_qty ?? 0) > 0);
     return (
       <>
+        {/* Chek printerga chiqadi — ekranda ko'rinmaydi */}
+        {printing && (
+          <PrintSheet onDone={() => setPrinting(false)}>
+            <Receipt
+              t={t}
+              data={{
+                id: detail.id,
+                created_at: detail.created_at,
+                total: detail.total,
+                payment_type: detail.payment_type,
+                items: detail.items.map((i) => ({ name: i.name, qty: i.qty, price: i.price, unit: i.unit })),
+                shop: detail.shop,
+                customer: detail.customer,
+                seller: detail.seller,
+                returned: returnedTotal,
+              }}
+            />
+          </PrintSheet>
+        )}
+
         <button className="btn-ghost" style={{ textAlign: 'left' }} onClick={() => setDetail(null)}>
           ‹ {t('back')}
         </button>
@@ -98,27 +158,134 @@ function HistoryMode() {
             {t('receipt')} #{detail.id} · {detail.created_at.slice(0, 16)}
           </div>
           <div className="list-group" style={{ marginBottom: 8 }}>
-            {detail.items.map((i) => (
-              <div className="list-item" key={i.id}>
-                <div>
-                  <div className="name">{i.name}</div>
-                  <div className="sub">
-                    {i.qty} {i.unit} × {fmt(i.price)}
+            {detail.items.map((i) => {
+              const back = i.returned_qty ?? 0;
+              return (
+                <div className="list-item" key={i.id}>
+                  <div>
+                    <div className="name">{i.name}</div>
+                    <div className="sub">
+                      {i.qty} {i.unit} × {fmt(i.price)}
+                      {back > 0 && (
+                        <span style={{ color: 'var(--red)' }}>
+                          {' · '}
+                          {t('returned')} {back}
+                        </span>
+                      )}
+                    </div>
                   </div>
+                  <div className="amount">{fmt(i.qty * i.price)}</div>
                 </div>
-                <div className="amount">{fmt(i.qty * i.price)}</div>
-              </div>
-            ))}
+              );
+            })}
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: 17 }}>
             <span>{t('total')}</span>
             <span>{fmt(detail.total)}</span>
           </div>
+          {returnedTotal > 0 && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--red)', marginTop: 4 }}>
+              <span>{t('returned')}</span>
+              <span>−{fmt(returnedTotal)}</span>
+            </div>
+          )}
           {detail.customer && <p className="hint">{detail.customer.name} · {detail.customer.phone ? formatPhoneSoft(detail.customer.phone) : t('noPhone')}</p>}
-          <button className="btn-primary" onClick={() => sendReceipt(detail.id)}>
-            <Glyph name="note" size={17} color="#fff" /> {t('sendReceipt')}
+
+          <button className="btn-primary" onClick={() => setPrinting(true)}>
+            <Glyph name="note" size={17} color="#fff" /> {t('printReceipt')}
           </button>
+          <button className="btn-ghost" onClick={() => sendReceipt(detail.id)}>
+            <Glyph name="send" size={16} color="var(--accent)" /> {t('sendReceipt')}
+          </button>
+          {canReturn && (
+            <button className="btn-ghost" style={{ color: 'var(--red)' }} onClick={openReturn}>
+              <Glyph name="arrowDown" size={16} color="var(--red)" /> {t('returnDo')}
+            </button>
+          )}
         </div>
+
+        {/* Qaytarishlar tarixi */}
+        {detail.returns.length > 0 && (
+          <>
+            <div className="section-title">{t('returnHistory')}</div>
+            <div className="list-group">
+              {detail.returns.map((r) => (
+                <div className="list-item" key={r.id}>
+                  <div>
+                    <div className="name">{r.created_at.slice(0, 16)}</div>
+                    {r.reason && <div className="sub">{r.reason}</div>}
+                  </div>
+                  <div className="amount" style={{ color: 'var(--red)' }}>−{fmt(r.total)}</div>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+
+        {/* Qaytarish oynasi */}
+        {returning && (
+          <div className="sheet-wrap" onClick={() => setReturning(false)}>
+            <div className="sheet" onClick={(e) => e.stopPropagation()}>
+              <div className="sheet-grip" />
+              <div className="sheet-title">{t('returnTitle')}</div>
+              <div className="sheet-sub">{t('returnHint')}</div>
+
+              <div className="list-group">
+                {detail.items.map((i) => {
+                  const left = i.qty - (i.returned_qty ?? 0);
+                  if (left <= 0) return null;
+                  return (
+                    <div className="list-item" key={i.id}>
+                      <div style={{ minWidth: 0 }}>
+                        <div className="name">{i.name}</div>
+                        <div className="sub">
+                          {left} {i.unit} {t('returnLeft')} · {fmt(i.price)}
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <input
+                          className="ret-qty"
+                          inputMode="decimal"
+                          placeholder="0"
+                          value={retQty[i.id] ?? ''}
+                          onChange={(e) => setRetQty({ ...retQty, [i.id]: e.target.value.replace(/[^\d.,]/g, '') })}
+                        />
+                        <button className="chip" onClick={() => setRetQty({ ...retQty, [i.id]: String(left) })}>
+                          {t('returnAll')}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <label className="sheet-label">{t('returnRefund')}</label>
+              <div className="segmented sm">
+                {(
+                  [
+                    ['cash', 'returnRefundCash'],
+                    ['card', 'returnRefundCard'],
+                    ...(detail.payment_type === 'debt' ? [['debt', 'returnRefundDebt']] : []),
+                  ] as [typeof refund, string][]
+                ).map(([id, key]) => (
+                  <button key={id} className={refund === id ? 'on' : ''} onClick={() => setRefund(id)}>
+                    {t(key)}
+                  </button>
+                ))}
+              </div>
+
+              <input
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                placeholder={t('returnReasonPlaceholder')}
+              />
+
+              <button className="btn-primary btn-lg" disabled={busy} onClick={submitReturn}>
+                <Glyph name="check" size={18} color="#fff" /> {t('returnConfirm')}
+              </button>
+            </div>
+          </div>
+        )}
       </>
     );
   }
@@ -142,6 +309,12 @@ function HistoryMode() {
                   {s.created_at.slice(5, 16)} ·{' '}
                   {s.payment_type === 'cash' ? t('payCash') : s.payment_type === 'card' ? t('payCard') : t('payDebt')}
                   {s.customer_name ? ` · ${s.customer_name}` : ''}
+                  {s.returned > 0 && (
+                    <span style={{ color: 'var(--red)' }}>
+                      {' · '}
+                      {t('returned')} {fmt(s.returned)}
+                    </span>
+                  )}
                 </div>
               </div>
             </div>

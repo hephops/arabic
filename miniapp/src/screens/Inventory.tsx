@@ -6,6 +6,8 @@ import { useT } from '../i18n';
 import Scanner from '../Scanner';
 import { formatAmount } from '../format';
 import { toast } from '../toast';
+import { PrintSheet, Labels } from '../print';
+import { ean13Svg, isEan13 } from '../ean13';
 
 // Ombor: mahsulotlar ro'yxati, tahrirlash va inventarizatsiya
 
@@ -182,6 +184,27 @@ function ProductEdit({ product, onBack, onSaved }: { product: Product; onBack: (
   const [codes, setCodes] = useState<{ id: number; barcode: string }[]>([]);
   const [newCode, setNewCode] = useState('');
   const [scanning, setScanning] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [labels, setLabels] = useState(false);
+  const [labelQty, setLabelQty] = useState(8);
+  const [printingLabels, setPrintingLabels] = useState(false);
+
+  // Yorliqqa faqat EAN-13 chizib bo'ladi — shunga yaraydigan birinchi kod
+  const labelCode = codes.map((c) => c.barcode).find((c) => isEan13(c)) ?? null;
+
+  /** Do'konning o'z kodini yasash — zavod kodi yo'q tovar uchun */
+  async function makeCode() {
+    setBusy(true);
+    try {
+      const res = await api.generateBarcode(product.id!);
+      toast.success(t('barcodeMade'), res.barcode);
+      loadCodes();
+    } catch (e: any) {
+      toast.error(t('error') + ': ' + e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
   const fileRef = useRef<HTMLInputElement>(null);
 
   const loadCodes = () => api.productBarcodes(product.id!).then(setCodes).catch(() => {});
@@ -302,6 +325,21 @@ function ProductEdit({ product, onBack, onSaved }: { product: Product; onBack: (
             </button>
           </div>
         </div>
+        {/* Zavod kodi yo'q tovar uchun — do'konning o'z kodi ("20" bilan boshlanadi) */}
+        <div style={{ display: 'flex', gap: 8, marginBottom: 4 }}>
+          <button className="chip" style={{ flex: 1, justifyContent: 'center' }} disabled={busy} onClick={makeCode}>
+            <Glyph name="plus" size={15} /> {t('makeBarcode')}
+          </button>
+          <button
+            className="chip"
+            style={{ flex: 1, justifyContent: 'center' }}
+            onClick={() => (labelCode ? setLabels(true) : toast.error(t('noCodeForLabel')))}
+          >
+            <Glyph name="note" size={15} /> {t('printLabel')}
+          </button>
+        </div>
+        <p className="field-note">{t('makeBarcodeHint')}</p>
+
         {scanning && (
           <Scanner
             onScan={(code) => {
@@ -311,6 +349,46 @@ function ProductEdit({ product, onBack, onSaved }: { product: Product; onBack: (
             onClose={() => setScanning(false)}
           />
         )}
+
+        {/* Yorliq: nechta chop etishni so'raymiz */}
+        {labels && labelCode && (
+          <div className="sheet-wrap" onClick={() => setLabels(false)}>
+            <div className="sheet" onClick={(e) => e.stopPropagation()}>
+              <div className="sheet-grip" />
+              <div className="sheet-title">{t('printLabel')}</div>
+              <div className="sheet-sub">{form.name || product.name} · {labelCode}</div>
+              <div
+                className="label-preview"
+                dangerouslySetInnerHTML={{ __html: ean13Svg(labelCode, { moduleWidth: 2, height: 52 }) ?? '' }}
+              />
+              <label className="sheet-label">{t('labelCount')}</label>
+              <div className="chip-row wrap">
+                {[1, 4, 8, 12, 24].map((n) => (
+                  <button key={n} className={`chip ${labelQty === n ? 'on' : ''}`} onClick={() => setLabelQty(n)}>
+                    {n}
+                  </button>
+                ))}
+              </div>
+              <button className="btn-primary btn-lg" onClick={() => { setLabels(false); setPrintingLabels(true); }}>
+                <Glyph name="check" size={18} color="#fff" /> {t('labelPrint')}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {printingLabels && labelCode && (
+          <PrintSheet onDone={() => setPrintingLabels(false)}>
+            <Labels
+              t={t}
+              items={Array.from({ length: labelQty }, () => ({
+                name: form.name || product.name,
+                price: parseInt(form.sell_price.replace(/\D/g, ''), 10) || product.sell_price,
+                barcode: labelCode,
+              }))}
+            />
+          </PrintSheet>
+        )}
+
         <div style={{ display: 'flex', gap: 10 }}>
           <div style={{ flex: 1 }}>
             <label>{t('costPrice')}</label>

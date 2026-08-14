@@ -64,6 +64,9 @@ for (const sql of [
   'ALTER TABLE customers ADD COLUMN credit_limit INTEGER NOT NULL DEFAULT 0',
   'ALTER TABLE customers ADD COLUMN is_blocked INTEGER NOT NULL DEFAULT 0',
   'ALTER TABLE products ADD COLUMN category TEXT',
+  // Qaytarish: bitta satrdan qancha tovar qaytganini eslab qolamiz,
+  // shunda bir tovarni ikki marta qaytarib bo'lmaydi
+  'ALTER TABLE sale_items ADD COLUMN returned_qty REAL NOT NULL DEFAULT 0',
 ]) {
   try {
     db.exec(sql);

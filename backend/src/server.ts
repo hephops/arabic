@@ -10,7 +10,7 @@ import { parseDebtText } from './voice.js';
 import { runReminders, startReminderScheduler } from './reminders.js';
 import { handleUpdate, verifyInitData, telegramEnabled, setWebhook } from './telegram.js';
 import { registerAdminRoutes, seedAdmin } from './admin.js';
-import { normalizeBarcode, barcodeVariants, checkGtin } from './barcodes.js';
+import { normalizeBarcode, barcodeVariants, checkGtin, makeInStoreEan13 } from './barcodes.js';
 import { normalizePhone } from './phone.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -362,6 +362,8 @@ app.get('/dashboard', { preHandler: requireAuth }, async (req) => {
        WHERE s.shop_id = ? AND date(s.created_at) = date('now')`
     )
     .get(req.shopId) as any;
+  // Bugungi qaytarishlar — tushum va foydadan chiqariladi
+  const todayReturns = returnsTotals(req.shopId!, '-0 days');
   // Bugungi xarajatlar — "foyda" faqat tovar ustamasi bo'lib qolmasligi uchun
   const todayExpenses = (db
     .prepare(`SELECT COALESCE(SUM(amount), 0) AS s FROM expenses WHERE shop_id = ? AND spent_at = date('now')`)
@@ -394,9 +396,11 @@ app.get('/dashboard', { preHandler: requireAuth }, async (req) => {
     net: owedToMe.s - iOwe.s,
     today: {
       ...todayStats,
-      profit: todayProfit.profit,
+      revenue: todayStats.revenue - todayReturns.total,
+      returns: todayReturns.total,
+      profit: todayProfit.profit - (todayReturns.total - todayReturns.cost),
       expenses: todayExpenses,
-      net_profit: todayProfit.profit - todayExpenses,
+      net_profit: todayProfit.profit - (todayReturns.total - todayReturns.cost) - todayExpenses,
     },
     month_expenses: monthExpenses,
     week,
@@ -971,6 +975,33 @@ app.get<{ Params: { id: string } }>('/products/:id/barcodes', { preHandler: requ
 
 // Skanerda topilmagan kodni mahsulotga biriktirish — kassachi ham qila oladi,
 // shunda keyingi safar skaner darhol topadi.
+/**
+ * Do'konning o'z tovariga shtrix-kod yasab beradi (tarozidagi go'sht, uy
+ * mahsuloti — zavod kodi yo'q narsalar). Kod "20" bilan boshlanadi, bu
+ * oraliq korxona ichida erkin ishlatish uchun ajratilgan.
+ */
+app.post<{ Params: { id: string } }>('/products/:id/barcode', { preHandler: requireOwner }, async (req, reply) => {
+  const product = db
+    .prepare('SELECT * FROM products WHERE id = ? AND shop_id = ?')
+    .get(req.params.id, req.shopId) as any;
+  if (!product) return reply.code(404).send({ error: 'not_found' });
+
+  // Band bo'lsa boshqasini sinaymiz — kod hech qachon takrorlanmasin
+  let code = '';
+  for (let attempt = 0; attempt < 50; attempt++) {
+    const candidate = makeInStoreEan13(req.shopId!, product.id, attempt);
+    if (!findByBarcode(req.shopId, candidate)) {
+      code = candidate;
+      break;
+    }
+  }
+  if (!code) return reply.code(409).send({ error: 'no_free_code' });
+
+  attachBarcode(req.shopId!, product.id, code);
+  if (!product.barcode) db.prepare('UPDATE products SET barcode = ? WHERE id = ?').run(code, product.id);
+  return { barcode: code, product: db.prepare('SELECT * FROM products WHERE id = ?').get(product.id) };
+});
+
 app.post<{ Params: { id: string }; Body: { barcode: string } }>(
   '/products/:id/barcodes',
   { preHandler: requireAuth },
@@ -1250,7 +1281,8 @@ app.get<{ Querystring: { limit?: string } }>('/sales', { preHandler: requireAuth
     .prepare(
       `SELECT s.*, c.name AS customer_name, c.phone AS customer_phone,
               (SELECT GROUP_CONCAT(p.name || ' ×' || CAST(si.qty AS INTEGER), ', ')
-               FROM sale_items si JOIN products p ON p.id = si.product_id WHERE si.sale_id = s.id) AS items
+               FROM sale_items si JOIN products p ON p.id = si.product_id WHERE si.sale_id = s.id) AS items,
+              (SELECT COALESCE(SUM(r.total), 0) FROM returns r WHERE r.sale_id = s.id) AS returned
        FROM sales s LEFT JOIN customers c ON c.id = s.customer_id
        WHERE s.shop_id = ? ORDER BY s.created_at DESC, s.id DESC LIMIT ?`
     )
@@ -1268,7 +1300,18 @@ app.get<{ Params: { id: string } }>('/sales/:id', { preHandler: requireAuth }, a
   const customer = sale.customer_id
     ? db.prepare('SELECT name, phone FROM customers WHERE id = ?').get(sale.customer_id)
     : null;
-  return { ...sale, items, customer };
+  // Chek chop etish uchun do'kon rekvizitlari va qaytarishlar tarixi
+  const shop = db.prepare('SELECT name, phone, address, card_number FROM shops WHERE id = ?').get(req.shopId);
+  const returns = db
+    .prepare(
+      `SELECT r.id, r.total, r.reason, r.refund_type, r.created_at FROM returns r
+       WHERE r.sale_id = ? AND r.shop_id = ? ORDER BY r.id DESC`
+    )
+    .all(sale.id, req.shopId);
+  const seller = sale.created_by
+    ? db.prepare('SELECT name FROM employees WHERE id = ?').get(sale.created_by)
+    : null;
+  return { ...sale, items, customer, shop, returns, seller };
 });
 
 // Chekni mijozga yuborish (jurnalga yoziladi; provayder ulanganda SMS/Telegram ketadi)
@@ -1292,6 +1335,139 @@ app.post<{ Params: { id: string } }>('/sales/:id/receipt', { preHandler: require
   ).run(req.shopId, customer.id, text);
   return { ok: true, text };
 });
+
+// ---------- QAYTARISH (VOZVRAT) ----------
+// Mijoz tovarni qaytarib keldi: qoldiq ortga qaytadi, tushum va foyda
+// kamayadi, qarzga olingan bo'lsa qarz ham shuncha qisqaradi.
+
+app.get<{ Params: { id: string } }>('/sales/:id/returns', { preHandler: requireAuth }, async (req, reply) => {
+  const sale = db.prepare('SELECT id FROM sales WHERE id = ? AND shop_id = ?').get(req.params.id, req.shopId) as any;
+  if (!sale) return reply.code(404).send({ error: 'not_found' });
+  return db
+    .prepare(
+      `SELECT r.*, (SELECT GROUP_CONCAT(p.name || ' ×' || ri.qty, ', ')
+                    FROM return_items ri JOIN products p ON p.id = ri.product_id
+                    WHERE ri.return_id = r.id) AS items
+       FROM returns r WHERE r.shop_id = ? AND r.sale_id = ? ORDER BY r.id DESC`
+    )
+    .all(req.shopId, sale.id);
+});
+
+app.post<{
+  Params: { id: string };
+  Body: { items?: { sale_item_id: number; qty: number }[]; reason?: string; refund_type?: string };
+}>('/sales/:id/returns', { preHandler: requireAuth }, async (req, reply) => {
+  const sale = db.prepare('SELECT * FROM sales WHERE id = ? AND shop_id = ?').get(req.params.id, req.shopId) as any;
+  if (!sale) return reply.code(404).send({ error: 'not_found' });
+  const wanted = (req.body?.items ?? []).filter((i) => Number(i.qty) > 0);
+  if (!wanted.length) return reply.code(400).send({ error: 'items_required' });
+
+  // Har bir satr shu sotuvniki ekanini va ortiqcha qaytarilmayotganini tekshiramiz
+  const lines: { row: any; qty: number }[] = [];
+  for (const item of wanted) {
+    const row = db
+      .prepare('SELECT * FROM sale_items WHERE id = ? AND sale_id = ?')
+      .get(item.sale_item_id, sale.id) as any;
+    if (!row) return reply.code(404).send({ error: 'sale_item_not_found' });
+    const left = row.qty - (row.returned_qty ?? 0);
+    const qty = Number(item.qty);
+    if (qty > left + 1e-9) {
+      return reply.code(409).send({ error: 'too_many', details: { sale_item_id: row.id, left } });
+    }
+    lines.push({ row, qty });
+  }
+
+  // Qarzga olingan bo'lsa — shu sotuvning qarzini topamiz
+  const debt =
+    sale.payment_type === 'debt'
+      ? (db.prepare('SELECT * FROM debts WHERE sale_id = ? AND shop_id = ?').get(sale.id, req.shopId) as any)
+      : null;
+  // Qarzdan ayirish faqat qarzga sotilgan va hali to'lanmagan qarzda mumkin
+  const refundType = req.body?.refund_type === 'debt' && debt ? 'debt' : req.body?.refund_type === 'card' ? 'card' : 'cash';
+
+  const tx = db.transaction(() => {
+    const total = Math.round(lines.reduce((s, l) => s + l.row.price * l.qty, 0));
+    const info = db
+      .prepare(
+        `INSERT INTO returns (shop_id, sale_id, customer_id, total, reason, refund_type, created_by)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`
+      )
+      .run(req.shopId, sale.id, sale.customer_id ?? null, total, req.body?.reason?.trim() || null, refundType, req.employeeId);
+    const returnId = Number(info.lastInsertRowid);
+
+    for (const { row, qty } of lines) {
+      db.prepare(
+        'INSERT INTO return_items (return_id, sale_item_id, product_id, qty, price) VALUES (?, ?, ?, ?, ?)'
+      ).run(returnId, row.id, row.product_id, qty, row.price);
+      db.prepare('UPDATE sale_items SET returned_qty = returned_qty + ? WHERE id = ?').run(qty, row.id);
+      // Tovar javonga qaytdi
+      db.prepare('UPDATE products SET stock = stock + ? WHERE id = ?').run(qty, row.product_id);
+      db.prepare(
+        'INSERT INTO stock_movements (shop_id, product_id, type, qty, created_by) VALUES (?, ?, ?, ?, ?)'
+      ).run(req.shopId, row.product_id, 'return', qty, req.employeeId);
+    }
+
+    // Qarzdan ayirish: qarz summasi kamayadi, lekin to'langanidan pastga tushmaydi
+    if (refundType === 'debt' && debt) {
+      const newAmount = Math.max(debt.paid_amount, debt.amount - total);
+      const status = newAmount <= debt.paid_amount ? 'paid' : debt.status === 'paid' ? 'active' : debt.status;
+      db.prepare('UPDATE debts SET amount = ?, status = ? WHERE id = ?').run(newAmount, status, debt.id);
+    }
+    return returnId;
+  });
+
+  try {
+    const returnId = tx();
+    const created = db.prepare('SELECT * FROM returns WHERE id = ?').get(returnId) as any;
+    const items = db.prepare('SELECT * FROM return_items WHERE return_id = ?').all(returnId);
+    return { ...created, items };
+  } catch (e: any) {
+    return reply.code(400).send({ error: e.message });
+  }
+});
+
+// Barcha qaytarishlar ro'yxati (davr bo'yicha) — hisobot uchun
+app.get<{ Querystring: { period?: string; limit?: string } }>(
+  '/returns',
+  { preHandler: requireOwner },
+  async (req) => {
+    const since = expensePeriodSql(req.query.period);
+    const limit = Math.min(Number(req.query.limit ?? 100), 300);
+    const items = db
+      .prepare(
+        `SELECT r.*, c.name AS customer_name,
+                (SELECT GROUP_CONCAT(p.name || ' ×' || ri.qty, ', ')
+                 FROM return_items ri JOIN products p ON p.id = ri.product_id
+                 WHERE ri.return_id = r.id) AS items
+         FROM returns r LEFT JOIN customers c ON c.id = r.customer_id
+         WHERE r.shop_id = ?${since ? " AND date(r.created_at) >= date('now', ?)" : ''}
+         ORDER BY r.created_at DESC, r.id DESC LIMIT ?`
+      )
+      .all(...(since ? [req.shopId, since, limit] : [req.shopId, limit]));
+    const sum = db
+      .prepare(
+        `SELECT COUNT(*) AS count, COALESCE(SUM(total), 0) AS total FROM returns
+         WHERE shop_id = ?${since ? " AND date(created_at) >= date('now', ?)" : ''}`
+      )
+      .get(...(since ? [req.shopId, since] : [req.shopId])) as any;
+    return { items, count: sum.count, total: sum.total };
+  }
+);
+
+/** Berilgan davrdagi qaytarishlar: summa va tannarx (foydani to'g'rilash uchun) */
+function returnsTotals(shopId: number, sinceDays: string): { total: number; cost: number } {
+  const row = db
+    .prepare(
+      `SELECT COALESCE(SUM(ri.price * ri.qty), 0) AS total,
+              COALESCE(SUM(p.cost_price * ri.qty), 0) AS cost
+       FROM return_items ri
+       JOIN returns r ON r.id = ri.return_id
+       JOIN products p ON p.id = ri.product_id
+       WHERE r.shop_id = ? AND date(r.created_at) >= date('now', ?)`
+    )
+    .get(shopId, sinceDays) as any;
+  return { total: row.total as number, cost: row.cost as number };
+}
 
 // ---------- XARAJATLAR ----------
 // Ijara, svet, ish haqi, transport... Bularsiz "foyda" faqat tovar
@@ -1513,6 +1689,9 @@ app.get<{ Querystring: { period?: string } }>('/reports/summary', { preHandler: 
        GROUP BY p.id ORDER BY sold DESC LIMIT 10`
     )
     .all(req.shopId, period);
+  // Qaytarilgan tovarlar tushum va foydadan chiqariladi
+  const ret = returnsTotals(req.shopId!, period);
+  const grossProfit = profit.profit - (ret.total - ret.cost);
   // Xarajatlar shu davrda — sof foyda shulardan keyin qoladigan pul
   const expenses = expensesTotal(req.shopId!, period);
   const expensesByCategory = db
@@ -1524,9 +1703,12 @@ app.get<{ Querystring: { period?: string } }>('/reports/summary', { preHandler: 
     .all(req.shopId, period);
   return {
     ...sales,
-    profit: profit.profit, // yalpi foyda (tovar ustamasi)
+    revenue: sales.revenue - ret.total, // qaytarilganidan keyingi tushum
+    gross_revenue: sales.revenue, // qaytarishlarsiz
+    returns: ret.total,
+    profit: grossProfit, // yalpi foyda (tovar ustamasi, qaytarishlar hisobga olingan)
     expenses,
-    net_profit: profit.profit - expenses, // sof foyda
+    net_profit: grossProfit - expenses, // sof foyda
     expenses_by_category: expensesByCategory,
     top_products: topProducts,
   };

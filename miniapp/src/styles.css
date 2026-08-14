@@ -1261,3 +1261,83 @@ button.link { background: none; color: var(--accent); font-size: 15px; font-weig
 @media (min-width: 1400px) {
   .screen { max-width: 1180px; }
 }
+
+/* ═══════════ Chek va yorliq chop etish ═══════════ */
+
+/* Ekranda ko'rinmaydi — faqat printerga chiqadi */
+.print-root { display: none; }
+
+@media print {
+  /* Ilovaning o'zi va suzuvchi elementlar chop etilmaydi */
+  .app-shell, .auth, .toast-host, .dock, .deck, .side, .fab-quick, .qa-sheet,
+  .sheet-wrap, .launcher, .scan, .install-prompt { display: none !important; }
+
+  html, body {
+    background: #fff !important;
+    color: #000 !important;
+    margin: 0;
+    padding: 0;
+  }
+  .print-root { display: block; }
+
+  @page { margin: 6mm; }
+}
+
+/* ── Chek (58 mm termal printer) ── */
+.receipt {
+  width: 58mm;
+  margin: 0 auto;
+  font-family: ui-monospace, 'Courier New', monospace;
+  font-size: 11px;
+  line-height: 1.35;
+  color: #000;
+}
+.r-head { text-align: center; margin-bottom: 6px; }
+.r-shop { font-size: 15px; font-weight: 700; letter-spacing: -0.2px; }
+.r-sub { font-size: 10px; }
+.r-meta { display: flex; justify-content: space-between; gap: 8px; font-size: 10.5px; }
+.r-rule { border-top: 1px dashed #000; margin: 5px 0; }
+.r-items { width: 100%; border-collapse: collapse; }
+.r-items td { vertical-align: top; padding: 2px 0; }
+.r-name { padding-right: 6px; }
+.r-qty { font-size: 9.5px; opacity: 0.75; }
+.r-sum { text-align: right; white-space: nowrap; font-weight: 700; }
+.r-total {
+  display: flex; justify-content: space-between; gap: 8px;
+  font-size: 14px; font-weight: 800; margin: 4px 0 3px;
+}
+.r-card { font-size: 10.5px; margin-top: 3px; word-break: break-all; }
+.r-thanks { text-align: center; font-size: 10.5px; margin-top: 8px; }
+
+/* ── Javon yorliqlari ── */
+.labels { display: flex; flex-wrap: wrap; gap: 4mm; }
+.label {
+  width: 48mm;
+  border: 1px dashed #999;
+  border-radius: 2mm;
+  padding: 2mm;
+  text-align: center;
+  page-break-inside: avoid;
+  break-inside: avoid;
+  color: #000;
+}
+.l-name {
+  font-size: 10px; font-weight: 600; line-height: 1.2;
+  height: 2.4em; overflow: hidden;
+}
+.l-price { font-size: 17px; font-weight: 800; margin: 1mm 0; }
+.l-code svg { max-width: 100%; height: auto; }
+.l-code-text { font-family: monospace; font-size: 10px; letter-spacing: 1px; }
+
+/* Qaytariladigan miqdor maydoni */
+.ret-qty {
+  width: 62px; text-align: center; margin: 0; padding: 8px 6px;
+  background: var(--fill); font-size: 15px;
+}
+
+/* Yorliq oynasidagi ko'rinish */
+.label-preview {
+  display: flex; justify-content: center; padding: 10px;
+  background: #fff; border-radius: 10px; margin-bottom: 6px;
+}
+.label-preview svg { max-width: 100%; height: auto; }

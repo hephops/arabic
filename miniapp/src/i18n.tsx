@@ -316,6 +316,7 @@ const UZ: Record<string, string> = {
   revenue: 'Savdo',
   profit: 'Foyda',
   paymentTypes: "To'lov turlari",
+  paymentLabel: "To'lov",
   topProducts: "Eng ko'p sotilganlar",
   noSalesPeriod: "Bu davrda savdo bo'lmagan",
 
@@ -480,6 +481,42 @@ const UZ: Record<string, string> = {
   netProfit: 'Sof foyda',
   netProfitHint: 'Yalpi foyda − xarajatlar',
   expenses: 'Xarajatlar',
+
+  // Qaytarish (vozvrat)
+  returnTitle: 'Qaytarish',
+  returnDo: 'Tovarni qaytarish',
+  returnHint: 'Qaytarilgan tovar javonga qaytadi, tushum va foyda kamayadi',
+  returnQty: 'Qaytariladi',
+  returnLeft: 'qaytarish mumkin',
+  returnAll: 'Hammasini',
+  returnReason: 'Sababi',
+  returnReasonPlaceholder: 'Buzuq, srogi o‘tgan, yoqmadi...',
+  returnRefund: 'Puli qanday qaytariladi',
+  returnRefundCash: 'Naqd',
+  returnRefundCard: 'Kartaga',
+  returnRefundDebt: 'Qarzdan ayirish',
+  returnConfirm: 'Qaytarishni tasdiqlash',
+  returnDone: 'Qaytarish yozildi',
+  returnNothing: 'Qaytariladigan tovarni belgilang',
+  returnTooMany: 'Sotilganidan ko‘p qaytarib bo‘lmaydi',
+  returnHistory: 'Qaytarishlar',
+  returned: 'Qaytarilgan',
+  returnFully: 'to‘liq qaytarilgan',
+  returnPartly: 'qisman qaytarilgan',
+
+  // Chek chop etish
+  printReceipt: 'Chekni chop etish',
+  receiptThanks: 'Xaridingiz uchun rahmat!',
+  seller: 'Sotuvchi',
+
+  // Shtrix-kod yasash va yorliq
+  makeBarcode: 'Shtrix-kod yasash',
+  makeBarcodeHint: 'Zavod kodi yo‘q tovar uchun — tarozidagi go‘sht, uy mahsuloti',
+  barcodeMade: 'Shtrix-kod yasaldi',
+  printLabel: 'Yorliq chop etish',
+  labelCount: 'Nechta yorliq',
+  labelPrint: 'Chop etish',
+  noCodeForLabel: 'Avval shtrix-kod yasang yoki qo‘shing',
 };
 
 const RU: Record<string, string> = {
@@ -776,6 +813,7 @@ const RU: Record<string, string> = {
   revenue: 'Продажи',
   profit: 'Прибыль',
   paymentTypes: 'Виды оплаты',
+  paymentLabel: 'Оплата',
   topProducts: 'Самые продаваемые',
   noSalesPeriod: 'За этот период продаж не было',
 
@@ -938,6 +976,42 @@ const RU: Record<string, string> = {
   netProfit: 'Чистая прибыль',
   netProfitHint: 'Валовая прибыль − расходы',
   expenses: 'Расходы',
+
+  // Возврат
+  returnTitle: 'Возврат',
+  returnDo: 'Вернуть товар',
+  returnHint: 'Возвращённый товар вернётся на склад, выручка и прибыль уменьшатся',
+  returnQty: 'Возвращается',
+  returnLeft: 'можно вернуть',
+  returnAll: 'Всё',
+  returnReason: 'Причина',
+  returnReasonPlaceholder: 'Брак, истёк срок, не подошло...',
+  returnRefund: 'Как вернуть деньги',
+  returnRefundCash: 'Наличными',
+  returnRefundCard: 'На карту',
+  returnRefundDebt: 'Вычесть из долга',
+  returnConfirm: 'Подтвердить возврат',
+  returnDone: 'Возврат записан',
+  returnNothing: 'Отметьте товар для возврата',
+  returnTooMany: 'Нельзя вернуть больше, чем продано',
+  returnHistory: 'Возвраты',
+  returned: 'Возвращено',
+  returnFully: 'возвращён полностью',
+  returnPartly: 'возвращён частично',
+
+  // Печать чека
+  printReceipt: 'Напечатать чек',
+  receiptThanks: 'Спасибо за покупку!',
+  seller: 'Продавец',
+
+  // Генерация штрих-кода и этикетки
+  makeBarcode: 'Создать штрих-код',
+  makeBarcodeHint: 'Для товара без заводского кода — развес, домашняя продукция',
+  barcodeMade: 'Штрих-код создан',
+  printLabel: 'Печать этикетки',
+  labelCount: 'Сколько этикеток',
+  labelPrint: 'Печать',
+  noCodeForLabel: 'Сначала создайте или добавьте штрих-код',
 };
 
 /* ─────────── Lotin → Kirill o'girgichi ─────────── */

@@ -220,6 +220,30 @@ CREATE TABLE IF NOT EXISTS reminder_logs (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- Qaytarish (vozvrat): mijoz tovarni qaytarib keldi.
+-- Qoldiq ortga qaytadi, tushum va foyda kamayadi, qarzga olingan bo'lsa
+-- qarz ham shuncha qisqaradi. Bularsiz hisobot asta-sekin haqiqatdan uzoqlashadi.
+CREATE TABLE IF NOT EXISTS returns (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  shop_id INTEGER NOT NULL REFERENCES shops(id),
+  sale_id INTEGER REFERENCES sales(id),
+  customer_id INTEGER REFERENCES customers(id),
+  total INTEGER NOT NULL,
+  reason TEXT,
+  refund_type TEXT NOT NULL DEFAULT 'cash',      -- cash | card | debt (qarzdan ayiriladi)
+  created_by INTEGER REFERENCES employees(id),
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS return_items (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  return_id INTEGER NOT NULL REFERENCES returns(id),
+  sale_item_id INTEGER REFERENCES sale_items(id),
+  product_id INTEGER NOT NULL REFERENCES products(id),
+  qty REAL NOT NULL,
+  price INTEGER NOT NULL                          -- sotuv paytidagi narx bilan qaytariladi
+);
+
 -- Do'kon xarajatlari: ijara, svet, ish haqi, transport...
 -- Bularsiz "foyda" faqat tovar ustamasi bo'lib qoladi va haqiqatdan uzoq.
 CREATE TABLE IF NOT EXISTS expenses (
@@ -237,6 +261,8 @@ CREATE TABLE IF NOT EXISTS expenses (
 CREATE INDEX IF NOT EXISTS idx_customers_shop ON customers(shop_id);
 CREATE INDEX IF NOT EXISTS idx_debts_shop ON debts(shop_id, status);
 CREATE INDEX IF NOT EXISTS idx_expenses_shop ON expenses(shop_id, spent_at);
+CREATE INDEX IF NOT EXISTS idx_returns_shop ON returns(shop_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_return_items ON return_items(return_id);
 CREATE INDEX IF NOT EXISTS idx_debts_customer ON debts(customer_id);
 CREATE INDEX IF NOT EXISTS idx_products_shop ON products(shop_id);
 CREATE INDEX IF NOT EXISTS idx_products_barcode ON products(shop_id, barcode);

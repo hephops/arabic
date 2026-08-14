@@ -153,6 +153,11 @@ export const api = {
   ) => request<Expense>(`/expenses/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   deleteExpense: (id: number) => request<{ ok: boolean }>(`/expenses/${id}`, { method: 'DELETE' }),
   expensesExportUrl: (period: string) => `${BASE}/expenses/export?period=${period}`,
+  createReturn: (saleId: number, data: { items: { sale_item_id: number; qty: number }[]; reason?: string; refund_type?: 'cash' | 'card' | 'debt' }) =>
+    request<ReturnRow>(`/sales/${saleId}/returns`, { method: 'POST', body: JSON.stringify(data) }),
+  returns: (period: ExpensePeriod = 'month') => request<ReturnsInfo>(`/returns?period=${period}`),
+  generateBarcode: (productId: number) =>
+    request<{ barcode: string; product: Product }>(`/products/${productId}/barcode`, { method: 'POST' }),
 };
 
 export interface Shop {
@@ -308,6 +313,8 @@ export interface SaleRow {
   customer_name: string | null;
   customer_phone: string | null;
   items: string | null;
+  /** shu sotuvdan qaytarilgan summa */
+  returned: number;
 }
 
 export interface SaleDetail {
@@ -315,8 +322,31 @@ export interface SaleDetail {
   total: number;
   payment_type: string;
   created_at: string;
-  items: { id: number; name: string; unit: string; qty: number; price: number }[];
+  /** returned_qty — shu satrdan qancha tovar qaytarilgan */
+  items: { id: number; name: string; unit: string; qty: number; price: number; returned_qty: number }[];
   customer: { name: string; phone: string | null } | null;
+  /** chek chop etish uchun do'kon rekvizitlari */
+  shop: { name: string; phone: string | null; address: string | null; card_number: string | null } | null;
+  returns: { id: number; total: number; reason: string | null; refund_type: string; created_at: string }[];
+  seller: { name: string } | null;
+}
+
+export interface ReturnRow {
+  id: number;
+  sale_id: number | null;
+  customer_id: number | null;
+  customer_name?: string | null;
+  total: number;
+  reason: string | null;
+  refund_type: string;
+  created_at: string;
+  items?: string | null;
+}
+
+export interface ReturnsInfo {
+  items: ReturnRow[];
+  count: number;
+  total: number;
 }
 
 export interface Sale {
@@ -356,6 +386,8 @@ export interface Dashboard {
     debt: number;
     /** yalpi foyda — tovar ustamasi */
     profit: number;
+    /** bugun qaytarilgan summa */
+    returns: number;
     /** bugungi xarajatlar */
     expenses: number;
     /** sof foyda = yalpi foyda − xarajatlar */
@@ -380,6 +412,10 @@ export interface Report {
   debt: number;
   /** yalpi foyda — tovar ustamasi */
   profit: number;
+  /** qaytarishlarsiz tushum */
+  gross_revenue: number;
+  /** shu davrda qaytarilgan summa */
+  returns: number;
   /** shu davrdagi xarajatlar */
   expenses: number;
   /** sof foyda = yalpi foyda − xarajatlar */
