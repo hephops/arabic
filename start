@@ -1,0 +1,25 @@
+# ARABIC.ONE — barcha xizmatlarni ishga tushirish
+# Ishlatish: powershell -File start   (yoki PowerShell'da: & .\start)
+
+$root = "d:\knk\Arabicone"
+
+# Portable Node.js (agar tizimda umuman o'rnatilmagan bo'lsa ishlatiladi)
+$nodeBin = "$env:LOCALAPPDATA\Programs\nodejs-portable\node-v24.19.0-win-x64"
+if ((Test-Path $nodeBin) -and (-not (Get-Command npm -ErrorAction SilentlyContinue))) {
+    $env:PATH = "$nodeBin;$env:PATH"
+}
+
+Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd '$root\backend'; npm run dev"
+Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd '$root\miniapp'; npm run dev:https"
+Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd '$root\admin'; npm run dev"
+
+Write-Output "Backend:  http://localhost:3000"
+Write-Output "Mini App: https://localhost:5173"
+Write-Output "Admin:    http://localhost:5174"
+l883.output" -Tail 8
+
+
+
+
+.\start.bat
+.\stop.bat

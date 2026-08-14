@@ -1,4 +1,4 @@
-import Database from 'better-sqlite3';
+import { DatabaseSync } from 'node:sqlite';
 import { normalizePhone } from './phone.js';
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
@@ -7,9 +7,26 @@ import { fileURLToPath } from 'node:url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DB_PATH = process.env.DB_PATH ?? join(__dirname, '..', 'db', 'arabic.db');
 
-export const db = new Database(DB_PATH);
-db.pragma('journal_mode = WAL');
-db.pragma('foreign_keys = ON');
+const raw = new DatabaseSync(DB_PATH, { enableForeignKeyConstraints: true });
+raw.exec('PRAGMA journal_mode = WAL');
+
+// better-sqlite3 uchun yozilgan kodni o'zgartirmaslik uchun transaction() helperini qo'shamiz
+function transaction<T extends (...args: any[]) => any>(fn: T) {
+  return (...args: Parameters<T>): ReturnType<T> => {
+    raw.exec('BEGIN');
+    try {
+      const result = fn(...args);
+      raw.exec('COMMIT');
+      return result;
+    } catch (err) {
+      raw.exec('ROLLBACK');
+      throw err;
+    }
+  };
+}
+
+// better-sqlite3 kabi bo'sh (permissive) tiplash: chaqiruvchi joylarda allaqachon `as any` bilan ishlatiladi
+export const db: any = Object.assign(raw, { transaction });
 
 db.exec(readFileSync(join(__dirname, '..', 'db', 'schema.sql'), 'utf-8'));
 

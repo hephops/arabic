@@ -46,9 +46,24 @@ export function createVoter() {
   let votes = 0;
 
   return {
-    /** Kadrdan o'qilgan kod. Ishonchli bo'lsa kodni, aks holda null qaytaradi. */
-    push(raw: string): string | null {
+    /**
+     * Kadrdan o'qilgan kod. Ishonchli bo'lsa kodni, aks holda null qaytaradi.
+     *
+     * selfValidating — QR kabi ichida xato tuzatish kodi (Reed-Solomon)
+     * bo'lgan formatlar uchun. Bunday kod o'qilgan bo'lsa, u deyarli
+     * 100% to'g'ri: takroriy tasdiq ham, GTIN nazorat raqami ham kerak
+     * emas. GTIN tekshiruvi bu yerda hatto zararli edi — QR ichidagi
+     * ixtiyoriy raqam (masalan do'konning ichki kodi) GTIN bo'lmagani
+     * uchun "buzuq" deb hisoblanib, umuman qabul qilinmasdi.
+     */
+    push(raw: string, selfValidating = false): string | null {
       const code = raw.trim();
+      if (selfValidating) {
+        if (!code) return null;
+        current = '';
+        votes = 0;
+        return code;
+      }
       if (!isReadable(code)) {
         // buzuq o'qish — hisobni ham buzmasin
         return null;

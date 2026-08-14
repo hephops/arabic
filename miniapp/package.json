@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "dev:https": "HTTPS=1 vite --host"
+    "dev:https": "cross-env HTTPS=1 vite --host"
   },
   "keywords": [],
   "author": "",
@@ -23,6 +23,7 @@
     "@types/react-dom": "^19.2.4",
     "@vitejs/plugin-basic-ssl": "^2.3.0",
     "@vitejs/plugin-react": "^6.0.5",
+    "cross-env": "^10.1.0",
     "typescript": "^7.0.2",
     "vite": "^8.2.0"
   },

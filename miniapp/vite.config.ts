@@ -8,7 +8,20 @@ import basicSsl from '@vitejs/plugin-basic-ssl';
 // bir marta qabul qilsangiz, kamera ishlay boshlaydi.
 const https = process.env.HTTPS === '1';
 
+// Telefonda backend'ga to'g'ridan-to'g'ri (boshqa origin/port) so'rov yuborilsa,
+// alohida sertifikat ishonchi va CORS bilan uchrashamiz. Buning o'rniga backend
+// so'rovlarini Vite orqali (server-to-server, brauzersiz) proksi qilamiz — brauzer
+// faqat bitta xavfsiz manzil (shu server) bilan gaplashadi.
+const API_PREFIXES = [
+  'auth', 'telegram', 'public', 'me', 'balance', 'dashboard', 'customers',
+  'reminders', 'voice', 'suppliers', 'employees', 'referral', 'products',
+  'barcodes', 'uploads', 'sales', 'reports', 'expenses',
+];
+const apiProxy = Object.fromEntries(
+  API_PREFIXES.map((p) => [`/${p}`, { target: 'http://localhost:3000', changeOrigin: true }])
+);
+
 export default defineConfig({
   plugins: [react(), ...(https ? [basicSsl()] : [])],
-  server: { port: 5173, host: true },
+  server: { port: 5173, host: true, allowedHosts: true, proxy: apiProxy },
 });

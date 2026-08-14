@@ -889,6 +889,12 @@ button.link { background: none; color: var(--accent); font-size: 15px; font-weig
 }
 .scan-panel { pointer-events: auto; }
 .scan-hint { color: rgba(255, 255, 255, 0.86); font-size: 14px; text-align: center; }
+/* Skaner holati (qaysi dvigatel, kadrlar soni) — nosozlikni topish uchun */
+.scan-diag {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px; color: rgba(255, 255, 255, 0.62);
+  text-align: center; margin: 4px 0 6px;
+}
 .scan-code {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 15px; letter-spacing: 1px; color: #fff;

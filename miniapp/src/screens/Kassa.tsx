@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { api, fmt, Product, SaleRow, SaleDetail, BASE } from '../api';
 import { AppIcon, Glyph } from '../icons';
 import Scanner from '../Scanner';
+import { useHardwareScanner } from '../hardwareScanner';
 import { haptic } from '../telegram';
 import { useT } from '../i18n';
 import { formatAmount, amountValue, formatPhone, formatPhoneSoft, phoneDigits, phoneE164, isPhoneComplete } from '../format';
@@ -236,22 +237,31 @@ function SaleMode({ onDone }: { onDone: () => void }) {
     setPaymentRaw(active.payment);
   }, [activeId]);
 
+  const barcodeTimer = useRef<number>(0);
+  useEffect(() => () => window.clearTimeout(barcodeTimer.current), []);
+
   async function search(q: string) {
     setQuery(q);
-    if (q.trim().length < 2) {
+    window.clearTimeout(barcodeTimer.current);
+    const trimmed = q.trim();
+    if (trimmed.length < 2) {
       setResults([]);
       return;
     }
-    const isBarcode = /^\d{6,}$/.test(q.trim());
-    if (isBarcode) {
-      await handleCode(q.trim());
+    if (/^\d{6,}$/.test(trimmed)) {
+      // Shtrix-kodga o'xshaydi — lekin har bir bosilgan tugmada emas,
+      // faqat terish bir zum to'xtagach tekshiramiz. Aks holda uzun
+      // kodning hali tugallanmagan qismi (masalan 13 xonalining
+      // birinchi 8 tasi) qidirilib, "topilmadi" chiqib ketaveradi.
+      barcodeTimer.current = window.setTimeout(() => handleCode(trimmed), 200);
       return;
     }
     const found = await api.products({ q });
     setResults(found.filter((p) => p.id !== null));
   }
 
-  /** Skaner yoki qo'lda kiritilgan kod: topilsa savatga, topilmasa biriktirishga taklif */
+  /** Skaner (kamera, Honeywell kabi USB skaner) yoki qo'lda kiritilgan kod:
+   *  topilsa savatga, topilmasa biriktirishga taklif */
   async function handleCode(code: string) {
     try {
       const res = await api.lookupBarcode(code);
@@ -273,6 +283,10 @@ function SaleMode({ onDone }: { onDone: () => void }) {
       toast.error(t('error'), e.message);
     }
   }
+
+  // Kompyuterga ulangan USB skaner (masalan Honeywell): kodni klaviaturadek
+  // tez "teradi". Fokus qaysi maydonda bo'lishidan qat'i nazar ushlab olinadi.
+  useHardwareScanner(handleCode);
 
   async function addToCart(p: Product) {
     // Kod topilmay, foydalanuvchi mahsulotni o'zi tanlagan bo'lsa — kodni biriktiramiz
@@ -454,7 +468,18 @@ function SaleMode({ onDone }: { onDone: () => void }) {
         <div className="search-row">
           <div className="search-field">
             <Glyph name="search" size={17} color="#8a8a8e" />
-            <input value={query} onChange={(e) => search(e.target.value)} placeholder={t('searchProduct')} />
+            <input
+              value={query}
+              onChange={(e) => search(e.target.value)}
+              onKeyDown={(e) => {
+                const trimmed = query.trim();
+                if (e.key === 'Enter' && /^\d{6,}$/.test(trimmed)) {
+                  window.clearTimeout(barcodeTimer.current);
+                  handleCode(trimmed);
+                }
+              }}
+              placeholder={t('searchProduct')}
+            />
             {query && (
               <button className="search-clear" onClick={() => search('')} aria-label={t('close')}>
                 <Glyph name="close" size={15} color="#8a8a8e" />
@@ -654,6 +679,10 @@ function IntakeMode({ onDone }: { onDone: () => void }) {
     }
   }
 
+  // Kompyuterga ulangan USB skaner (masalan Honeywell): fokus qaysi
+  // maydonda bo'lishidan qat'i nazar kod ushlab olinib, maydonga qo'yiladi.
+  useHardwareScanner(lookupBarcode);
+
   function pickImage(file: File | undefined) {
     if (!file) return;
     // rasmni kichraytirib base64 qilamiz (max 800px)
@@ -672,6 +701,10 @@ function IntakeMode({ onDone }: { onDone: () => void }) {
   async function save() {
     if (!name.trim()) {
       toast.error(t('productNameRequired'));
+      return;
+    }
+    if (!(parseFloat(qty) > 0)) {
+      toast.error(t('qtyRequired'));
       return;
     }
     setBusy(true);
