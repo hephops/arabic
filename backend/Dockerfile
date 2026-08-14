@@ -1,15 +1,12 @@
 # ARABIC.ONE backend — ikki bosqichli qurilish.
-# 1-bosqichda TypeScript kompilyatsiya qilinadi va better-sqlite3 ning
-# native qismi yig'iladi (buning uchun python/g++ kerak).
-# 2-bosqichga faqat tayyor natija ko'chiriladi — образ kichik qoladi.
+# 1-bosqichda TypeScript kompilyatsiya qilinadi, 2-bosqichga faqat
+# tayyor natija ko'chiriladi — образ kichik qoladi.
+#
+# Baza uchun Node'ning o'z `node:sqlite` moduli ishlatiladi, shuning uchun
+# native modul yig'ish (python/g++) kerak emas.
 
 FROM node:22-slim AS build
 WORKDIR /app
-
-# better-sqlite3 native modulini yig'ish uchun
-RUN apt-get update && apt-get install -y --no-install-recommends \
-      python3 make g++ ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
 
 COPY package*.json ./
 RUN npm ci
@@ -23,17 +20,14 @@ FROM node:22-slim AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 
-# Konteyner ichida root'dan ishlamaydi
-RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
-
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY package*.json ./
 # db.ts sxemani ../db/schema.sql dan o'qiydi (dist'ga nisbatan)
 COPY db/schema.sql ./db/schema.sql
 
-# Baza va rasmlar — doimiy hajmlarda (volume) saqlanadi
+# Baza va rasmlar — doimiy hajmlarda (volume) saqlanadi.
+# Konteyner ichida root'dan ishlamaydi.
 RUN mkdir -p /data /app/uploads && chown -R node:node /data /app
 USER node
 

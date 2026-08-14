@@ -5,3 +5,16 @@ dist/
 *.db-shm
 .env
 .claude/
+
+# Do'kon ma'lumoti — kod emas. Git'da turmaydi, aks holda har bir rasm
+# tarixga qo'shilib boradi va hech qachon o'chmaydi.
+backend/uploads/
+
+# Sertifikatlar va maxfiy kalitlar hech qachon git'ga tushmasin.
+# Dev uchun HTTPS kerak bo'lsa Vite o'zi yasab beradi (npm run dev:https).
+backend/certs/
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
