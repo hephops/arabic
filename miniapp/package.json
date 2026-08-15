@@ -8,7 +8,11 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "dev:https": "cross-env HTTPS=1 vite --host",
-    "preview:https": "cross-env HTTPS=1 vite preview --host"
+    "preview:https": "cross-env HTTPS=1 vite preview --host",
+    "check:proxy": "node scripts/check-proxy.mjs",
+    "prebuild": "node scripts/check-proxy.mjs",
+    "predev": "node scripts/check-proxy.mjs",
+    "predev:https": "node scripts/check-proxy.mjs"
   },
   "keywords": [],
   "author": "",
