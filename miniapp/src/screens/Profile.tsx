@@ -150,6 +150,30 @@ export default function Profile({
         <Row icon="card" label={t('cardNumber')} value={maskCard(shop.card_number) || t('notSet')} onClick={() => setView('shop')} />
       </div>
 
+      {/* Ombor qoidasi: qoldiqdan ko'p sotishga ruxsat.
+          Odatda o'chiq — aks holda sotuvchi tasdiqlab yuborsa qoldiq
+          minusga tushib, ombor hisobi buziladi. */}
+      <div className="switch-row">
+        <div style={{ minWidth: 0 }}>
+          <div className="sw-title">{t('allowNegative')}</div>
+          <div className="sw-sub">{t('allowNegativeSub')}</div>
+        </div>
+        <button
+          className={`switch ${shop.allow_negative_stock ? 'on' : ''}`}
+          onClick={async () => {
+            try {
+              await api.updateMe({ allow_negative_stock: shop.allow_negative_stock ? 0 : 1 });
+              load();
+            } catch (e: any) {
+              toast.error(t('error'), e.message);
+            }
+          }}
+          aria-label={t('allowNegative')}
+        >
+          <span />
+        </button>
+      </div>
+
       <div className="list-group">
         <Row
           icon="chart"

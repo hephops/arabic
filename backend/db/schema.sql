@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS shops (
   default_reminder_mode TEXT NOT NULL DEFAULT 'soft',
   referred_by TEXT,                              -- referal kodi (ARABIC<id>)
   daily_goal INTEGER NOT NULL DEFAULT 0,         -- kunlik savdo maqsadi (0 — yo'q)
+  allow_negative_stock INTEGER NOT NULL DEFAULT 0, -- qoldiqdan ko'p sotishga ruxsat
   report_enabled INTEGER NOT NULL DEFAULT 1,     -- kechki avtomatik hisobot
   report_hour INTEGER NOT NULL DEFAULT 22,       -- qaysi soatda (O'zbekiston vaqti)
   last_report_date TEXT,                         -- oxirgi yuborilgan kun

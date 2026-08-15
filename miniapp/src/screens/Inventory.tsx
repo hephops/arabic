@@ -6,7 +6,7 @@ import { useT } from '../i18n';
 import Scanner from '../Scanner';
 import { formatAmount } from '../format';
 import { toast, loadFailed } from '../toast';
-import { priceAfter } from '../discount';
+import { DiscountSheet, priceAfter } from '../discount';
 import { PrintSheet, Labels } from '../print';
 import { ean13Svg, isEan13 } from '../ean13';
 
@@ -33,6 +33,8 @@ export default function Inventory({ onBack }: { onBack: () => void }) {
   const [products, setProducts] = useState<Product[]>([]);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<'all' | 'low' | 'expiry'>('all');
+  // Ommaviy chegirma oynasi uchun tanlangan tovarlar
+  const [discountFor, setDiscountFor] = useState<Product[] | null>(null);
   const [category, setCategory] = useState('');
   const [editing, setEditing] = useState<Product | null>(null);
   const [counting, setCounting] = useState(false);
@@ -131,9 +133,20 @@ export default function Inventory({ onBack }: { onBack: () => void }) {
                 <div className="lead">
                   <Thumb p={p} />
                   <div>
-                    <div className="name">{p.name}</div>
+                    <div className="name">
+                      {p.name}
+                      {(p.discount_percent ?? 0) > 0 && <span className="badge sale">−{p.discount_percent}%</span>}
+                    </div>
                     <div className="sub">
-                      {fmt(p.sell_price)}
+                      {/* Chegirma bo'lsa eski narx chizilgan holda qoladi */}
+                      {(p.discount_percent ?? 0) > 0 ? (
+                        <>
+                          <b style={{ color: 'var(--green)' }}>{fmt(priceAfter(p.sell_price, p.discount_percent!))}</b>{' '}
+                          <span className="old-price">{fmt(p.sell_price)}</span>
+                        </>
+                      ) : (
+                        fmt(p.sell_price)
+                      )}
                       {expDays !== null && (
                         <span style={{ color: expDays < 0 ? 'var(--red)' : expDays <= 7 ? 'var(--yellow)' : undefined }}>
                           {' '}
@@ -156,6 +169,22 @@ export default function Inventory({ onBack }: { onBack: () => void }) {
             );
           })}
         </div>
+        {/* Srogi yaqinlar ro'yxati ochilganda — bir bosishda hammasiga
+            chegirma. Bosh sahifadagi bilan bir xil oyna. */}
+        {filter === 'expiry' && filtered.length > 0 && (
+          <button className="btn-ghost" onClick={() => setDiscountFor(filtered)}>
+            <Glyph name="flash" size={16} color="var(--accent)" /> {t('discountAction')}
+          </button>
+        )}
+
+        {discountFor && (
+          <DiscountSheet
+            items={discountFor}
+            onClose={() => setDiscountFor(null)}
+            onSaved={load}
+          />
+        )}
+
         {filtered.length === 0 && (
           <EmptyState
             icon="boxes"

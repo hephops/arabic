@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { AppIcon, Glyph } from './icons';
+import { BASE } from './api';
 import { useT } from './i18n';
 import { toggleSide } from './sidebar';
 
@@ -113,4 +114,27 @@ export function Segmented<T extends string>({
       ))}
     </div>
   );
+}
+
+
+/** Mahsulot rasmi — rasm bo'lmasa quti ikonkasi.
+ *  Kassa, Ombor va bosh sahifadagi ro'yxatlar shu bittasidan foydalanadi,
+ *  shunda ro'yxatlar bir xil ko'rinadi. */
+export function ProductThumb({
+  product,
+  size = 44,
+}: {
+  product: { name: string; image_url?: string | null };
+  size?: number;
+}) {
+  if (product.image_url) {
+    return (
+      <img
+        src={`${BASE}${product.image_url}`}
+        alt={product.name}
+        style={{ width: size, height: size, borderRadius: 10, objectFit: 'cover', flexShrink: 0 }}
+      />
+    );
+  }
+  return <AppIcon glyph="box" color="gray" size={size} />;
 }

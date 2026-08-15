@@ -80,6 +80,9 @@ for (const sql of [
   'ALTER TABLE shops ADD COLUMN last_report_date TEXT',
   // Mijozning Telegram'i — chek va xarid tarixi shu yerga boradi
   'ALTER TABLE customers ADD COLUMN telegram_user_id INTEGER',
+  // Qoldiqdan ko'p sotishga ruxsat. Odatda O'CHIQ — ombor minusga
+  // tushib ketmasin. Kerak bo'lgan do'kon sozlamadan yoqadi.
+  'ALTER TABLE shops ADD COLUMN allow_negative_stock INTEGER NOT NULL DEFAULT 0',
 ]) {
   try {
     db.exec(sql);

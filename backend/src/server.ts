@@ -175,7 +175,7 @@ app.get('/me', { preHandler: requireAuth }, async (req) => {
 });
 
 app.patch<{ Body: Record<string, unknown> }>('/me', { preHandler: requireOwner }, async (req) => {
-  const allowed = ['name', 'owner_name', 'address', 'language', 'card_number', 'daily_goal', 'report_enabled', 'report_hour'];
+  const allowed = ['name', 'owner_name', 'address', 'language', 'card_number', 'daily_goal', 'report_enabled', 'report_hour', 'allow_negative_stock'];
   for (const key of allowed) {
     if (key in req.body) {
       db.prepare(`UPDATE shops SET ${key} = ? WHERE id = ?`).run(req.body[key], req.shopId);
@@ -1462,8 +1462,17 @@ app.post<{ Body: { items: { product_id: number; qty: number }[]; payment_type: '
       if (!p) return reply.code(404).send({ error: 'product_not_found' });
       if (item.qty > p.stock) shortage.push({ product_id: p.id, name: p.name, stock: p.stock, qty: item.qty });
     }
-    if (shortage.length > 0 && !req.body.allow_negative) {
-      return reply.code(409).send({ error: 'insufficient_stock', items: shortage });
+    if (shortage.length > 0) {
+      // Do'kon sozlamasida ruxsat berilmagan bo'lsa — minusga tushirmaymiz.
+      // Ilgari sotuvchi "baribir sotilsinmi?" savoliga OK bosishi bilan
+      // qoldiq manfiy bo'lib ketardi va ombor hisobi buzilardi.
+      const shop = db.prepare('SELECT allow_negative_stock FROM shops WHERE id = ?').get(req.shopId) as any;
+      if (!shop?.allow_negative_stock) {
+        return reply.code(409).send({ error: 'stock_blocked', items: shortage });
+      }
+      if (!req.body.allow_negative) {
+        return reply.code(409).send({ error: 'insufficient_stock', items: shortage });
+      }
     }
 
     // Qarzga sotishda qarzdorning telefoni shart — eslatma va qo'ng'iroq shunga boradi

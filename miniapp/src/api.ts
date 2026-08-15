@@ -158,7 +158,7 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify({ default_reminder_mode: mode, apply_to_all: applyToAll }),
     }),
-  updateMe: (data: Partial<Pick<Shop, 'name' | 'owner_name' | 'address' | 'language' | 'card_number' | 'daily_goal' | 'report_enabled' | 'report_hour'>>) =>
+  updateMe: (data: Partial<Pick<Shop, 'name' | 'owner_name' | 'address' | 'language' | 'card_number' | 'daily_goal' | 'report_enabled' | 'report_hour' | 'allow_negative_stock'>>) =>
     request<Shop>('/me', { method: 'PATCH', body: JSON.stringify(data) }),
   balance: () => request<BalanceInfo>('/balance'),
   topup: (amount: number) =>
@@ -210,6 +210,8 @@ export interface Shop {
   /** kechki avtomatik hisobot: yoqilganmi va qaysi soatda */
   report_enabled?: number;
   report_hour?: number;
+  /** qoldiqdan ko'p sotishga ruxsat (0 — yo'q) */
+  allow_negative_stock?: number;
 }
 
 export interface BalanceInfo {

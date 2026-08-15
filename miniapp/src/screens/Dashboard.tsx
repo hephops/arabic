@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, fmt, fmtShort, Dashboard as DashboardData } from '../api';
 import { AppIcon, Glyph } from '../icons';
+import { ProductThumb } from '../ui';
 import type { SubScreen } from '../App';
 import { useT } from '../i18n';
 import { GoalBar, GoalSheet } from '../goal';
@@ -232,7 +233,10 @@ export default function Dashboard({
           <div className="list-group">
             {data.low_stock.map((p) => (
               <div className="list-item" key={p.id}>
-                <div className="name">{p.name}</div>
+                <div className="lead">
+                  <ProductThumb product={p} size={34} />
+                  <div className="name">{p.name}</div>
+                </div>
                 <div className="amount" style={{ color: p.stock < 0 ? 'var(--red)' : 'var(--yellow)' }}>
                   {p.stock} {p.unit}
                   {p.stock < 0 && <span className="badge overdue">{t('stockNegative')}</span>}
@@ -255,6 +259,8 @@ export default function Dashboard({
               const off = p.discount_percent ?? 0;
               return (
                 <div className="list-item" key={p.id}>
+                  <div className="lead">
+                  <ProductThumb product={p} size={34} />
                   <div style={{ minWidth: 0 }}>
                     <div className="name">
                       {p.name}
@@ -266,6 +272,7 @@ export default function Dashboard({
                       </span>
                       {' · '}{p.expiry_date}
                     </div>
+                  </div>
                   </div>
                   <div style={{ textAlign: 'right' }}>
                     {off > 0 ? (

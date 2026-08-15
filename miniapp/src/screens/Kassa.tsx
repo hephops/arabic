@@ -11,23 +11,11 @@ import {
   Cart, MAX_CARTS, cartQty, cartTotal, linePrice, loadCarts, newCart, nextNo, saveCarts,
 } from '../carts';
 import { PrintSheet, Receipt } from '../print';
+import { ProductThumb } from '../ui';
 import { TrustWarning } from '../trust';
 import { GoalStrip } from '../goal';
 import { VoiceCartSheet } from '../voiceCart';
 import { priceAfter } from '../discount';
-
-function ProductThumb({ product, size = 44 }: { product: Product; size?: number }) {
-  if (product.image_url) {
-    return (
-      <img
-        src={`${BASE}${product.image_url}`}
-        alt={product.name}
-        style={{ width: size, height: size, borderRadius: 10, objectFit: 'cover', flexShrink: 0 }}
-      />
-    );
-  }
-  return <AppIcon glyph="box" color="gray" size={size} />;
-}
 
 export type KassaMode = 'sale' | 'intake' | 'history';
 
@@ -618,6 +606,15 @@ function SaleMode({ onDone }: { onDone: () => void }) {
       }
       if (e.message === 'customer_phone_required') {
         toast.error(t('phoneRequired'));
+        return;
+      }
+      // Sozlamada ruxsat berilmagan — minusga tushirmaymiz
+      if (e.message === 'stock_blocked') {
+        const rows: { name: string; stock: number; qty: number }[] = e.details?.items ?? [];
+        toast.error(
+          t('stockBlocked'),
+          rows.map((r) => `${r.name}: ${t('stock')} ${r.stock}`).join(', ')
+        );
         return;
       }
       if (e.message === 'insufficient_stock') {
