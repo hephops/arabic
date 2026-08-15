@@ -6,6 +6,7 @@ import { useT, LANG_NAMES, type Lang } from '../i18n';
 import { MODES } from './Reminders';
 import { formatAmount, formatPhoneSoft, phoneStore, formatPhone, phoneDigits, phoneE164, isPhoneComplete } from '../format';
 import { toast, loadFailed } from '../toast';
+import { TrustCard, TrustDot, TrustWarning } from '../trust';
 
 export default function Customers() {
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -246,8 +247,12 @@ export default function Customers() {
                 </div>
               </div>
 
+              {/* To'lov odati — qarz berishdan oldin bir qarashda ko'rinsin */}
+              <TrustCard trust={selected.trust} />
+
               {mode === 'debt' ? (
                 <div className="card">
+                  <TrustWarning trust={selected.trust} />
                   <label>{t('amount')}</label>
                   <input
                     value={formatAmount(debtForm.amount)}
@@ -409,8 +414,13 @@ export default function Customers() {
             <div className="list-item" key={c.id} onClick={() => openCustomer(c.id)}>
               <div className="lead">
                 <AppIcon glyph={m.icon} color={m.color} size={29} />
-                <div>
-                  <div className="name">{c.name}</div>
+                <div style={{ minWidth: 0 }}>
+                  {/* Nuqta — to'lov odati. Do'konchi ro'yxatda ham
+                      "kimga ehtiyot bo'lish kerak" ni ko'rib turadi */}
+                  <div className="name">
+                    <TrustDot trust={c.trust} />
+                    {c.name}
+                  </div>
                   {/* Raqami yo'q mijozga eslatma ketmaydi — qizil qilib ko'rsatamiz */}
                   <div className="sub" style={c.phone ? undefined : { color: 'var(--red)' }}>
                     {c.phone ? formatPhoneSoft(c.phone) : t('noPhone')}

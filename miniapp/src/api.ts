@@ -100,6 +100,8 @@ export const api = {
     request<SupplierDebt>('/supplier-debts', { method: 'POST', body: JSON.stringify(data) }),
   paySupplierDebt: (id: number, amount: number) =>
     request<SupplierDebt>(`/supplier-debts/${id}/payments`, { method: 'POST', body: JSON.stringify({ amount }) }),
+  lookupCustomer: (phone: string) =>
+    request<{ customer: Customer | null }>(`/customers/lookup?phone=${encodeURIComponent(phone)}`),
   orderSuggest: () => request<OrderSuggestion[]>('/orders/suggest'),
   orders: () => request<Order[]>('/orders'),
   createOrder: (data: { supplier_id?: number | null; note?: string; items: { product_id?: number; name: string; unit?: string; qty: number }[] }) =>
@@ -237,6 +239,16 @@ export interface Employee {
 
 export type ReminderMode = 'off' | 'soft' | 'medium' | 'call';
 
+/** Qarzdorning to'lov odati — "buni kutish mumkinmi" degan savolga javob */
+export interface Trust {
+  level: 'new' | 'good' | 'warn' | 'bad';
+  closed: number;
+  on_time: number;
+  late: number;
+  avg_late_days: number;
+  overdue_days: number;
+}
+
 export interface Customer {
   credit_limit?: number;
   is_blocked?: number;
@@ -247,6 +259,7 @@ export interface Customer {
   reminder_mode: ReminderMode;
   balance: number;
   last_activity: string | null;
+  trust?: Trust | null;
 }
 
 export interface ReminderLog {

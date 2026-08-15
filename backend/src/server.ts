@@ -414,15 +414,87 @@ app.get('/dashboard', { preHandler: requireAuth }, async (req) => {
 });
 
 // ---------- MIJOZLAR ----------
+
+// Qarzdorning "ishonch reytingi".
+//
+// Do'konchining eng katta qo'rquvi — qarz berib, pul qaytmay qolishi.
+// Shu qo'rquvni yumshatish uchun har bir mijozning o'tmishdagi to'lov
+// odatini bitta belgiga jamlaymiz: yashil (aytgan vaqtida to'laydi),
+// sariq (kechiktiradi), qizil (hozir ham qarzi muddatidan o'tgan).
+// Tarixi yo'q mijoz "yangi" — bu ogohlantirish emas, shunchaki
+// "hali bilmaymiz" degani.
+export type TrustLevel = 'new' | 'good' | 'warn' | 'bad';
+
+export interface Trust {
+  level: TrustLevel;
+  closed: number;        // yopilgan qarzlar soni
+  on_time: number;       // ulardan o'z vaqtida to'langani
+  late: number;          // kechikib to'langani
+  avg_late_days: number; // kechikkanlarining o'rtacha kechikishi
+  overdue_days: number;  // hozirgi eng uzun kechikish (kunlarda)
+}
+
+const TRUST_SQL = `
+  SELECT c.id AS customer_id,
+         SUM(CASE WHEN d.status = 'paid' THEN 1 ELSE 0 END) AS closed,
+         SUM(CASE WHEN d.status = 'paid' AND d.due_date IS NOT NULL
+                   AND date(COALESCE((SELECT MAX(dp.created_at) FROM debt_payments dp WHERE dp.debt_id = d.id),
+                                     d.created_at)) > date(d.due_date)
+             THEN 1 ELSE 0 END) AS late,
+         COALESCE(SUM(CASE WHEN d.status = 'paid' AND d.due_date IS NOT NULL
+                   AND date(COALESCE((SELECT MAX(dp.created_at) FROM debt_payments dp WHERE dp.debt_id = d.id),
+                                     d.created_at)) > date(d.due_date)
+             THEN julianday(COALESCE((SELECT MAX(dp.created_at) FROM debt_payments dp WHERE dp.debt_id = d.id),
+                                     d.created_at)) - julianday(d.due_date)
+             ELSE 0 END), 0) AS late_days_sum,
+         COALESCE(MAX(CASE WHEN d.status != 'paid' AND d.due_date IS NOT NULL AND date(d.due_date) < date('now')
+             THEN julianday('now') - julianday(d.due_date) ELSE 0 END), 0) AS overdue_days
+  FROM customers c LEFT JOIN debts d ON d.customer_id = c.id
+  WHERE c.shop_id = ? GROUP BY c.id`;
+
+function levelOf(closed: number, late: number, overdueDays: number): TrustLevel {
+  // Hozir ham ikki haftadan ortiq kechikayotgan bo'lsa — boshqa hech narsa
+  // muhim emas, bu qizil
+  if (overdueDays >= 14) return 'bad';
+  // Yopilgan qarzning yarmidan ko'pi kechikkan bo'lsa ham qizil
+  if (closed >= 2 && late / closed > 0.5) return 'bad';
+  if (closed === 0) return overdueDays > 0 ? 'warn' : 'new';
+  if (overdueDays > 0) return 'warn';
+  if (late / closed > 0.2) return 'warn';
+  return 'good';
+}
+
+/** Do'kondagi barcha mijozlar uchun reyting — bitta so'rovda */
+function trustMap(shopId: number): Map<number, Trust> {
+  const rows = db.prepare(TRUST_SQL).all(shopId) as any[];
+  const map = new Map<number, Trust>();
+  for (const r of rows) {
+    const closed = Number(r.closed) || 0;
+    const late = Number(r.late) || 0;
+    const overdue = Math.floor(Number(r.overdue_days) || 0);
+    map.set(r.customer_id, {
+      level: levelOf(closed, late, overdue),
+      closed,
+      on_time: closed - late,
+      late,
+      avg_late_days: late > 0 ? Math.round(Number(r.late_days_sum) / late) : 0,
+      overdue_days: overdue,
+    });
+  }
+  return map;
+}
+
 app.get('/customers', { preHandler: requireAuth }, async (req) => {
-  return db
+  const rows = db
     .prepare(
       `SELECT c.*, COALESCE(SUM(CASE WHEN d.status != 'paid' THEN d.amount - d.paid_amount END), 0) AS balance,
               MAX(d.created_at) AS last_activity
        FROM customers c LEFT JOIN debts d ON d.customer_id = c.id
        WHERE c.shop_id = ? GROUP BY c.id ORDER BY balance DESC`
     )
-    .all(req.shopId);
+    .all(req.shopId) as any[];
+  const trust = trustMap(req.shopId);
+  return rows.map((c) => ({ ...c, trust: trust.get(c.id) ?? null }));
 });
 
 app.post<{ Body: { name: string; phone?: string; language?: string; note?: string } }>(
@@ -448,6 +520,25 @@ app.post<{ Body: { name: string; phone?: string; language?: string; note?: strin
   }
 );
 
+/** Raqam bo'yicha mijozni tanish — kassada qarzga sotayotganda kerak.
+ *  Do'konchi ismini qaytadan yozmaydi, tizim esa uning to'lov odatini
+ *  darhol ko'rsatadi. */
+app.get<{ Querystring: { phone?: string } }>('/customers/lookup', { preHandler: requireAuth }, async (req) => {
+  const phone = normalizePhone(req.query.phone);
+  if (!phone) return { customer: null };
+  const customer = db
+    .prepare('SELECT * FROM customers WHERE shop_id = ? AND phone = ?')
+    .get(req.shopId, phone) as any;
+  if (!customer) return { customer: null };
+  const balance = db
+    .prepare(
+      `SELECT COALESCE(SUM(amount - paid_amount), 0) AS s FROM debts
+       WHERE customer_id = ? AND status != 'paid'`
+    )
+    .get(customer.id) as any;
+  return { customer: { ...customer, balance: balance.s, trust: trustMap(req.shopId).get(customer.id) ?? null } };
+});
+
 app.get<{ Params: { id: string } }>('/customers/:id', { preHandler: requireAuth }, async (req, reply) => {
   const customer = db
     .prepare('SELECT * FROM customers WHERE id = ? AND shop_id = ?')
@@ -459,7 +550,8 @@ app.get<{ Params: { id: string } }>('/customers/:id', { preHandler: requireAuth 
   const balance = debts
     .filter((d) => d.status !== 'paid')
     .reduce((s, d) => s + (d.amount - d.paid_amount), 0);
-  return { ...customer, debts, balance };
+  const trust = trustMap(req.shopId).get(Number(req.params.id)) ?? null;
+  return { ...customer, debts, balance, trust };
 });
 
 app.patch<{ Params: { id: string }; Body: Record<string, unknown> }>(

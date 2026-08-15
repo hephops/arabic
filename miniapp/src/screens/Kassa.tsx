@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { api, fmt, Product, SaleRow, SaleDetail, BASE } from '../api';
+import { api, fmt, Customer, Product, SaleRow, SaleDetail, BASE } from '../api';
 import { AppIcon, Glyph } from '../icons';
 import Scanner from '../Scanner';
 import { useHardwareScanner } from '../hardwareScanner';
@@ -11,6 +11,7 @@ import {
   Cart, MAX_CARTS, cartQty, cartTotal, loadCarts, newCart, nextNo, saveCarts,
 } from '../carts';
 import { PrintSheet, Receipt } from '../print';
+import { TrustWarning } from '../trust';
 
 function ProductThumb({ product, size = 44 }: { product: Product; size?: number }) {
   if (product.image_url) {
@@ -339,6 +340,9 @@ function SaleMode({ onDone }: { onDone: () => void }) {
   const { carts, activeId } = state;
   const [renaming, setRenaming] = useState(false);
   const [payment, setPaymentRaw] = useState<'cash' | 'card' | 'debt'>('cash');
+  // Raqam to'liq kiritilganda mijozni tanib olamiz: ismi o'zi to'ladi,
+  // to'lov odati esa sotuvchiga darhol ko'rinadi
+  const [known, setKnown] = useState<Customer | null>(null);
   const [scanning, setScanning] = useState(false);
   // Skanerda topilmagan kod: mahsulot tanlansa, kod o'shanga biriktiriladi
   const [pendingCode, setPendingCode] = useState<string | null>(null);
@@ -365,6 +369,33 @@ function SaleMode({ onDone }: { onDone: () => void }) {
   function patchActive(fn: (c: Cart) => Cart) {
     setState((s) => ({ ...s, carts: s.carts.map((c) => (c.id === s.activeId ? fn(c) : c)) }));
   }
+
+  // Qarzga sotishda raqam to'liq bo'lishi bilan mijozni bazadan qidiramiz.
+  // Topilsa: ismi bo'sh bo'lsa to'ldiriladi va to'lov odati ko'rsatiladi —
+  // sotuvchi qarz yozishdan OLDIN "buni kutish mumkinmi" ni ko'radi.
+  const phoneDigitsNow = active.customerPhone;
+  useEffect(() => {
+    if (payment !== 'debt' || !isPhoneComplete(phoneDigitsNow)) {
+      setKnown(null);
+      return;
+    }
+    let cancelled = false;
+    api
+      .lookupCustomer(phoneE164(phoneDigitsNow))
+      .then(({ customer }) => {
+        if (cancelled) return;
+        setKnown(customer);
+        if (customer && !active.customerName.trim()) {
+          patchActive((c) => ({ ...c, customerName: customer.name }));
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setKnown(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [payment, phoneDigitsNow]);
 
   function addCart() {
     if (carts.length >= MAX_CARTS) {
@@ -842,6 +873,12 @@ function SaleMode({ onDone }: { onDone: () => void }) {
           </div>
           {payment === 'debt' && (
             <div className="debt-fields">
+              {known && <TrustWarning trust={known.trust} name={known.name} />}
+              {known && known.balance > 0 && (
+                <p className="field-note">
+                  {t('knownCustomerDebt')}: <b style={{ color: 'var(--red)' }}>{fmt(known.balance)}</b>
+                </p>
+              )}
               <input
                 value={active.customerName}
                 onChange={(e) => patchActive((c) => ({ ...c, customerName: e.target.value }))}
