@@ -17,6 +17,7 @@ export default function Suppliers({ onBack }: { onBack: () => void }) {
 
   const [form, setForm] = useState({ name: '', amount: '', note: '', due: '' });
   const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
   const { t } = useT();
 
   const load = () => api.suppliers().then(setSuppliers).catch(() => {});
@@ -27,33 +28,50 @@ export default function Suppliers({ onBack }: { onBack: () => void }) {
   const total = suppliers.reduce((s, x) => s + x.balance, 0);
 
   async function addDebt() {
+    if (busy) return;
     const amount = parseInt(form.amount.replace(/\D/g, ''), 10);
     if (!form.name.trim() || !amount) {
       setError(t('nameAmountRequiredShort'));
       return;
     }
     setError('');
-    await api.createSupplierDebt({
-      supplier_name: form.name.trim(),
-      amount,
-      note: form.note || undefined,
-      due_date: form.due || undefined,
-    });
-    toast.success(t('toastSupplierSaved'), `${form.name.trim()} · ${fmt(amount)}`);
-    setForm({ name: '', amount: '', note: '', due: '' });
-    setAdding(false);
-    load();
+    setBusy(true);
+    try {
+      await api.createSupplierDebt({
+        supplier_name: form.name.trim(),
+        amount,
+        note: form.note || undefined,
+        due_date: form.due || undefined,
+      });
+      toast.success(t('toastSupplierSaved'), `${form.name.trim()} · ${fmt(amount)}`);
+      setForm({ name: '', amount: '', note: '', due: '' });
+      setAdding(false);
+      load();
+    } catch (e: any) {
+      setError(t('error') + ': ' + e.message);
+      toast.error(t('error'), e.message);
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function pay(debtId: number) {
+    if (busy) return;
     const amount = parseInt(payAmount.replace(/\D/g, ''), 10);
     if (!amount) return;
-    await api.paySupplierDebt(debtId, amount);
-    toast.success(t('toastPaymentSaved'), fmt(amount));
-    setPayFor(null);
-    setPayAmount('');
-    if (selected) setSelected(await api.supplier(selected.id));
-    load();
+    setBusy(true);
+    try {
+      await api.paySupplierDebt(debtId, amount);
+      toast.success(t('toastPaymentSaved'), fmt(amount));
+      setPayFor(null);
+      setPayAmount('');
+      if (selected) setSelected(await api.supplier(selected.id));
+      load();
+    } catch (e: any) {
+      toast.error(t('error'), e.message);
+    } finally {
+      setBusy(false);
+    }
   }
 
   if (selected) {
@@ -94,7 +112,7 @@ export default function Suppliers({ onBack }: { onBack: () => void }) {
                     inputMode="numeric"
                     placeholder={String(d.amount - d.paid_amount)}
                   />
-                  <button className="btn-primary" onClick={() => pay(d.id)}>
+                  <button className="btn-primary" onClick={() => pay(d.id)} disabled={busy}>
                     {t('markPaid')}
                   </button>
                 </div>
@@ -143,10 +161,10 @@ export default function Suppliers({ onBack }: { onBack: () => void }) {
               <input type="date" value={form.due} onChange={(e) => setForm({ ...form, due: e.target.value })} />
             </div>
           </div>
-          <button className="btn-primary btn-lg" onClick={addDebt}>
+          <button className="btn-primary btn-lg" onClick={addDebt} disabled={busy}>
             <Glyph name="check" size={19} color="#fff" /> {t('save')}
           </button>
-          <button className="btn-ghost" onClick={() => setAdding(false)}>{t('cancel')}</button>
+          <button className="btn-ghost" onClick={() => setAdding(false)} disabled={busy}>{t('cancel')}</button>
           {error && <p className="error center">{error}</p>}
         </>
       )}
