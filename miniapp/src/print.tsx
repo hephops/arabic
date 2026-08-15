@@ -10,15 +10,77 @@ import { group } from './i18n';
 // O'rniga chop etiladigan qism sahifaga qo'shiladi, CSS esa chop etishda
 // faqat shuni ko'rsatib, qolgan hamma narsani yashiradi.
 
-/** Chop etiladigan qismni sahifaga qo'yadi va darhol chop etish oynasini ochadi */
+/** Chop etiladigan qismni sahifaga qo'yadi va darhol chop etish oynasini ochadi
+ *
+ *  DIQQAT — chek qachon o'chirilishi juda muhim:
+ *
+ *  Kompyuterda `window.print()` chop etish oynasi yopilguncha KUTADI,
+ *  shuning uchun undan keyin darhol o'chirsa ham chek varaqqa tushib
+ *  ulgurgan bo'ladi. iPhone (Safari) da esa u DARHOL qaytadi — chop
+ *  etish oynasi keyinroq ochiladi. Natijada chek DOM'dan o'chirilgan
+ *  bo'lib, telefonda BO'SH VARAQ chiqardi.
+ *
+ *  Shuning uchun endi chekni faqat chop etish haqiqatan tugagach
+ *  o'chiramiz: `afterprint`, `matchMedia('print')` va sahifaga
+ *  qaytish (focus) — uchalasidan qaysi biri birinchi kelsa. Hech biri
+ *  kelmasa ham ilova qotib qolmasin deb zaxira taymer bor. */
 export function PrintSheet({ children, onDone }: { children: ReactNode; onDone: () => void }) {
   useEffect(() => {
-    // Brauzer chizib bo'lishini kutamiz, aks holda bo'sh varaq chiqadi
-    const timer = setTimeout(() => {
-      window.print();
+    let finished = false;
+    // Chop etish boshlanganini bilamiz — undan oldingi "focus" hodisasi
+    // (masalan klaviatura yopilishi) chekni erta o'chirib yubormasin
+    let printing = false;
+
+    const finish = () => {
+      if (finished) return;
+      finished = true;
+      cleanup();
       onDone();
-    }, 120);
-    return () => clearTimeout(timer);
+    };
+
+    const onAfterPrint = () => finish();
+    // Safari `afterprint` ni har doim ham bermaydi — chop etish rejimidan
+    // chiqqanini media so'rovi orqali ham kuzatamiz
+    const mql = typeof window.matchMedia === 'function' ? window.matchMedia('print') : null;
+    const onMedia = (e: MediaQueryListEvent) => {
+      if (e.matches) printing = true;
+      else if (printing) finish();
+    };
+    // iOS'da chop etish varag'i yopilganda sahifa fokusni qaytaradi.
+    // Lekin varaq OCHILAYOTGANDA ham qisqa fokus bo'lishi mumkin —
+    // shunda chek erta o'chib, yana bo'sh varaq chiqardi. Shuning uchun
+    // fokusni faqat chop etish boshlanganidan biroz vaqt o'tgach
+    // "tugadi" deb hisoblaymiz.
+    let printStartedAt = 0;
+    const FOCUS_GRACE_MS = 1500;
+    const onFocus = () => {
+      if (printing && Date.now() - printStartedAt > FOCUS_GRACE_MS) finish();
+    };
+
+    const cleanup = () => {
+      window.removeEventListener('afterprint', onAfterPrint);
+      window.removeEventListener('focus', onFocus);
+      mql?.removeEventListener?.('change', onMedia);
+      clearTimeout(openTimer);
+      clearTimeout(guardTimer);
+    };
+
+    window.addEventListener('afterprint', onAfterPrint);
+    window.addEventListener('focus', onFocus);
+    mql?.addEventListener?.('change', onMedia);
+
+    // Brauzer chizib bo'lishini kutamiz, aks holda bo'sh varaq chiqadi
+    const openTimer = setTimeout(() => {
+      printing = true;
+      printStartedAt = Date.now();
+      window.print();
+    }, 150);
+
+    // Zaxira: hech qanday hodisa kelmasa ham ilova chop etish holatida
+    // qotib qolmaydi (do'konchi keyingi chekni chiqara olsin)
+    const guardTimer = setTimeout(finish, 120_000);
+
+    return cleanup;
   }, []);
 
   return createPortal(<div className="print-root">{children}</div>, document.body);
