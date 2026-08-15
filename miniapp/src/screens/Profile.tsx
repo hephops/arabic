@@ -4,7 +4,7 @@ import { AppIcon, Glyph } from '../icons';
 import { SubHeader, EmptyState } from '../ui';
 import { useT, LANG_NAMES, group, type Lang } from '../i18n';
 import { formatCard, cardDigits, formatPhone, maskCard, formatAmount, amountValue } from '../format';
-import { toast } from '../toast';
+import { toast, loadFailed } from '../toast';
 
 // iOS Sozlamalar uslubidagi kabinet: asosiy ekranda qatorlar,
 // har biri o'z ichki ekraniga ochiladi.
@@ -451,7 +451,7 @@ function EmployeesView({ shopPhone, onBack }: { shopPhone: string; onBack: () =>
   const [opened, setOpened] = useState<Employee | null>(null);
   const [error, setError] = useState('');
 
-  const load = () => api.employees().then(setEmployees).catch(() => {});
+  const load = () => api.employees().then(setEmployees).catch(loadFailed);
   useEffect(() => {
     load();
   }, []);

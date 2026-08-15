@@ -6,7 +6,7 @@ import { useHardwareScanner } from '../hardwareScanner';
 import { haptic } from '../telegram';
 import { useT } from '../i18n';
 import { formatAmount, amountValue, formatPhone, formatPhoneSoft, phoneDigits, phoneE164, isPhoneComplete } from '../format';
-import { toast } from '../toast';
+import { toast, loadFailed } from '../toast';
 import {
   Cart, MAX_CARTS, cartQty, cartTotal, loadCarts, newCart, nextNo, saveCarts,
 } from '../carts';
@@ -80,7 +80,7 @@ function HistoryMode() {
   const [busy, setBusy] = useState(false);
   const [printing, setPrinting] = useState(false);
 
-  const loadSales = () => api.sales(50).then(setSales).catch(() => {});
+  const loadSales = () => api.sales(50).then(setSales).catch(loadFailed);
   useEffect(() => {
     loadSales();
   }, []);

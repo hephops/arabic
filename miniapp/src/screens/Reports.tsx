@@ -4,6 +4,7 @@ import { AppIcon, Glyph } from '../icons';
 import { SubHeader, EmptyState, Segmented } from '../ui';
 import { useT, group } from '../i18n';
 import { expenseCatLabel, expenseCatIcon } from '../expenseCats';
+import { loadFailed } from '../toast';
 
 type Period = 'day' | 'week' | 'month';
 const PERIODS: [Period, string][] = [
@@ -18,7 +19,7 @@ export default function Reports({ onBack, onOpenExpenses }: { onBack: () => void
   const { t } = useT();
 
   useEffect(() => {
-    api.reports(period).then(setData).catch(() => {});
+    api.reports(period).then(setData).catch(loadFailed);
   }, [period]);
 
   return (

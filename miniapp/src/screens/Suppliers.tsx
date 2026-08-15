@@ -4,7 +4,7 @@ import { AppIcon, Glyph } from '../icons';
 import { SubHeader, Summary, EmptyState } from '../ui';
 import { useT } from '../i18n';
 import { formatAmount, formatPhoneSoft } from '../format';
-import { toast } from '../toast';
+import { toast, loadFailed } from '../toast';
 
 // "Men qarzdorman" — postavshiklar (ta'minotchilar) daftari
 
@@ -20,7 +20,7 @@ export default function Suppliers({ onBack }: { onBack: () => void }) {
   const [busy, setBusy] = useState(false);
   const { t } = useT();
 
-  const load = () => api.suppliers().then(setSuppliers).catch(() => {});
+  const load = () => api.suppliers().then(setSuppliers).catch(loadFailed);
   useEffect(() => {
     load();
   }, []);

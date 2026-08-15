@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Glyph } from './icons';
 import { haptic } from './telegram';
+import { translate } from './i18n';
 
 // Qisqa xabarlar: "qo'shildi", "topildi", "topilmadi" kabi.
 // Ekran tepasida, navigatsiya panelining ostida chiqadi va o'zi yo'qoladi —
@@ -32,6 +33,16 @@ export const toast = {
   error: (text: string, sub?: string) => show('error', text, sub),
   info: (text: string, sub?: string) => show('info', text, sub),
 };
+
+// Ro'yxat yuklanmasa — do'konchi buni bilishi kerak.
+//
+// Avval hamma joyda `.catch(() => {})` turardi: so'rov muvaffaqiyatsiz
+// bo'lsa ham ekranda hech narsa o'zgarmasdi va bu "qo'shdim, lekin
+// ro'yxatda ko'rinmayapti" degan tushunarsiz holatga olib kelardi.
+// Endi sababi ko'rinadi.
+export function loadFailed(e: any) {
+  toast.error(translate('loadFailed'), e?.message ?? translate('loadFailedSub'));
+}
 
 const ICON: Record<ToastKind, string> = { success: 'check', error: 'warning', info: 'search' };
 

@@ -5,7 +5,7 @@ import { NavBar, Summary, EmptyState, Segmented } from '../ui';
 import { useT } from '../i18n';
 import Scanner from '../Scanner';
 import { formatAmount } from '../format';
-import { toast } from '../toast';
+import { toast, loadFailed } from '../toast';
 import { PrintSheet, Labels } from '../print';
 import { ean13Svg, isEan13 } from '../ean13';
 
@@ -37,7 +37,7 @@ export default function Inventory({ onBack }: { onBack: () => void }) {
   const [counting, setCounting] = useState(false);
   const { t } = useT();
 
-  const load = () => api.products().then(setProducts).catch(() => {});
+  const load = () => api.products().then(setProducts).catch(loadFailed);
   useEffect(() => {
     load();
   }, []);

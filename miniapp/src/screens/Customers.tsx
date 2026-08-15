@@ -5,7 +5,7 @@ import { NavBar } from '../ui';
 import { useT, LANG_NAMES, type Lang } from '../i18n';
 import { MODES } from './Reminders';
 import { formatAmount, formatPhoneSoft, phoneStore, formatPhone, phoneDigits, phoneE164, isPhoneComplete } from '../format';
-import { toast } from '../toast';
+import { toast, loadFailed } from '../toast';
 
 export default function Customers() {
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -30,7 +30,7 @@ export default function Customers() {
   });
   const [error, setError] = useState('');
 
-  const load = () => api.customers().then(setCustomers).catch(() => {});
+  const load = () => api.customers().then(setCustomers).catch(loadFailed);
   useEffect(() => {
     load();
   }, []);
