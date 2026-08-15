@@ -142,7 +142,7 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify({ default_reminder_mode: mode, apply_to_all: applyToAll }),
     }),
-  updateMe: (data: Partial<Pick<Shop, 'name' | 'owner_name' | 'address' | 'language' | 'card_number'>>) =>
+  updateMe: (data: Partial<Pick<Shop, 'name' | 'owner_name' | 'address' | 'language' | 'card_number' | 'daily_goal'>>) =>
     request<Shop>('/me', { method: 'PATCH', body: JSON.stringify(data) }),
   balance: () => request<BalanceInfo>('/balance'),
   topup: (amount: number) =>
@@ -189,6 +189,8 @@ export interface Shop {
   plan: string;
   plan_expires_at: string | null;
   balance: number;
+  /** kunlik savdo maqsadi (0 — belgilanmagan) */
+  daily_goal?: number;
 }
 
 export interface BalanceInfo {
@@ -470,6 +472,8 @@ export interface Dashboard {
     /** sof foyda = yalpi foyda − xarajatlar */
     net_profit: number;
   };
+  /** kunlik savdo maqsadi (0 — belgilanmagan) */
+  daily_goal: number;
   /** shu oy boshidan beri xarajatlar */
   month_expenses: number;
   week: { day: string; revenue: number }[];

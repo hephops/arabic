@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS shops (
   balance INTEGER NOT NULL DEFAULT 0,            -- obuna balansi (so'm)
   default_reminder_mode TEXT NOT NULL DEFAULT 'soft',
   referred_by TEXT,                              -- referal kodi (ARABIC<id>)
+  daily_goal INTEGER NOT NULL DEFAULT 0,         -- kunlik savdo maqsadi (0 — yo'q)
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 

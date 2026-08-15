@@ -69,6 +69,8 @@ for (const sql of [
   'ALTER TABLE sale_items ADD COLUMN returned_qty REAL NOT NULL DEFAULT 0',
   // Tovar qaysi ta'minotchidan olinadi — buyurtma shu bo'yicha guruhlanadi
   'ALTER TABLE products ADD COLUMN supplier_id INTEGER REFERENCES suppliers(id)',
+  // Kunlik savdo maqsadi (0 — belgilanmagan) va kechki hisobot sozlamalari
+  'ALTER TABLE shops ADD COLUMN daily_goal INTEGER NOT NULL DEFAULT 0',
 ]) {
   try {
     db.exec(sql);

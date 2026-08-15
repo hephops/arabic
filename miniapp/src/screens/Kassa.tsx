@@ -12,6 +12,7 @@ import {
 } from '../carts';
 import { PrintSheet, Receipt } from '../print';
 import { TrustWarning } from '../trust';
+import { GoalStrip } from '../goal';
 
 function ProductThumb({ product, size = 44 }: { product: Product; size?: number }) {
   if (product.image_url) {
@@ -350,7 +351,18 @@ function SaleMode({ onDone }: { onDone: () => void }) {
   // Endigina yakunlangan sotuv — "chek chiqaraymi?" deb so'raymiz
   const [justSold, setJustSold] = useState<SaleDetail | null>(null);
   const [printing, setPrinting] = useState(false);
+  // Bugungi savdo va maqsad — har sotuvdan keyin yangilanadi
+  const [today, setToday] = useState({ revenue: 0, goal: 0 });
   const { t } = useT();
+
+  const loadToday = () =>
+    api
+      .dashboard()
+      .then((d) => setToday({ revenue: d.today.revenue, goal: d.daily_goal }))
+      .catch(() => {});
+  useEffect(() => {
+    loadToday();
+  }, []);
 
   const active = carts.find((c) => c.id === activeId) ?? carts[0];
   const cart = active.lines;
@@ -585,6 +597,7 @@ function SaleMode({ onDone }: { onDone: () => void }) {
         return { carts: rest, activeId: rest[0].id };
       });
       setPaymentRaw('cash');
+      loadToday(); // maqsad chizig'i shu zahoti oldinga siljisin
       onDone();
     } catch (e: any) {
       // Omborda yetarli emas — do'konchidan so'raymiz
@@ -624,6 +637,10 @@ function SaleMode({ onDone }: { onDone: () => void }) {
   return (
     <div className="kassa-cols">
       <div className="kassa-main">
+        {/* Bugungi maqsad — kassada turgan sotuvchi kun davomida
+            "yana qancha qoldi" ni ko'rib turadi */}
+        <GoalStrip revenue={today.revenue} goal={today.goal} />
+
         {/* Ochiq savatlar — har bir oluvchiga alohida.
             Har birida nomi, dona soni va summasi ko'rinib turadi. */}
         <div className="cart-cards">

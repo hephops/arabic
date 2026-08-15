@@ -173,7 +173,7 @@ app.get('/me', { preHandler: requireAuth }, async (req) => {
 });
 
 app.patch<{ Body: Record<string, unknown> }>('/me', { preHandler: requireOwner }, async (req) => {
-  const allowed = ['name', 'owner_name', 'address', 'language', 'card_number'];
+  const allowed = ['name', 'owner_name', 'address', 'language', 'card_number', 'daily_goal'];
   for (const key of allowed) {
     if (key in req.body) {
       db.prepare(`UPDATE shops SET ${key} = ? WHERE id = ?`).run(req.body[key], req.shopId);
@@ -402,6 +402,8 @@ app.get('/dashboard', { preHandler: requireAuth }, async (req) => {
       expenses: todayExpenses,
       net_profit: todayProfit.profit - (todayReturns.total - todayReturns.cost) - todayExpenses,
     },
+    // Kunlik maqsad — bosh sahifada va kassada progress bo'lib ko'rinadi
+    daily_goal: (db.prepare('SELECT daily_goal FROM shops WHERE id = ?').get(req.shopId) as any)?.daily_goal ?? 0,
     month_expenses: monthExpenses,
     week,
     due_today: dueToday,

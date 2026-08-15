@@ -3,6 +3,7 @@ import { api, fmt, fmtShort, Dashboard as DashboardData } from '../api';
 import { AppIcon, Glyph } from '../icons';
 import type { SubScreen } from '../App';
 import { useT } from '../i18n';
+import { GoalBar, GoalSheet } from '../goal';
 
 export default function Dashboard({
   onNavigate,
@@ -15,6 +16,7 @@ export default function Dashboard({
 }) {
   const [data, setData] = useState<DashboardData | null>(null);
   const [error, setError] = useState('');
+  const [goalSheet, setGoalSheet] = useState(false);
   const { t } = useT();
 
   useEffect(() => {
@@ -100,6 +102,22 @@ export default function Dashboard({
           <div className="spark-empty">{t('noSalesWeek')}</div>
         )}
       </div>
+
+      {/* Bugungi maqsad — savdo kartasidan keyin, birinchi ko'zga tashlanadigan joyda */}
+      <GoalBar
+        revenue={data.today.revenue}
+        goal={data.daily_goal}
+        onSet={isEmployee ? undefined : () => setGoalSheet(true)}
+      />
+
+      {goalSheet && (
+        <GoalSheet
+          goal={data.daily_goal}
+          todayRevenue={data.today.revenue}
+          onClose={() => setGoalSheet(false)}
+          onSaved={(g) => setData({ ...data, daily_goal: g })}
+        />
+      )}
 
       {/* Uchta asosiy ko'rsatkich */}
       <div className="stat-row">
