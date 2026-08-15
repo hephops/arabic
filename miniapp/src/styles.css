@@ -1322,9 +1322,13 @@ button.link { background: none; color: var(--accent); font-size: 15px; font-weig
 .sheet-title.center, .sheet-sub.center { text-align: center; }
 .r-qr svg { width: 30mm; height: 30mm; }
 
-/* ── Javon yorliqlari ── */
+/* ── Javon yorliqlari ──
+   DIQQAT: klass nomi ".label" emas ".print-label" — ".label" nomi
+   boshqa joylarda (masalan .tile .label — bosh sahifa plitka nomi)
+   ham ishlatiladi va ularga sizib chiqib, kutilmagan chiziqli
+   chegara chiqarib yuborgan edi. */
 .labels { display: flex; flex-wrap: wrap; gap: 4mm; }
-.label {
+.print-label {
   width: 48mm;
   border: 1px dashed #999;
   border-radius: 2mm;

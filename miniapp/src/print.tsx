@@ -157,7 +157,7 @@ export function Labels({ items, t }: { items: LabelItem[]; t: (k: string) => str
       {items.map((item, n) => {
         const svg = ean13Svg(item.barcode, { moduleWidth: 2, height: 46 });
         return (
-          <div className="label" key={n}>
+          <div className="print-label" key={n}>
             <div className="l-name">{item.name}</div>
             <div className="l-price">
               {group(item.price)} {t('currency')}
