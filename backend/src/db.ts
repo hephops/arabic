@@ -78,6 +78,8 @@ for (const sql of [
   'ALTER TABLE shops ADD COLUMN report_enabled INTEGER NOT NULL DEFAULT 1',
   'ALTER TABLE shops ADD COLUMN report_hour INTEGER NOT NULL DEFAULT 22',
   'ALTER TABLE shops ADD COLUMN last_report_date TEXT',
+  // Mijozning Telegram'i — chek va xarid tarixi shu yerga boradi
+  'ALTER TABLE customers ADD COLUMN telegram_user_id INTEGER',
 ]) {
   try {
     db.exec(sql);

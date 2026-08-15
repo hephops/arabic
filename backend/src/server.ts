@@ -8,11 +8,12 @@ import { signToken, requireAuth, requireOwner } from './auth.js';
 import { hit, reset } from './ratelimit.js';
 import { parseDebtText, parseCartText } from './voice.js';
 import { runReminders, startReminderScheduler } from './reminders.js';
-import { handleUpdate, verifyInitData, telegramEnabled, setWebhook } from './telegram.js';
+import { handleUpdate, verifyInitData, telegramEnabled, setWebhook, sendMessage } from './telegram.js';
 import { registerAdminRoutes, seedAdmin } from './admin.js';
 import { normalizeBarcode, barcodeVariants, checkGtin, makeInStoreEan13 } from './barcodes.js';
 import { normalizePhone } from './phone.js';
 import { dailyFigures, reportText, sendDailyReport, startDailyReportScheduler } from './dailyReport.js';
+import { customerCode, receiptText } from './customerLink.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const UPLOADS_DIR = join(__dirname, '..', 'uploads');
@@ -543,6 +544,37 @@ app.get<{ Querystring: { phone?: string } }>('/customers/lookup', { preHandler: 
     )
     .get(customer.id) as any;
   return { customer: { ...customer, balance: balance.s, trust: trustMap(req.shopId).get(customer.id) ?? null } };
+});
+
+/** Mijozni Telegram'ga ulash havolasi.
+ *
+ *  Do'konchi shu havolani mijozga yuboradi. Mijoz bosgach, bot uni shu
+ *  yozuvga bog'laydi va chek o'ziga kela boshlaydi. Kod imzolangan —
+ *  raqamni o'zgartirib boshqa odamning xaridlarini ko'rib bo'lmaydi. */
+app.get<{ Params: { id: string } }>('/customers/:id/telegram', { preHandler: requireAuth }, async (req, reply) => {
+  const customer = db
+    .prepare('SELECT id, name, telegram_user_id FROM customers WHERE id = ? AND shop_id = ?')
+    .get(req.params.id, req.shopId) as any;
+  if (!customer) return reply.code(404).send({ error: 'not_found' });
+  const bot = process.env.TELEGRAM_BOT_USERNAME ?? '';
+  const code = customerCode(customer.id);
+  return {
+    linked: !!customer.telegram_user_id,
+    code,
+    // Bot nomi sozlanmagan bo'lsa havola tuzib bo'lmaydi — ilova buni
+    // aytadi, jimgina buzuq havola bermaydi
+    link: bot ? `https://t.me/${bot}?start=c${code}` : null,
+  };
+});
+
+/** Ulanishni uzish — mijoz so'rasa yoki raqam boshqa odamga o'tsa */
+app.delete<{ Params: { id: string } }>('/customers/:id/telegram', { preHandler: requireAuth }, async (req, reply) => {
+  const customer = db
+    .prepare('SELECT id FROM customers WHERE id = ? AND shop_id = ?')
+    .get(req.params.id, req.shopId) as any;
+  if (!customer) return reply.code(404).send({ error: 'not_found' });
+  db.prepare('UPDATE customers SET telegram_user_id = NULL WHERE id = ?').run(customer.id);
+  return { ok: true };
 });
 
 app.get<{ Params: { id: string } }>('/customers/:id', { preHandler: requireAuth }, async (req, reply) => {
@@ -1544,9 +1576,32 @@ app.post<{ Body: { items: { product_id: number; qty: number }[]; payment_type: '
 
     try {
       const saleId = tx();
-      const sale = db.prepare('SELECT * FROM sales WHERE id = ?').get(saleId);
+      const sale = db.prepare('SELECT * FROM sales WHERE id = ?').get(saleId) as any;
       const saleItems = db.prepare('SELECT * FROM sale_items WHERE sale_id = ?').all(saleId);
-      return { ...(sale as any), items: saleItems };
+
+      // Mijoz Telegram'ga ulangan bo'lsa chek o'ziga darhol boradi.
+      // Mijoz buni o'zi tanlagan (havolani bosgan), shuning uchun
+      // qo'shimcha so'rov shart emas. Yuborish sotuvni kutdirmaydi:
+      // Telegram javob bermasa ham savdo yakunlangan bo'lib qolaveradi.
+      if (sale.customer_id) {
+        const c = db.prepare('SELECT telegram_user_id FROM customers WHERE id = ?').get(sale.customer_id) as any;
+        if (c?.telegram_user_id) {
+          const text = receiptText(saleId) ?? '';
+          sendMessage(c.telegram_user_id, text)
+            .then((res: any) => {
+              if (res?.ok) {
+                db.prepare(
+                  `INSERT INTO reminder_logs (shop_id, customer_id, channel, kind, status, payload)
+                   VALUES (?, ?, 'telegram', 'receipt', 'sent', ?)`
+                ).run(sale.shop_id, sale.customer_id, text);
+              }
+            })
+            .catch(() => {
+              /* chek yetib bormasa savdo baribir yozilgan */
+            });
+        }
+      }
+      return { ...sale, items: saleItems };
     } catch (e: any) {
       return reply.code(400).send({ error: e.message });
     }
@@ -1594,25 +1649,29 @@ app.get<{ Params: { id: string } }>('/sales/:id', { preHandler: requireAuth }, a
 });
 
 // Chekni mijozga yuborish (jurnalga yoziladi; provayder ulanganda SMS/Telegram ketadi)
+/** Chekni mijozga yuborish.
+ *
+ *  Mijoz Telegram'ga ulangan bo'lsa — chek chindan ham yetib boradi.
+ *  Ulanmagan bo'lsa matn qaytadi va SMS navbatiga yoziladi (SMS xizmati
+ *  ulanganda o'sha yerdan ketadi). */
 app.post<{ Params: { id: string } }>('/sales/:id/receipt', { preHandler: requireAuth }, async (req, reply) => {
   const sale = db.prepare('SELECT * FROM sales WHERE id = ? AND shop_id = ?').get(req.params.id, req.shopId) as any;
   if (!sale) return reply.code(404).send({ error: 'not_found' });
   if (!sale.customer_id) return reply.code(400).send({ error: 'no_customer' });
   const customer = db.prepare('SELECT * FROM customers WHERE id = ?').get(sale.customer_id) as any;
   if (!customer?.phone) return reply.code(400).send({ error: 'no_phone' });
-  const shop = db.prepare('SELECT name FROM shops WHERE id = ?').get(req.shopId) as any;
-  const items = db
-    .prepare(
-      `SELECT p.name, si.qty, si.price FROM sale_items si JOIN products p ON p.id = si.product_id WHERE si.sale_id = ?`
-    )
-    .all(sale.id) as any[];
-  const lines = items.map((i) => `${i.name} ×${i.qty} — ${new Intl.NumberFormat('uz-UZ').format(i.price * i.qty)}`);
-  const text = `«${shop.name}» cheki:\n${lines.join('\n')}\nJami: ${new Intl.NumberFormat('uz-UZ').format(sale.total)}`;
+
+  const text = receiptText(sale.id) ?? '';
+  let channel: 'telegram' | 'sms' = 'sms';
+  if (customer.telegram_user_id) {
+    const res: any = await sendMessage(customer.telegram_user_id, text);
+    if (res?.ok) channel = 'telegram';
+  }
   db.prepare(
     `INSERT INTO reminder_logs (shop_id, customer_id, channel, kind, status, payload)
-     VALUES (?, ?, 'sms', 'receipt', 'sent', ?)`
-  ).run(req.shopId, customer.id, text);
-  return { ok: true, text };
+     VALUES (?, ?, ?, 'receipt', 'sent', ?)`
+  ).run(req.shopId, customer.id, channel, text);
+  return { ok: true, text, channel };
 });
 
 // ---------- QAYTARISH (VOZVRAT) ----------

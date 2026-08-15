@@ -104,6 +104,9 @@ export const api = {
     request<{ customer: Customer | null }>(`/customers/lookup?phone=${encodeURIComponent(phone)}`),
   employeeReport: (period: 'day' | 'week' | 'month') =>
     request<EmployeeStat[]>(`/reports/employees?period=${period}`),
+  customerTelegram: (id: number) => request<CustomerTelegram>(`/customers/${id}/telegram`),
+  unlinkCustomerTelegram: (id: number) =>
+    request<{ ok: boolean }>(`/customers/${id}/telegram`, { method: 'DELETE' }),
   parseVoiceCart: (text: string) =>
     request<{ raw: string; lines: { said: string; qty: number; product: Product | null; score: number }[]; found: number; missing: string[] }>(
       '/voice/cart',
@@ -280,6 +283,8 @@ export interface Customer {
   balance: number;
   last_activity: string | null;
   trust?: Trust | null;
+  /** Telegram'ga ulangan bo'lsa chek o'ziga boradi */
+  telegram_user_id?: number | null;
 }
 
 export interface ReminderLog {
@@ -321,6 +326,14 @@ export interface Debt {
 
 export interface CustomerDetail extends Customer {
   debts: Debt[];
+}
+
+/** Mijozni Telegram'ga ulash havolasi */
+export interface CustomerTelegram {
+  linked: boolean;
+  code: string;
+  /** bot nomi sozlanmagan bo'lsa null */
+  link: string | null;
 }
 
 export interface Product {

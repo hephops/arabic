@@ -2,6 +2,7 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 import { db } from './db.js';
 import { parseDebtText } from './voice.js';
 import { normalizePhone } from './phone.js';
+import { verifyCustomerCode, purchasesText, customerBalance } from './customerLink.js';
 
 // Telegram Bot API va Mini App integratsiyasi.
 // Token .env faylida (TELEGRAM_BOT_TOKEN) — kodga yozilmaydi.
@@ -101,6 +102,23 @@ function shopByTelegram(tgId: number) {
   return db.prepare('SELECT * FROM shops WHERE telegram_user_id = ?').get(tgId) as any;
 }
 
+// Telegram foydalanuvchisiga bog'langan MIJOZ yozuvlari.
+// Bitta odam bir necha do'konning mijozi bo'lishi mumkin.
+function customersByTelegram(tgId: number) {
+  return db
+    .prepare(
+      `SELECT c.*, s.name AS shop_name FROM customers c JOIN shops s ON s.id = c.shop_id
+       WHERE c.telegram_user_id = ? ORDER BY c.id`
+    )
+    .all(tgId) as any[];
+}
+
+const CUSTOMER_KEYS = {
+  keyboard: [[{ text: '🧾 Xaridlarim' }, { text: '📒 Qarzim' }]],
+  resize_keyboard: true,
+};
+
+
 export async function handleUpdate(update: any) {
   const msg = update.message ?? update.edited_message;
   if (!msg) return;
@@ -109,6 +127,27 @@ export async function handleUpdate(update: any) {
   const text: string = msg.text ?? '';
 
   if (text.startsWith('/start')) {
+    // Havolada mijoz kodi bo'lishi mumkin: t.me/bot?start=c<id>.<imzo>
+    const payload = text.slice('/start'.length).trim();
+    if (payload.startsWith('c')) {
+      const customerId = verifyCustomerCode(payload.slice(1));
+      const customer = customerId
+        ? (db.prepare('SELECT c.*, s.name AS shop_name FROM customers c JOIN shops s ON s.id = c.shop_id WHERE c.id = ?').get(customerId) as any)
+        : null;
+      if (!customer) {
+        await sendMessage(chatId, "Havola yaroqsiz yoki eskirgan. Do'kondan yangi havola so'rang.");
+        return;
+      }
+      db.prepare('UPDATE customers SET telegram_user_id = ? WHERE id = ?').run(tgId, customer.id);
+      const balance = customerBalance(customer.id);
+      await sendMessage(
+        chatId,
+        `✅ Ulandingiz!\n\n<b>${customer.shop_name}</b> do'konidagi xaridlaringiz endi shu yerga keladi.` +
+          (balance > 0 ? `\n\n📒 Hozirgi qarzingiz: <b>${new Intl.NumberFormat('ru-RU').format(balance).replace(/ /g, ' ')} so'm</b>` : ''),
+        { reply_markup: CUSTOMER_KEYS }
+      );
+      return;
+    }
     await sendMessage(chatId, WELCOME, { reply_markup: miniAppKeyboard() });
     return;
   }
@@ -118,7 +157,40 @@ export async function handleUpdate(update: any) {
   }
 
   const shop = tgId ? shopByTelegram(tgId) : null;
+
+  // Mijoz buyruqlari. Do'kon egasi ham mijoz bo'lishi mumkin, shuning
+  // uchun avval aniq buyruq matnini tekshiramiz — aks holda "Qarzim"
+  // so'zi qarz yozuvi deb tushunilib qolardi.
+  const customers = tgId ? customersByTelegram(tgId) : [];
+  if (customers.length > 0) {
+    const wantsPurchases = /^(🧾\s*)?(xaridlarim|мои покупки|покупки)$/i.test(text.trim());
+    const wantsDebt = /^(📒\s*)?(qarzim|мой долг|долг)$/i.test(text.trim());
+    if (wantsPurchases || wantsDebt) {
+      for (const c of customers) {
+        if (wantsPurchases) {
+          await sendMessage(chatId, purchasesText(c.id), { reply_markup: CUSTOMER_KEYS });
+        } else {
+          const b = customerBalance(c.id);
+          const sum = new Intl.NumberFormat('ru-RU').format(b).replace(/ /g, ' ');
+          await sendMessage(
+            chatId,
+            b > 0
+              ? `<b>${c.shop_name}</b>\n📒 Qarzingiz: <b>${sum} so'm</b>`
+              : `<b>${c.shop_name}</b>\n✅ Qarzingiz yo'q`,
+            { reply_markup: CUSTOMER_KEYS }
+          );
+        }
+      }
+      return;
+    }
+  }
+
   if (!shop) {
+    // Mijoz bo'lsa — unga do'konchi ko'rsatmasi emas, o'z tugmalari kerak
+    if (customers.length > 0) {
+      await sendMessage(chatId, 'Pastdagi tugmalardan foydalaning 👇', { reply_markup: CUSTOMER_KEYS });
+      return;
+    }
     await sendMessage(chatId, "Avval ilovaga kiring va telefon raqamingizni tasdiqlang 👇", {
       reply_markup: miniAppKeyboard(),
     });

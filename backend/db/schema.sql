@@ -93,6 +93,7 @@ CREATE TABLE IF NOT EXISTS customers (
   phone TEXT,
   language TEXT NOT NULL DEFAULT 'uz',           -- AI qo'ng'iroq/SMS tili: uz | ru
   reminder_mode TEXT NOT NULL DEFAULT 'soft',    -- off | soft | medium | call
+  telegram_user_id INTEGER,                      -- ulangan bo'lsa chek shu yerga boradi
   note TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );

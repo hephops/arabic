@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { api, fmt, Customer, CustomerDetail, ReminderMode } from '../api';
+import { api, fmt, Customer, CustomerDetail, CustomerTelegram, ReminderMode } from '../api';
 import { AppIcon, Glyph } from '../icons';
 import { NavBar } from '../ui';
 import { useT, LANG_NAMES, type Lang } from '../i18n';
@@ -11,6 +11,7 @@ import { TrustCard, TrustDot, TrustWarning } from '../trust';
 export default function Customers() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [selected, setSelected] = useState<CustomerDetail | null>(null);
+  const [tgSheet, setTgSheet] = useState(false);
   const [payFor, setPayFor] = useState<number | null>(null);
   const [payAmount, setPayAmount] = useState('');
   const [adding, setAdding] = useState(false);
@@ -250,6 +251,23 @@ export default function Customers() {
               {/* To'lov odati — qarz berishdan oldin bir qarashda ko'rinsin */}
               <TrustCard trust={selected.trust} />
 
+              {/* Telegram: ulangan mijozga chek va xarid tarixi o'zi boradi */}
+              <button
+                className={`tg-link-btn ${selected.telegram_user_id ? 'linked' : ''}`}
+                onClick={() => setTgSheet(true)}
+              >
+                <Glyph name="send" size={17} color={selected.telegram_user_id ? 'var(--green)' : 'var(--accent)'} />
+                {selected.telegram_user_id ? t('tgLinked') : t('tgLinkAction')}
+              </button>
+
+              {tgSheet && (
+                <CustomerTelegramSheet
+                  customer={selected}
+                  onClose={() => setTgSheet(false)}
+                  onChanged={() => openCustomer(selected.id)}
+                />
+              )}
+
               {mode === 'debt' ? (
                 <div className="card">
                   <TrustWarning trust={selected.trust} />
@@ -438,6 +456,120 @@ export default function Customers() {
         })}
       </div>
       {filtered.length === 0 && <div className="empty">{t('noCustomers')}</div>}
+    </div>
+  );
+}
+
+/* ───────── Mijozni Telegram'ga ulash ───────── */
+
+// Do'konchi mijozga havola beradi, mijoz bosadi — shundan keyin chek
+// va xarid tarixi mijozning o'z Telegram'iga boradi.
+//
+// Nega havola (SMS/qo'ng'iroq emas): mijozning Telegram raqamini
+// do'konchi bilmaydi va bilishi ham shart emas. Havolani bosgan odam
+// o'zini o'zi bog'laydi — bu ham osonroq, ham to'g'riroq.
+function CustomerTelegramSheet({
+  customer,
+  onClose,
+  onChanged,
+}: {
+  customer: CustomerDetail;
+  onClose: () => void;
+  onChanged: () => void;
+}) {
+  const { t } = useT();
+  const [info, setInfo] = useState<CustomerTelegram | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    api.customerTelegram(customer.id).then(setInfo).catch(loadFailed);
+  }, [customer.id]);
+
+  async function copyLink() {
+    if (!info?.link) return;
+    try {
+      await navigator.clipboard.writeText(info.link);
+      toast.success(t('copied'));
+    } catch {
+      toast.error(t('copyFailed'), t('copyFailedSub'));
+    }
+  }
+
+  async function unlink() {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await api.unlinkCustomerTelegram(customer.id);
+      toast.info(t('tgUnlinked'), customer.name);
+      onChanged();
+      onClose();
+    } catch (e: any) {
+      toast.error(t('error'), e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const shareText = info?.link ? `${t('tgInviteText')}\n${info.link}` : '';
+
+  return (
+    <div className="sheet-wrap" onClick={onClose}>
+      <div className="sheet" onClick={(e) => e.stopPropagation()}>
+        <div className="sheet-grip" />
+        <div className="sheet-title">{t('tgSheetTitle')}</div>
+        <div className="sheet-sub">{t('tgSheetHint')}</div>
+
+        {info?.linked && (
+          <div className="trust-card" style={{ borderLeftColor: 'var(--green)' }}>
+            <div className="tc-head">
+              <span className="trust-dot" style={{ background: 'var(--green)' }} />
+              <span className="tc-title" style={{ color: 'var(--green)' }}>{t('tgLinked')}</span>
+            </div>
+            <div className="tc-body">{t('tgLinkedSub')}</div>
+          </div>
+        )}
+
+        {info && !info.link && (
+          <div className="trust-warn">
+            <Glyph name="warning" size={17} color="var(--yellow)" />
+            <div>
+              <b>{t('tgNoBotName')}</b>
+              <div className="tw-sub">{t('tgNoBotNameSub')}</div>
+            </div>
+          </div>
+        )}
+
+        {info?.link && (
+          <>
+            <div className="order-text">{info.link}</div>
+            <div className="order-actions">
+              <button className="btn-chip" onClick={copyLink}>
+                <Glyph name="copy" size={16} color="var(--accent)" /> {t('copy')}
+              </button>
+              <button
+                className="btn-chip"
+                onClick={() => window.open(`https://t.me/share/url?url=${encodeURIComponent(info.link!)}&text=${encodeURIComponent(t('tgInviteText'))}`, '_blank')}
+              >
+                <Glyph name="send" size={16} color="var(--accent)" /> Telegram
+              </button>
+              {customer.phone && (
+                <button
+                  className="btn-chip"
+                  onClick={() => { window.location.href = `sms:${customer.phone}?&body=${encodeURIComponent(shareText)}`; }}
+                >
+                  <Glyph name="call" size={16} color="var(--accent)" /> SMS
+                </button>
+              )}
+            </div>
+          </>
+        )}
+
+        {info?.linked && (
+          <button className="btn-ghost danger" onClick={unlink} disabled={busy}>
+            {t('tgUnlink')}
+          </button>
+        )}
+      </div>
     </div>
   );
 }
