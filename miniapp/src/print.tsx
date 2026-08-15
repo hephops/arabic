@@ -235,3 +235,87 @@ export function Labels({ items, t }: { items: LabelItem[]; t: (k: string) => str
     </div>
   );
 }
+
+export interface OrderSheetLine {
+  name: string;
+  qty: number;
+  unit: string;
+}
+
+/** Ta'minotchiga buyurtma — chop etiladigan / PDF qilib saqlanadigan varaq.
+ *
+ *  Chekdan farqli o'laroq bu A4 uchun: ta'minotchi uni qog'ozda o'qiydi
+ *  yoki telefonida PDF qilib oladi. Shuning uchun kattaroq shrift,
+ *  jadval ko'rinishi va imzo uchun joy. */
+export function OrderPrint({
+  lines,
+  supplier,
+  shop,
+  date,
+  t,
+}: {
+  lines: OrderSheetLine[];
+  supplier?: string | null;
+  shop?: { name: string; phone?: string | null; address?: string | null } | null;
+  date: string;
+  t: (k: string) => string;
+}) {
+  return (
+    <div className="order-print">
+      <div className="op-head">
+        <div>
+          <div className="op-title">{t('orderDocTitle')}</div>
+          <div className="op-sub">{date}</div>
+        </div>
+        <div className="op-shop">
+          <div className="op-shop-name">{shop?.name ?? ''}</div>
+          {shop?.phone && <div className="op-sub">{shop.phone}</div>}
+          {shop?.address && <div className="op-sub">{shop.address}</div>}
+        </div>
+      </div>
+
+      {supplier && (
+        <div className="op-to">
+          {t('orderDocTo')}: <b>{supplier}</b>
+        </div>
+      )}
+
+      <table className="op-table">
+        <thead>
+          <tr>
+            <th className="op-n">№</th>
+            <th>{t('orderDocProduct')}</th>
+            <th className="op-q">{t('orderDocQty')}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {lines.map((l, i) => (
+            <tr key={i}>
+              <td className="op-n">{i + 1}</td>
+              <td>{l.name}</td>
+              <td className="op-q">
+                {Math.round(l.qty * 100) / 100} {l.unit}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      <div className="op-total">
+        {t('orderDocTotal')}: <b>{lines.length}</b> {t('itemsShort')}
+      </div>
+
+      {/* Qog'ozda topshirib olish uchun imzo joyi */}
+      <div className="op-signs">
+        <div>
+          <div className="op-line" />
+          <div className="op-sub">{t('orderDocFrom')}</div>
+        </div>
+        <div>
+          <div className="op-line" />
+          <div className="op-sub">{t('orderDocGot')}</div>
+        </div>
+      </div>
+    </div>
+  );
+}

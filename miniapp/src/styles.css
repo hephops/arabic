@@ -1627,3 +1627,36 @@ button.link { background: none; color: var(--accent); font-size: 15px; font-weig
 }
 .tg-link-btn.linked { color: var(--green); }
 .tg-link-btn:active { opacity: 0.7; }
+
+/* ── Ta'minotchiga buyurtma varag'i (A4 / PDF) ── */
+.order-print {
+  font-family: -apple-system, 'Segoe UI', Roboto, sans-serif;
+  color: #000; font-size: 12pt; max-width: 180mm; margin: 0 auto;
+}
+.op-head {
+  /* Tor qog'oz yoki uzun do'kon nomida chetga chiqib ketmasin */
+  display: flex; flex-wrap: wrap; justify-content: space-between;
+  align-items: flex-start; gap: 4mm 12mm;
+  border-bottom: 1.5pt solid #000; padding-bottom: 4mm; margin-bottom: 4mm;
+}
+.op-title { font-size: 20pt; font-weight: 800; letter-spacing: 1pt; }
+.op-sub { font-size: 10pt; color: #444; }
+.op-shop { text-align: right; min-width: 0; word-break: break-word; }
+.op-shop-name { font-size: 13pt; font-weight: 700; }
+.op-to { font-size: 12pt; margin-bottom: 4mm; }
+
+.op-table { width: 100%; border-collapse: collapse; margin-bottom: 5mm; }
+.op-table th, .op-table td {
+  border: 0.75pt solid #000; padding: 2.5mm 3mm; text-align: left; font-size: 11pt;
+  word-break: break-word;
+}
+.op-table th { background: #eee; font-weight: 700; }
+.op-table .op-n { width: 12mm; text-align: center; }
+.op-table .op-q { width: 32mm; text-align: right; white-space: nowrap; font-weight: 700; }
+
+.op-total { font-size: 11pt; margin-bottom: 14mm; }
+
+/* Qog'ozda topshirib olish uchun imzo joylari */
+.op-signs { display: flex; gap: 20mm; }
+.op-signs > div { flex: 1; }
+.op-line { border-bottom: 0.75pt solid #000; height: 8mm; }

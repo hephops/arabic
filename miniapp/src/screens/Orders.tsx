@@ -5,6 +5,7 @@ import { SubHeader, Summary, EmptyState, Segmented } from '../ui';
 import { useT } from '../i18n';
 import { toast, loadFailed } from '../toast';
 import { tg } from '../telegram';
+import { PrintSheet, OrderPrint, type OrderSheetLine } from '../print';
 
 // "Ta'minotchiga buyurtma" — kam qolgan tovarlardan tayyor ro'yxat.
 //
@@ -36,6 +37,8 @@ export default function Orders({ onBack }: { onBack: () => void }) {
   const [shop, setShop] = useState<Shop | null>(null);
   const [openOrder, setOpenOrder] = useState<Order | null>(null);
   const [busy, setBusy] = useState(false);
+  // Chop etish (PDF): qaysi satrlar va kimga
+  const [printing, setPrinting] = useState<{ lines: OrderSheetLine[]; supplier: string | null; date: string } | null>(null);
   const { t } = useT();
 
   const loadSuggest = () =>
@@ -189,10 +192,18 @@ export default function Orders({ onBack }: { onBack: () => void }) {
 
   /* ── Saqlangan buyurtma kartochkasi ── */
 
+  // Chop etish varag'i — kartochkada ham, yangi buyurtmada ham ishlaydi
+  const printSheet = printing ? (
+    <PrintSheet onDone={() => setPrinting(null)}>
+      <OrderPrint lines={printing.lines} supplier={printing.supplier} shop={shop} date={printing.date} t={t} />
+    </PrintSheet>
+  ) : null;
+
   if (openOrder) {
     const text = orderTextOf(openOrder, shop, t);
     return (
       <>
+        {printSheet}
         <SubHeader title={openOrder.supplier_name ?? t('navOrders')} onBack={() => setOpenOrder(null)} />
         <div className="screen">
           <Summary
@@ -228,6 +239,20 @@ export default function Orders({ onBack }: { onBack: () => void }) {
             )}
           </div>
 
+          {/* Qog'ozda beriladigan yoki PDF qilib saqlanadigan varaq */}
+          <button
+            className="btn-ghost"
+            onClick={() =>
+              setPrinting({
+                lines: openOrder.items.map((i) => ({ name: i.name, qty: i.qty, unit: i.unit })),
+                supplier: openOrder.supplier_name,
+                date: openOrder.created_at.slice(0, 10),
+              })
+            }
+          >
+            <Glyph name="note" size={16} color="var(--accent)" /> {t('orderPrint')}
+          </button>
+
           {openOrder.status !== 'received' && (
             <button className="btn-primary" onClick={() => markReceived(openOrder)}>
               <Glyph name="check" size={18} color="#fff" /> {t('markReceived')}
@@ -243,6 +268,7 @@ export default function Orders({ onBack }: { onBack: () => void }) {
 
   return (
     <>
+      {printSheet}
       <SubHeader title={t('navOrders')} onBack={onBack} />
       <div className="screen">
         <Segmented
@@ -348,6 +374,20 @@ export default function Orders({ onBack }: { onBack: () => void }) {
                         <Glyph name="call" size={16} color="var(--accent)" /> SMS
                       </button>
                     </div>
+
+                    {/* Qog'ozda beriladigan yoki PDF qilib saqlanadigan varaq */}
+                    <button
+                      className="btn-ghost"
+                      onClick={() =>
+                        setPrinting({
+                          lines: chosen.map((l) => ({ name: l.name, qty: l.qty, unit: l.unit })),
+                          supplier: groups.find((g) => g.id === group)?.name ?? null,
+                          date: new Date().toISOString().slice(0, 10),
+                        })
+                      }
+                    >
+                      <Glyph name="note" size={16} color="var(--accent)" /> {t('orderPrint')}
+                    </button>
 
                     <button className="btn-primary btn-lg" onClick={() => save('sent')} disabled={busy}>
                       <Glyph name="check" size={19} color="#fff" /> {t('orderSaveSent')}
