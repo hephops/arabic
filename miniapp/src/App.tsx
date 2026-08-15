@@ -13,6 +13,7 @@ import Reports from './screens/Reports';
 import Inventory from './screens/Inventory';
 import Reminders from './screens/Reminders';
 import Expenses from './screens/Expenses';
+import Orders from './screens/Orders';
 import QuickActions from './QuickActions';
 import InstallPrompt from './InstallPrompt';
 import { ToastHost } from './toast';
@@ -20,7 +21,7 @@ import { useT } from './i18n';
 import { setBackButton, haptic } from './telegram';
 
 export type Tab = 'home' | 'customers' | 'add' | 'kassa' | 'profile';
-export type SubScreen = 'suppliers' | 'reports' | 'inventory' | 'reminders' | 'expenses' | null;
+export type SubScreen = 'suppliers' | 'reports' | 'inventory' | 'reminders' | 'expenses' | 'orders' | null;
 
 export default function App() {
   const [authed, setAuthed] = useState(!!getToken());
@@ -82,6 +83,7 @@ export default function App() {
       {sub === 'inventory' && <Inventory onBack={() => setSub(null)} />}
       {sub === 'reminders' && <Reminders onBack={() => setSub(null)} />}
       {sub === 'expenses' && <Expenses onBack={() => setSub(null)} />}
+      {sub === 'orders' && <Orders onBack={() => setSub(null)} />}
 
       {!sub && tab === 'home' && (
         <Dashboard key={refreshKey} onNavigate={setSub} isEmployee={isEmployee} employeeName={shop?.employee?.name} />

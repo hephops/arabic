@@ -100,6 +100,13 @@ export const api = {
     request<SupplierDebt>('/supplier-debts', { method: 'POST', body: JSON.stringify(data) }),
   paySupplierDebt: (id: number, amount: number) =>
     request<SupplierDebt>(`/supplier-debts/${id}/payments`, { method: 'POST', body: JSON.stringify({ amount }) }),
+  orderSuggest: () => request<OrderSuggestion[]>('/orders/suggest'),
+  orders: () => request<Order[]>('/orders'),
+  createOrder: (data: { supplier_id?: number | null; note?: string; items: { product_id?: number; name: string; unit?: string; qty: number }[] }) =>
+    request<Order>('/orders', { method: 'POST', body: JSON.stringify(data) }),
+  updateOrder: (id: number, data: { status: 'draft' | 'sent' | 'received' }) =>
+    request<Order>(`/orders/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteOrder: (id: number) => request<{ ok: boolean }>(`/orders/${id}`, { method: 'DELETE' }),
   employees: () => request<Employee[]>('/employees'),
   createEmployee: (data: { name: string; pin: string }) =>
     request<Employee>('/employees', { method: 'POST', body: JSON.stringify(data) }),
@@ -292,9 +299,48 @@ export interface Product {
   cost_price: number;
   sell_price: number;
   stock: number;
+  low_stock_threshold?: number;
   expiry_date: string | null;
   image_url: string | null;
+  supplier_id?: number | null;
+  supplier_name?: string | null;
   from_catalog?: boolean;
+}
+
+/** Buyurtma taklifi: kam qolgan tovar + tavsiya etilgan miqdor */
+export interface OrderSuggestion {
+  id: number;
+  name: string;
+  unit: string;
+  stock: number;
+  low_stock_threshold: number;
+  cost_price: number;
+  supplier_id: number | null;
+  supplier_name: string | null;
+  sold30: number;
+  suggest_qty: number;
+}
+
+export interface OrderItem {
+  id: number;
+  order_id: number;
+  product_id: number | null;
+  name: string;
+  unit: string;
+  qty: number;
+}
+
+export interface Order {
+  id: number;
+  supplier_id: number | null;
+  supplier_name: string | null;
+  supplier_phone: string | null;
+  note: string | null;
+  status: 'draft' | 'sent' | 'received';
+  sent_at: string | null;
+  received_at: string | null;
+  created_at: string;
+  items: OrderItem[];
 }
 
 export interface StocktakeRow {

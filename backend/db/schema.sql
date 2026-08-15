@@ -289,3 +289,31 @@ BEGIN
   WHERE COALESCE(NEW.phone, '') = ''
     AND EXISTS (SELECT 1 FROM debts WHERE customer_id = NEW.id AND status != 'paid');
 END;
+
+-- ---------- TA'MINOTCHIGA BUYURTMA ----------
+-- Kam qolgan tovarlardan tuzilgan buyurtma. Saqlanadi, chunki do'konchi
+-- "o'tgan safar nima buyurtma qilgandim" deb qaytib qaraydi va bir bosishda
+-- o'shani takrorlaydi.
+CREATE TABLE IF NOT EXISTS orders (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  shop_id INTEGER NOT NULL REFERENCES shops(id),
+  supplier_id INTEGER REFERENCES suppliers(id),   -- NULL = ta'minotchi belgilanmagan
+  note TEXT,
+  status TEXT NOT NULL DEFAULT 'draft',           -- draft | sent | received
+  sent_at TEXT,
+  received_at TEXT,
+  created_by INTEGER REFERENCES employees(id),
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS order_items (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+  product_id INTEGER REFERENCES products(id),
+  name TEXT NOT NULL,          -- nomi nusxalanadi: tovar keyin o'chsa ham buyurtma o'qiladi
+  unit TEXT NOT NULL DEFAULT 'dona',
+  qty REAL NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_orders_shop ON orders(shop_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_order_items ON order_items(order_id);

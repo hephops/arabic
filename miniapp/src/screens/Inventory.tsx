@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { api, fmt, Product, StocktakeRow, BASE } from '../api';
+import { api, fmt, Product, StocktakeRow, Supplier, BASE } from '../api';
 import { AppIcon, Glyph } from '../icons';
 import { NavBar, Summary, EmptyState, Segmented } from '../ui';
 import { useT } from '../i18n';
@@ -176,9 +176,12 @@ function ProductEdit({ product, onBack, onSaved }: { product: Product; onBack: (
     cost_price: String(product.cost_price),
     sell_price: String(product.sell_price),
     stock: String(product.stock),
-    low_stock_threshold: '5',
+    low_stock_threshold: String(product.low_stock_threshold ?? 5),
     expiry_date: product.expiry_date ?? '',
   });
+  // Buyurtma shu bo'yicha guruhlanadi
+  const [supplierId, setSupplierId] = useState<string>(product.supplier_id ? String(product.supplier_id) : '');
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [image, setImage] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [codes, setCodes] = useState<{ id: number; barcode: string }[]>([]);
@@ -210,6 +213,7 @@ function ProductEdit({ product, onBack, onSaved }: { product: Product; onBack: (
   const loadCodes = () => api.productBarcodes(product.id!).then(setCodes).catch(() => {});
   useEffect(() => {
     loadCodes();
+    api.suppliers().then(setSuppliers).catch(() => {});
   }, []);
 
   async function addCode(code: string) {
@@ -249,6 +253,7 @@ function ProductEdit({ product, onBack, onSaved }: { product: Product; onBack: (
       stock: parseFloat(form.stock) || 0,
       low_stock_threshold: parseFloat(form.low_stock_threshold) || 5,
       expiry_date: form.expiry_date || null,
+      supplier_id: supplierId ? Number(supplierId) : null,
       image: image ?? undefined,
     } as any);
     toast.success(t('toastProductSaved'), form.name.trim());
@@ -417,6 +422,20 @@ function ProductEdit({ product, onBack, onSaved }: { product: Product; onBack: (
           {t('expiry')} ({t('optional')})
         </label>
         <input type="date" value={form.expiry_date} onChange={(e) => setForm({ ...form, expiry_date: e.target.value })} />
+
+        {/* Ta'minotchi — "Buyurtma" bo'limi shu bo'yicha guruhlaydi,
+            shunda har bir ta'minotchiga alohida ro'yxat tayyorlanadi */}
+        <label>
+          {t('supplierOfProduct')} ({t('optional')})
+        </label>
+        <select value={supplierId} onChange={(e) => setSupplierId(e.target.value)}>
+          <option value="">{t('noSupplierGroup')}</option>
+          {suppliers.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.name}
+            </option>
+          ))}
+        </select>
 
         <button className="btn-primary" onClick={save}>
           <Glyph name="check" size={18} color="#fff" /> {t('save')}

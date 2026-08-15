@@ -67,6 +67,8 @@ for (const sql of [
   // Qaytarish: bitta satrdan qancha tovar qaytganini eslab qolamiz,
   // shunda bir tovarni ikki marta qaytarib bo'lmaydi
   'ALTER TABLE sale_items ADD COLUMN returned_qty REAL NOT NULL DEFAULT 0',
+  // Tovar qaysi ta'minotchidan olinadi — buyurtma shu bo'yicha guruhlanadi
+  'ALTER TABLE products ADD COLUMN supplier_id INTEGER REFERENCES suppliers(id)',
 ]) {
   try {
     db.exec(sql);

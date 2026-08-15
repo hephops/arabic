@@ -15,6 +15,7 @@ import {
   IoStarOutline, IoGlobeOutline, IoLogOutOutline, IoCameraOutline, IoCloseOutline,
   IoBarChartOutline, IoTrendingUpOutline, IoTrendingDownOutline, IoTrashOutline,
   IoMenuOutline, IoCallOutline, IoPaperPlaneOutline, IoHelpBuoyOutline,
+  IoCopyOutline, IoFlashOutline, IoTrophyOutline, IoRibbonOutline,
 } from 'react-icons/io5';
 
 /* ─────────── Chiziqli ikonkalar (ro'yxat, tugma, chevron) ─────────── */
@@ -33,7 +34,8 @@ const GLYPHS: Record<string, IconType> = {
   globe: IoGlobeOutline, logout: IoLogOutOutline, camera: IoCameraOutline, close: IoCloseOutline,
   chart: IoBarChartOutline, trendUp: IoTrendingUpOutline, trendDown: IoTrendingDownOutline,
   trash: IoTrashOutline, menu: IoMenuOutline, call: IoCallOutline, send: IoPaperPlaneOutline,
-  help: IoHelpBuoyOutline,
+  help: IoHelpBuoyOutline, copy: IoCopyOutline, flash: IoFlashOutline,
+  trophy: IoTrophyOutline, ribbon: IoRibbonOutline,
 };
 
 export function Glyph({

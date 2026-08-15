@@ -24,7 +24,7 @@ const API_PREFIXES = [
   'auth', 'telegram', 'public', 'me', 'balance', 'dashboard', 'customers',
   'reminders', 'voice', 'suppliers', 'supplier-debts', 'debts', 'employees',
   'referral', 'products', 'barcodes', 'uploads', 'sales', 'reports',
-  'expenses', 'returns', 'categories', 'inventory',
+  'expenses', 'returns', 'categories', 'inventory', 'orders',
 ];
 const apiProxy = Object.fromEntries(
   API_PREFIXES.map((p) => [`/${p}`, { target: 'http://localhost:3000', changeOrigin: true }])

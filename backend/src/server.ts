@@ -738,6 +738,119 @@ app.post<{ Params: { id: string }; Body: { amount: number } }>(
   }
 );
 
+// ---------- TA'MINOTCHIGA BUYURTMA ----------
+//
+// Do'konchi "nima tugadi" ni bilishi kam — unga "qancha buyurtma qilay"
+// degan javob kerak. Shuning uchun miqdorni o'zimiz taklif qilamiz:
+// oxirgi 30 kunda qancha sotilgan bo'lsa, shuncha tezlikda yana 14 kunga
+// yetadigan qilib. Sotuv tarixi bo'lmasa — kam qolgan chegarasidan
+// kelib chiqamiz, ya'ni hech bo'lmasa chegaradan ikki baravar ko'p.
+const ORDER_DAYS = 14;
+
+function suggestQty(row: { stock: number; low_stock_threshold: number; sold30: number }): number {
+  const daily = row.sold30 / 30;
+  const byVelocity = daily * ORDER_DAYS;
+  const byThreshold = row.low_stock_threshold * 2;
+  const target = Math.max(byVelocity, byThreshold);
+  const need = target - row.stock;
+  if (need <= 0) return 1;
+  // Butun donaga yaxlitlaymiz — do'konchi "3.7 dona" buyurtma qilmaydi
+  return Math.max(1, Math.ceil(need));
+}
+
+/** Buyurtma taklifi: kam qolgan tovarlar + tavsiya etilgan miqdor */
+app.get('/orders/suggest', { preHandler: requireAuth }, async (req) => {
+  const rows = db
+    .prepare(
+      `SELECT p.id, p.name, p.unit, p.stock, p.low_stock_threshold, p.cost_price,
+              p.supplier_id, s.name AS supplier_name,
+              COALESCE((SELECT SUM(si.qty) FROM sale_items si
+                        JOIN sales sa ON sa.id = si.sale_id
+                        WHERE si.product_id = p.id
+                          AND date(sa.created_at) >= date('now', '-30 days')), 0) AS sold30
+       FROM products p LEFT JOIN suppliers s ON s.id = p.supplier_id
+       WHERE p.shop_id = ? AND p.stock <= p.low_stock_threshold
+       ORDER BY (p.stock - p.low_stock_threshold) ASC, p.name`
+    )
+    .all(req.shopId) as any[];
+  return rows.map((r) => ({ ...r, suggest_qty: suggestQty(r) }));
+});
+
+/** Saqlangan buyurtmalar — do'konchi o'tgan safargisini takrorlaydi */
+app.get('/orders', { preHandler: requireAuth }, async (req) => {
+  const orders = db
+    .prepare(
+      `SELECT o.*, s.name AS supplier_name, s.phone AS supplier_phone
+       FROM orders o LEFT JOIN suppliers s ON s.id = o.supplier_id
+       WHERE o.shop_id = ? ORDER BY o.created_at DESC, o.id DESC LIMIT 30`
+    )
+    .all(req.shopId) as any[];
+  const items = db
+    .prepare(
+      `SELECT oi.* FROM order_items oi JOIN orders o ON o.id = oi.order_id
+       WHERE o.shop_id = ? ORDER BY oi.id`
+    )
+    .all(req.shopId) as any[];
+  return orders.map((o) => ({ ...o, items: items.filter((i) => i.order_id === o.id) }));
+});
+
+app.post<{ Body: { supplier_id?: number | null; note?: string; items: { product_id?: number; name: string; unit?: string; qty: number }[] } }>(
+  '/orders',
+  { preHandler: requireAuth },
+  async (req, reply) => {
+    const { supplier_id, note, items } = req.body ?? ({} as any);
+    if (!Array.isArray(items) || items.length === 0) return reply.code(400).send({ error: 'items_required' });
+    if (supplier_id) {
+      const own = db.prepare('SELECT id FROM suppliers WHERE id = ? AND shop_id = ?').get(supplier_id, req.shopId);
+      if (!own) return reply.code(400).send({ error: 'supplier_not_found' });
+    }
+    const id = db.transaction(() => {
+      const info = db
+        .prepare('INSERT INTO orders (shop_id, supplier_id, note, created_by) VALUES (?, ?, ?, ?)')
+        .run(req.shopId, supplier_id ?? null, note?.trim() || null, req.employeeId ?? null);
+      const orderId = Number(info.lastInsertRowid);
+      const ins = db.prepare('INSERT INTO order_items (order_id, product_id, name, unit, qty) VALUES (?, ?, ?, ?, ?)');
+      for (const it of items) {
+        if (!it.name?.trim() || !(it.qty > 0)) continue;
+        ins.run(orderId, it.product_id ?? null, it.name.trim(), it.unit || 'dona', it.qty);
+      }
+      return orderId;
+    })();
+    const order = db.prepare('SELECT * FROM orders WHERE id = ?').get(id) as any;
+    return { ...order, items: db.prepare('SELECT * FROM order_items WHERE order_id = ?').all(id) };
+  }
+);
+
+app.patch<{ Params: { id: string }; Body: { status?: string } }>(
+  '/orders/:id',
+  { preHandler: requireAuth },
+  async (req, reply) => {
+    const order = db.prepare('SELECT * FROM orders WHERE id = ? AND shop_id = ?').get(req.params.id, req.shopId) as any;
+    if (!order) return reply.code(404).send({ error: 'not_found' });
+    const status = req.body?.status;
+    if (status && !['draft', 'sent', 'received'].includes(status)) {
+      return reply.code(400).send({ error: 'bad_status' });
+    }
+    if (status) {
+      db.prepare(
+        `UPDATE orders SET status = ?,
+           sent_at = CASE WHEN ? = 'sent' THEN datetime('now') ELSE sent_at END,
+           received_at = CASE WHEN ? = 'received' THEN datetime('now') ELSE received_at END
+         WHERE id = ?`
+      ).run(status, status, status, order.id);
+    }
+    return db.prepare('SELECT * FROM orders WHERE id = ?').get(order.id);
+  }
+);
+
+app.delete<{ Params: { id: string } }>('/orders/:id', { preHandler: requireAuth }, async (req, reply) => {
+  const order = db.prepare('SELECT id FROM orders WHERE id = ? AND shop_id = ?').get(req.params.id, req.shopId);
+  if (!order) return reply.code(404).send({ error: 'not_found' });
+  db.prepare('DELETE FROM order_items WHERE order_id = ?').run(req.params.id);
+  db.prepare('DELETE FROM orders WHERE id = ?').run(req.params.id);
+  return { ok: true };
+});
+
 // ---------- XODIMLAR ----------
 app.get('/employees', { preHandler: requireOwner }, async (req) => {
   return db
@@ -827,18 +940,22 @@ app.get<{ Querystring: { q?: string; barcode?: string; category?: string } }>(
       ? [{ id: null, barcode: normalizeBarcode(barcode), name: catalog.name, unit: catalog.unit, from_catalog: true }]
       : [];
   }
-  const where = ['shop_id = ?'];
+  const where = ['p.shop_id = ?'];
   const params: any[] = [req.shopId];
   if (q) {
-    where.push('name LIKE ?');
+    where.push('p.name LIKE ?');
     params.push(`%${q}%`);
   }
   if (category) {
-    where.push('category = ?');
+    where.push('p.category = ?');
     params.push(category);
   }
   return db
-    .prepare(`SELECT * FROM products WHERE ${where.join(' AND ')} ORDER BY name${q ? ' LIMIT 50' : ''}`)
+    .prepare(
+      `SELECT p.*, s.name AS supplier_name FROM products p
+       LEFT JOIN suppliers s ON s.id = p.supplier_id
+       WHERE ${where.join(' AND ')} ORDER BY p.name${q ? ' LIMIT 50' : ''}`
+    )
     .all(...params);
 });
 
@@ -1075,9 +1192,15 @@ app.patch<{ Params: { id: string }; Body: Record<string, unknown> }>(
       .prepare('SELECT * FROM products WHERE id = ? AND shop_id = ?')
       .get(req.params.id, req.shopId) as any;
     if (!product) return reply.code(404).send({ error: 'not_found' });
-    for (const key of ['name', 'barcode', 'unit', 'cost_price', 'sell_price', 'low_stock_threshold', 'expiry_date', 'stock', 'category']) {
+    for (const key of ['name', 'barcode', 'unit', 'cost_price', 'sell_price', 'low_stock_threshold', 'expiry_date', 'stock', 'category', 'supplier_id']) {
       if (key in req.body) {
-        const value = key === 'barcode' ? normalizeBarcode(req.body[key] as string) || null : (req.body[key] as any);
+        let value = key === 'barcode' ? normalizeBarcode(req.body[key] as string) || null : (req.body[key] as any);
+        if (key === 'supplier_id') {
+          // Begona do'konning ta'minotchisi biriktirilmasin
+          value = value
+            ? (db.prepare('SELECT id FROM suppliers WHERE id = ? AND shop_id = ?').get(value, req.shopId) as any)?.id ?? null
+            : null;
+        }
         db.prepare(`UPDATE products SET ${key} = ? WHERE id = ?`).run(value, product.id);
       }
     }
