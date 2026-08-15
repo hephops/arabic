@@ -97,3 +97,12 @@ export function ean13Svg(code: string, opts: BarcodeSvgOptions = {}): string | n
     `</svg>`
   );
 }
+
+/** Tarozi kodi (do'kon ichi, 22-prefiks): 22 + PLU(5) + gramm(5) + nazorat.
+ *  Backenddagi makeScaleBarcode bilan bir xil — namunani ko'rsatish uchun. */
+export function scaleBarcode(plu: string, grams: number): string {
+  const p = String(plu).replace(/\D/g, '').padStart(5, '0').slice(0, 5);
+  const v = String(Math.max(0, Math.round(grams))).padStart(5, '0').slice(0, 5);
+  const body = `22${p}${v}`;
+  return body + ean13CheckDigit(body);
+}

@@ -8,7 +8,7 @@ import { formatAmount } from '../format';
 import { toast, loadFailed } from '../toast';
 import { DiscountSheet, priceAfter } from '../discount';
 import { PrintSheet, Labels } from '../print';
-import { ean13Svg, isEan13 } from '../ean13';
+import { ean13Svg, isEan13, scaleBarcode } from '../ean13';
 
 // Ombor: mahsulotlar ro'yxati, tahrirlash va inventarizatsiya
 
@@ -212,6 +212,9 @@ function ProductEdit({ product, onBack, onSaved }: { product: Product; onBack: (
   // Buyurtma shu bo'yicha guruhlanadi
   const [supplierId, setSupplierId] = useState<string>(product.supplier_id ? String(product.supplier_id) : '');
   const [discount, setDiscount] = useState<number>(product.discount_percent ?? 0);
+  // Tarozi raqami va uning namunaviy kodi (1 kg uchun)
+  const [plu, setPlu] = useState<string | null>(product.plu ?? null);
+  const [sample, setSample] = useState<string | null>(null);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [image, setImage] = useState<string | null>(null);
   const [error, setError] = useState('');
@@ -245,7 +248,37 @@ function ProductEdit({ product, onBack, onSaved }: { product: Product; onBack: (
   useEffect(() => {
     loadCodes();
     api.suppliers().then(setSuppliers).catch(() => {});
+    // Kartochka ochilganda mavjud PLU uchun namunaviy kodni chizamiz
+    if (product.plu) setSample(scaleBarcode(product.plu, 1000));
   }, []);
+
+  async function makePlu() {
+    setBusy(true);
+    try {
+      const res = await api.setPlu(product.id!);
+      setPlu(res.plu ?? null);
+      setSample(res.sample_barcode);
+      toast.success(t('scaleMade'), res.plu ?? '');
+    } catch (e: any) {
+      toast.error(t('error'), e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function removePlu() {
+    setBusy(true);
+    try {
+      await api.removePlu(product.id!);
+      setPlu(null);
+      setSample(null);
+      toast.info(t('scaleRemoved'), product.name);
+    } catch (e: any) {
+      toast.error(t('error'), e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function addCode(code: string) {
     const clean = code.replace(/[\s-]/g, '');
@@ -376,6 +409,44 @@ function ProductEdit({ product, onBack, onSaved }: { product: Product; onBack: (
           </button>
         </div>
         <p className="field-note">{t('makeBarcodeHint')}</p>
+
+        {/* ── Tarozi raqami (PLU) ──
+            Pomidor, go'sht, guruch kabi og'irlikda sotiladigan tovarlar
+            uchun. Do'konchi bu raqamni tarozisiga kiritadi; shundan
+            keyin tarozi bosgan yorliq kassada o'zi tanilib, og'irligi
+            bilan savatga tushadi — sotuvchi hech narsa yozmaydi. */}
+        <div className="section-title">{t('scaleTitle')}</div>
+        {plu ? (
+          <>
+            <div className="scale-card">
+              <div>
+                <div className="sc-label">{t('scalePlu')}</div>
+                <div className="sc-plu">{plu}</div>
+              </div>
+              <div className="sc-sample">
+                <div className="sc-label">{t('scaleSample1kg')}</div>
+                <div className="mono-code">{sample ?? '—'}</div>
+              </div>
+            </div>
+            {sample && (
+              <div
+                className="label-preview"
+                dangerouslySetInnerHTML={{ __html: ean13Svg(sample, { moduleWidth: 2, height: 46 }) ?? '' }}
+              />
+            )}
+            <p className="field-note">{t('scaleHint')}</p>
+            <button className="btn-ghost danger" onClick={removePlu} disabled={busy}>
+              {t('scaleRemove')}
+            </button>
+          </>
+        ) : (
+          <>
+            <button className="chip" style={{ width: '100%', justifyContent: 'center' }} disabled={busy} onClick={makePlu}>
+              <Glyph name="plus" size={15} /> {t('scaleMake')}
+            </button>
+            <p className="field-note">{t('scaleWhy')}</p>
+          </>
+        )}
 
         {scanning && (
           <Scanner

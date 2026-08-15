@@ -115,6 +115,13 @@ export const api = {
   dailyReportPreview: () =>
     request<{ text: string; telegram_linked: boolean; figures: Record<string, number> }>('/reports/daily/preview'),
   sendDailyReport: () => request<{ ok: boolean }>('/reports/daily/send', { method: 'POST' }),
+  setPlu: (productId: number, plu?: string) =>
+    request<Product & { sample_barcode: string }>(`/products/${productId}/plu`, {
+      method: 'POST',
+      body: JSON.stringify({ plu }),
+    }),
+  removePlu: (productId: number) =>
+    request<{ ok: boolean }>(`/products/${productId}/plu`, { method: 'DELETE' }),
   setDiscount: (ids: number[], percent: number) =>
     request<{ ok: boolean; percent: number; changed: number }>('/products/discount', {
       method: 'POST',
@@ -245,12 +252,23 @@ export interface SupplierDetail extends Supplier {
   debts: SupplierDebt[];
 }
 
+/** Tarozi bosgan yorliq: og'irlik/narx kodning ichida */
+export interface ScaleInfo {
+  plu: string;
+  mode: 'weight' | 'price';
+  value: number;
+  /** savatga qo'shiladigan miqdor (kg) */
+  qty: number;
+}
+
 export interface BarcodeLookup {
   code: string;
   /** true — nazorat raqami to'g'ri, false — xato, null — tekshirib bo'lmaydi */
   valid: boolean | null;
   product: Product | null;
   catalog: { barcode: string; name: string; unit: string } | null;
+  /** faqat tarozi yorlig'i skanerlanganda to'ladi */
+  scale?: ScaleInfo | null;
 }
 
 export interface Employee {
@@ -348,6 +366,8 @@ export interface Product {
   sell_price: number;
   stock: number;
   low_stock_threshold?: number;
+  /** tarozi raqami — og'irlikda sotiladigan tovarda */
+  plu?: string | null;
   expiry_date: string | null;
   /** chegirma foizi (0-90) */
   discount_percent?: number;

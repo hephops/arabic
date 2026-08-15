@@ -83,12 +83,26 @@ for (const sql of [
   // Qoldiqdan ko'p sotishga ruxsat. Odatda O'CHIQ — ombor minusga
   // tushib ketmasin. Kerak bo'lgan do'kon sozlamadan yoqadi.
   'ALTER TABLE shops ADD COLUMN allow_negative_stock INTEGER NOT NULL DEFAULT 0',
+  // Tarozi raqami (PLU) — og'irlikda sotiladigan tovarlar uchun
+  'ALTER TABLE products ADD COLUMN plu TEXT',
 ]) {
   try {
     db.exec(sql);
   } catch {
     /* ustun allaqachon bor */
   }
+}
+
+// Ustunga tayanadigan indekslar migratsiyadan KEYIN yaratiladi.
+// schema.sql eng boshida ishlaydi va eski bazada hali "plu" ustuni
+// bo'lmagani uchun indeksni o'sha yerda yaratib bo'lmaydi.
+try {
+  db.exec(
+    `CREATE UNIQUE INDEX IF NOT EXISTS idx_products_plu
+     ON products (shop_id, plu) WHERE plu IS NOT NULL AND plu <> ''`
+  );
+} catch (e) {
+  console.warn('[db] tarozi raqami indeksi yaratilmadi:', e);
 }
 
 // Eski bazalarda mahsulot kodlari faqat products.barcode da edi —

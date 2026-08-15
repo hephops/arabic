@@ -10,7 +10,7 @@ import { parseDebtText, parseCartText } from './voice.js';
 import { runReminders, startReminderScheduler } from './reminders.js';
 import { handleUpdate, verifyInitData, telegramEnabled, setWebhook, sendMessage } from './telegram.js';
 import { registerAdminRoutes, seedAdmin } from './admin.js';
-import { normalizeBarcode, barcodeVariants, checkGtin, makeInStoreEan13 } from './barcodes.js';
+import { normalizeBarcode, barcodeVariants, checkGtin, makeInStoreEan13, parseScaleBarcode, makeScaleBarcode, scaleQty } from './barcodes.js';
 import { normalizePhone } from './phone.js';
 import { dailyFigures, reportText, sendDailyReport, startDailyReportScheduler } from './dailyReport.js';
 import { customerCode, receiptText } from './customerLink.js';
@@ -1157,6 +1157,27 @@ app.get('/categories', { preHandler: requireAuth }, async (req) =>
 app.get<{ Querystring: { code?: string } }>('/barcodes/lookup', { preHandler: requireAuth }, async (req) => {
   const code = normalizeBarcode(req.query.code);
   if (!code) return { code: '', valid: null, product: null, catalog: null };
+
+  // Tarozi bosgan yorliqmi? Bo'lsa og'irlik/narx kodning ichida turadi —
+  // tovarni PLU bo'yicha topamiz va miqdorni o'zimiz hisoblaymiz.
+  const scale = parseScaleBarcode(code);
+  if (scale) {
+    const byPlu = db
+      .prepare('SELECT * FROM products WHERE shop_id = ? AND plu = ?')
+      .get(req.shopId, scale.plu) as any;
+    if (byPlu) {
+      return {
+        code,
+        valid: true,
+        product: byPlu,
+        catalog: null,
+        scale: { ...scale, qty: scaleQty(scale, priceWithDiscount(byPlu)) },
+      };
+    }
+    // PLU biriktirilmagan — do'konchiga aynan shuni aytamiz
+    return { code, valid: true, product: null, catalog: null, scale: { ...scale, qty: 0 } };
+  }
+
   const product = findByBarcode(req.shopId, code) ?? null;
   const variants = barcodeVariants(code);
   const marks = variants.map(() => '?').join(',');
@@ -1363,6 +1384,55 @@ app.get<{ Params: { file: string } }>('/uploads/:file', async (req, reply) => {
   reply.header('Content-Type', ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg');
   reply.header('Cache-Control', 'public, max-age=86400');
   return reply.send(readFileSync(path));
+});
+
+/** Tovarga tarozi raqami (PLU) berish.
+ *
+ *  Do'konchi bu raqamni tarozisiga kiritadi. Shundan keyin tarozi bosgan
+ *  yorliqlar kassada o'zi tanilib, og'irligi bilan savatga tushadi. */
+app.post<{ Params: { id: string }; Body: { plu?: string } }>(
+  '/products/:id/plu',
+  { preHandler: requireOwner },
+  async (req, reply) => {
+    const product = db
+      .prepare('SELECT * FROM products WHERE id = ? AND shop_id = ?')
+      .get(req.params.id, req.shopId) as any;
+    if (!product) return reply.code(404).send({ error: 'not_found' });
+
+    // Qo'lda berilgan raqam bo'lsa o'shani, bo'lmasa bo'shini topamiz.
+    // Tarozilarda odatda 1..99999 oralig'i ishlatiladi.
+    let plu = String(req.body?.plu ?? '').replace(/\D/g, '');
+    if (plu) {
+      plu = plu.padStart(5, '0').slice(0, 5);
+      const taken = db
+        .prepare('SELECT id, name FROM products WHERE shop_id = ? AND plu = ? AND id <> ?')
+        .get(req.shopId, plu, product.id) as any;
+      if (taken) return reply.code(409).send({ error: 'plu_taken', product: taken });
+    } else {
+      const used = new Set(
+        (db.prepare("SELECT plu FROM products WHERE shop_id = ? AND plu IS NOT NULL AND plu <> ''").all(req.shopId) as any[])
+          .map((r) => String(r.plu))
+      );
+      let n = 1;
+      while (used.has(String(n).padStart(5, '0')) && n < 99999) n++;
+      plu = String(n).padStart(5, '0');
+    }
+
+    db.prepare('UPDATE products SET plu = ? WHERE id = ?').run(plu, product.id);
+    const fresh = db.prepare('SELECT * FROM products WHERE id = ?').get(product.id) as any;
+    return {
+      ...fresh,
+      // Tarozini sozlashda ko'rsatiladigan namuna: 1 kg uchun qanday kod chiqadi
+      sample_barcode: makeScaleBarcode(plu, 1000, 'weight'),
+    };
+  }
+);
+
+app.delete<{ Params: { id: string } }>('/products/:id/plu', { preHandler: requireOwner }, async (req, reply) => {
+  const product = db.prepare('SELECT id FROM products WHERE id = ? AND shop_id = ?').get(req.params.id, req.shopId);
+  if (!product) return reply.code(404).send({ error: 'not_found' });
+  db.prepare('UPDATE products SET plu = NULL WHERE id = ?').run(req.params.id);
+  return { ok: true };
 });
 
 // Mahsulotni tahrirlash va o'chirish

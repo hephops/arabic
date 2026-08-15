@@ -74,3 +74,62 @@ export function makeInStoreEan13(shopId: number, productId: number, attempt = 0)
   const body = `20${shopPart}${itemPart}`;
   return body + gtinCheckDigit(body);
 }
+
+/* ═══════════ Tarozi shtrix-kodlari (og'irlikka sotiladigan tovarlar) ═══════════ */
+
+// Pomidor, go'sht, guruch kabi tovarlar donada emas, og'irlikda sotiladi.
+// Do'kondagi tarozi yorliq bosadi va og'irlik (yoki narx) shtrix-kodning
+// ICHIGA yozilgan bo'ladi. Kassa shu kodni o'qib, savatga to'g'ri
+// miqdorni o'zi qo'yishi kerak — sotuvchi hech narsa yozmaydi.
+//
+// Shakl (GS1 ning "do'kon ichi" 20–29 prefiksi, 13 xonali):
+//
+//   2 2 P P P P P W W W W W C
+//   │ │ └── PLU ──┘ └─ qiymat ┘ nazorat
+//   └─┴ 22 = og'irlik (gramm), 21 = narx (so'm)
+//
+// PLU — tovarning tarozidagi raqami. Uni do'konchi ilovada yasaydi va
+// tarozisiga o'sha raqam bilan kiritadi. Shundan keyin tarozi bosgan
+// har bir yorliq kassada o'zi tanilib qoladi.
+
+export type ScaleMode = 'weight' | 'price';
+
+export interface ScaleCode {
+  plu: string;
+  mode: ScaleMode;
+  /** og'irlik — grammda, narx — so'mda */
+  value: number;
+}
+
+/** Tarozi kodimi? Bo'lsa PLU va qiymatini ajratib beradi */
+export function parseScaleBarcode(raw: string | null | undefined): ScaleCode | null {
+  const code = normalizeBarcode(raw);
+  if (code.length !== 13 || !/^\d{13}$/.test(code)) return null;
+  const prefix = code.slice(0, 2);
+  if (prefix !== '21' && prefix !== '22') return null;
+  // Nazorat raqami noto'g'ri bo'lsa — bu tarozi kodi emas, tasodifiy son
+  if (gtinCheckDigit(code.slice(0, 12)) !== Number(code[12])) return null;
+  const plu = code.slice(2, 7);
+  const value = Number(code.slice(7, 12));
+  return { plu, mode: prefix === '22' ? 'weight' : 'price', value };
+}
+
+/** Yorliq namunasi uchun kod yasash (tarozini sozlashda ko'rsatiladi) */
+export function makeScaleBarcode(plu: string, value: number, mode: ScaleMode = 'weight'): string {
+  const p = String(plu).replace(/\D/g, '').padStart(5, '0').slice(0, 5);
+  const v = String(Math.max(0, Math.round(value))).padStart(5, '0').slice(0, 5);
+  const body = `${mode === 'weight' ? '22' : '21'}${p}${v}`;
+  return body + gtinCheckDigit(body);
+}
+
+/** Kod ichidagi qiymatni savat miqdoriga aylantirish.
+ *
+ *  og'irlik: gramm -> kg
+ *  narx: tarozi narxni yozgan bo'lsa, miqdor = narx / dona narxi
+ *        (tarozi ham, ilova ham bir xil narxdan hisoblagani uchun
+ *        natija aynan o'sha og'irlik chiqadi) */
+export function scaleQty(scale: ScaleCode, sellPrice: number): number {
+  if (scale.mode === 'weight') return Math.round((scale.value / 1000) * 1000) / 1000;
+  if (!sellPrice || sellPrice <= 0) return 0;
+  return Math.round((scale.value / sellPrice) * 1000) / 1000;
+}

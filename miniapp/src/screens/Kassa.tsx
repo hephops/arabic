@@ -475,6 +475,22 @@ function SaleMode({ onDone }: { onDone: () => void }) {
   async function handleCode(code: string) {
     try {
       const res = await api.lookupBarcode(code);
+
+      // Tarozi bosgan yorliq: og'irlik kodning ichida turadi.
+      // Bu yo'l apparat (USB) skaner uchun ham muhim — u kodni
+      // qidiruv maydoniga "terib" yuboradi.
+      if (res.scale) {
+        setPendingCode(null);
+        if (res.product && res.scale.qty > 0) {
+          addToCart(res.product, res.scale.qty);
+        } else {
+          toast.error(t('scalePluUnknown'), `PLU ${res.scale.plu}`);
+        }
+        setQuery('');
+        setResults([]);
+        return;
+      }
+
       if (res.product) {
         setPendingCode(null);
         addToCart(res.product);
@@ -498,7 +514,7 @@ function SaleMode({ onDone }: { onDone: () => void }) {
   // tez "teradi". Fokus qaysi maydonda bo'lishidan qat'i nazar ushlab olinadi.
   useHardwareScanner(handleCode);
 
-  async function addToCart(p: Product) {
+  async function addToCart(p: Product, addQty = 1) {
     // Kod topilmay, foydalanuvchi mahsulotni o'zi tanlagan bo'lsa — kodni biriktiramiz
     if (pendingCode && p.id) {
       try {
@@ -512,7 +528,8 @@ function SaleMode({ onDone }: { onDone: () => void }) {
     // Eng so'nggi holat (skaner uzluksiz otganda ham to'g'ri sanaladi)
     const cur = ref.current.carts.find((c) => c.id === ref.current.activeId)!;
     const inCart = cur.lines.find((l) => l.product.id === p.id);
-    const want = (inCart?.qty ?? 0) + 1;
+    // Tarozi yorlig'idan kelgan og'irlik butun son bo'lmasligi mumkin
+    const want = Math.round(((inCart?.qty ?? 0) + addQty) * 1000) / 1000;
 
     // Qoldiqdan oshib ketmaydi: savatdagi son omborda borichadan ko'p bo'lmaydi
     if (want > p.stock) {
@@ -524,7 +541,7 @@ function SaleMode({ onDone }: { onDone: () => void }) {
       ...c,
       lines: c.lines.find((l) => l.product.id === p.id)
         ? c.lines.map((l) => (l.product.id === p.id ? { ...l, qty: want } : l))
-        : [...c.lines, { product: p, qty: 1 }],
+        : [...c.lines, { product: p, qty: want }],
     }));
     toast.success(p.name, `${want} ${t('pcs')} · ${fmt(p.sell_price * want)} · ${cartName(cur)}`);
     setQuery('');
@@ -803,7 +820,14 @@ function SaleMode({ onDone }: { onDone: () => void }) {
             onScan={async (code) => {
               // topilgan mahsulot darhol savatga tushadi — skaner ochiq qoladi
               const res = await api.lookupBarcode(code).catch(() => null);
-              if (res?.product) {
+              // Tarozi bosgan yorliq: og'irlik kodning ichida — sotuvchi
+              // hech narsa yozmaydi, miqdor o'zi qo'yiladi
+              if (res?.scale && res.product && res.scale.qty > 0) {
+                addToCart(res.product, res.scale.qty);
+              } else if (res?.scale && !res.product) {
+                setScanning(false);
+                toast.error(t('scalePluUnknown'), `PLU ${res.scale.plu}`);
+              } else if (res?.product) {
                 addToCart(res.product);
               } else {
                 // topilmadi: skanerni yopib, kodni biriktirishga taklif qilamiz
