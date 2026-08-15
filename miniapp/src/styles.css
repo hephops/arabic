@@ -1235,7 +1235,11 @@ button.link { background: none; color: var(--accent); font-size: 15px; font-weig
     gap: 14px; align-items: stretch; margin-bottom: 4px;
   }
   .home-top .hero { margin-bottom: 0; height: 100%; }
-  .home-top .stat-row { flex-direction: column; gap: 10px; margin: 0; }
+  /* O'ng ustun: maqsad chizig'i tepada, uchta ko'rsatkich ostida —
+     ikkalasi birgalikda savdo kartasi balandligini to'ldiradi */
+  .home-side { display: flex; flex-direction: column; gap: 10px; }
+  .home-side > .goal-bar, .home-side > .goal-empty { margin-bottom: 0; }
+  .home-top .stat-row { flex: 1; flex-direction: column; gap: 10px; margin: 0; }
   .home-top .stat-card {
     flex: 1; display: flex; flex-direction: column; justify-content: center;
   }

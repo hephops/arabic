@@ -105,21 +105,14 @@ export default function Dashboard({
         )}
       </div>
 
-      {/* Bugungi maqsad — savdo kartasidan keyin, birinchi ko'zga tashlanadigan joyda */}
+      {/* O'ng ustun: bugungi maqsad va uchta asosiy ko'rsatkich.
+          Ikkalasi bitta idishda — .home-top gridi ikkita bola kutadi. */}
+      <div className="home-side">
       <GoalBar
         revenue={data.today.revenue}
         goal={data.daily_goal}
         onSet={isEmployee ? undefined : () => setGoalSheet(true)}
       />
-
-      {goalSheet && (
-        <GoalSheet
-          goal={data.daily_goal}
-          todayRevenue={data.today.revenue}
-          onClose={() => setGoalSheet(false)}
-          onSaved={(g) => setData({ ...data, daily_goal: g })}
-        />
-      )}
 
       {/* Uchta asosiy ko'rsatkich */}
       <div className="stat-row">
@@ -142,8 +135,19 @@ export default function Dashboard({
           <div className="v" style={{ color: data.net >= 0 ? 'var(--green)' : 'var(--red)' }}>{fmtShort(data.net)}</div>
         </div>
       </div>
+      </div>
 
       </div>
+
+      {/* Oynacha grid ichida turmasin — ochilganda ustunlarni surib yuborardi */}
+      {goalSheet && (
+        <GoalSheet
+          goal={data.daily_goal}
+          todayRevenue={data.today.revenue}
+          onClose={() => setGoalSheet(false)}
+          onSaved={(g) => setData({ ...data, daily_goal: g })}
+        />
+      )}
 
       {/* Tez kirish */}
       <div className="tile-row">
