@@ -270,7 +270,7 @@ export default function Orders({ onBack }: { onBack: () => void }) {
     <>
       {printSheet}
       <SubHeader title={t('navOrders')} onBack={onBack} />
-      <div className="screen">
+      <div className="screen wide">
         <Segmented
           value={tab}
           onChange={setTab}
@@ -316,6 +316,8 @@ export default function Orders({ onBack }: { onBack: () => void }) {
                   </div>
                 )}
 
+                <div className="order-cols">
+                <div>
                 <div className="list-group">
                   {visible.map((r) => {
                     const l = lines[r.id];
@@ -358,6 +360,9 @@ export default function Orders({ onBack }: { onBack: () => void }) {
                   })}
                 </div>
 
+                </div>
+
+                <div className="order-side">
                 {chosen.length > 0 && (
                   <>
                     <div className="section-title">{t('orderTextTitle')}</div>
@@ -397,6 +402,8 @@ export default function Orders({ onBack }: { onBack: () => void }) {
                     </button>
                   </>
                 )}
+                </div>
+                </div>
               </>
             )}
           </>

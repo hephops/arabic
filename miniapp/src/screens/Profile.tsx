@@ -752,7 +752,7 @@ function ReportSettingsView({ shop, onBack, reload }: { shop: Shop; onBack: () =
   return (
     <>
       <SubHeader title={t('dailyReportTitle')} onBack={onBack} />
-      <div className="screen">
+      <div className="screen narrow">
         <p className="hint" style={{ marginBottom: 12 }}>{t('dailyReportHint')}</p>
 
         <div className="list-group">

@@ -35,7 +35,7 @@ export default function Dashboard({
   const WD = ['Ya', 'Du', 'Se', 'Ch', 'Pa', 'Ju', 'Sh'];
 
   return (
-    <div className="screen">
+    <div className="screen wide">
       {isEmployee && (
         <div className="role-banner">
           <Glyph name="person" size={16} color="var(--accent)" />

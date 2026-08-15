@@ -24,6 +24,10 @@ export function uzNow(at: Date = new Date()): { date: string; hour: number } {
 export interface DailyFigures {
   revenue: number;
   count: number;
+  /** to'lov turlari bo'yicha (qaytarishlarsiz, sof savdo) */
+  cash: number;
+  card: number;
+  debt: number;
   profit: number;
   expenses: number;
   net_profit: number;
@@ -39,7 +43,10 @@ export interface DailyFigures {
 export function dailyFigures(shopId: number): DailyFigures {
   const sales = db
     .prepare(
-      `SELECT COUNT(*) AS count, COALESCE(SUM(total), 0) AS revenue
+      `SELECT COUNT(*) AS count, COALESCE(SUM(total), 0) AS revenue,
+              COALESCE(SUM(CASE WHEN payment_type = 'cash' THEN total END), 0) AS cash,
+              COALESCE(SUM(CASE WHEN payment_type = 'card' THEN total END), 0) AS card,
+              COALESCE(SUM(CASE WHEN payment_type = 'debt' THEN total END), 0) AS debt
        FROM sales WHERE shop_id = ? AND date(created_at) = date('now')`
     )
     .get(shopId) as any;
@@ -91,6 +98,9 @@ export function dailyFigures(shopId: number): DailyFigures {
   return {
     revenue,
     count: Number(sales.count),
+    cash: Number(sales.cash),
+    card: Number(sales.card),
+    debt: Number(sales.debt),
     profit: grossProfit,
     expenses: Number(expenses.s),
     net_profit: grossProfit - Number(expenses.s),
@@ -111,6 +121,14 @@ export function reportText(shopName: string, f: DailyFigures): string {
   lines.push(`<b>${escapeHtml(shopName)}</b> — bugungi yakun`);
   lines.push('');
   lines.push(`💰 Savdo: <b>${money(f.revenue)} so'm</b>${f.count ? ` (${f.count} ta chek)` : ''}`);
+
+  // To'lov turlari — do'konchi kassada qancha naqd pul turishi kerakligini
+  // va qanchasi qarzga ketganini shu yerdan ko'radi
+  const pay: string[] = [];
+  if (f.cash > 0) pay.push(`naqd ${money(f.cash)}`);
+  if (f.card > 0) pay.push(`karta ${money(f.card)}`);
+  if (f.debt > 0) pay.push(`qarzga ${money(f.debt)}`);
+  if (pay.length) lines.push(`   ${pay.join(' · ')}`);
 
   if (f.expenses > 0) {
     lines.push(`📈 Yalpi foyda: ${money(f.profit)} so'm`);

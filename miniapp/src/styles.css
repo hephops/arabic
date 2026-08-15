@@ -1062,7 +1062,7 @@ button.link { background: none; color: var(--accent); font-size: 15px; font-weig
   /* Kirish sahifasi keng ekranda o'rtada tursin */
   .auth { height: 100vh; overflow-y: auto; }
   .auth-body { padding-top: 0; min-height: 100vh; display: flex; flex-direction: column; justify-content: center; }
-  .screen { padding: 20px 28px 40px; max-width: 1080px; margin: 0 auto; }
+  .screen { padding: 20px 28px 40px; max-width: 920px; margin: 0 auto; }
   /* Forma ko'rinishidagi ekranlar tor ustunda — o'qish oson bo'lsin */
   .screen.narrow { max-width: 620px; }
   .screen.narrow .segmented { max-width: none; }
@@ -1286,6 +1286,15 @@ button.link { background: none; color: var(--accent); font-size: 15px; font-weig
 
   /* Asosiy ekran: qarzlar va sotuvlar yonma-yon */
   .home-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 0 20px; align-items: start; }
+  /* Ikki ustunli ekranlar (bosh sahifa, buyurtma) kengroq bo'lsin */
+  .screen.wide { max-width: 1180px; }
+
+  /* ── Buyurtma: chapda tovarlar, o'ngda yuboriladigan matn ──
+     Telefonda ular ustma-ust turadi; kompyuterda esa matn ko'z
+     oldida turgani ma'qul — do'konchi miqdorni o'zgartirganda
+     matn qanday o'zgarayotganini darhol ko'radi. */
+  .order-cols { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(320px, 1fr); gap: 22px; align-items: start; }
+  .order-side { position: sticky; top: 72px; }
 
   /* Savat kartochkalari keng ekranda kattaroq */
   .cart-card { width: 186px; padding: 13px 15px 14px; }
@@ -1319,7 +1328,9 @@ button.link { background: none; color: var(--accent); font-size: 15px; font-weig
 }
 
 @media (min-width: 1400px) {
-  .screen { max-width: 1180px; }
+  .screen { max-width: 980px; }
+  /* Ikki ustunli ekranlar kengroq joy oladi */
+  .screen.wide { max-width: 1280px; }
 }
 
 /* ═══════════ Chek va yorliq chop etish ═══════════ */
