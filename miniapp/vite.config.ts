@@ -12,10 +12,19 @@ const https = process.env.HTTPS === '1';
 // alohida sertifikat ishonchi va CORS bilan uchrashamiz. Buning o'rniga backend
 // so'rovlarini Vite orqali (server-to-server, brauzersiz) proksi qilamiz — brauzer
 // faqat bitta xavfsiz manzil (shu server) bilan gaplashadi.
+//
+// DIQQAT: bu ro'yxat backend/src/server.ts dagi HAR BIR birinchi bo'g'inni
+// (masalan '/debts', '/supplier-debts') qamrab olishi shart. Bir marta
+// shu yerga qo'shishni unutib, "Postavshikka qarz yozish" HTTP 404 bilan
+// jimgina ishlamay qolgan edi — brauzer /supplier-debts ni Vite'ning o'z
+// ichida (backendga proksi qilmasdan) qidirib topolmagan. Yangi marshrut
+// (`app.get/post/patch/delete('/yangi-nom...')`) qo'shsangiz, shu yerga
+// ham "yangi-nom" ni qo'shing.
 const API_PREFIXES = [
   'auth', 'telegram', 'public', 'me', 'balance', 'dashboard', 'customers',
-  'reminders', 'voice', 'suppliers', 'employees', 'referral', 'products',
-  'barcodes', 'uploads', 'sales', 'reports', 'expenses',
+  'reminders', 'voice', 'suppliers', 'supplier-debts', 'debts', 'employees',
+  'referral', 'products', 'barcodes', 'uploads', 'sales', 'reports',
+  'expenses', 'returns', 'categories', 'inventory',
 ];
 const apiProxy = Object.fromEntries(
   API_PREFIXES.map((p) => [`/${p}`, { target: 'http://localhost:3000', changeOrigin: true }])
