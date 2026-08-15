@@ -3,7 +3,7 @@ import { api, fmt, logout, Shop, BalanceInfo, Employee } from '../api';
 import { AppIcon, Glyph } from '../icons';
 import { SubHeader, EmptyState } from '../ui';
 import { useT, LANG_NAMES, group, type Lang } from '../i18n';
-import { formatCard, cardDigits, formatPhone, maskCard, formatAmount, amountValue } from '../format';
+import { formatCard, cardDigits, formatPhone, maskCard, formatAmount, amountValue, fmtDateTime } from '../format';
 import { toast, loadFailed } from '../toast';
 
 // iOS Sozlamalar uslubidagi kabinet: asosiy ekranda qatorlar,
@@ -248,7 +248,7 @@ function BalanceView({ shop, balance, onBack, reload }: { shop: Shop; balance: B
               <div className="list-item" key={t.id}>
                 <div>
                   <div className="name">{t.note ?? t.type}</div>
-                  <div className="sub">{t.created_at}</div>
+                  <div className="sub">{fmtDateTime(t.created_at)}</div>
                 </div>
                 <div className="amount" style={{ color: t.amount > 0 ? 'var(--green)' : 'var(--red)' }}>
                   {t.amount > 0 ? '+' : ''}{fmt(t.amount)}

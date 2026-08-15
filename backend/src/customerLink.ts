@@ -59,7 +59,7 @@ export function purchasesText(customerId: number): string {
   const month = db
     .prepare(
       `SELECT COALESCE(SUM(total), 0) AS s, COUNT(*) AS c FROM sales
-       WHERE customer_id = ? AND date(created_at) >= date('now', 'start of month')`
+       WHERE customer_id = ? AND date(created_at, '+5 hours') >= date('now', '+5 hours', 'start of month')`
     )
     .get(customerId) as any;
 

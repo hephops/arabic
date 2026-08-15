@@ -2,6 +2,7 @@ import { randomBytes, scryptSync, timingSafeEqual, createHmac } from 'node:crypt
 import { hit, reset } from './ratelimit.js';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { db } from './db.js';
+import { uzDayShift } from './tz.js';
 
 // Admin panel: alohida autentifikatsiya (login + parol) va boshqaruv API'si.
 // Do'konchi tokeni bilan admin API'ga kirib bo'lmaydi — token turi ajratilgan.
@@ -133,11 +134,11 @@ export function registerAdminRoutes(app: FastifyInstance) {
   app.get('/admin/stats', { preHandler: requireAdmin }, async () => {
     const shops = db.prepare('SELECT COUNT(*) AS c FROM shops').get() as any;
     const active = db
-      .prepare("SELECT COUNT(*) AS c FROM shops WHERE plan != 'free' AND plan_expires_at >= date('now')")
+      .prepare("SELECT COUNT(*) AS c FROM shops WHERE plan != 'free' AND plan_expires_at >= date('now', '+5 hours')")
       .get() as any;
     const blocked = db.prepare('SELECT COUNT(*) AS c FROM shops WHERE is_blocked = 1').get() as any;
     const todayNew = db
-      .prepare("SELECT COUNT(*) AS c FROM shops WHERE date(created_at) = date('now')")
+      .prepare("SELECT COUNT(*) AS c FROM shops WHERE date(created_at, '+5 hours') = date('now', '+5 hours')")
       .get() as any;
     const revenue = db
       .prepare("SELECT COALESCE(SUM(amount), 0) AS s FROM balance_transactions WHERE type = 'topup'")
@@ -159,15 +160,13 @@ export function registerAdminRoutes(app: FastifyInstance) {
     // Oxirgi 14 kunlik ro'yxatdan o'tishlar
     const raw = db
       .prepare(
-        "SELECT date(created_at) AS d, COUNT(*) AS c FROM shops WHERE date(created_at) >= date('now', '-13 days') GROUP BY date(created_at)"
+        "SELECT date(created_at, '+5 hours') AS d, COUNT(*) AS c FROM shops WHERE date(created_at, '+5 hours') >= date('now', '+5 hours', '-13 days') GROUP BY date(created_at, '+5 hours')"
       )
       .all() as any[];
     const byDay = new Map(raw.map((r) => [r.d, r.c]));
     const signups: { day: string; count: number }[] = [];
     for (let i = 13; i >= 0; i--) {
-      const d = new Date();
-      d.setDate(d.getDate() - i);
-      const key = d.toISOString().slice(0, 10);
+      const key = uzDayShift(-i);
       signups.push({ day: key, count: byDay.get(key) ?? 0 });
     }
 
@@ -268,7 +267,7 @@ export function registerAdminRoutes(app: FastifyInstance) {
       const days = Math.max(1, Math.min(Number(req.body.days ?? 30), 365));
       db.prepare(
         `UPDATE shops SET plan = ?, plan_expires_at = date(
-           CASE WHEN plan_expires_at > date('now') THEN plan_expires_at ELSE date('now') END, '+' || ? || ' days')
+           CASE WHEN plan_expires_at > date('now', '+5 hours') THEN plan_expires_at ELSE date('now', '+5 hours') END, '+' || ? || ' days')
          WHERE id = ?`
       ).run(req.body.plan, days, shop.id);
       // Sovg'a — pul harakati emas, shuning uchun alohida tur bilan yoziladi

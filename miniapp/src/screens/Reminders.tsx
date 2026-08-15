@@ -4,7 +4,7 @@ import { AppIcon, Glyph } from '../icons';
 import { NavBar, EmptyState, Segmented } from '../ui';
 import { useT } from '../i18n';
 import { toast } from '../toast';
-import { formatPhoneSoft } from '../format';
+import { formatPhoneSoft, fmtWhen } from '../format';
 
 // Eslatmalar: rejim sozlamalari va yuborilganlar jurnali
 
@@ -229,7 +229,7 @@ export default function Reminders({ onBack }: { onBack: () => void }) {
                             {l.status === 'failed' ? t('notSent') : ch.label === 'calls' ? t('calls') : ch.label}
                           </span>
                         </div>
-                        <div className="sub">{t(KIND_KEY[l.kind ?? ''] ?? '')} · {l.created_at.slice(0, 16)}</div>
+                        <div className="sub">{t(KIND_KEY[l.kind ?? ''] ?? '')} · {fmtWhen(l.created_at)}</div>
                         {l.payload && (
                           <div className="sub" style={{ marginTop: 4, color: 'var(--text)', opacity: 0.75 }}>
                             {l.payload}

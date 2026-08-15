@@ -1,5 +1,6 @@
 import { db } from './db.js';
 import { isValidPhone, normalizePhone } from './phone.js';
+import { uzToday } from './tz.js';
 
 // Eslatma dvigateli: muddatga qarab qaysi qarzga qanday eslatma kerakligini
 // aniqlaydi va jurnalga navbatga qo'yadi.
@@ -32,7 +33,8 @@ interface DueDebt {
 }
 
 function daysUntil(date: string): number {
-  const today = new Date(new Date().toISOString().slice(0, 10)).getTime();
+  // Toshkent bugungi sanasidan — server qaysi mintaqada turgani muhim emas
+  const today = new Date(uzToday()).getTime();
   const target = new Date(date).getTime();
   return Math.round((target - today) / 86_400_000);
 }
@@ -83,7 +85,7 @@ function alreadyLogged(debtId: number, kind: string): boolean {
     .prepare(
       `SELECT 1 FROM reminder_logs
        WHERE debt_id = ? AND kind = ? AND status <> 'failed'
-         AND date(created_at) = date('now') LIMIT 1`
+         AND date(created_at, '+5 hours') = date('now', '+5 hours') LIMIT 1`
     )
     .get(debtId, kind);
   return !!row;

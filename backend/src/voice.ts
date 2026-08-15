@@ -2,6 +2,8 @@
 // DEV: qoidaga asoslangan parser. PROD: STT (Mohir.ai) + LLM (Claude API) —
 // bu parser fallback bo'lib qoladi (internet/API ishlamasa).
 
+import { uzDayShift, uzWeekday, uzParts } from './tz.js';
+
 export interface ParsedDebt {
   customer_name: string;
   amount: number;
@@ -14,19 +16,15 @@ const WEEKDAYS: Record<string, number> = {
   dushanba: 1, seshanba: 2, chorshanba: 3, payshanba: 4, juma: 5, shanba: 6, yakshanba: 0,
 };
 
+// Muddat hisoblari Toshkent kuni bo'yicha: server UTC'da tursa ham
+// "ertaga" do'konchining ertasi bo'lishi kerak
 function nextWeekday(target: number): string {
-  const d = new Date();
-  let diff = (target - d.getDay() + 7) % 7;
+  let diff = (target - uzWeekday() + 7) % 7;
   if (diff === 0) diff = 7;
-  d.setDate(d.getDate() + diff);
-  return d.toISOString().slice(0, 10);
+  return uzDayShift(diff);
 }
 
-function addDays(days: number): string {
-  const d = new Date();
-  d.setDate(d.getDate() + days);
-  return d.toISOString().slice(0, 10);
-}
+const addDays = (days: number) => uzDayShift(days);
 
 export function parseDebtText(text: string): ParsedDebt | null {
   const raw = text.trim();
@@ -63,13 +61,12 @@ export function parseDebtText(text: string): ParsedDebt | null {
     else if (inWeeks) due = addDays(parseInt(inWeeks[1], 10) * 7);
     else if (lower.includes('bir hafta') || lower.includes('haftagacha')) due = addDays(7);
     else if (lower.includes('oyning oxiri') || lower.includes('oy oxiri')) {
-      const d = new Date();
-      due = new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().slice(0, 10);
+      const { year, month } = uzParts();
+      due = new Date(Date.UTC(year, month + 1, 0)).toISOString().slice(0, 10);
     } else if (dayOfMonth) {
-      const d = new Date();
+      const { year, month, day } = uzParts();
       const target = parseInt(dayOfMonth[1], 10);
-      const month = d.getDate() >= target ? d.getMonth() + 1 : d.getMonth();
-      due = new Date(d.getFullYear(), month, target).toISOString().slice(0, 10);
+      due = new Date(Date.UTC(year, day >= target ? month + 1 : month, target)).toISOString().slice(0, 10);
     } else if (lower.includes('ertaga')) due = addDays(1);
   }
 

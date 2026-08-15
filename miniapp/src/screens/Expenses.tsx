@@ -3,7 +3,7 @@ import { api, fmt, getToken, Expense, ExpensePeriod, ExpensesInfo } from '../api
 import { AppIcon, Glyph } from '../icons';
 import { SubHeader, EmptyState, Segmented, Summary } from '../ui';
 import { useT, group } from '../i18n';
-import { formatAmount, amountValue } from '../format';
+import { formatAmount, amountValue, uzToday } from '../format';
 import { EXPENSE_CATS as CATS, expenseCatLabel, expenseCatIcon } from '../expenseCats';
 import { toast } from '../toast';
 import { haptic } from '../telegram';
@@ -19,8 +19,8 @@ const PERIODS: [ExpensePeriod, string][] = [
   ['all', 'expensePeriodAll'],
 ];
 
-const today = () => new Date().toISOString().slice(0, 10);
-const yesterday = () => new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+const today = () => uzToday();
+const yesterday = () => uzToday(new Date(Date.now() - 86400000));
 
 interface Draft {
   id: number | null;

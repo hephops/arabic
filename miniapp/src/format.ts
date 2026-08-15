@@ -68,3 +68,51 @@ export function formatAmount(value: string): string {
 }
 
 export const amountValue = (value: string) => Number(amountDigits(value) || 0);
+
+/* ── Vaqt: Toshkent (UTC+5) ── */
+
+// Server vaqtlarni UTC'da saqlaydi ("2026-08-15 19:12:03") — SQLite shunday
+// yozadi. Ekranda esa do'konchi o'z soatini ko'rishi kerak, shuning uchun
+// har bir vaqt ko'rsatilishidan oldin 5 soatga suriladi. O'zbekistonda
+// yozgi/qishki soatga o'tish yo'q, shuning uchun surish doim bir xil.
+const UZ_OFFSET_MS = 5 * 60 * 60 * 1000;
+
+/** Bazadagi vaqtni Toshkent vaqtiga o'girish. Noto'g'ri qiymatda null. */
+export function uzDate(value: string | null | undefined): Date | null {
+  if (!value) return null;
+  // "2026-08-15 19:12:03" va "2026-08-15T19:12:03" — ikkalasi ham UTC
+  const iso = value.trim().replace(' ', 'T');
+  const ms = Date.parse(iso.endsWith('Z') ? iso : iso + 'Z');
+  return Number.isNaN(ms) ? null : new Date(ms + UZ_OFFSET_MS);
+}
+
+const two = (n: number) => String(n).padStart(2, '0');
+
+/** Soat: "19:12" */
+export function fmtTime(value: string | null | undefined): string {
+  const d = uzDate(value);
+  return d ? `${two(d.getUTCHours())}:${two(d.getUTCMinutes())}` : '';
+}
+
+/** Sana: "15.08.2026" */
+export function fmtDay(value: string | null | undefined): string {
+  const d = uzDate(value);
+  return d ? `${two(d.getUTCDate())}.${two(d.getUTCMonth() + 1)}.${d.getUTCFullYear()}` : '';
+}
+
+/** Sana va soat: "15.08.2026 19:12" */
+export function fmtDateTime(value: string | null | undefined): string {
+  const d = uzDate(value);
+  return d ? `${fmtDay(value)} ${fmtTime(value)}` : '';
+}
+
+/** Ro'yxatlar uchun qisqa ko'rinish: "15.08 19:12" */
+export function fmtWhen(value: string | null | undefined): string {
+  const d = uzDate(value);
+  return d ? `${two(d.getUTCDate())}.${two(d.getUTCMonth() + 1)} ${fmtTime(value)}` : '';
+}
+
+/** Bugungi Toshkent sanasi: "2026-08-16" */
+export function uzToday(at: Date = new Date()): string {
+  return new Date(at.getTime() + UZ_OFFSET_MS).toISOString().slice(0, 10);
+}

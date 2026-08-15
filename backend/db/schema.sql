@@ -260,7 +260,7 @@ CREATE TABLE IF NOT EXISTS expenses (
   category TEXT NOT NULL,                        -- rent | utilities | salary | ... yoki do'konchi yozgan matn
   amount INTEGER NOT NULL,
   note TEXT,
-  spent_at TEXT NOT NULL DEFAULT (date('now')),  -- xarajat sanasi (kiritilgan sana emas)
+  spent_at TEXT NOT NULL DEFAULT (date('now', '+5 hours')),  -- xarajat sanasi (kiritilgan sana emas)
   is_recurring INTEGER NOT NULL DEFAULT 0,       -- har oy takrorlanadimi (ijara, ish haqi)
   created_by INTEGER REFERENCES employees(id),
   created_at TEXT NOT NULL DEFAULT (datetime('now'))

@@ -12,14 +12,10 @@ import { sendMessage, telegramEnabled } from './telegram.js';
 // (shops.telegram_user_id shunda to'ladi), aks holda yuboriladigan
 // manzil bo'lmaydi. Server ham o'sha soatda ishlab turishi kerak.
 
-/** O'zbekiston vaqti — UTC+5, yozgi/qishki o'tish yo'q */
-const UZ_OFFSET_MINUTES = 5 * 60;
-
-/** Berilgan paytdagi O'zbekiston sanasi va soati */
-export function uzNow(at: Date = new Date()): { date: string; hour: number } {
-  const shifted = new Date(at.getTime() + UZ_OFFSET_MINUTES * 60_000);
-  return { date: shifted.toISOString().slice(0, 10), hour: shifted.getUTCHours() };
-}
+// Vaqt hisobi bitta joyda — tz.ts. Bu yerdan ham eksport qilinadi,
+// chunki hisobot jadvali uni shu modul nomi bilan ishlatib kelgan.
+import { uzNow } from './tz.js';
+export { uzNow };
 
 export interface DailyFigures {
   revenue: number;
@@ -47,14 +43,14 @@ export function dailyFigures(shopId: number): DailyFigures {
               COALESCE(SUM(CASE WHEN payment_type = 'cash' THEN total END), 0) AS cash,
               COALESCE(SUM(CASE WHEN payment_type = 'card' THEN total END), 0) AS card,
               COALESCE(SUM(CASE WHEN payment_type = 'debt' THEN total END), 0) AS debt
-       FROM sales WHERE shop_id = ? AND date(created_at) = date('now')`
+       FROM sales WHERE shop_id = ? AND date(created_at, '+5 hours') = date('now', '+5 hours')`
     )
     .get(shopId) as any;
   const profit = db
     .prepare(
       `SELECT COALESCE(SUM((si.price - p.cost_price) * si.qty), 0) AS profit
        FROM sale_items si JOIN sales s ON s.id = si.sale_id JOIN products p ON p.id = si.product_id
-       WHERE s.shop_id = ? AND date(s.created_at) = date('now')`
+       WHERE s.shop_id = ? AND date(s.created_at, '+5 hours') = date('now', '+5 hours')`
     )
     .get(shopId) as any;
   const ret = db
@@ -63,23 +59,23 @@ export function dailyFigures(shopId: number): DailyFigures {
               COALESCE(SUM(p.cost_price * ri.qty), 0) AS cost
        FROM return_items ri JOIN returns r ON r.id = ri.return_id
        JOIN products p ON p.id = ri.product_id
-       WHERE r.shop_id = ? AND date(r.created_at) = date('now')`
+       WHERE r.shop_id = ? AND date(r.created_at, '+5 hours') = date('now', '+5 hours')`
     )
     .get(shopId) as any;
   const expenses = db
-    .prepare(`SELECT COALESCE(SUM(amount), 0) AS s FROM expenses WHERE shop_id = ? AND spent_at = date('now')`)
+    .prepare(`SELECT COALESCE(SUM(amount), 0) AS s FROM expenses WHERE shop_id = ? AND spent_at = date('now', '+5 hours')`)
     .get(shopId) as any;
   const debts = db
     .prepare(
       `SELECT COUNT(*) AS c, COALESCE(SUM(amount), 0) AS s FROM debts
-       WHERE shop_id = ? AND date(created_at) = date('now')`
+       WHERE shop_id = ? AND date(created_at, '+5 hours') = date('now', '+5 hours')`
     )
     .get(shopId) as any;
   const paid = db
     .prepare(
       `SELECT COALESCE(SUM(dp.amount), 0) AS s FROM debt_payments dp
        JOIN debts d ON d.id = dp.debt_id
-       WHERE d.shop_id = ? AND date(dp.created_at) = date('now')`
+       WHERE d.shop_id = ? AND date(dp.created_at, '+5 hours') = date('now', '+5 hours')`
     )
     .get(shopId) as any;
   const low = db
@@ -88,7 +84,7 @@ export function dailyFigures(shopId: number): DailyFigures {
   const expiring = db
     .prepare(
       `SELECT COUNT(*) AS c FROM products WHERE shop_id = ? AND expiry_date IS NOT NULL
-       AND expiry_date <= date('now', '+7 days')`
+       AND expiry_date <= date('now', '+5 hours', '+7 days')`
     )
     .get(shopId) as any;
   const shop = db.prepare('SELECT daily_goal FROM shops WHERE id = ?').get(shopId) as any;
@@ -177,7 +173,7 @@ export async function sendDailyReport(shopId: number): Promise<{ ok: boolean; re
   if (!shop.telegram_user_id) return { ok: false, reason: 'no_telegram' };
   const res: any = await sendMessage(shop.telegram_user_id, reportText(shop.name, dailyFigures(shopId)));
   if (!res?.ok) return { ok: false, reason: 'send_failed' };
-  db.prepare("UPDATE shops SET last_report_date = date('now') WHERE id = ?").run(shopId);
+  db.prepare("UPDATE shops SET last_report_date = date('now', '+5 hours') WHERE id = ?").run(shopId);
   return { ok: true };
 }
 

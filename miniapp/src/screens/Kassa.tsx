@@ -5,7 +5,7 @@ import Scanner from '../Scanner';
 import { useHardwareScanner } from '../hardwareScanner';
 import { haptic } from '../telegram';
 import { useT } from '../i18n';
-import { formatAmount, amountValue, formatPhone, formatPhoneSoft, phoneDigits, phoneE164, isPhoneComplete } from '../format';
+import { formatAmount, amountValue, formatPhone, formatPhoneSoft, phoneDigits, phoneE164, isPhoneComplete, fmtDateTime, fmtWhen } from '../format';
 import { toast, loadFailed } from '../toast';
 import {
   Cart, MAX_CARTS, cartQty, cartTotal, linePrice, loadCarts, newCart, nextNo, saveCarts,
@@ -147,7 +147,7 @@ function HistoryMode() {
         </button>
         <div className="card">
           <div className="section-title" style={{ margin: '0 0 8px' }}>
-            {t('receipt')} #{detail.id} · {detail.created_at.slice(0, 16)}
+            {t('receipt')} #{detail.id} · {fmtDateTime(detail.created_at)}
           </div>
           <div className="list-group" style={{ marginBottom: 8 }}>
             {detail.items.map((i) => {
@@ -204,7 +204,7 @@ function HistoryMode() {
               {detail.returns.map((r) => (
                 <div className="list-item" key={r.id}>
                   <div>
-                    <div className="name">{r.created_at.slice(0, 16)}</div>
+                    <div className="name">{fmtDateTime(r.created_at)}</div>
                     {r.reason && <div className="sub">{r.reason}</div>}
                   </div>
                   <div className="amount" style={{ color: 'var(--red)' }}>−{fmt(r.total)}</div>
@@ -298,7 +298,7 @@ function HistoryMode() {
                   {s.items ?? '—'}
                 </div>
                 <div className="sub">
-                  {s.created_at.slice(5, 16)} ·{' '}
+                  {fmtWhen(s.created_at)} ·{' '}
                   {s.payment_type === 'cash' ? t('payCash') : s.payment_type === 'card' ? t('payCard') : t('payDebt')}
                   {s.customer_name ? ` · ${s.customer_name}` : ''}
                   {s.returned > 0 && (

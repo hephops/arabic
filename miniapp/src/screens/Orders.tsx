@@ -6,6 +6,7 @@ import { useT } from '../i18n';
 import { toast, loadFailed } from '../toast';
 import { tg } from '../telegram';
 import { PrintSheet, OrderPrint, type OrderSheetLine } from '../print';
+import { fmtDateTime, fmtWhen, fmtDay } from '../format';
 
 // "Ta'minotchiga buyurtma" — kam qolgan tovarlardan tayyor ro'yxat.
 //
@@ -209,7 +210,7 @@ export default function Orders({ onBack }: { onBack: () => void }) {
           <Summary
             icon="truck"
             label={t('orderDate')}
-            value={openOrder.created_at.slice(0, 16).replace('T', ' ')}
+            value={fmtDateTime(openOrder.created_at)}
             right={<span className={`badge ${badgeClass(openOrder.status)}`}>{statusLabel(openOrder.status, t)}</span>}
           />
           <div className="list-group">
@@ -246,7 +247,7 @@ export default function Orders({ onBack }: { onBack: () => void }) {
               setPrinting({
                 lines: openOrder.items.map((i) => ({ name: i.name, qty: i.qty, unit: i.unit })),
                 supplier: openOrder.supplier_name,
-                date: openOrder.created_at.slice(0, 10),
+                date: fmtDay(openOrder.created_at),
               })
             }
           >
@@ -288,6 +289,8 @@ export default function Orders({ onBack }: { onBack: () => void }) {
               <EmptyState icon="boxes" title={t('orderNothingLow')} sub={t('orderNothingLowSub')} />
             ) : (
               <>
+                <div className="order-cols">
+                <div className="order-main">
                 <div className="order-hero">
                   <div className="oh-top">
                     <div>
@@ -316,8 +319,6 @@ export default function Orders({ onBack }: { onBack: () => void }) {
                   </div>
                 )}
 
-                <div className="order-cols">
-                <div>
                 <div className="list-group">
                   {visible.map((r) => {
                     const l = lines[r.id];
@@ -387,7 +388,7 @@ export default function Orders({ onBack }: { onBack: () => void }) {
                         setPrinting({
                           lines: chosen.map((l) => ({ name: l.name, qty: l.qty, unit: l.unit })),
                           supplier: groups.find((g) => g.id === group)?.name ?? null,
-                          date: new Date().toISOString().slice(0, 10),
+                          date: fmtDay(new Date().toISOString()),
                         })
                       }
                     >
@@ -414,7 +415,7 @@ export default function Orders({ onBack }: { onBack: () => void }) {
             {orders.length === 0 ? (
               <EmptyState icon="clock" title={t('orderNoHistory')} sub={t('orderNoHistorySub')} />
             ) : (
-              <div className="list-group">
+              <div className="list-group order-history">
                 {orders.map((o) => (
                   <div className="list-item" key={o.id} onClick={() => setOpenOrder(o)}>
                     <div className="lead">
@@ -425,7 +426,7 @@ export default function Orders({ onBack }: { onBack: () => void }) {
                           <span className={`badge ${badgeClass(o.status)}`}>{statusLabel(o.status, t)}</span>
                         </div>
                         <div className="sub">
-                          {o.created_at.slice(0, 16).replace('T', ' ')} · {o.items.length} {t('itemsShort')}
+                          {fmtWhen(o.created_at)} · {o.items.length} {t('itemsShort')}
                         </div>
                       </div>
                     </div>

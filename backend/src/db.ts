@@ -142,12 +142,12 @@ db.exec(`
 export function markOverdueDebts() {
   db.prepare(
     `UPDATE debts SET status = 'overdue'
-     WHERE status = 'active' AND due_date IS NOT NULL AND due_date < date('now')
+     WHERE status = 'active' AND due_date IS NOT NULL AND due_date < date('now', '+5 hours')
        AND paid_amount < amount`
   ).run();
   db.prepare(
     `UPDATE supplier_debts SET status = 'overdue'
-     WHERE status = 'active' AND due_date IS NOT NULL AND due_date < date('now')
+     WHERE status = 'active' AND due_date IS NOT NULL AND due_date < date('now', '+5 hours')
        AND paid_amount < amount`
   ).run();
 }

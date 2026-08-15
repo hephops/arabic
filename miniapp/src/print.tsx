@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { ean13Svg } from './ean13';
 import { qrSvg } from './qr';
 import { group } from './i18n';
+import { fmtDateTime } from './format';
 
 // Chek va yorliq chop etish.
 //
@@ -120,7 +121,7 @@ export function Receipt({ data, t }: { data: ReceiptData; t: (k: string) => stri
 
       <div className="r-meta">
         <span>{t('receipt')} #{data.id}</span>
-        <span>{data.created_at.slice(0, 16).replace('T', ' ')}</span>
+        <span>{fmtDateTime(data.created_at)}</span>
       </div>
       {data.seller?.name && (
         <div className="r-meta">
@@ -194,7 +195,7 @@ export function Receipt({ data, t }: { data: ReceiptData; t: (k: string) => stri
 export function receiptQrText(data: ReceiptData, t: (k: string) => string): string {
   const lines = [
     data.shop?.name ?? '',
-    `${t('receipt')} #${data.id} · ${data.created_at.slice(0, 16).replace('T', ' ')}`,
+    `${t('receipt')} #${data.id} · ${fmtDateTime(data.created_at)}`,
     `${t('total')}: ${group(data.total)} ${t('currency')}`,
   ];
   if (data.payment_type === 'debt') {

@@ -14,6 +14,7 @@ import { normalizeBarcode, barcodeVariants, checkGtin, makeInStoreEan13, parseSc
 import { normalizePhone } from './phone.js';
 import { dailyFigures, reportText, sendDailyReport, startDailyReportScheduler } from './dailyReport.js';
 import { customerCode, receiptText } from './customerLink.js';
+import { uzToday, uzDayShift } from './tz.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const UPLOADS_DIR = join(__dirname, '..', 'uploads');
@@ -80,8 +81,8 @@ app.post<{ Body: { phone: string; code: string; shop_name?: string; ref?: string
         shop_name ?? 'Mening do‘konim',
         ref ?? null,
         trialDays > 0 ? 'premium' : 'free',
-        trialDays > 0 ? new Date(Date.now() + trialDays * 86400000).toISOString().slice(0, 10) : null,
-        trialDays > 0 ? new Date(Date.now() + trialDays * 86400000).toISOString().slice(0, 10) : null
+        trialDays > 0 ? uzDayShift(trialDays) : null,
+        trialDays > 0 ? uzDayShift(trialDays) : null
       );
     shop = db.prepare('SELECT * FROM shops WHERE id = ?').get(info.lastInsertRowid);
   }
@@ -166,7 +167,7 @@ app.get('/me', { preHandler: requireAuth }, async (req) => {
     ? db.prepare('SELECT id, name, role FROM employees WHERE id = ?').get(req.employeeId)
     : null;
   // Sinov muddati holati — ilova "N kun qoldi" deb ko'rsatadi
-  const today = new Date().toISOString().slice(0, 10);
+  const today = uzToday();
   const onTrial = !!shop.trial_ends_at && shop.trial_ends_at >= today && shop.plan_expires_at === shop.trial_ends_at;
   const daysLeft = shop.plan_expires_at
     ? Math.ceil((new Date(shop.plan_expires_at).getTime() - new Date(today).getTime()) / 86_400_000)
@@ -239,7 +240,7 @@ function checkCreditAllowed(
 /** Obuna muddati o'tgan bo'lsa amalda "bepul" hisoblanadi */
 function activePlan(shop: any): string {
   if (!shop?.plan || shop.plan === 'free') return 'free';
-  if (shop.plan_expires_at && shop.plan_expires_at < new Date().toISOString().slice(0, 10)) return 'free';
+  if (shop.plan_expires_at && shop.plan_expires_at < uzToday()) return 'free';
   return shop.plan;
 }
 
@@ -283,7 +284,7 @@ app.post<{ Body: { plan: string; period?: 'month' | 'year' } }>(
     db.prepare(
       `UPDATE shops SET balance = balance - ?, plan = ?,
          plan_expires_at = date(
-           CASE WHEN plan_expires_at > date('now') THEN plan_expires_at ELSE date('now') END,
+           CASE WHEN plan_expires_at > date('now', '+5 hours') THEN plan_expires_at ELSE date('now', '+5 hours') END,
            '+' || ? || ' days')
        WHERE id = ?`
     ).run(cost, req.body.plan, days, req.shopId);
@@ -308,7 +309,7 @@ app.get('/dashboard', { preHandler: requireAuth }, async (req) => {
   const dueToday = db
     .prepare(
       `SELECT d.*, c.name AS customer_name FROM debts d JOIN customers c ON c.id = d.customer_id
-       WHERE d.shop_id = ? AND d.status != 'paid' AND d.due_date = date('now') ORDER BY d.amount DESC`
+       WHERE d.shop_id = ? AND d.status != 'paid' AND d.due_date = date('now', '+5 hours') ORDER BY d.amount DESC`
     )
     .all(req.shopId);
   const overdue = db
@@ -323,9 +324,9 @@ app.get('/dashboard', { preHandler: requireAuth }, async (req) => {
   const expiringSoon = (
     db
       .prepare(
-        `SELECT *, CAST(julianday(expiry_date) - julianday(date('now')) AS INTEGER) AS days_left
+        `SELECT *, CAST(julianday(expiry_date) - julianday(date('now', '+5 hours')) AS INTEGER) AS days_left
          FROM products WHERE shop_id = ? AND expiry_date IS NOT NULL
-         AND expiry_date <= date('now', '+7 days') ORDER BY expiry_date ASC LIMIT 10`
+         AND expiry_date <= date('now', '+5 hours', '+7 days') ORDER BY expiry_date ASC LIMIT 10`
       )
       .all(req.shopId) as any[]
   ).map((p) => ({ ...p, price_after_discount: priceWithDiscount(p) }));
@@ -357,42 +358,40 @@ app.get('/dashboard', { preHandler: requireAuth }, async (req) => {
               COALESCE(SUM(CASE WHEN payment_type = 'cash' THEN total END), 0) AS cash,
               COALESCE(SUM(CASE WHEN payment_type = 'card' THEN total END), 0) AS card,
               COALESCE(SUM(CASE WHEN payment_type = 'debt' THEN total END), 0) AS debt
-       FROM sales WHERE shop_id = ? AND date(created_at) = date('now')`
+       FROM sales WHERE shop_id = ? AND date(created_at, '+5 hours') = date('now', '+5 hours')`
     )
     .get(req.shopId) as any;
   const todayProfit = db
     .prepare(
       `SELECT COALESCE(SUM((si.price - p.cost_price) * si.qty), 0) AS profit
        FROM sale_items si JOIN sales s ON s.id = si.sale_id JOIN products p ON p.id = si.product_id
-       WHERE s.shop_id = ? AND date(s.created_at) = date('now')`
+       WHERE s.shop_id = ? AND date(s.created_at, '+5 hours') = date('now', '+5 hours')`
     )
     .get(req.shopId) as any;
   // Bugungi qaytarishlar — tushum va foydadan chiqariladi
   const todayReturns = returnsTotals(req.shopId!, '-0 days');
   // Bugungi xarajatlar — "foyda" faqat tovar ustamasi bo'lib qolmasligi uchun
   const todayExpenses = (db
-    .prepare(`SELECT COALESCE(SUM(amount), 0) AS s FROM expenses WHERE shop_id = ? AND spent_at = date('now')`)
+    .prepare(`SELECT COALESCE(SUM(amount), 0) AS s FROM expenses WHERE shop_id = ? AND spent_at = date('now', '+5 hours')`)
     .get(req.shopId) as any).s as number;
   const monthExpenses = (db
     .prepare(
       `SELECT COALESCE(SUM(amount), 0) AS s FROM expenses
-       WHERE shop_id = ? AND spent_at >= date('now', 'start of month')`
+       WHERE shop_id = ? AND spent_at >= date('now', '+5 hours', 'start of month')`
     )
     .get(req.shopId) as any).s as number;
   // Oxirgi 7 kunlik savdo (grafik uchun) — bo'sh kunlar 0 bilan to'ldiriladi
   const raw = db
     .prepare(
-      `SELECT date(created_at) AS d, COALESCE(SUM(total), 0) AS revenue
-       FROM sales WHERE shop_id = ? AND date(created_at) >= date('now', '-6 days')
-       GROUP BY date(created_at)`
+      `SELECT date(created_at, '+5 hours') AS d, COALESCE(SUM(total), 0) AS revenue
+       FROM sales WHERE shop_id = ? AND date(created_at, '+5 hours') >= date('now', '+5 hours', '-6 days')
+       GROUP BY date(created_at, '+5 hours')`
     )
     .all(req.shopId) as any[];
   const byDay = new Map(raw.map((r) => [r.d, r.revenue]));
   const week: { day: string; revenue: number }[] = [];
   for (let i = 6; i >= 0; i--) {
-    const d = new Date();
-    d.setDate(d.getDate() - i);
-    const key = d.toISOString().slice(0, 10);
+    const key = uzDayShift(-i);
     week.push({ day: key, revenue: byDay.get(key) ?? 0 });
   }
   return {
@@ -446,16 +445,16 @@ const TRUST_SQL = `
          SUM(CASE WHEN d.status = 'paid' THEN 1 ELSE 0 END) AS closed,
          SUM(CASE WHEN d.status = 'paid' AND d.due_date IS NOT NULL
                    AND date(COALESCE((SELECT MAX(dp.created_at) FROM debt_payments dp WHERE dp.debt_id = d.id),
-                                     d.created_at)) > date(d.due_date)
+                                     d.created_at), '+5 hours') > date(d.due_date)
              THEN 1 ELSE 0 END) AS late,
          COALESCE(SUM(CASE WHEN d.status = 'paid' AND d.due_date IS NOT NULL
                    AND date(COALESCE((SELECT MAX(dp.created_at) FROM debt_payments dp WHERE dp.debt_id = d.id),
-                                     d.created_at)) > date(d.due_date)
-             THEN julianday(COALESCE((SELECT MAX(dp.created_at) FROM debt_payments dp WHERE dp.debt_id = d.id),
-                                     d.created_at)) - julianday(d.due_date)
+                                     d.created_at), '+5 hours') > date(d.due_date)
+             THEN julianday(date(COALESCE((SELECT MAX(dp.created_at) FROM debt_payments dp WHERE dp.debt_id = d.id),
+                                          d.created_at), '+5 hours')) - julianday(d.due_date)
              ELSE 0 END), 0) AS late_days_sum,
-         COALESCE(MAX(CASE WHEN d.status != 'paid' AND d.due_date IS NOT NULL AND date(d.due_date) < date('now')
-             THEN julianday('now') - julianday(d.due_date) ELSE 0 END), 0) AS overdue_days
+         COALESCE(MAX(CASE WHEN d.status != 'paid' AND d.due_date IS NOT NULL AND date(d.due_date) < date('now', '+5 hours')
+             THEN julianday(date('now', '+5 hours')) - julianday(d.due_date) ELSE 0 END), 0) AS overdue_days
   FROM customers c LEFT JOIN debts d ON d.customer_id = c.id
   WHERE c.shop_id = ? GROUP BY c.id`;
 
@@ -677,7 +676,7 @@ app.get<{ Querystring: { limit?: string } }>('/reminders', { preHandler: require
       `SELECT SUM(CASE WHEN channel != 'call' THEN 1 ELSE 0 END) AS sms,
               SUM(CASE WHEN channel = 'call' THEN 1 ELSE 0 END) AS calls
        FROM reminder_logs
-       WHERE shop_id = ? AND status = 'sent' AND created_at >= date('now', 'start of month')`
+       WHERE shop_id = ? AND status = 'sent' AND date(created_at, '+5 hours') >= date('now', '+5 hours', 'start of month')`
     )
     .get(req.shopId) as any;
   const smsPrice = Number(getSetting('sms_price', '150'));
@@ -937,7 +936,7 @@ app.get('/orders/suggest', { preHandler: requireAuth }, async (req) => {
               COALESCE((SELECT SUM(si.qty) FROM sale_items si
                         JOIN sales sa ON sa.id = si.sale_id
                         WHERE si.product_id = p.id
-                          AND date(sa.created_at) >= date('now', '-30 days')), 0) AS sold30
+                          AND date(sa.created_at, '+5 hours') >= date('now', '+5 hours', '-30 days')), 0) AS sold30
        FROM products p LEFT JOIN suppliers s ON s.id = p.supplier_id
        WHERE p.shop_id = ? AND p.stock <= p.low_stock_threshold
        ORDER BY (p.stock - p.low_stock_threshold) ASC, p.name`
@@ -1862,14 +1861,14 @@ app.get<{ Querystring: { period?: string; limit?: string } }>(
                  FROM return_items ri JOIN products p ON p.id = ri.product_id
                  WHERE ri.return_id = r.id) AS items
          FROM returns r LEFT JOIN customers c ON c.id = r.customer_id
-         WHERE r.shop_id = ?${since ? " AND date(r.created_at) >= date('now', ?)" : ''}
+         WHERE r.shop_id = ?${since ? " AND date(r.created_at, '+5 hours') >= date('now', '+5 hours', ?)" : ''}
          ORDER BY r.created_at DESC, r.id DESC LIMIT ?`
       )
       .all(...(since ? [req.shopId, since, limit] : [req.shopId, limit]));
     const sum = db
       .prepare(
         `SELECT COUNT(*) AS count, COALESCE(SUM(total), 0) AS total FROM returns
-         WHERE shop_id = ?${since ? " AND date(created_at) >= date('now', ?)" : ''}`
+         WHERE shop_id = ?${since ? " AND date(created_at, '+5 hours') >= date('now', '+5 hours', ?)" : ''}`
       )
       .get(...(since ? [req.shopId, since] : [req.shopId])) as any;
     return { items, count: sum.count, total: sum.total };
@@ -1885,7 +1884,7 @@ function returnsTotals(shopId: number, sinceDays: string): { total: number; cost
        FROM return_items ri
        JOIN returns r ON r.id = ri.return_id
        JOIN products p ON p.id = ri.product_id
-       WHERE r.shop_id = ? AND date(r.created_at) >= date('now', ?)`
+       WHERE r.shop_id = ? AND date(r.created_at, '+5 hours') >= date('now', '+5 hours', ?)`
     )
     .get(shopId, sinceDays) as any;
   return { total: row.total as number, cost: row.cost as number };
@@ -1919,7 +1918,7 @@ function expensesTotal(shopId: number, sinceDays: string): number {
   const row = db
     .prepare(
       `SELECT COALESCE(SUM(amount), 0) AS s FROM expenses
-       WHERE shop_id = ? AND spent_at >= date('now', ?)`
+       WHERE shop_id = ? AND spent_at >= date('now', '+5 hours', ?)`
     )
     .get(shopId, sinceDays) as any;
   return row.s as number;
@@ -1944,7 +1943,7 @@ app.get<{ Querystring: { period?: string; category?: string; from?: string; to?:
     if (!req.query.from && !req.query.to) {
       const since = expensePeriodSql(req.query.period);
       if (since) {
-        where.push("e.spent_at >= date('now', ?)");
+        where.push("e.spent_at >= date('now', '+5 hours', ?)");
         params.push(since);
       }
     }
@@ -1982,7 +1981,7 @@ app.get<{ Querystring: { period?: string; category?: string; from?: string; to?:
          FROM expenses e
          WHERE e.shop_id = ? AND e.is_recurring = 1
          GROUP BY e.category
-         HAVING MAX(e.spent_at) < date('now', 'start of month')`
+         HAVING MAX(e.spent_at) < date('now', '+5 hours', 'start of month')`
       )
       .all(req.shopId);
 
@@ -2006,8 +2005,8 @@ app.post<{ Body: { category?: string; amount?: number; note?: string; spent_at?:
     if (amount <= 0) return reply.code(400).send({ error: 'amount_required' });
     if (!category) return reply.code(400).send({ error: 'category_required' });
     // Kelajakdagi sana — deyarli har doim terishdagi xato
-    const spentAt = (req.body?.spent_at ?? '').trim() || new Date().toISOString().slice(0, 10);
-    if (spentAt > new Date().toISOString().slice(0, 10)) return reply.code(400).send({ error: 'future_date' });
+    const spentAt = (req.body?.spent_at ?? '').trim() || uzToday();
+    if (spentAt > uzToday()) return reply.code(400).send({ error: 'future_date' });
 
     const info = db
       .prepare(
@@ -2040,7 +2039,7 @@ app.patch<{ Params: { id: string }; Body: Record<string, unknown> }>(
     }
     if ('spent_at' in req.body) {
       const spentAt = String(req.body.spent_at ?? '').trim();
-      if (spentAt > new Date().toISOString().slice(0, 10)) return reply.code(400).send({ error: 'future_date' });
+      if (spentAt > uzToday()) return reply.code(400).send({ error: 'future_date' });
       if (spentAt) db.prepare('UPDATE expenses SET spent_at = ? WHERE id = ?').run(spentAt, req.params.id);
     }
     if ('category' in req.body) {
@@ -2070,7 +2069,7 @@ app.get<{ Querystring: { period?: string } }>('/expenses/export', { preHandler: 
   const rows = db
     .prepare(
       `SELECT spent_at, category, amount, COALESCE(note, '') AS note FROM expenses
-       WHERE shop_id = ?${since ? " AND spent_at >= date('now', ?)" : ''}
+       WHERE shop_id = ?${since ? " AND spent_at >= date('now', '+5 hours', ?)" : ''}
        ORDER BY spent_at DESC, id DESC`
     )
     .all(...(since ? [req.shopId, since] : [req.shopId])) as any[];
@@ -2093,21 +2092,21 @@ app.get<{ Querystring: { period?: string } }>('/reports/summary', { preHandler: 
               COALESCE(SUM(CASE WHEN payment_type = 'cash' THEN total END), 0) AS cash,
               COALESCE(SUM(CASE WHEN payment_type = 'card' THEN total END), 0) AS card,
               COALESCE(SUM(CASE WHEN payment_type = 'debt' THEN total END), 0) AS debt
-       FROM sales WHERE shop_id = ? AND date(created_at) >= date('now', ?)`
+       FROM sales WHERE shop_id = ? AND date(created_at, '+5 hours') >= date('now', '+5 hours', ?)`
     )
     .get(req.shopId, period) as any;
   const profit = db
     .prepare(
       `SELECT COALESCE(SUM((si.price - p.cost_price) * si.qty), 0) AS profit
        FROM sale_items si JOIN sales s ON s.id = si.sale_id JOIN products p ON p.id = si.product_id
-       WHERE s.shop_id = ? AND date(s.created_at) >= date('now', ?)`
+       WHERE s.shop_id = ? AND date(s.created_at, '+5 hours') >= date('now', '+5 hours', ?)`
     )
     .get(req.shopId, period) as any;
   const topProducts = db
     .prepare(
       `SELECT p.name, SUM(si.qty) AS sold, SUM(si.price * si.qty) AS revenue
        FROM sale_items si JOIN sales s ON s.id = si.sale_id JOIN products p ON p.id = si.product_id
-       WHERE s.shop_id = ? AND date(s.created_at) >= date('now', ?)
+       WHERE s.shop_id = ? AND date(s.created_at, '+5 hours') >= date('now', '+5 hours', ?)
        GROUP BY p.id ORDER BY sold DESC LIMIT 10`
     )
     .all(req.shopId, period);
@@ -2119,7 +2118,7 @@ app.get<{ Querystring: { period?: string } }>('/reports/summary', { preHandler: 
   const expensesByCategory = db
     .prepare(
       `SELECT category, SUM(amount) AS total FROM expenses
-       WHERE shop_id = ? AND spent_at >= date('now', ?)
+       WHERE shop_id = ? AND spent_at >= date('now', '+5 hours', ?)
        GROUP BY category ORDER BY total DESC`
     )
     .all(req.shopId, period);
@@ -2153,7 +2152,7 @@ app.get<{ Querystring: { period?: string } }>('/reports/employees', { preHandler
               COALESCE(SUM(s.total), 0) AS revenue,
               COALESCE(SUM(CASE WHEN s.payment_type = 'debt' THEN s.total END), 0) AS debt_revenue
        FROM sales s LEFT JOIN employees e ON e.id = s.created_by
-       WHERE s.shop_id = ? AND date(s.created_at) >= date('now', ?)
+       WHERE s.shop_id = ? AND date(s.created_at, '+5 hours') >= date('now', '+5 hours', ?)
        GROUP BY s.created_by ORDER BY revenue DESC`
     )
     .all(req.shopId, period) as any[];
@@ -2166,7 +2165,7 @@ app.get<{ Querystring: { period?: string } }>('/reports/employees', { preHandler
               COALESCE(SUM((si.price - p.cost_price) * si.qty), 0) AS profit,
               COALESCE(SUM(si.qty), 0) AS items
        FROM sale_items si JOIN sales s ON s.id = si.sale_id JOIN products p ON p.id = si.product_id
-       WHERE s.shop_id = ? AND date(s.created_at) >= date('now', ?)
+       WHERE s.shop_id = ? AND date(s.created_at, '+5 hours') >= date('now', '+5 hours', ?)
        GROUP BY s.created_by`
     )
     .all(req.shopId, period) as any[];
@@ -2178,7 +2177,7 @@ app.get<{ Querystring: { period?: string } }>('/reports/employees', { preHandler
               COALESCE(SUM(ri.price * ri.qty), 0) AS returned,
               COUNT(DISTINCT r.id) AS returns_count
        FROM return_items ri JOIN returns r ON r.id = ri.return_id
-       WHERE r.shop_id = ? AND date(r.created_at) >= date('now', ?)
+       WHERE r.shop_id = ? AND date(r.created_at, '+5 hours') >= date('now', '+5 hours', ?)
        GROUP BY r.created_by`
     )
     .all(req.shopId, period) as any[];
@@ -2265,7 +2264,7 @@ app.get<{ Querystring: { period?: string } }>('/reports/export', { preHandler: r
               (SELECT GROUP_CONCAT(p.name || ' x' || CAST(si.qty AS INTEGER), '; ')
                FROM sale_items si JOIN products p ON p.id = si.product_id WHERE si.sale_id = s.id) AS mahsulotlar
        FROM sales s LEFT JOIN customers c ON c.id = s.customer_id
-       WHERE s.shop_id = ? AND date(s.created_at) >= date('now', ?)
+       WHERE s.shop_id = ? AND date(s.created_at, '+5 hours') >= date('now', '+5 hours', ?)
        ORDER BY s.created_at DESC`
     )
     .all(req.shopId, period) as any[];

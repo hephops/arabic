@@ -1293,8 +1293,17 @@ button.link { background: none; color: var(--accent); font-size: 15px; font-weig
      Telefonda ular ustma-ust turadi; kompyuterda esa matn ko'z
      oldida turgani ma'qul — do'konchi miqdorni o'zgartirganda
      matn qanday o'zgarayotganini darhol ko'radi. */
-  .order-cols { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(320px, 1fr); gap: 22px; align-items: start; }
+  .order-cols { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(340px, 1fr); gap: 22px; align-items: start; }
   .order-side { position: sticky; top: 72px; }
+  /* Sarlavha karta va chiplar ham shu ustun ichida — ilgari ular butun
+     ekran bo'ylab cho'zilib, o'ngda katta bo'sh joy qoldirardi */
+  .order-main > .order-hero { margin-bottom: 14px; }
+  .order-main > .chip-row { margin-bottom: 10px; }
+  /* O'ng ustun — amallar ustuni: tugmalar bir xil kenglikda tizilib turadi */
+  .order-side .btn-primary, .order-side .btn-ghost { width: 100%; min-width: 0; }
+  .order-side > .section-title { margin-top: 0; }
+  /* Tarix — bitta ustunli ro'yxat, keng ekranda cho'zilib ketmasin */
+  .order-history { max-width: 760px; }
 
   /* Savat kartochkalari keng ekranda kattaroq */
   .cart-card { width: 186px; padding: 13px 15px 14px; }

@@ -6,6 +6,7 @@ import type { SubScreen } from '../App';
 import { useT } from '../i18n';
 import { GoalBar, GoalSheet } from '../goal';
 import { DiscountSheet } from '../discount';
+import { uzToday, fmtWhen } from '../format';
 
 export default function Dashboard({
   onNavigate,
@@ -31,7 +32,7 @@ export default function Dashboard({
 
   const maxRev = Math.max(...data.week.map((w) => w.revenue), 1);
   const weekTotal = data.week.reduce((a, w) => a + w.revenue, 0);
-  const today = new Date().toISOString().slice(0, 10);
+  const today = uzToday();
   const WD = ['Ya', 'Du', 'Se', 'Ch', 'Pa', 'Ju', 'Sh'];
 
   return (
@@ -325,7 +326,7 @@ export default function Dashboard({
                       {s.items ?? '—'}
                     </div>
                     <div className="sub">
-                      {s.created_at.slice(5, 16)} ·{' '}
+                      {fmtWhen(s.created_at)} ·{' '}
                       {s.payment_type === 'cash' ? t('payCash') : s.payment_type === 'card' ? t('payCard') : t('payDebt')}
                       {s.customer_name ? ` · ${s.customer_name}` : ''}
                     </div>
