@@ -104,6 +104,11 @@ export const api = {
     request<{ customer: Customer | null }>(`/customers/lookup?phone=${encodeURIComponent(phone)}`),
   employeeReport: (period: 'day' | 'week' | 'month') =>
     request<EmployeeStat[]>(`/reports/employees?period=${period}`),
+  parseVoiceCart: (text: string) =>
+    request<{ raw: string; lines: { said: string; qty: number; product: Product | null; score: number }[]; found: number; missing: string[] }>(
+      '/voice/cart',
+      { method: 'POST', body: JSON.stringify({ text }) }
+    ),
   dailyReportPreview: () =>
     request<{ text: string; telegram_linked: boolean; figures: Record<string, number> }>('/reports/daily/preview'),
   sendDailyReport: () => request<{ ok: boolean }>('/reports/daily/send', { method: 'POST' }),

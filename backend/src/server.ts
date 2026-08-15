@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { db, markOverdueDebts } from './db.js';
 import { signToken, requireAuth, requireOwner } from './auth.js';
 import { hit, reset } from './ratelimit.js';
-import { parseDebtText } from './voice.js';
+import { parseDebtText, parseCartText } from './voice.js';
 import { runReminders, startReminderScheduler } from './reminders.js';
 import { handleUpdate, verifyInitData, telegramEnabled, setWebhook } from './telegram.js';
 import { registerAdminRoutes, seedAdmin } from './admin.js';
@@ -766,6 +766,27 @@ app.post<{ Body: { text: string } }>('/voice/parse', { preHandler: requireAuth }
   const parsed = parseDebtText(req.body.text);
   if (!parsed) return reply.code(422).send({ error: 'could_not_parse' });
   return parsed;
+});
+
+/** Ovozdan savat: "uch dona non, bitta sut" -> savat satrlari.
+ *
+ *  Tovarlar do'konning o'z ro'yxatidan qidiriladi — shuning uchun
+ *  tahlil serverda, mahsulot bazasiga yaqin joyda turadi. */
+app.post<{ Body: { text: string } }>('/voice/cart', { preHandler: requireAuth }, async (req, reply) => {
+  const text = (req.body?.text ?? '').trim();
+  if (!text) return reply.code(400).send({ error: 'text_required' });
+  const products = db
+    // Qoldiq ham qaytadi: savatga qo'shishda qoldiqdan oshib ketmasligini
+    // tekshirish uchun kerak (yo'qligi savat summasini NaN qilgan edi)
+    .prepare('SELECT id, name, unit, sell_price, discount_percent, stock, barcode, image_url FROM products WHERE shop_id = ?')
+    .all(req.shopId) as any[];
+  const lines = parseCartText(text, products);
+  return {
+    raw: text,
+    lines,
+    found: lines.filter((l) => l.product).length,
+    missing: lines.filter((l) => !l.product).map((l) => l.said),
+  };
 });
 
 // ---------- POSTAVSHIKLAR ----------

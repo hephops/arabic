@@ -13,6 +13,7 @@ import {
 import { PrintSheet, Receipt } from '../print';
 import { TrustWarning } from '../trust';
 import { GoalStrip } from '../goal';
+import { VoiceCartSheet } from '../voiceCart';
 import { priceAfter } from '../discount';
 
 function ProductThumb({ product, size = 44 }: { product: Product; size?: number }) {
@@ -346,6 +347,7 @@ function SaleMode({ onDone }: { onDone: () => void }) {
   // to'lov odati esa sotuvchiga darhol ko'rinadi
   const [known, setKnown] = useState<Customer | null>(null);
   const [scanning, setScanning] = useState(false);
+  const [voice, setVoice] = useState(false);
   // Skanerda topilmagan kod: mahsulot tanlansa, kod o'shanga biriktiriladi
   const [pendingCode, setPendingCode] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -761,10 +763,39 @@ function SaleMode({ onDone }: { onDone: () => void }) {
               </button>
             )}
           </div>
+          {/* Ovoz bilan: "uch dona non, bitta sut" deb aytish bilan savat to'ladi */}
+          <button className="mic-round" onClick={() => setVoice(true)} aria-label={t('voiceCartTitle')}>
+            <Glyph name="mic" size={20} color="#fff" />
+          </button>
           <button className="scan-round" onClick={() => setScanning(true)} aria-label={t('scanner')}>
             <Glyph name="scan" size={21} color="#fff" />
           </button>
         </div>
+
+        {voice && (
+          <VoiceCartSheet
+            onClose={() => setVoice(false)}
+            onAdd={(items) => {
+              // Bir necha satr birdan qo'shiladi: qoldiqdan oshsa
+              // borichasi olinadi, do'konchi keyin o'zi to'g'rilaydi
+              patchActive((c) => {
+                let lines = c.lines;
+                for (const { product, qty } of items) {
+                  const have = lines.find((l) => l.product.id === product.id);
+                  // Qoldiq noma'lum bo'lsa cheklamaymiz — Math.min(x, undefined)
+                  // butun summani NaN qilib yuborardi
+                  const limit = Number.isFinite(product.stock) ? product.stock : Infinity;
+                  const want = Math.min((have?.qty ?? 0) + qty, limit);
+                  if (!(want > 0)) continue;
+                  lines = have
+                    ? lines.map((l) => (l.product.id === product.id ? { ...l, qty: want } : l))
+                    : [...lines, { product, qty: want }];
+                }
+                return { ...c, lines };
+              });
+            }}
+          />
+        )}
 
         {scanning && (
           <Scanner
@@ -950,6 +981,7 @@ function IntakeMode({ onDone }: { onDone: () => void }) {
   const [image, setImage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [scanning, setScanning] = useState(false);
+  const [voice, setVoice] = useState(false);
   const [codeWarning, setCodeWarning] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
   const { t } = useT();
