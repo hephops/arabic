@@ -441,6 +441,7 @@ const UZ: Record<string, string> = {
   // Xarajatlar
   tileExpenses: 'Xarajatlar',
   navExpenses: 'Xarajatlar',
+  allSections: 'Barcha bo\'limlar',
   navOrders: 'Buyurtma',
   knownCustomerDebt: 'Bu mijozning ochiq qarzi',
   tgLinkAction: "Telegram'ga ulash",
@@ -1046,6 +1047,7 @@ const RU: Record<string, string> = {
   // Расходы
   tileExpenses: 'Расходы',
   navExpenses: 'Расходы',
+  allSections: 'Все разделы',
   navOrders: 'Заказ',
   knownCustomerDebt: 'Открытый долг клиента',
   tgLinkAction: 'Подключить Telegram',

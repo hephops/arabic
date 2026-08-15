@@ -71,6 +71,25 @@ const SIDE_GROUPS: { key: string; glyph: string; target: NavTarget }[][] = [
   ],
 ];
 
+/** "Barcha bo'limlar" menyusi ilgari ochilganmi.
+ *  Yozuvni saqlaymiz, chunki ishorat faqat o'rganguncha kerak —
+ *  keyin u bezovta qiladi. */
+const MENU_SEEN_KEY = 'arabic.menuSeen.v1';
+const wasMenuSeen = () => {
+  try {
+    return localStorage.getItem(MENU_SEEN_KEY) === '1';
+  } catch {
+    return false; // maxfiy rejimda localStorage yopiq bo'lishi mumkin
+  }
+};
+const markMenuSeen = () => {
+  try {
+    localStorage.setItem(MENU_SEEN_KEY, '1');
+  } catch {
+    /* saqlanmasa ham ishorat shu seansda to'xtaydi */
+  }
+};
+
 export default function Dock({
   tab,
   sub,
@@ -85,6 +104,8 @@ export default function Dock({
   onNavigate: (t: NavTarget) => void;
 }) {
   const [open, setOpen] = useState(false);
+  // Menyu bir marta ochilganmi — ochilmagan bo'lsa strelka sakrab turadi
+  const [menuSeen, setMenuSeen] = useState(wasMenuSeen);
   const [deck, setDeck] = useState(false);   // kompyuterdagi pastki panel
   const { t } = useT();
   // Ochiq savatlar soni — qaysi bo'limda bo'lsa ham ko'rinib turadi
@@ -189,7 +210,27 @@ export default function Dock({
       </div>
 
       <div className="dock">
-        <button className="dock-handle" aria-label="Menyu" onClick={() => { haptic.tap(); setOpen(true); }} />
+        {/* Barcha bo'limlarni ochadigan tutqich.
+            Ilgari bu shunchaki kulrang chiziq edi — do'konchi uni bosish
+            mumkinligini bilmasdi. Endi yonida yuqoriga qaragan strelka
+            turadi va menyu hali bir marta ham ochilmagan bo'lsa sekin
+            sakrab, "meni bos" deb turadi. Bir marta ochilgach tinchiydi. */}
+        <button
+          className={`dock-handle ${open ? 'open' : ''} ${menuSeen ? '' : 'hint'}`}
+          aria-label={t('allSections')}
+          aria-expanded={open}
+          onClick={() => {
+            haptic.tap();
+            setOpen(true);
+            markMenuSeen();
+            setMenuSeen(true);
+          }}
+        >
+          <span className="dh-line" />
+          <span className="dh-arrow">
+            <Glyph name="chevron" size={13} color="var(--accent)" strokeWidth={2.4} />
+          </span>
+        </button>
         {DOCK_ITEMS.map((item) => (
           <button
             key={item.id}
