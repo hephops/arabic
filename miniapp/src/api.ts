@@ -104,6 +104,9 @@ export const api = {
     request<{ customer: Customer | null }>(`/customers/lookup?phone=${encodeURIComponent(phone)}`),
   employeeReport: (period: 'day' | 'week' | 'month') =>
     request<EmployeeStat[]>(`/reports/employees?period=${period}`),
+  dailyReportPreview: () =>
+    request<{ text: string; telegram_linked: boolean; figures: Record<string, number> }>('/reports/daily/preview'),
+  sendDailyReport: () => request<{ ok: boolean }>('/reports/daily/send', { method: 'POST' }),
   setDiscount: (ids: number[], percent: number) =>
     request<{ ok: boolean; percent: number; changed: number }>('/products/discount', {
       method: 'POST',
@@ -147,7 +150,7 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify({ default_reminder_mode: mode, apply_to_all: applyToAll }),
     }),
-  updateMe: (data: Partial<Pick<Shop, 'name' | 'owner_name' | 'address' | 'language' | 'card_number' | 'daily_goal'>>) =>
+  updateMe: (data: Partial<Pick<Shop, 'name' | 'owner_name' | 'address' | 'language' | 'card_number' | 'daily_goal' | 'report_enabled' | 'report_hour'>>) =>
     request<Shop>('/me', { method: 'PATCH', body: JSON.stringify(data) }),
   balance: () => request<BalanceInfo>('/balance'),
   topup: (amount: number) =>
@@ -196,6 +199,9 @@ export interface Shop {
   balance: number;
   /** kunlik savdo maqsadi (0 — belgilanmagan) */
   daily_goal?: number;
+  /** kechki avtomatik hisobot: yoqilganmi va qaysi soatda */
+  report_enabled?: number;
+  report_hour?: number;
 }
 
 export interface BalanceInfo {

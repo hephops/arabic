@@ -7,7 +7,9 @@ import { normalizePhone } from './phone.js';
 // Token .env faylida (TELEGRAM_BOT_TOKEN) — kodga yozilmaydi.
 
 const TOKEN = process.env.TELEGRAM_BOT_TOKEN ?? '';
-const API = `https://api.telegram.org/bot${TOKEN}`;
+// Manzil sozlanadi — shunda yuborish yo'lini haqiqiy Telegram'siz ham
+// (soxta server bilan) uchidan-uchiga sinab ko'rish mumkin
+const API = `${process.env.TELEGRAM_API_BASE ?? 'https://api.telegram.org'}/bot${TOKEN}`;
 const MINIAPP_URL = process.env.MINIAPP_URL ?? '';
 
 export const telegramEnabled = () => TOKEN.length > 0;

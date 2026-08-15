@@ -9,7 +9,7 @@ import { toast, loadFailed } from '../toast';
 // iOS Sozlamalar uslubidagi kabinet: asosiy ekranda qatorlar,
 // har biri o'z ichki ekraniga ochiladi.
 
-type View = 'main' | 'balance' | 'plan' | 'shop' | 'language' | 'employees' | 'referral';
+type View = 'main' | 'balance' | 'plan' | 'shop' | 'language' | 'employees' | 'referral' | 'report';
 
 
 
@@ -116,6 +116,7 @@ export default function Profile({
   if (view === 'language') return <LanguageView shop={shop} onBack={() => setView('main')} reload={load} />;
   if (view === 'employees') return <EmployeesView shopPhone={shop.phone} onBack={() => setView('main')} />;
   if (view === 'referral') return <ReferralView onBack={() => setView('main')} />;
+  if (view === 'report') return <ReportSettingsView shop={shop} onBack={() => setView('main')} reload={load} />;
 
   return (
     <div className="screen">
@@ -147,6 +148,15 @@ export default function Profile({
         <Row icon="house" label={t('shopInfo')} onClick={() => setView('shop')} />
         <Row icon="globe" label={t('navLanguage')} value={LANG_NAMES[shop.language as Lang] ?? shop.language} onClick={() => setView('language')} />
         <Row icon="card" label={t('cardNumber')} value={maskCard(shop.card_number) || t('notSet')} onClick={() => setView('shop')} />
+      </div>
+
+      <div className="list-group">
+        <Row
+          icon="chart"
+          label={t('dailyReportTitle')}
+          value={shop.report_enabled ? `${String(shop.report_hour ?? 22).padStart(2, '0')}:00` : t('off')}
+          onClick={() => setView('report')}
+        />
       </div>
 
       <div className="list-group">
@@ -660,6 +670,113 @@ function ReferralView({ onBack }: { onBack: () => void }) {
         <div className="hint">{t('invitedCount')}</div>
         <div style={{ fontSize: 26, fontWeight: 800 }}>{data.invited_count} {t('shops')}</div>
       </div>
+      </div>
+    </>
+  );
+}
+
+/* ───────── Kechki avtomatik hisobot ───────── */
+
+// Do'konchi ilovani ochmasa ham kun yakuni Telegram'ga o'zi kelsin.
+// Bu yerda uchta narsa hal qilinadi: yoqish/o'chirish, soat, va eng
+// muhimi — "qanaqa xabar keladi" ni oldindan ko'rsatish.
+function ReportSettingsView({ shop, onBack, reload }: { shop: Shop; onBack: () => void; reload: () => void }) {
+  const { t } = useT();
+  const [enabled, setEnabled] = useState(shop.report_enabled !== 0);
+  const [hour, setHour] = useState(shop.report_hour ?? 22);
+  const [preview, setPreview] = useState<{ text: string; telegram_linked: boolean } | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    api.dailyReportPreview().then(setPreview).catch(loadFailed);
+  }, []);
+
+  async function save(next: { enabled?: boolean; hour?: number }) {
+    const e = next.enabled ?? enabled;
+    const h = next.hour ?? hour;
+    setEnabled(e);
+    setHour(h);
+    try {
+      await api.updateMe({ report_enabled: e ? 1 : 0, report_hour: h });
+      reload();
+    } catch (err: any) {
+      toast.error(t('error'), err.message);
+    }
+  }
+
+  async function sendNow() {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await api.sendDailyReport();
+      toast.success(t('reportSentNow'));
+    } catch (e: any) {
+      // Sababi aniq: bot ulanmagan bo'lsa boshqa, egasi botni ochmagan
+      // bo'lsa boshqa yechim kerak
+      const key =
+        e.message === 'no_telegram' ? 'reportNoTelegram'
+        : e.message === 'telegram_disabled' ? 'reportBotOff'
+        : 'error';
+      toast.error(t(key));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const HOURS = [18, 19, 20, 21, 22, 23];
+
+  return (
+    <>
+      <SubHeader title={t('dailyReportTitle')} onBack={onBack} />
+      <div className="screen">
+        <p className="hint" style={{ marginBottom: 12 }}>{t('dailyReportHint')}</p>
+
+        <div className="list-group">
+          <div className="list-item">
+            <div className="name">{t('dailyReportOn')}</div>
+            <button
+              className={`switch ${enabled ? 'on' : ''}`}
+              onClick={() => save({ enabled: !enabled })}
+              aria-label={t('dailyReportOn')}
+            >
+              <span />
+            </button>
+          </div>
+        </div>
+
+        {enabled && (
+          <>
+            <div className="section-title">{t('dailyReportHour')}</div>
+            <div className="chip-row wrap">
+              {HOURS.map((h) => (
+                <button key={h} className={`chip ${hour === h ? 'on' : ''}`} onClick={() => save({ hour: h })}>
+                  {String(h).padStart(2, '0')}:00
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+
+        {preview && !preview.telegram_linked && (
+          <div className="trust-warn">
+            <Glyph name="warning" size={17} color="var(--yellow)" />
+            <div>
+              <b>{t('reportNoTelegram')}</b>
+              <div className="tw-sub">{t('reportLinkHint')}</div>
+            </div>
+          </div>
+        )}
+
+        {preview && (
+          <>
+            <div className="section-title">{t('reportPreview')}</div>
+            <div className="order-text">{preview.text}</div>
+          </>
+        )}
+
+        <button className="btn-primary" onClick={sendNow} disabled={busy}>
+          <Glyph name="send" size={17} color="#fff" /> {t('reportSendNow')}
+        </button>
       </div>
     </>
   );

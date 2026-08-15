@@ -12,6 +12,7 @@ import { handleUpdate, verifyInitData, telegramEnabled, setWebhook } from './tel
 import { registerAdminRoutes, seedAdmin } from './admin.js';
 import { normalizeBarcode, barcodeVariants, checkGtin, makeInStoreEan13 } from './barcodes.js';
 import { normalizePhone } from './phone.js';
+import { dailyFigures, reportText, sendDailyReport, startDailyReportScheduler } from './dailyReport.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const UPLOADS_DIR = join(__dirname, '..', 'uploads');
@@ -173,7 +174,7 @@ app.get('/me', { preHandler: requireAuth }, async (req) => {
 });
 
 app.patch<{ Body: Record<string, unknown> }>('/me', { preHandler: requireOwner }, async (req) => {
-  const allowed = ['name', 'owner_name', 'address', 'language', 'card_number', 'daily_goal'];
+  const allowed = ['name', 'owner_name', 'address', 'language', 'card_number', 'daily_goal', 'report_enabled', 'report_hour'];
   for (const key of allowed) {
     if (key in req.body) {
       db.prepare(`UPDATE shops SET ${key} = ? WHERE id = ?`).run(req.body[key], req.shopId);
@@ -2069,6 +2070,32 @@ app.get<{ Querystring: { period?: string } }>('/reports/employees', { preHandler
   return result.sort((a, b) => b.revenue - a.revenue);
 });
 
+// Kechki hisobotni hozir yuborib ko'rish.
+//
+// Do'konchi "qanaqa xabar keladi" ni oldindan ko'rishi kerak — aks holda
+// sozlamada yoqib qo'yadi-yu, kechqurun nima kelishini bilmaydi.
+app.post('/reports/daily/send', { preHandler: requireOwner }, async (req, reply) => {
+  const res = await sendDailyReport(req.shopId!);
+  if (!res.ok) {
+    // Sababi aniq aytiladi: bot ulanmagan bo'lsa boshqa, egasi botni
+    // ochmagan bo'lsa boshqa yechim kerak
+    return reply.code(409).send({ error: res.reason });
+  }
+  return { ok: true };
+});
+
+/** Xabar qanday ko'rinishini ilovada ko'rsatish uchun (yuborilmaydi) */
+app.get('/reports/daily/preview', { preHandler: requireOwner }, async (req) => {
+  const shop = db.prepare('SELECT name FROM shops WHERE id = ?').get(req.shopId) as any;
+  const figures = dailyFigures(req.shopId!);
+  return {
+    text: reportText(shop.name, figures).replace(/<\/?b>/g, ''),
+    figures,
+    telegram_linked: !!(db.prepare('SELECT telegram_user_id FROM shops WHERE id = ?').get(req.shopId) as any)
+      ?.telegram_user_id,
+  };
+});
+
 // Hisobotni CSV (Excel ochadi) qilib yuklab olish
 app.get<{ Querystring: { period?: string } }>('/reports/export', { preHandler: requireOwner }, async (req, reply) => {
   const period = reportPeriodSql(req.query.period);
@@ -2099,6 +2126,7 @@ app.listen({ port, host: '0.0.0.0' }).then(() => {
   markOverdueDebts();
   runReminders();
   startReminderScheduler();
+  startDailyReportScheduler();
   if (telegramEnabled() && process.env.PUBLIC_URL) {
     setWebhook(process.env.PUBLIC_URL).then((r: any) =>
       console.log('[telegram] webhook:', r.ok ? 'ulandi' : r.description ?? r.error)

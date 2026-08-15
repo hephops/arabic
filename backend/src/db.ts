@@ -73,6 +73,11 @@ for (const sql of [
   'ALTER TABLE shops ADD COLUMN daily_goal INTEGER NOT NULL DEFAULT 0',
   // Chegirma foizi (0-90) — asosan srogi yaqin tovarni tezroq sotish uchun
   'ALTER TABLE products ADD COLUMN discount_percent INTEGER NOT NULL DEFAULT 0',
+  // Kechki avtomatik hisobot: yoqilganmi, qaysi soatda (O'zbekiston vaqti)
+  // va oxirgi marta qaysi kuni yuborilgan (bir kunda ikki marta ketmasin)
+  'ALTER TABLE shops ADD COLUMN report_enabled INTEGER NOT NULL DEFAULT 1',
+  'ALTER TABLE shops ADD COLUMN report_hour INTEGER NOT NULL DEFAULT 22',
+  'ALTER TABLE shops ADD COLUMN last_report_date TEXT',
 ]) {
   try {
     db.exec(sql);
