@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { api, fmt, getToken, Report } from '../api';
+import { api, fmt, fmtShort, getToken, EmployeeStat, Report } from '../api';
 import { AppIcon, Glyph } from '../icons';
 import { SubHeader, EmptyState, Segmented } from '../ui';
 import { useT, group } from '../i18n';
@@ -16,10 +16,12 @@ const PERIODS: [Period, string][] = [
 export default function Reports({ onBack, onOpenExpenses }: { onBack: () => void; onOpenExpenses: () => void }) {
   const [period, setPeriod] = useState<Period>('day');
   const [data, setData] = useState<Report | null>(null);
+  const [staff, setStaff] = useState<EmployeeStat[]>([]);
   const { t } = useT();
 
   useEffect(() => {
     api.reports(period).then(setData).catch(loadFailed);
+    api.employeeReport(period).then(setStaff).catch(loadFailed);
   }, [period]);
 
   return (
@@ -99,6 +101,46 @@ export default function Reports({ onBack, onOpenExpenses }: { onBack: () => void
               <div className="amount">{fmt(data.debt)}</div>
             </div>
           </div>
+
+          {/* Kim qancha sotdi — do'kon egasi uchun eng amaliy ko'rsatkich.
+              Ustunlar tushumga nisbatan chiziladi, birinchisi eng uzun. */}
+          {staff.length > 0 && (
+            <>
+              <div className="section-title">{t('staffReport')}</div>
+              <div className="staff-list">
+                {staff.map((s, i) => {
+                  const top = Math.max(...staff.map((x) => Math.abs(x.revenue)), 1);
+                  const share = Math.max(3, Math.round((Math.abs(s.revenue) / top) * 100));
+                  return (
+                    <div className="staff-row" key={s.employee_id ?? 'owner'}>
+                      <div className="sr-head">
+                        <span className="sr-rank">{i + 1}</span>
+                        <span className="sr-name">
+                          {s.name ?? t('staffOwner')}
+                          {s.name && !s.is_active && <span className="badge">{t('staffInactive')}</span>}
+                        </span>
+                        <span className="sr-rev">{fmt(s.revenue)}</span>
+                      </div>
+                      <div className="sr-track">
+                        <div className="sr-bar" style={{ width: `${share}%` }} />
+                      </div>
+                      {/* Ko'rsatkichlar alohida bo'laklarda — uzun qatorga
+                          sig'masa tartib bilan pastga tushadi, aralashib ketmaydi */}
+                      <div className="sr-sub">
+                        <span>{s.sales_count} {t('staffChecks')}</span>
+                        <span>{t('staffAvg')} {fmtShort(s.avg_check)}</span>
+                        <span className={s.profit >= 0 ? 'green' : 'red'}>
+                          {t('grossProfit')} {fmtShort(s.profit)}
+                        </span>
+                        {s.returned > 0 && <span className="red">{t('returned')} −{fmtShort(s.returned)}</span>}
+                        {s.debt_revenue > 0 && <span>{t('payDebt')} {fmtShort(s.debt_revenue)}</span>}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
 
           {data.top_products.length > 0 && (
             <>

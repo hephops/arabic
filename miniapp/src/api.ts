@@ -102,6 +102,8 @@ export const api = {
     request<SupplierDebt>(`/supplier-debts/${id}/payments`, { method: 'POST', body: JSON.stringify({ amount }) }),
   lookupCustomer: (phone: string) =>
     request<{ customer: Customer | null }>(`/customers/lookup?phone=${encodeURIComponent(phone)}`),
+  employeeReport: (period: 'day' | 'week' | 'month') =>
+    request<EmployeeStat[]>(`/reports/employees?period=${period}`),
   orderSuggest: () => request<OrderSuggestion[]>('/orders/suggest'),
   orders: () => request<Order[]>('/orders'),
   createOrder: (data: { supplier_id?: number | null; note?: string; items: { product_id?: number; name: string; unit?: string; qty: number }[] }) =>
@@ -318,6 +320,22 @@ export interface Product {
   supplier_id?: number | null;
   supplier_name?: string | null;
   from_catalog?: boolean;
+}
+
+/** Xodim samaradorligi: kim qancha sotdi va qancha foyda keltirdi */
+export interface EmployeeStat {
+  employee_id: number | null;   // null — do'kon egasi o'zi sotgan
+  name: string | null;
+  is_active: boolean;
+  sales_count: number;
+  revenue: number;              // qaytarishlardan keyin
+  gross_revenue: number;
+  returned: number;
+  returns_count: number;
+  debt_revenue: number;
+  items: number;
+  profit: number;
+  avg_check: number;
 }
 
 /** Buyurtma taklifi: kam qolgan tovar + tavsiya etilgan miqdor */

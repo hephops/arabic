@@ -1576,6 +1576,11 @@ app.post<{
   if (!sale) return reply.code(404).send({ error: 'not_found' });
   const wanted = (req.body?.items ?? []).filter((i) => Number(i.qty) > 0);
   if (!wanted.length) return reply.code(400).send({ error: 'items_required' });
+  // sale_item_id yo'q bo'lsa so'rov noto'g'ri tuzilgan — bunda baza xatosi
+  // bilan 500 qaytarish o'rniga sababini aniq aytamiz
+  if (wanted.some((i) => !Number.isInteger(Number(i.sale_item_id)))) {
+    return reply.code(400).send({ error: 'sale_item_id_required' });
+  }
 
   // Har bir satr shu sotuvniki ekanini va ortiqcha qaytarilmayotganini tekshiramiz
   const lines: { row: any; qty: number }[] = [];
@@ -1927,6 +1932,99 @@ app.get<{ Querystring: { period?: string } }>('/reports/summary', { preHandler: 
     expenses_by_category: expensesByCategory,
     top_products: topProducts,
   };
+});
+
+// Xodim samaradorligi: kim qancha sotdi.
+//
+// Do'kon egasi uchun bu "kimga bonus, kimni nazorat qilay" degan
+// savolga javob. Faqat tushum emas, foyda ham ko'rsatiladi — sotuvchi
+// chegirma berib ko'p sotgan bo'lishi mumkin, lekin do'konga foydasi kam.
+// Do'kon egasi o'zi sotgan bo'lsa (created_by bo'sh) — alohida satr.
+app.get<{ Querystring: { period?: string } }>('/reports/employees', { preHandler: requireOwner }, async (req) => {
+  const period = reportPeriodSql(req.query.period);
+  const rows = db
+    .prepare(
+      `SELECT s.created_by AS employee_id,
+              COALESCE(e.name, '') AS name,
+              COALESCE(e.is_active, 1) AS is_active,
+              COUNT(DISTINCT s.id) AS sales_count,
+              COALESCE(SUM(s.total), 0) AS revenue,
+              COALESCE(SUM(CASE WHEN s.payment_type = 'debt' THEN s.total END), 0) AS debt_revenue
+       FROM sales s LEFT JOIN employees e ON e.id = s.created_by
+       WHERE s.shop_id = ? AND date(s.created_at) >= date('now', ?)
+       GROUP BY s.created_by ORDER BY revenue DESC`
+    )
+    .all(req.shopId, period) as any[];
+
+  // Foyda alohida so'rovda — sale_items bilan qo'shilsa sotuvlar soni
+  // ko'payib ketardi (bitta chekdagi har bir satr uchun takrorlanib)
+  const profitRows = db
+    .prepare(
+      `SELECT s.created_by AS employee_id,
+              COALESCE(SUM((si.price - p.cost_price) * si.qty), 0) AS profit,
+              COALESCE(SUM(si.qty), 0) AS items
+       FROM sale_items si JOIN sales s ON s.id = si.sale_id JOIN products p ON p.id = si.product_id
+       WHERE s.shop_id = ? AND date(s.created_at) >= date('now', ?)
+       GROUP BY s.created_by`
+    )
+    .all(req.shopId, period) as any[];
+
+  // Qaytarishlar ham xodimga tegishli — sotuvchining haqiqiy natijasi shu
+  const returnRows = db
+    .prepare(
+      `SELECT r.created_by AS employee_id,
+              COALESCE(SUM(ri.price * ri.qty), 0) AS returned,
+              COUNT(DISTINCT r.id) AS returns_count
+       FROM return_items ri JOIN returns r ON r.id = ri.return_id
+       WHERE r.shop_id = ? AND date(r.created_at) >= date('now', ?)
+       GROUP BY r.created_by`
+    )
+    .all(req.shopId, period) as any[];
+
+  const byId = <T extends { employee_id: number | null }>(list: T[], id: number | null) =>
+    list.find((x) => (x.employee_id ?? null) === (id ?? null));
+
+  const result = rows.map((r) => {
+    const id = r.employee_id ?? null;
+    const p = byId(profitRows, id);
+    const ret = byId(returnRows, id);
+    const returned = Number(ret?.returned ?? 0);
+    return {
+      employee_id: id,
+      name: r.name || null, // bo'sh bo'lsa — do'kon egasi
+      is_active: !!r.is_active,
+      sales_count: Number(r.sales_count),
+      revenue: Number(r.revenue) - returned,
+      gross_revenue: Number(r.revenue),
+      returned,
+      returns_count: Number(ret?.returns_count ?? 0),
+      debt_revenue: Number(r.debt_revenue),
+      items: Number(p?.items ?? 0),
+      profit: Number(p?.profit ?? 0) - returned,
+      avg_check: r.sales_count > 0 ? Math.round(Number(r.revenue) / Number(r.sales_count)) : 0,
+    };
+  });
+  // Qaytarish qilgan, lekin shu davrda sotmagan xodim ham ko'rinsin
+  for (const ret of returnRows) {
+    const id = ret.employee_id ?? null;
+    if (result.some((x) => x.employee_id === id)) continue;
+    const emp = id ? (db.prepare('SELECT name, is_active FROM employees WHERE id = ?').get(id) as any) : null;
+    result.push({
+      employee_id: id,
+      name: emp?.name ?? null,
+      is_active: emp ? !!emp.is_active : true,
+      sales_count: 0,
+      revenue: -Number(ret.returned),
+      gross_revenue: 0,
+      returned: Number(ret.returned),
+      returns_count: Number(ret.returns_count),
+      debt_revenue: 0,
+      items: 0,
+      profit: -Number(ret.returned),
+      avg_check: 0,
+    });
+  }
+  return result.sort((a, b) => b.revenue - a.revenue);
 });
 
 // Hisobotni CSV (Excel ochadi) qilib yuklab olish
