@@ -8,11 +8,12 @@ import { useT } from '../i18n';
 import { formatAmount, amountValue, formatPhone, formatPhoneSoft, phoneDigits, phoneE164, isPhoneComplete } from '../format';
 import { toast, loadFailed } from '../toast';
 import {
-  Cart, MAX_CARTS, cartQty, cartTotal, loadCarts, newCart, nextNo, saveCarts,
+  Cart, MAX_CARTS, cartQty, cartTotal, linePrice, loadCarts, newCart, nextNo, saveCarts,
 } from '../carts';
 import { PrintSheet, Receipt } from '../print';
 import { TrustWarning } from '../trust';
 import { GoalStrip } from '../goal';
+import { priceAfter } from '../discount';
 
 function ProductThumb({ product, size = 44 }: { product: Product; size?: number }) {
   if (product.image_url) {
@@ -813,7 +814,18 @@ function SaleMode({ onDone }: { onDone: () => void }) {
                     </div>
                   </div>
                 </div>
-                <div className="amount">{fmt(p.sell_price)}</div>
+                {/* Chegirma bo'lsa eski narx chizilgan holda qoladi —
+                    sotuvchi ham, xaridor ham farqni ko'radi */}
+                {(p.discount_percent ?? 0) > 0 ? (
+                  <div style={{ textAlign: 'right' }}>
+                    <div className="amount" style={{ color: 'var(--green)' }}>
+                      {fmt(priceAfter(p.sell_price, p.discount_percent!))}
+                    </div>
+                    <div className="sub old-price">{fmt(p.sell_price)}</div>
+                  </div>
+                ) : (
+                  <div className="amount">{fmt(p.sell_price)}</div>
+                )}
               </div>
             ))}
           </div>
@@ -832,7 +844,10 @@ function SaleMode({ onDone }: { onDone: () => void }) {
                     <div style={{ minWidth: 0 }}>
                       <div className="name">{l.product.name}</div>
                       <div className="sub">
-                        {fmt(l.product.sell_price * l.qty)}
+                        {fmt(linePrice(l.product) * l.qty)}
+                        {(l.product.discount_percent ?? 0) > 0 && (
+                          <span className="badge sale">−{l.product.discount_percent}%</span>
+                        )}
                         {l.qty > l.product.stock && (
                           <span style={{ color: 'var(--red)' }}>
                             {' '}· {t('stockShort')}: {l.product.stock} {l.product.unit}

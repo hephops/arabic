@@ -104,6 +104,11 @@ export const api = {
     request<{ customer: Customer | null }>(`/customers/lookup?phone=${encodeURIComponent(phone)}`),
   employeeReport: (period: 'day' | 'week' | 'month') =>
     request<EmployeeStat[]>(`/reports/employees?period=${period}`),
+  setDiscount: (ids: number[], percent: number) =>
+    request<{ ok: boolean; percent: number; changed: number }>('/products/discount', {
+      method: 'POST',
+      body: JSON.stringify({ ids, percent }),
+    }),
   orderSuggest: () => request<OrderSuggestion[]>('/orders/suggest'),
   orders: () => request<Order[]>('/orders'),
   createOrder: (data: { supplier_id?: number | null; note?: string; items: { product_id?: number; name: string; unit?: string; qty: number }[] }) =>
@@ -318,6 +323,12 @@ export interface Product {
   stock: number;
   low_stock_threshold?: number;
   expiry_date: string | null;
+  /** chegirma foizi (0-90) */
+  discount_percent?: number;
+  /** srogigacha necha kun qolgani (faqat dashboarddagi ro'yxatda) */
+  days_left?: number;
+  /** chegirmadan keyingi narx (faqat dashboarddagi ro'yxatda) */
+  price_after_discount?: number;
   image_url: string | null;
   supplier_id?: number | null;
   supplier_name?: string | null;

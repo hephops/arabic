@@ -103,5 +103,12 @@ export function nextNo(carts: Cart[]): number {
   return carts.length + 1;
 }
 
-export const cartTotal = (c: Cart) => c.lines.reduce((s, l) => s + l.product.sell_price * l.qty, 0);
+// Savat summasi chegirmani hisobga oladi — serverdagi hisob bilan bir xil,
+// aks holda kassada bir narx, chekda boshqa narx chiqib qolardi.
+export const linePrice = (p: { sell_price: number; discount_percent?: number }) => {
+  const pct = Math.min(90, Math.max(0, Number(p.discount_percent) || 0));
+  if (!pct) return p.sell_price;
+  return Math.round((p.sell_price * (100 - pct)) / 100 / 100) * 100;
+};
+export const cartTotal = (c: Cart) => c.lines.reduce((s, l) => s + linePrice(l.product) * l.qty, 0);
 export const cartQty = (c: Cart) => c.lines.reduce((s, l) => s + l.qty, 0);

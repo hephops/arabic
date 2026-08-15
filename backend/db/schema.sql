@@ -160,6 +160,7 @@ CREATE TABLE IF NOT EXISTS products (
   stock REAL NOT NULL DEFAULT 0,                 -- qoldiq
   low_stock_threshold REAL NOT NULL DEFAULT 5,
   expiry_date TEXT,                              -- srok (ixtiyoriy), oxirgi partiya
+  discount_percent INTEGER NOT NULL DEFAULT 0,   -- chegirma foizi (0-90)
   image_url TEXT,                                -- mahsulot rasmi (/uploads/...)
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );

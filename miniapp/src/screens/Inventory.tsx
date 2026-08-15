@@ -6,6 +6,7 @@ import { useT } from '../i18n';
 import Scanner from '../Scanner';
 import { formatAmount } from '../format';
 import { toast, loadFailed } from '../toast';
+import { priceAfter } from '../discount';
 import { PrintSheet, Labels } from '../print';
 import { ean13Svg, isEan13 } from '../ean13';
 
@@ -181,6 +182,7 @@ function ProductEdit({ product, onBack, onSaved }: { product: Product; onBack: (
   });
   // Buyurtma shu bo'yicha guruhlanadi
   const [supplierId, setSupplierId] = useState<string>(product.supplier_id ? String(product.supplier_id) : '');
+  const [discount, setDiscount] = useState<number>(product.discount_percent ?? 0);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [image, setImage] = useState<string | null>(null);
   const [error, setError] = useState('');
@@ -254,6 +256,7 @@ function ProductEdit({ product, onBack, onSaved }: { product: Product; onBack: (
       low_stock_threshold: parseFloat(form.low_stock_threshold) || 5,
       expiry_date: form.expiry_date || null,
       supplier_id: supplierId ? Number(supplierId) : null,
+      discount_percent: discount,
       image: image ?? undefined,
     } as any);
     toast.success(t('toastProductSaved'), form.name.trim());
@@ -418,6 +421,25 @@ function ProductEdit({ product, onBack, onSaved }: { product: Product; onBack: (
             />
           </div>
         </div>
+        <label>
+          {t('discountLabel')} ({t('optional')})
+        </label>
+        <div className="chip-row wrap">
+          {[0, 10, 20, 30, 50].map((d) => (
+            <button key={d} className={`chip ${discount === d ? 'on' : ''}`} onClick={() => setDiscount(d)}>
+              {d === 0 ? t('discountNone') : `−${d}%`}
+            </button>
+          ))}
+        </div>
+        {discount > 0 && (
+          <p className="field-note">
+            {t('discountNewPrice')}:{' '}
+            <b style={{ color: 'var(--green)' }}>
+              {fmt(priceAfter(parseInt(form.sell_price.replace(/\D/g, ''), 10) || 0, discount))}
+            </b>
+          </p>
+        )}
+
         <label>
           {t('expiry')} ({t('optional')})
         </label>

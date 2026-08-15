@@ -4,6 +4,7 @@ import { AppIcon, Glyph } from '../icons';
 import type { SubScreen } from '../App';
 import { useT } from '../i18n';
 import { GoalBar, GoalSheet } from '../goal';
+import { DiscountSheet } from '../discount';
 
 export default function Dashboard({
   onNavigate,
@@ -17,6 +18,7 @@ export default function Dashboard({
   const [data, setData] = useState<DashboardData | null>(null);
   const [error, setError] = useState('');
   const [goalSheet, setGoalSheet] = useState(false);
+  const [discountSheet, setDiscountSheet] = useState(false);
   const { t } = useT();
 
   useEffect(() => {
@@ -237,18 +239,60 @@ export default function Dashboard({
         </>
       )}
 
+      {/* Srogi yaqin tovarlar — shunchaki ro'yxat emas, harakatga chorlov.
+          Bu tovarlar sotilmasa to'g'ridan-to'g'ri zarar, shuning uchun
+          bir bosishda hammasiga chegirma qo'yish taklif qilinadi. */}
       {data.expiring_soon.length > 0 && (
         <>
           <div className="section-title">{t('expiringSoon')}</div>
           <div className="list-group">
-            {data.expiring_soon.map((p) => (
-              <div className="list-item" key={p.id}>
-                <div className="name">{p.name}</div>
-                <div className="sub">{p.expiry_date}</div>
-              </div>
-            ))}
+            {data.expiring_soon.map((p) => {
+              const days = p.days_left ?? 0;
+              const off = p.discount_percent ?? 0;
+              return (
+                <div className="list-item" key={p.id}>
+                  <div style={{ minWidth: 0 }}>
+                    <div className="name">
+                      {p.name}
+                      {off > 0 && <span className="badge sale">−{off}%</span>}
+                    </div>
+                    <div className="sub">
+                      <span style={{ color: days <= 1 ? 'var(--red)' : 'var(--yellow)', fontWeight: 500 }}>
+                        {days <= 0 ? t('expiryToday') : `${days} ${t('daysShort')}`}
+                      </span>
+                      {' · '}{p.expiry_date}
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    {off > 0 ? (
+                      <>
+                        <div className="amount" style={{ color: 'var(--green)' }}>
+                          {fmt(p.price_after_discount ?? p.sell_price)}
+                        </div>
+                        <div className="sub old-price">{fmt(p.sell_price)}</div>
+                      </>
+                    ) : (
+                      <div className="amount">{fmt(p.sell_price)}</div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
+          {!isEmployee && (
+            <button className="btn-ghost" onClick={() => setDiscountSheet(true)}>
+              <Glyph name="flash" size={16} color="var(--accent)" /> {t('discountAction')}
+            </button>
+          )}
         </>
+      )}
+
+      {discountSheet && (
+        <DiscountSheet
+          items={data.expiring_soon}
+          onClose={() => setDiscountSheet(false)}
+          onSaved={() => api.dashboard().then(setData).catch(() => {})}
+        />
       )}
 
         </div>

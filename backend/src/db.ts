@@ -71,6 +71,8 @@ for (const sql of [
   'ALTER TABLE products ADD COLUMN supplier_id INTEGER REFERENCES suppliers(id)',
   // Kunlik savdo maqsadi (0 — belgilanmagan) va kechki hisobot sozlamalari
   'ALTER TABLE shops ADD COLUMN daily_goal INTEGER NOT NULL DEFAULT 0',
+  // Chegirma foizi (0-90) — asosan srogi yaqin tovarni tezroq sotish uchun
+  'ALTER TABLE products ADD COLUMN discount_percent INTEGER NOT NULL DEFAULT 0',
 ]) {
   try {
     db.exec(sql);

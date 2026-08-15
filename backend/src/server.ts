@@ -318,12 +318,15 @@ app.get('/dashboard', { preHandler: requireAuth }, async (req) => {
   const lowStock = db
     .prepare(`SELECT * FROM products WHERE shop_id = ? AND stock <= low_stock_threshold ORDER BY stock ASC LIMIT 10`)
     .all(req.shopId);
-  const expiringSoon = db
-    .prepare(
-      `SELECT * FROM products WHERE shop_id = ? AND expiry_date IS NOT NULL
-       AND expiry_date <= date('now', '+7 days') ORDER BY expiry_date ASC LIMIT 10`
-    )
-    .all(req.shopId);
+  const expiringSoon = (
+    db
+      .prepare(
+        `SELECT *, CAST(julianday(expiry_date) - julianday(date('now')) AS INTEGER) AS days_left
+         FROM products WHERE shop_id = ? AND expiry_date IS NOT NULL
+         AND expiry_date <= date('now', '+7 days') ORDER BY expiry_date ASC LIMIT 10`
+      )
+      .all(req.shopId) as any[]
+  ).map((p) => ({ ...p, price_after_discount: priceWithDiscount(p) }));
   // Oxirgi sotuvlar — mahsulot nomlari bilan
   const recentSales = db
     .prepare(
@@ -832,6 +835,25 @@ app.post<{ Params: { id: string }; Body: { amount: number } }>(
   }
 );
 
+/** Bir necha tovarga birdan chegirma qo'yish/olib tashlash.
+ *
+ *  Srogi yaqin tovarlar ro'yxatidan "bularning hammasiga 20%" deb
+ *  bir bosishda qo'yiladi — bittalab kirib chiqish do'konchini charchatadi. */
+app.post<{ Body: { ids: number[]; percent: number } }>(
+  '/products/discount',
+  { preHandler: requireOwner },
+  async (req, reply) => {
+    const ids = (req.body?.ids ?? []).map(Number).filter((n) => Number.isInteger(n) && n > 0);
+    if (!ids.length) return reply.code(400).send({ error: 'ids_required' });
+    const percent = Math.min(90, Math.max(0, Math.round(Number(req.body?.percent) || 0)));
+    const marks = ids.map(() => '?').join(',');
+    const info = db
+      .prepare(`UPDATE products SET discount_percent = ? WHERE shop_id = ? AND id IN (${marks})`)
+      .run(percent, req.shopId, ...ids);
+    return { ok: true, percent, changed: Number(info.changes) };
+  }
+);
+
 // ---------- TA'MINOTCHIGA BUYURTMA ----------
 //
 // Do'konchi "nima tugadi" ni bilishi kam — unga "qancha buyurtma qilay"
@@ -1014,6 +1036,18 @@ function attachBarcode(shopId: number, productId: number, raw: string) {
     productId,
     code
   );
+}
+
+/** Chegirma qo'llangandan keyingi narx.
+ *
+ *  Chegirma sotuv narxini o'zgartirmaydi — u alohida foiz bo'lib turadi,
+ *  shunda chegirma olib tashlansa eski narx o'z-o'zidan qaytadi va
+ *  do'konchi asl narxni qaytadan yozib o'tirmaydi. */
+export function priceWithDiscount(product: { sell_price: number; discount_percent?: number }): number {
+  const pct = Math.min(90, Math.max(0, Number(product.discount_percent) || 0));
+  if (!pct) return product.sell_price;
+  // 100 so'mgacha yaxlitlaymiz — kassada chaqa bilan ovora bo'lmaslik uchun
+  return Math.round((product.sell_price * (100 - pct)) / 100 / 100) * 100;
 }
 
 app.get<{ Querystring: { q?: string; barcode?: string; category?: string } }>(
@@ -1286,9 +1320,13 @@ app.patch<{ Params: { id: string }; Body: Record<string, unknown> }>(
       .prepare('SELECT * FROM products WHERE id = ? AND shop_id = ?')
       .get(req.params.id, req.shopId) as any;
     if (!product) return reply.code(404).send({ error: 'not_found' });
-    for (const key of ['name', 'barcode', 'unit', 'cost_price', 'sell_price', 'low_stock_threshold', 'expiry_date', 'stock', 'category', 'supplier_id']) {
+    for (const key of ['name', 'barcode', 'unit', 'cost_price', 'sell_price', 'low_stock_threshold', 'expiry_date', 'stock', 'category', 'supplier_id', 'discount_percent']) {
       if (key in req.body) {
         let value = key === 'barcode' ? normalizeBarcode(req.body[key] as string) || null : (req.body[key] as any);
+        if (key === 'discount_percent') {
+          // 0..90 oralig'ida — 100% chegirma "tekin berish" bo'lardi
+          value = Math.min(90, Math.max(0, Math.round(Number(value) || 0)));
+        }
         if (key === 'supplier_id') {
           // Begona do'konning ta'minotchisi biriktirilmasin
           value = value
@@ -1403,9 +1441,9 @@ app.post<{ Body: { items: { product_id: number; qty: number }[]; payment_type: '
       if (debtCustomer) {
         const willAdd = items.reduce((sum: number, it: any) => {
           const p = db
-            .prepare('SELECT sell_price FROM products WHERE id = ? AND shop_id = ?')
+            .prepare('SELECT sell_price, discount_percent FROM products WHERE id = ? AND shop_id = ?')
             .get(it.product_id, req.shopId) as any;
-          return sum + (p ? p.sell_price * it.qty : 0);
+          return sum + (p ? priceWithDiscount(p) * it.qty : 0);
         }, 0);
         const allowed = checkCreditAllowed(req.shopId!, debtCustomer.id, Math.round(willAdd));
         if (!allowed.ok) return reply.code(409).send({ error: allowed.error, details: allowed.details });
@@ -1414,25 +1452,27 @@ app.post<{ Body: { items: { product_id: number; qty: number }[]; payment_type: '
 
     const tx = db.transaction(() => {
       let total = 0;
-      const lines: { product: any; qty: number }[] = [];
+      const lines: { product: any; qty: number; price: number }[] = [];
       for (const item of items) {
         const product = db
           .prepare('SELECT * FROM products WHERE id = ? AND shop_id = ?')
           .get(item.product_id, req.shopId) as any;
         if (!product) throw new Error('product_not_found');
-        total += product.sell_price * item.qty;
-        lines.push({ product, qty: item.qty });
+        // Chegirma bo'lsa — kassa ham, chek ham, foyda ham shu narxda
+        const price = priceWithDiscount(product);
+        total += price * item.qty;
+        lines.push({ product, qty: item.qty, price });
       }
       const saleInfo = db
         .prepare('INSERT INTO sales (shop_id, total, payment_type, customer_id, created_by) VALUES (?, ?, ?, ?, ?)')
         .run(req.shopId, Math.round(total), payment_type, customer_id ?? null, req.employeeId);
       const saleId = Number(saleInfo.lastInsertRowid);
-      for (const { product, qty } of lines) {
+      for (const { product, qty, price } of lines) {
         db.prepare('INSERT INTO sale_items (sale_id, product_id, qty, price) VALUES (?, ?, ?, ?)').run(
           saleId,
           product.id,
           qty,
-          product.sell_price
+          price
         );
         db.prepare('UPDATE products SET stock = stock - ? WHERE id = ?').run(qty, product.id);
         db.prepare('INSERT INTO stock_movements (shop_id, product_id, type, qty) VALUES (?, ?, ?, ?)').run(
