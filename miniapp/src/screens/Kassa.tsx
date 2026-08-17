@@ -18,7 +18,10 @@ import { GoalStrip } from '../goal';
 import { VoiceCartSheet } from '../voiceCart';
 import { priceAfter } from '../discount';
 import { scanFail } from '../beep';
-import { UNITS, isFractional, parseQty, qtyText, qtyWithUnit } from '../units';
+import {
+  STOCK_UNITS, isFractional, parseQty, qtyText, qtyWithUnit,
+  priceBases, basisOf, basisText, priceForBasis, priceLabel, PriceBasis,
+} from '../units';
 
 export type KassaMode = 'sale' | 'intake' | 'history';
 
@@ -627,21 +630,22 @@ function SaleMode({ onDone, autoScan = 0 }: { onDone: () => void; autoScan?: num
                   <div>
                     <div className="name">{p.name}</div>
                     <div className="sub" style={p.stock <= 0 ? { color: 'var(--red)' } : undefined}>
-                      {t('stock')}: {p.stock} {p.unit}
+                      {t('stock')}: {qtyWithUnit(p.stock, p.unit)}
                     </div>
                   </div>
                 </div>
-                {/* Chegirma bo'lsa eski narx chizilgan holda qoladi —
+                {/* Narx do'konchi aytadigan ko'rinishda: "15 000 / 100 g".
+                    Chegirma bo'lsa eski narx chizilgan holda qoladi —
                     sotuvchi ham, xaridor ham farqni ko'radi */}
                 {(p.discount_percent ?? 0) > 0 ? (
                   <div style={{ textAlign: 'right' }}>
                     <div className="amount" style={{ color: 'var(--green)' }}>
-                      {fmt(priceAfter(p.sell_price, p.discount_percent!))}
+                      {priceLabel(priceAfter(p.sell_price, p.discount_percent!), p.unit, p.price_qty)}
                     </div>
-                    <div className="sub old-price">{fmt(p.sell_price)}</div>
+                    <div className="sub old-price">{priceLabel(p.sell_price, p.unit, p.price_qty)}</div>
                   </div>
                 ) : (
-                  <div className="amount">{fmt(p.sell_price)}</div>
+                  <div className="amount">{priceLabel(p.sell_price, p.unit, p.price_qty)}</div>
                 )}
               </div>
             ))}
@@ -774,15 +778,19 @@ function IntakeMode({ onDone }: { onDone: () => void }) {
   const [costPrice, setCostPrice] = useState('');
   const [sellPrice, setSellPrice] = useState('');
   const [qty, setQty] = useState('');
-  // Sabzi, semichka, go'sht — kilogrammda. Ilgari hammasi "dona" bo'lib
-  // qolardi va omborda "1.5 dona sabzi" kabi ma'nosiz yozuv paydo bo'lardi.
+  // OMBOR birligi: tovar qanday kelgan va qanday hisobga olinadi.
+  // Sabzi, semichka, go'sht — kilogrammda; ilgari hammasi "dona" bo'lib
+  // qolardi va omborda "1.5 dona sabzi" kabi ma'nosiz yozuv chiqardi.
   const [unit, setUnit] = useState<string>('dona');
-  // Kirim narxi ikki ko'rinishda ko'rsatiladi: bitta birlik uchun va
-  // jami. Ikkalasi ham yoziladigan maydon, biri o'zgarsa ikkinchisi
-  // o'zi hisoblanadi — do'konchi qopni "25 kg, 200 ming" deb ham,
-  // "1 kg 8 ming" deb ham kiritishi mumkin, usul tanlash shart emas.
-  // Asosiy qiymat har doim costPrice (1 birlik uchun); totalDraft
-  // faqat "jami" maydoniga yozilayotgan paytda to'ladi.
+  // NARX birligi: narx qaysi miqdorga aytilgan. Bular ikki xil narsa —
+  // "10 kg keldi, 100 grami 15 ming" degan gap eng oddiy holat. Ilgari
+  // bittasi ikkinchisini ergashtirib ketardi va grammni tanlagan
+  // do'konchi kelgan tovarni ham grammda yozishga majbur bo'lardi.
+  const [basis, setBasis] = useState<PriceBasis>(() => priceBases('dona')[0]);
+  // Kirim narxi ikki ko'rinishda: tanlangan asos uchun va jami.
+  // Ikkalasi ham yoziladigan maydon, biri o'zgarsa ikkinchisi o'zi
+  // hisoblanadi — do'konchi qopni "25 kg, 200 ming" deb ham,
+  // "100 grami 15 ming" deb ham kiritishi mumkin.
   const [totalDraft, setTotalDraft] = useState<string | null>(null);
   const [expiry, setExpiry] = useState('');
   const [category, setCategory] = useState('');
@@ -811,8 +819,16 @@ function IntakeMode({ onDone }: { onDone: () => void }) {
     const known = res.product ?? res.catalog;
     if (known) setName(known.name);
     if (res.product) {
-      setCostPrice(String(res.product.cost_price || ''));
-      setSellPrice(String(res.product.sell_price || ''));
+      // Tovar allaqachon bor — uning o'z birligi va narx asosi bilan
+      // ochiladi, aks holda "1 kg 150 ming" narx "100 g" maydoniga
+      // tushib qolardi
+      const u = res.product.unit || 'dona';
+      const b = basisOf(u, res.product.price_qty);
+      setUnit(u);
+      setBasis(b);
+      setCostPrice(res.product.cost_price ? String(priceForBasis(res.product.cost_price, b.qty)) : '');
+      setSellPrice(res.product.sell_price ? String(priceForBasis(res.product.sell_price, b.qty)) : '');
+      setTotalDraft(null);
     }
   }
 
@@ -849,18 +865,24 @@ function IntakeMode({ onDone }: { onDone: () => void }) {
       const product = await api.intake({
         barcode: barcode.trim() || undefined,
         name: name.trim(),
-        cost_price: unitCost,
-        sell_price: unitSell,
+        // Serverga har doim 1 ombor birligi uchun narx ketadi
+        cost_price: Math.round(unitCost),
+        sell_price: Math.round(unitSell),
         unit,
+        price_qty: basis.qty,
         qty: parseQty(qty, unit),
         expiry_date: expiry || undefined,
         category: category.trim() || undefined,
         image: image ?? undefined,
       });
-      toast.success(t('toastIntakeSaved'), `${product.name} · ${t('toastStockLeft')}: ${product.stock} ${product.unit}`);
+      toast.success(
+        t('toastIntakeSaved'),
+        `${product.name} · ${t('toastStockLeft')}: ${qtyWithUnit(product.stock, product.unit)} · ${priceLabel(product.sell_price, product.unit, product.price_qty)}`
+      );
       // forma yopilmaydi — keyingi tovarga tayyor turadi
-      // Birlik saqlanib qoladi: do'konchi odatda bir turdagi tovarni
-      // ketma-ket kiritadi (bir necha xil sabzavot, keyin ichimliklar)
+      // Birlik va narx asosi saqlanib qoladi: do'konchi odatda bir
+      // turdagi tovarni ketma-ket kiritadi (bir necha xil sabzavot,
+      // keyin ichimliklar)
       setBarcode(''); setName(''); setCostPrice(''); setSellPrice(''); setTotalDraft(null); setQty(''); setExpiry(''); setImage(null);
       api.categories().then(setCats).catch(() => {});
       onDone();
@@ -871,16 +893,39 @@ function IntakeMode({ onDone }: { onDone: () => void }) {
     }
   }
 
-  // Bazada narx HAR DOIM bitta birlik uchun saqlanadi. "Jami summa"
-  // usuli tanlansa uni miqdorga bo'lib olamiz — do'konchiga qulay,
-  // hisob esa o'zgarmaydi.
+  // Bazada narx HAR DOIM 1 ombor birligi uchun saqlanadi — sotuv,
+  // qaytarish va hisobot shunga tayanadi. Ekranda esa do'konchi qanday
+  // o'ylasa shunday: "100 grami 15 000". Ikkalasining orasidagi
+  // ko'prik — basis.qty.
   const qtyNum = parseQty(qty, unit);
-  const unitCost = amountValue(costPrice);
-  const unitSell = amountValue(sellPrice);
+  const basisCost = amountValue(costPrice);
+  const basisSell = amountValue(sellPrice);
+  const unitCost = basisCost ? basisCost / basis.qty : 0;
+  const unitSell = basisSell ? basisSell / basis.qty : 0;
+  const basisMargin = basisSell && basisCost ? basisSell - basisCost : 0;
   const margin = unitSell && unitCost ? unitSell - unitCost : 0;
+  const bases = priceBases(unit);
   // "Jami" maydoni: yozilayotgan bo'lsa o'sha matn, aks holda hisoblangani
   const totalShown =
     totalDraft ?? (qtyNum > 0 && unitCost > 0 ? String(Math.round(unitCost * qtyNum)) : '');
+
+  /** Narx asosini almashtirish: 1 birlik narxi o'zgarmaydi, faqat
+      ko'rinishi — "100 g = 15 000" dan "1 kg = 150 000" ga o'tadi */
+  function pickBasis(next: PriceBasis) {
+    const conv = (txt: string) => {
+      const v = amountValue(txt);
+      return v ? String(Math.round((v / basis.qty) * next.qty)) : txt;
+    };
+    setCostPrice(conv(costPrice));
+    setSellPrice(conv(sellPrice));
+    setBasis(next);
+  }
+
+  /** Ombor birligi almashsa narx asosi ham unga mos ro'yxatdan olinadi */
+  function pickUnit(u: string) {
+    setUnit(u);
+    if (u !== unit) pickBasis(priceBases(u)[0]);
+  }
 
   return (
     <>
@@ -951,16 +996,17 @@ function IntakeMode({ onDone }: { onDone: () => void }) {
         </div>
       </div>
 
-      {/* Miqdor va narx — ixcham joylashuv.
-          Tartib: birlik → qancha keldi → narx. Narx qaysi birlik uchun
-          ekani shundagina aniq bo'ladi. Kirim narxi ikki maydonda:
-          bittasiga yozilsa ikkinchisi o'zi hisoblanadi. */}
+      {/* Miqdor va narx.
+          Ikki savol alohida so'raladi, chunki javoblari ham alohida:
+          "qancha keldi" (ombor birligi) va "narx nechtasiga" (narx
+          birligi). Semichka 10 kg kelib, 100 grami 15 000 bo'lishi —
+          eng oddiy holat, ilgari buni kiritib bo'lmasdi. */}
       <div className="form-group">
         <div className="unit-row">
           <span className="unit-cap">{t('unitLabel')}</span>
           <div className="unit-chips">
-            {UNITS.map((u) => (
-              <button key={u} className={`chip sm ${unit === u ? 'on' : ''}`} onClick={() => setUnit(u)}>
+            {STOCK_UNITS.map((u) => (
+              <button key={u} className={`chip sm ${unit === u ? 'on' : ''}`} onClick={() => pickUnit(u)}>
                 {t(`unit_${u}`)}
               </button>
             ))}
@@ -974,7 +1020,7 @@ function IntakeMode({ onDone }: { onDone: () => void }) {
               value={qty}
               onChange={(e) => { setQty(e.target.value.replace(/[^\d.,]/g, '')); setTotalDraft(null); }}
               inputMode="decimal"
-              placeholder={isFractional(unit) ? '25' : '24'}
+              placeholder={isFractional(unit) ? '10' : '24'}
             />
           </div>
           <div className="form-row">
@@ -985,14 +1031,33 @@ function IntakeMode({ onDone }: { onDone: () => void }) {
           </div>
         </div>
 
+        {/* Narx qaysi miqdorga — faqat tanlov bo'lganda ko'rinadi.
+            Donada "yarim dona narxi" degani yo'q, u yerda ortiqcha. */}
+        {bases.length > 1 && (
+          <div className="unit-row">
+            <span className="unit-cap">{t('priceBasis')}</span>
+            <div className="unit-chips">
+              {bases.map((b) => (
+                <button
+                  key={b.qty}
+                  className={`chip sm ${Math.abs(b.qty - basis.qty) < 1e-9 ? 'on' : ''}`}
+                  onClick={() => pickBasis(b)}
+                >
+                  {basisText(b)}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="row-2">
           <div className="form-row">
-            <label>{t('costPrice')} (1 {t(`unit_${unit}`)})</label>
+            <label>{t('costPrice')} ({basisText(basis)})</label>
             <input
               value={formatAmount(costPrice)}
               onChange={(e) => { setCostPrice(e.target.value); setTotalDraft(null); }}
               inputMode="numeric"
-              placeholder="15 000"
+              placeholder="14 000"
             />
           </div>
           <div className="form-row">
@@ -1001,36 +1066,41 @@ function IntakeMode({ onDone }: { onDone: () => void }) {
               value={formatAmount(totalShown)}
               onChange={(e) => {
                 setTotalDraft(e.target.value);
-                // Jami yozilsa bir birlik narxi o'zi chiqadi
-                if (qtyNum > 0) setCostPrice(String(Math.round(amountValue(e.target.value) / qtyNum)));
+                // Jami yozilsa tanlangan asosdagi narx o'zi chiqadi
+                if (qtyNum > 0) {
+                  setCostPrice(String(Math.round((amountValue(e.target.value) / qtyNum) * basis.qty)));
+                }
               }}
               inputMode="numeric"
-              placeholder="200 000"
+              placeholder="1 400 000"
             />
           </div>
         </div>
 
         <div className="row-2">
           <div className="form-row">
-            <label>{t('sellPrice')} (1 {t(`unit_${unit}`)})</label>
-            <input value={formatAmount(sellPrice)} onChange={(e) => setSellPrice(e.target.value)} inputMode="numeric" placeholder="16 000" />
+            <label>{t('sellPrice')} ({basisText(basis)})</label>
+            <input value={formatAmount(sellPrice)} onChange={(e) => setSellPrice(e.target.value)} inputMode="numeric" placeholder="15 000" />
           </div>
           <div className="form-row" />
         </div>
 
         {/* Bitta qatorli xulosa — kiritilgan raqamlar qanday
-            tushunilgani ko'rinib turadi, lekin joy egallamaydi */}
-        {(qtyNum > 0 || unitCost > 0) && (
+            tushunilgani ko'rinib turadi, lekin joy egallamaydi.
+            Asos 1 birlik bo'lmasa, 1 birlikdagi narx ham yoziladi:
+            "10 kg · 100 g = 15 000 · 1 kg = 150 000" */}
+        {(qtyNum > 0 || basisCost > 0) && (
           <p className={`intake-line ${margin < 0 ? 'bad' : ''}`}>
             {qtyNum > 0 && <b>{qtyText(qtyNum)} {t(`unit_${unit}`)}</b>}
-            {qtyNum > 0 && unitCost > 0 && ' · '}
-            {unitCost > 0 && `1 ${t(`unit_${unit}`)} = ${fmt(unitCost)}`}
-            {margin !== 0 && (
+            {qtyNum > 0 && basisCost > 0 && ' · '}
+            {basisCost > 0 && `${basisText(basis)} = ${fmt(basisCost)}`}
+            {basisCost > 0 && basis.qty !== 1 && ` · 1 ${t(`unit_${unit}`)} = ${fmt(Math.round(unitCost))}`}
+            {basisMargin !== 0 && (
               <>
                 {' · '}
-                {margin > 0 ? t('profit') : t('sellBelowCost')}{' '}
-                <b>{fmt(margin)}</b>
-                {qtyNum > 0 && ` (${t('allOf')} ${fmt(margin * qtyNum)})`}
+                {basisMargin > 0 ? t('profit') : t('sellBelowCost')}{' '}
+                <b>{fmt(basisMargin)}</b>
+                {qtyNum > 0 && ` (${t('allOf')} ${fmt(Math.round(margin * qtyNum))})`}
               </>
             )}
           </p>

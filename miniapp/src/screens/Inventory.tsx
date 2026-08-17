@@ -8,7 +8,10 @@ import { formatAmount } from '../format';
 import { toast, loadFailed } from '../toast';
 import { DiscountSheet, priceAfter } from '../discount';
 import { PrintSheet, Labels } from '../print';
-import { UNITS, isFractional, parseQty, normalizeUnit } from '../units';
+import {
+  STOCK_UNITS, isFractional, parseQty, normalizeUnit, qtyWithUnit,
+  priceBases, basisOf, basisText, priceForBasis, priceLabel, PriceBasis,
+} from '../units';
 import { ean13Svg, isEan13, scaleBarcode } from '../ean13';
 import { scanFail } from '../beep';
 
@@ -143,11 +146,13 @@ export default function Inventory({ onBack }: { onBack: () => void }) {
                       {/* Chegirma bo'lsa eski narx chizilgan holda qoladi */}
                       {(p.discount_percent ?? 0) > 0 ? (
                         <>
-                          <b style={{ color: 'var(--green)' }}>{fmt(priceAfter(p.sell_price, p.discount_percent!))}</b>{' '}
-                          <span className="old-price">{fmt(p.sell_price)}</span>
+                          <b style={{ color: 'var(--green)' }}>
+                            {priceLabel(priceAfter(p.sell_price, p.discount_percent!), p.unit, p.price_qty)}
+                          </b>{' '}
+                          <span className="old-price">{priceLabel(p.sell_price, p.unit, p.price_qty)}</span>
                         </>
                       ) : (
-                        fmt(p.sell_price)
+                        priceLabel(p.sell_price, p.unit, p.price_qty)
                       )}
                       {expDays !== null && (
                         <span style={{ color: expDays < 0 ? 'var(--red)' : expDays <= 7 ? 'var(--yellow)' : undefined }}>
@@ -163,7 +168,7 @@ export default function Inventory({ onBack }: { onBack: () => void }) {
                     className="amount"
                     style={{ color: p.stock < 0 ? 'var(--red)' : p.stock <= 5 ? 'var(--yellow)' : undefined }}
                   >
-                    {p.stock} {p.unit}
+                    {qtyWithUnit(p.stock, p.unit)}
                   </span>
                   <Glyph name="chevron" size={15} color="#c7c7cc" />
                 </div>
@@ -203,10 +208,15 @@ export default function Inventory({ onBack }: { onBack: () => void }) {
 
 function ProductEdit({ product, onBack, onSaved }: { product: Product; onBack: () => void; onSaved: () => void }) {
   const { t } = useT();
+  // Narx qaysi miqdorga aytilgani — omborniki bilan bir xil emas.
+  // "10 kg keldi, 100 grami 15 000" degan tovar bu yerda ham o'sha
+  // ko'rinishda ochilishi kerak, aks holda do'konchi 150 000 ni ko'rib
+  // qo'rqib ketadi.
+  const [basis, setBasis] = useState<PriceBasis>(() => basisOf(product.unit, product.price_qty));
   const [form, setForm] = useState({
     name: product.name,
-    cost_price: String(product.cost_price),
-    sell_price: String(product.sell_price),
+    cost_price: String(priceForBasis(product.cost_price, basisOf(product.unit, product.price_qty).qty)),
+    sell_price: String(priceForBasis(product.sell_price, basisOf(product.unit, product.price_qty).qty)),
     stock: String(product.stock),
     low_stock_threshold: String(product.low_stock_threshold ?? 5),
     expiry_date: product.expiry_date ?? '',
@@ -313,13 +323,32 @@ function ProductEdit({ product, onBack, onSaved }: { product: Product; onBack: (
     img.src = URL.createObjectURL(file);
   }
 
+  // Maydonlarda tanlangan asos uchun narx turadi, bazaga esa har doim
+  // 1 ombor birligi uchun narx boradi
+  const basisCost = parseInt(form.cost_price.replace(/\D/g, ''), 10) || 0;
+  const basisSell = parseInt(form.sell_price.replace(/\D/g, ''), 10) || 0;
+  const unitCost = Math.round(basisCost / basis.qty);
+  const unitSell = Math.round(basisSell / basis.qty);
+  const bases = priceBases(form.unit);
+
+  /** Asos almashsa 1 birlik narxi o'zgarmaydi, faqat ko'rinishi */
+  function pickBasis(next: PriceBasis, unit = form.unit) {
+    const conv = (txt: string) => {
+      const v = parseInt(txt.replace(/\D/g, ''), 10) || 0;
+      return v ? String(Math.round((v / basis.qty) * next.qty)) : txt;
+    };
+    setForm((f) => ({ ...f, unit, cost_price: conv(f.cost_price), sell_price: conv(f.sell_price) }));
+    setBasis(next);
+  }
+
   async function save() {
     setError('');
     await api.updateProduct(product.id!, {
       name: form.name.trim(),
-      cost_price: parseInt(form.cost_price.replace(/\D/g, ''), 10) || 0,
-      sell_price: parseInt(form.sell_price.replace(/\D/g, ''), 10) || 0,
+      cost_price: unitCost,
+      sell_price: unitSell,
       unit: form.unit,
+      price_qty: basis.qty,
       stock: parseQty(form.stock, form.unit),
       low_stock_threshold: parseQty(form.low_stock_threshold, form.unit) || 5,
       expiry_date: form.expiry_date || null,
@@ -496,31 +525,59 @@ function ProductEdit({ product, onBack, onSaved }: { product: Product; onBack: (
               t={t}
               items={Array.from({ length: labelQty }, () => ({
                 name: form.name || product.name,
-                price: parseInt(form.sell_price.replace(/\D/g, ''), 10) || product.sell_price,
+                // Yorliqdagi narx 1 birlik uchun — kod ham shunday o'qiladi
+                price: unitSell || product.sell_price,
                 barcode: labelCode,
               }))}
             />
           </PrintSheet>
         )}
 
-        <div style={{ display: 'flex', gap: 10 }}>
-          <div style={{ flex: 1 }}>
-            <label>{t('costPrice')}</label>
-            <input value={formatAmount(form.cost_price)} onChange={(e) => setForm({ ...form, cost_price: e.target.value })} inputMode="numeric" />
-          </div>
-          <div style={{ flex: 1 }}>
-            <label>{t('sellPrice')}</label>
-            <input value={formatAmount(form.sell_price)} onChange={(e) => setForm({ ...form, sell_price: e.target.value })} inputMode="numeric" />
-          </div>
-        </div>
+        {/* Ombor birligi narxdan oldin turadi: narx maydonining sarlavhasi
+            shunga qarab o'zgaradi ("Sotuv narxi (100 g)") */}
         <label>{t('unitLabel')}</label>
         <div className="chip-row">
-          {UNITS.map((u) => (
-            <button key={u} className={`chip ${form.unit === u ? 'on' : ''}`} onClick={() => setForm({ ...form, unit: u })}>
+          {STOCK_UNITS.map((u) => (
+            <button
+              key={u}
+              className={`chip ${form.unit === u ? 'on' : ''}`}
+              onClick={() => { if (u !== form.unit) pickBasis(priceBases(u)[0], u); }}
+            >
               {t(`unit_${u}`)}
             </button>
           ))}
         </div>
+        {bases.length > 1 && (
+          <>
+            <label>{t('priceBasis')}</label>
+            <div className="chip-row">
+              {bases.map((b) => (
+                <button
+                  key={b.qty}
+                  className={`chip ${Math.abs(b.qty - basis.qty) < 1e-9 ? 'on' : ''}`}
+                  onClick={() => pickBasis(b)}
+                >
+                  {basisText(b)}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+        <div style={{ display: 'flex', gap: 10 }}>
+          <div style={{ flex: 1 }}>
+            <label>{t('costPrice')} ({basisText(basis)})</label>
+            <input value={formatAmount(form.cost_price)} onChange={(e) => setForm({ ...form, cost_price: e.target.value })} inputMode="numeric" />
+          </div>
+          <div style={{ flex: 1 }}>
+            <label>{t('sellPrice')} ({basisText(basis)})</label>
+            <input value={formatAmount(form.sell_price)} onChange={(e) => setForm({ ...form, sell_price: e.target.value })} inputMode="numeric" />
+          </div>
+        </div>
+        {basis.qty !== 1 && basisSell > 0 && (
+          <p className="field-note">
+            1 {t(`unit_${form.unit}`)} = <b>{fmt(unitSell)}</b>
+          </p>
+        )}
         <div style={{ display: 'flex', gap: 10 }}>
           <div style={{ flex: 1 }}>
             <label>{t('stock')} ({t(`unit_${form.unit}`)})</label>
@@ -553,7 +610,7 @@ function ProductEdit({ product, onBack, onSaved }: { product: Product; onBack: (
           <p className="field-note">
             {t('discountNewPrice')}:{' '}
             <b style={{ color: 'var(--green)' }}>
-              {fmt(priceAfter(parseInt(form.sell_price.replace(/\D/g, ''), 10) || 0, discount))}
+              {priceLabel(priceAfter(unitSell, discount), form.unit, basis.qty)}
             </b>
           </p>
         )}

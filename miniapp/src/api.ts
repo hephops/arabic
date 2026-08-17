@@ -89,7 +89,7 @@ export const api = {
     const qs = new URLSearchParams(params as Record<string, string>).toString();
     return request<Product[]>(`/products${qs ? `?${qs}` : ''}`);
   },
-  intake: (data: { barcode?: string; name: string; unit?: string; cost_price?: number; sell_price?: number; qty?: number; expiry_date?: string; image?: string; category?: string }) =>
+  intake: (data: { barcode?: string; name: string; unit?: string; price_qty?: number; cost_price?: number; sell_price?: number; qty?: number; expiry_date?: string; image?: string; category?: string }) =>
     request<Product>('/products/intake', { method: 'POST', body: JSON.stringify(data) }),
   createSale: (data: { items: { product_id: number; qty: number }[]; payment_type: 'cash' | 'card' | 'debt'; customer_id?: number; customer_name?: string; customer_phone?: string; due_date?: string; allow_negative?: boolean }) =>
     request<Sale>('/sales', { method: 'POST', body: JSON.stringify(data) }),
@@ -364,6 +364,8 @@ export interface Product {
   barcode: string | null;
   name: string;
   unit: string;
+  /** narx qaysi miqdorga aytilgan: 0.1 = "100 gramm uchun" */
+  price_qty?: number;
   cost_price: number;
   sell_price: number;
   stock: number;

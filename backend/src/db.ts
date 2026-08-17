@@ -112,6 +112,10 @@ for (const sql of [
   'ALTER TABLE shops ADD COLUMN allow_negative_stock INTEGER NOT NULL DEFAULT 0',
   // Tarozi raqami (PLU) — og'irlikda sotiladigan tovarlar uchun
   'ALTER TABLE products ADD COLUMN plu TEXT',
+  // Narx qaysi miqdorga aytilgan. Ombor kilogrammda bo'lsa ham narx
+  // "100 grammiga" bo'lishi mumkin — 0.1 shuni bildiradi. Narxning
+  // o'zi bazada har doim 1 ombor birligi uchun turadi.
+  'ALTER TABLE products ADD COLUMN price_qty REAL NOT NULL DEFAULT 1',
 ]) {
   try {
     db.exec(sql);

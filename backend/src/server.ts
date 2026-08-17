@@ -12,7 +12,7 @@ import { handleUpdate, verifyInitData, telegramEnabled, setWebhook, sendMessage 
 import { registerAdminRoutes, seedAdmin } from './admin.js';
 import { normalizeBarcode, barcodeVariants, checkGtin, makeInStoreEan13, parseScaleBarcode, makeScaleBarcode, scaleQty } from './barcodes.js';
 import { normalizePhone } from './phone.js';
-import { normalizeUnit } from './units.js';
+import { normalizeUnit, normalizePriceQty } from './units.js';
 import { dailyFigures, reportText, sendDailyReport, startDailyReportScheduler } from './dailyReport.js';
 import { customerCode, receiptText } from './customerLink.js';
 import { uzToday, uzDayShift, uzDayStartUtc, uzPeriodStartUtc, uzMonthStartUtc } from './tz.js';
@@ -825,7 +825,7 @@ app.post<{ Body: { text: string } }>('/voice/cart', { preHandler: requireAuth },
   const products = db
     // Qoldiq ham qaytadi: savatga qo'shishda qoldiqdan oshib ketmasligini
     // tekshirish uchun kerak (yo'qligi savat summasini NaN qilgan edi)
-    .prepare('SELECT id, name, unit, sell_price, discount_percent, stock, barcode, image_url FROM products WHERE shop_id = ?')
+    .prepare('SELECT id, name, unit, price_qty, sell_price, discount_percent, stock, barcode, image_url FROM products WHERE shop_id = ?')
     .all(req.shopId) as any[];
   const lines = parseCartText(text, products);
   return {
@@ -1202,13 +1202,16 @@ app.get<{ Querystring: { code?: string } }>('/barcodes/lookup', { preHandler: re
   return { code, valid: checkGtin(code), product, catalog };
 });
 
-app.post<{ Body: { barcode?: string; name: string; unit?: string; cost_price?: number; sell_price?: number; qty?: number; expiry_date?: string; image?: string } }>(
+app.post<{ Body: { barcode?: string; name: string; unit?: string; price_qty?: number; cost_price?: number; sell_price?: number; qty?: number; expiry_date?: string; image?: string } }>(
   '/products/intake',
   { preHandler: requireOwner },
   async (req, reply) => {
     const { name, cost_price, sell_price, qty, expiry_date, image, category } = req.body as any;
     // Birlik qat'iy ro'yxatdan — erkin matn kirib qolsa hisobot buzilardi
     const unit = normalizeUnit(req.body.unit);
+    // Narx qaysi miqdorga aytilgani. Narxning o'zi ilovada 1 birlikka
+    // aylantirilib yuboriladi, bu esa faqat "qanday ko'rsatilsin" xotirasi.
+    const priceQty = normalizePriceQty(req.body.price_qty ?? 1, unit);
     const barcode = normalizeBarcode(req.body.barcode);
     if (!name?.trim()) return reply.code(400).send({ error: 'name_required' });
 
@@ -1224,10 +1227,10 @@ app.post<{ Body: { barcode?: string; name: string; unit?: string; cost_price?: n
     if (!product) {
       const info = db
         .prepare(
-          'INSERT INTO products (shop_id, barcode, name, unit, cost_price, sell_price, stock, expiry_date, category) VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?)'
+          'INSERT INTO products (shop_id, barcode, name, unit, price_qty, cost_price, sell_price, stock, expiry_date, category) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?)'
         )
         .run(
-          req.shopId, barcode || null, name.trim(), unit,
+          req.shopId, barcode || null, name.trim(), unit, priceQty,
           cost_price ?? 0, sell_price ?? 0, expiry_date ?? null, category?.trim() || null
         );
       product = db.prepare('SELECT * FROM products WHERE id = ?').get(info.lastInsertRowid);
@@ -1255,10 +1258,13 @@ app.post<{ Body: { barcode?: string; name: string; unit?: string; cost_price?: n
     }
     const addQty = qty ?? 0;
     if (addQty > 0) {
-      db.prepare('UPDATE products SET stock = stock + ?, cost_price = ?, sell_price = ?, expiry_date = COALESCE(?, expiry_date) WHERE id = ?').run(
+      // Narx birligi tovarning o'z birligiga qarab tekshiriladi: eski
+      // tovarga kirim qilinsa uning ombor birligi o'zgarmaydi
+      db.prepare('UPDATE products SET stock = stock + ?, cost_price = ?, sell_price = ?, price_qty = ?, expiry_date = COALESCE(?, expiry_date) WHERE id = ?').run(
         addQty,
         cost_price ?? product.cost_price,
         sell_price ?? product.sell_price,
+        normalizePriceQty(req.body.price_qty ?? product.price_qty ?? 1, product.unit ?? unit),
         expiry_date ?? null,
         product.id
       );
@@ -1461,10 +1467,15 @@ app.patch<{ Params: { id: string }; Body: Record<string, unknown> }>(
       .prepare('SELECT * FROM products WHERE id = ? AND shop_id = ?')
       .get(req.params.id, req.shopId) as any;
     if (!product) return reply.code(404).send({ error: 'not_found' });
-    for (const key of ['name', 'barcode', 'unit', 'cost_price', 'sell_price', 'low_stock_threshold', 'expiry_date', 'stock', 'category', 'supplier_id', 'discount_percent']) {
+    for (const key of ['name', 'barcode', 'unit', 'price_qty', 'cost_price', 'sell_price', 'low_stock_threshold', 'expiry_date', 'stock', 'category', 'supplier_id', 'discount_percent']) {
       if (key in req.body) {
         let value = key === 'barcode' ? normalizeBarcode(req.body[key] as string) || null : (req.body[key] as any);
         if (key === 'unit') value = normalizeUnit(value);
+        if (key === 'price_qty') {
+          // Birlik shu so'rovda o'zgarayotgan bo'lsa yangisiga qaraladi
+          const u = 'unit' in req.body ? normalizeUnit(req.body.unit) : product.unit;
+          value = normalizePriceQty(value, u);
+        }
         if (key === 'discount_percent') {
           // 0..90 oralig'ida — 100% chegirma "tekin berish" bo'lardi
           value = Math.min(90, Math.max(0, Math.round(Number(value) || 0)));
@@ -1476,6 +1487,14 @@ app.patch<{ Params: { id: string }; Body: Record<string, unknown> }>(
             : null;
         }
         db.prepare(`UPDATE products SET ${key} = ? WHERE id = ?`).run(value, product.id);
+      }
+    }
+    // Birlik o'zgarib, narx birligi yangisiga to'g'ri kelmay qolgan bo'lsa
+    // (kg -> dona bo'lganda "100 g uchun" ma'nosini yo'qotadi) — 1 ga qaytadi
+    if ('unit' in req.body && !('price_qty' in req.body)) {
+      const fixed = normalizePriceQty(product.price_qty ?? 1, normalizeUnit(req.body.unit));
+      if (fixed !== (product.price_qty ?? 1)) {
+        db.prepare('UPDATE products SET price_qty = ? WHERE id = ?').run(fixed, product.id);
       }
     }
     // asosiy kod o'zgargan bo'lsa — kodlar ro'yxatiga ham qo'shamiz
