@@ -39,6 +39,8 @@ export default function Returns({ onBack }: { onBack: () => void }) {
   // Shu seansda nima qaytarildi — do'konchi bir nechta tovarni
   // ketma-ket skanerlaganda umumiy manzarani yo'qotmasligi uchun
   const [done, setDone] = useState<{ count: number; total: number }>({ count: 0, total: 0 });
+  // Oxirgi qaytarish — tasdiq sifatida ekranda qoladi
+  const [last, setLast] = useState<{ name: string; qty: number; unit: string; total: number } | null>(null);
   const [list, setList] = useState<ReturnsInfo | null>(null);
 
   useEffect(() => {
@@ -47,6 +49,7 @@ export default function Returns({ onBack }: { onBack: () => void }) {
 
   async function lookup(code: string) {
     setScanning(false);
+    setLast(null);
     try {
       const res = await api.returnLookup(code);
       if (!res.product) {
@@ -96,11 +99,14 @@ export default function Returns({ onBack }: { onBack: () => void }) {
       haptic.success();
       toast.success(t('returnDone'), fmt(res.total));
       setDone((d) => ({ count: d.count + 1, total: d.total + res.total }));
+      setLast({ name: product?.name ?? '', qty: num, unit: product?.unit ?? '', total: res.total });
       setFound(null);
       setPick(null);
-      // Keyingi tovar uchun skaner darhol ochiladi — mijoz bir nechta
-      // narsa qaytarayotgan bo'lsa qo'shimcha bosish kerak bo'lmasin
-      setScanning(true);
+      // Skaner ATAYIN o'zi ochilmaydi: tovar hali sotuvchining qo'lida
+      // turadi va qayta ochilgan skaner o'sha kodni darhol qayta o'qib,
+      // "qaytariladigani qolmagan" deb xato ovozi berardi. Sotuvchi
+      // avval pulni beradi, keyin keyingisini skanerlaydi.
+      setScanning(false);
     } catch (e: any) {
       toast.error(e.message === 'too_many' ? t('returnTooMany') : t('error') + ': ' + e.message);
     } finally {
@@ -138,6 +144,19 @@ export default function Returns({ onBack }: { onBack: () => void }) {
               <Glyph name="scan" size={20} color="#fff" /> {t('returnScanBtn')}
             </button>
 
+            {/* Oxirgi qaytarish tasdig'i — nima va qancha qaytgani ko'rinib turadi */}
+            {last && !pick && (
+              <div className="ret-ok">
+                <Glyph name="check" size={20} color="#fff" />
+                <div style={{ minWidth: 0 }}>
+                  <div className="ro-title">{t('returnDone')}</div>
+                  <div className="ro-sub">
+                    {last.name} · {last.qty} {last.unit} · {fmt(last.total)}
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Tovar topildi, lekin qaytaradigan sotuv yo'q */}
             {found && !pick && (
               <EmptyState
@@ -164,34 +183,48 @@ export default function Returns({ onBack }: { onBack: () => void }) {
                     </div>
                   </div>
 
-                  <div className="ret-qty">
-                    <button
-                      className="rq-btn"
-                      onClick={() => setQty(String(Math.max(0, Math.round((num - 1) * 1000) / 1000)))}
-                      aria-label="−"
-                    >
-                      −
-                    </button>
-                    <input
-                      value={qty}
-                      onChange={(e) => setQty(e.target.value.replace(/[^\d.,]/g, ''))}
-                      inputMode="decimal"
-                    />
-                    <button
-                      className="rq-btn"
-                      onClick={() => setQty(String(Math.min(pick.left_qty, Math.round((num + 1) * 1000) / 1000)))}
-                      aria-label="+"
-                    >
-                      +
-                    </button>
-                    <span className="rq-unit">{product.unit}</span>
-                    <button className="chip" onClick={() => setQty(String(pick.left_qty))}>
-                      {t('returnAll')}
-                    </button>
-                  </div>
-                  <div className="ret-left">
-                    {t('returnLeftMax')}: {pick.left_qty} {product.unit}
-                  </div>
+                  {/* Qaytarish mumkin bo'lgani bitta bo'lsa tanlaydigan
+                      narsa yo'q — tugmalar o'rniga oddiy yozuv */}
+                  {pick.left_qty <= 1 ? (
+                    <div className="ret-only">
+                      {pick.left_qty} {product.unit}
+                    </div>
+                  ) : (
+                    <>
+                      <div className="ret-count">
+                        <button
+                          className="rq-btn"
+                          disabled={num <= 1}
+                          onClick={() => setQty(String(Math.max(1, Math.round((num - 1) * 1000) / 1000)))}
+                          aria-label="−"
+                        >
+                          −
+                        </button>
+                        <input
+                          value={qty}
+                          onChange={(e) => setQty(e.target.value.replace(/[^\d.,]/g, ''))}
+                          inputMode="decimal"
+                        />
+                        <button
+                          className="rq-btn"
+                          disabled={num >= pick.left_qty}
+                          onClick={() => setQty(String(Math.min(pick.left_qty, Math.round((num + 1) * 1000) / 1000)))}
+                          aria-label="+"
+                        >
+                          +
+                        </button>
+                        <span className="rq-unit">{product.unit}</span>
+                        {num < pick.left_qty && (
+                          <button className="chip" onClick={() => setQty(String(pick.left_qty))}>
+                            {t('returnAll')}
+                          </button>
+                        )}
+                      </div>
+                      <div className="ret-left">
+                        {t('returnLeftMax')}: {pick.left_qty} {product.unit}
+                      </div>
+                    </>
+                  )}
 
                   <div className="ret-total">
                     <span>{t('returnWillRefund')}</span>

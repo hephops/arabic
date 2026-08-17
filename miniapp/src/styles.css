@@ -1743,8 +1743,12 @@ button.link { background: none; color: var(--accent); font-size: 15px; font-weig
 .ret-head { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
 .ret-name { font-size: 17px; font-weight: 700; }
 .ret-sub { font-size: 13px; color: var(--muted); margin-top: 2px; }
-.ret-qty { display: flex; align-items: center; gap: 8px; }
-.ret-qty input {
+/* DIQQAT: nomi "ret-count" — "ret-qty" allaqachon Kassadagi qaytarish
+   oynasining miqdor maydoni uchun band (yuqorida, 62px kenglik va kulrang
+   fon bilan). Ikkalasi bir nom ostida bo'lganda bu qator 62px ga qisilib,
+   ichidagi tugmalar toshib ketardi. */
+.ret-count { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; row-gap: 10px; }
+.ret-count input {
   width: 74px; margin: 0; text-align: center; font-size: 18px; font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
@@ -1753,6 +1757,7 @@ button.link { background: none; color: var(--accent); font-size: 15px; font-weig
   background: rgba(120, 120, 128, 0.12); font-size: 21px; font-weight: 600; color: var(--text);
 }
 .rq-btn:active { opacity: 0.7; }
+.rq-btn:disabled { opacity: 0.35; }
 .rq-unit { font-size: 14px; color: var(--muted); }
 .ret-left { font-size: 12.5px; color: var(--muted); margin-top: 7px; }
 .ret-total {
@@ -1761,3 +1766,13 @@ button.link { background: none; color: var(--accent); font-size: 15px; font-weig
 }
 .ret-total span { font-size: 14px; color: var(--muted); }
 .ret-total b { font-size: 22px; color: var(--red); font-variant-numeric: tabular-nums; }
+/* Qaytariladigani bitta bo'lsa — tanlash o'rniga oddiy yozuv */
+.ret-only { font-size: 17px; font-weight: 600; }
+/* Qaytarish bajarildi — keyingi skanerlashgacha ekranda turadi */
+.ret-ok {
+  display: flex; align-items: center; gap: 11px;
+  background: var(--green); color: #fff;
+  border-radius: 14px; padding: 13px 15px; margin-bottom: 12px;
+}
+.ro-title { font-size: 15px; font-weight: 700; }
+.ro-sub { font-size: 13px; opacity: 0.9; margin-top: 2px; }
