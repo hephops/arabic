@@ -190,7 +190,7 @@ export default function Profile({
             const next = !vibe;
             setScanVibe(next);
             setVibe(next);
-            if (next) vibrate(60); // yoqilganda darhol namuna
+            if (next) vibrate(1); // yoqilganda darhol namuna
           }}
           aria-label={t('scanVibe')}
         >

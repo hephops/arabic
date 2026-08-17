@@ -13,11 +13,10 @@
 //   bip        — kod o'qildi (qisqa, baland — do'kon shovqinida ham eshitiladi)
 //   bip-bip    — tovar topilmadi (past va ikki marta — xatoni ajratib turadi)
 //
-// Titrash ham shu ikki xillikni takrorlaydi: bitta qisqa turtki yoki
-// ikkita. Bozorda karnay-surnay ostida ovoz eshitilmasligi mumkin —
-// qo'lda sezilgan turtki o'shanda yagona javob bo'lib qoladi.
-// Titrash Android/Chrome'da ishlaydi; iPhone Safari'da bunday imkoniyat
-// yo'q, shuning uchun u yerda faqat ovoz qoladi.
+// Titrash ham shu ikki xillikni takrorlaydi: bitta turtki yoki ikkita.
+// Bozorda karnay-surnay ostida ovoz eshitilmasligi mumkin — qo'lda
+// sezilgan turtki o'shanda yagona javob bo'lib qoladi. Titrash qanday
+// beriladi (Android va iPhone'da har xil) — pastda tushuntirilgan.
 
 const SOUND_KEY = 'arabic.scanSound.v1';
 const VIBE_KEY = 'arabic.scanVibe.v1';
@@ -49,19 +48,95 @@ export function setScanSound(on: boolean) {
   if (on) unlockBeep();
 }
 
-/** Bu qurilma umuman titray oladimi (iPhone Safari'da yo'q) */
-export const canVibrate = () => typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function';
+/* ── Titrash ──
+ *
+ * Ikki yo'l bor, chunki brauzerlar bir xil emas:
+ *
+ * 1. navigator.vibrate — Android/Chrome. Ishlashi uchun foydalanuvchi
+ *    sahifada kamida bir marta biror narsani bosgan bo'lishi shart
+ *    (skanerni ochish tugmasi shu shartni bajaradi).
+ *
+ * 2. iPhone. Apple brauzerga navigator.vibrate bermagan va bermaydi ham.
+ *    Ammo iOS 17.4 dan boshlab Safari <input type="checkbox" switch>
+ *    elementini biladi va uni almashtirganda tizimning o'zi qisqa
+ *    titrash beradi. Ko'rinmaydigan shunday element yasab, o'sha
+ *    "chertish"dan foydalanamiz — iPhone'da titrashning yagona yo'li shu.
+ *
+ * Kompyuterda titraydigan qismning o'zi yo'q: navigator.vibrate
+ * Chrome'da mavjud bo'lsa ham hech narsa qilmaydi. Shuning uchun
+ * "titray oladi" deb faqat sensorli qurilmani hisoblaymiz — aks holda
+ * sozlama yoqilgandek ko'rinib, aslida ishlamasdi.
+ */
+
+const isTouchDevice = () =>
+  typeof navigator !== 'undefined' && (navigator.maxTouchPoints ?? 0) > 0;
+
+const hasVibrateApi = () =>
+  typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function';
+
+/** iOS 17.4+ da switch elementi bormi */
+function hasSwitchHaptic(): boolean {
+  if (typeof document === 'undefined') return false;
+  try {
+    return 'switch' in document.createElement('input');
+  } catch {
+    return false;
+  }
+}
+
+let hapticSwitch: HTMLLabelElement | null = null;
+
+/** iPhone'da bitta qisqa titrash */
+function tapSwitch() {
+  if (!hapticSwitch) {
+    const label = document.createElement('label');
+    label.setAttribute('aria-hidden', 'true');
+    label.style.display = 'none';
+    const input = document.createElement('input');
+    input.type = 'checkbox';
+    input.setAttribute('switch', '');
+    label.appendChild(input);
+    document.head.appendChild(label);
+    hapticSwitch = label;
+  }
+  hapticSwitch.click();
+}
+
+/** Bu qurilma umuman titray oladimi */
+export function canVibrate(): boolean {
+  // Sensorli ekran — "bu telefon" degan eng ishonchli belgi. Usiz
+  // tekshirsak, kompyuterdagi Chrome ham "titray olaman" derdi
+  // (navigator.vibrate bor, lekin titraydigan qismi yo'q), Mac'dagi
+  // Safari ham switch elementini biladi.
+  if (!isTouchDevice()) return false;
+  return hasVibrateApi() || hasSwitchHaptic();
+}
 
 /** Titrash yoqilganmi */
 export const scanVibeOn = () => flagOn(VIBE_KEY);
 
 export const setScanVibe = (on: boolean) => setFlag(VIBE_KEY, on);
 
-/** Sozlama yoqilgan bo'lsa qurilmani titratadi */
-export function vibrate(pattern: number | number[]) {
+/**
+ * Sozlama yoqilgan bo'lsa qurilmani titratadi.
+ * `pulses` — nechta turtki (iPhone'da uzunlikni boshqarib bo'lmaydi,
+ * faqat sonini; shuning uchun ikkala yo'l uchun bir xil o'lchov).
+ */
+export function vibrate(pulses = 1) {
   if (!scanVibeOn() || !canVibrate()) return;
   try {
-    navigator.vibrate(pattern);
+    if (hasVibrateApi() && isTouchDevice()) {
+      // 60ms ko'p telefonda sezilmay ketardi — motor to'liq
+      // aylanishga ulgurmaydi. 110ms aniq seziladigan chegara.
+      const pattern: number[] = [];
+      for (let i = 0; i < pulses; i++) {
+        if (i > 0) pattern.push(80); // turtkilar orasidagi tanaffus
+        pattern.push(110);
+      }
+      navigator.vibrate(pattern);
+      return;
+    }
+    for (let i = 0; i < pulses; i++) setTimeout(tapSwitch, i * 190);
   } catch {
     /* titrash bo'lmasa ham skanerlash to'xtamasligi kerak */
   }
@@ -147,14 +222,14 @@ export function beepError() {
   });
 }
 
-/** Kod o'qildi: bitta "bip" va bitta qisqa turtki */
+/** Kod o'qildi: bitta "bip" va bitta turtki */
 export function scanOk() {
   beepOk();
-  vibrate(60);
+  vibrate(1);
 }
 
 /** Tovar topilmadi: past ikki ohang va ikkita turtki */
 export function scanFail() {
   beepError();
-  vibrate([70, 70, 70]);
+  vibrate(2);
 }
