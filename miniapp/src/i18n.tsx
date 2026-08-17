@@ -631,6 +631,15 @@ const UZ: Record<string, string> = {
 
   // Qaytarish (vozvrat)
   returnTitle: 'Qaytarish',
+  historySearch: 'Kod, tovar, mijoz yoki chek raqami',
+  historyScanHint: 'Qaytarilayotgan tovarni skanerlang — cheki topiladi',
+  historySales: 'Sotuvlar',
+  historyReturns: 'Qaytarilgan',
+  historyNoMatch: 'Bunday chek topilmadi',
+  returnsMonth: 'Shu oyda qaytarilgan',
+  returnsNone: 'Qaytarilgan tovar yo‘q',
+  returnsNoneSub: 'Mijoz tovarni qaytarsa, chekni ochib "Tovarni qaytarish" tugmasini bosing',
+  returnToDebt: 'Qarzdan ayirildi',
   returnDo: 'Tovarni qaytarish',
   returnHint: 'Qaytarilgan tovar javonga qaytadi, tushum va foyda kamayadi',
   returnQty: 'Qaytariladi',
@@ -1275,6 +1284,15 @@ const RU: Record<string, string> = {
 
   // Возврат
   returnTitle: 'Возврат',
+  historySearch: 'Код, товар, клиент или номер чека',
+  historyScanHint: 'Отсканируйте возвращаемый товар — чек найдётся',
+  historySales: 'Продажи',
+  historyReturns: 'Возвраты',
+  historyNoMatch: 'Такой чек не найден',
+  returnsMonth: 'Возвращено в этом месяце',
+  returnsNone: 'Возвратов нет',
+  returnsNoneSub: 'Когда клиент вернёт товар, откройте чек и нажмите «Вернуть товар»',
+  returnToDebt: 'Вычтено из долга',
   returnDo: 'Вернуть товар',
   returnHint: 'Возвращённый товар вернётся на склад, выручка и прибыль уменьшатся',
   returnQty: 'Возвращается',

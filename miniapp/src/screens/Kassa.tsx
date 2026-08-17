@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { api, fmt, Customer, Product, SaleRow, SaleDetail, BASE } from '../api';
+import { api, fmt, Customer, Product, SaleRow, SaleDetail, ReturnsInfo, BASE } from '../api';
 import { AppIcon, Glyph } from '../icons';
 import Scanner from '../Scanner';
 import { useHardwareScanner } from '../hardwareScanner';
@@ -11,7 +11,7 @@ import {
   Cart, MAX_CARTS, cartQty, cartTotal, linePrice, loadCarts, newCart, nextNo, saveCarts,
 } from '../carts';
 import { PrintSheet, Receipt } from '../print';
-import { ProductThumb } from '../ui';
+import { ProductThumb, EmptyState, Summary } from '../ui';
 import { TrustWarning } from '../trust';
 import { GoalStrip } from '../goal';
 import { VoiceCartSheet } from '../voiceCart';
@@ -72,11 +72,23 @@ function HistoryMode() {
   const [refund, setRefund] = useState<'cash' | 'card' | 'debt'>('cash');
   const [busy, setBusy] = useState(false);
   const [printing, setPrinting] = useState(false);
+  // Chekni qidirish: mijoz tovarni ko'tarib kelganda chek raqami
+  // esida bo'lmaydi — shtrix-kodni skanerlab topish eng tez yo'l
+  const [q, setQ] = useState('');
+  const [scanning, setScanning] = useState(false);
+  const [view, setView] = useState<'sales' | 'returns'>('sales');
+  const [returns, setReturns] = useState<ReturnsInfo | null>(null);
 
-  const loadSales = () => api.sales(50).then(setSales).catch(loadFailed);
+  const loadSales = (query = q) => api.sales(50, query).then(setSales).catch(loadFailed);
+  const loadReturns = () => api.returns('month').then(setReturns).catch(loadFailed);
   useEffect(() => {
-    loadSales();
-  }, []);
+    // Yozayotganda har harfga so'rov ketmasin
+    const id = setTimeout(() => loadSales(), q ? 300 : 0);
+    return () => clearTimeout(id);
+  }, [q]);
+  useEffect(() => {
+    if (view === 'returns' && !returns) loadReturns();
+  }, [view]);
 
   async function sendReceipt(id: number) {
     try {
@@ -111,6 +123,7 @@ function HistoryMode() {
       setReturning(false);
       setDetail(await api.sale(detail.id));
       loadSales();
+      if (returns) loadReturns();
     } catch (e: any) {
       toast.error(e.message === 'too_many' ? t('returnTooMany') : t('error') + ': ' + e.message);
     } finally {
@@ -285,6 +298,57 @@ function HistoryMode() {
 
   return (
     <>
+      {/* Chekni topish: kod, tovar nomi, mijoz yoki chek raqami bo'yicha.
+          Qaytarishlar ro'yxatiga tegishli emas — o'sha bo'limda yashiriladi,
+          aks holda yozilgan matn ta'sir qilmayotgandek tuyulardi. */}
+      {view === 'sales' && (
+      <div className="search-row">
+        <div className="search-field">
+          <Glyph name="search" size={17} color="#8a8a8e" />
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder={t('historySearch')}
+            inputMode="search"
+          />
+          {q && (
+            <button className="search-clear" onClick={() => setQ('')} aria-label={t('close')}>
+              <Glyph name="close" size={17} color="#8a8a8e" />
+            </button>
+          )}
+        </div>
+        <button className="scan-round" onClick={() => setScanning(true)} aria-label={t('scanTitle')}>
+          <Glyph name="scan" size={20} color="#fff" />
+        </button>
+      </div>
+      )}
+
+      {scanning && (
+        <Scanner
+          status={t('historyScanHint')}
+          onScan={(code) => {
+            setScanning(false);
+            setView('sales');
+            setQ(code);
+          }}
+          onClose={() => setScanning(false)}
+        />
+      )}
+
+      <div className="segmented sm">
+        <button className={view === 'sales' ? 'on' : ''} onClick={() => { setView('sales'); haptic.select(); }}>
+          {t('historySales')}
+        </button>
+        <button className={view === 'returns' ? 'on' : ''} onClick={() => { setView('returns'); haptic.select(); }}>
+          {t('historyReturns')}
+          {returns && returns.count > 0 ? ` · ${returns.count}` : ''}
+        </button>
+      </div>
+
+      {view === 'returns' ? (
+        <ReturnsList data={returns} />
+      ) : (
+      <>
       <div className="list-group">
         {sales.map((s) => (
           <div className="list-item" key={s.id} onClick={async () => setDetail(await api.sale(s.id))}>
@@ -318,7 +382,50 @@ function HistoryMode() {
           </div>
         ))}
       </div>
-      {sales.length === 0 && <div className="empty">{t('noSalesYet')}</div>}
+      {sales.length === 0 && <div className="empty">{q ? t('historyNoMatch') : t('noSalesYet')}</div>}
+      </>
+      )}
+    </>
+  );
+}
+
+/* ───────── Qaytarilgan tovarlar ─────────
+   Do'konchi "shu oyda nima qaytdi va qancha pul chiqdi" degan savolga
+   javob topadigan joy. Ilgari bu ma'lumot faqat har bir chekning
+   ichida turardi — umumiy manzara ko'rinmasdi. */
+
+function ReturnsList({ data }: { data: ReturnsInfo | null }) {
+  const { t } = useT();
+  if (!data) return <div className="empty">{t('loading')}</div>;
+  if (data.items.length === 0) return <EmptyState icon="arrowDown" title={t('returnsNone')} sub={t('returnsNoneSub')} />;
+  const label = (rt: string) => (rt === 'card' ? t('payCard') : rt === 'debt' ? t('returnToDebt') : t('payCash'));
+  return (
+    <>
+      <Summary
+        icon="arrowDown"
+        iconColor="red"
+        label={t('returnsMonth')}
+        value={`−${fmt(data.total)}`}
+        color="var(--red)"
+        right={<span className="badge">{data.count}</span>}
+      />
+      <div className="list-group">
+        {data.items.map((r) => (
+          <div className="list-item" key={r.id}>
+            <div style={{ minWidth: 0 }}>
+              <div className="name" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {r.items ?? '—'}
+              </div>
+              <div className="sub">
+                {fmtWhen(r.created_at)} · {label(r.refund_type)}
+                {r.customer_name ? ` · ${r.customer_name}` : ''}
+                {r.reason ? ` · ${r.reason}` : ''}
+              </div>
+            </div>
+            <span className="amount" style={{ color: 'var(--red)' }}>−{fmt(r.total)}</span>
+          </div>
+        ))}
+      </div>
     </>
   );
 }

@@ -1687,8 +1687,37 @@ app.post<{ Body: { items: { product_id: number; qty: number }[]; payment_type: '
 );
 
 // Sotuvlar tarixi
-app.get<{ Querystring: { limit?: string } }>('/sales', { preHandler: requireAuth }, async (req) => {
+app.get<{ Querystring: { limit?: string; q?: string } }>('/sales', { preHandler: requireAuth }, async (req) => {
   const limit = Math.min(Number(req.query.limit ?? 50), 200);
+  const q = (req.query.q ?? '').trim();
+
+  // Qidiruv — tovar qaytarilganda kerak bo'ladi.
+  //
+  // Mijoz tovarni ko'tarib kelganda do'konchi qo'lida chek raqami
+  // bo'lmaydi; qo'lida tovarning o'zi bo'ladi. Shuning uchun eng muhim
+  // yo'l — shtrix-kodni skanerlab, o'sha tovar sotilgan cheklarni
+  // ko'rish. Qolgan yo'llar (tovar nomi, mijoz, chek raqami) qo'shimcha.
+  const where: string[] = ['s.shop_id = ?'];
+  const args: unknown[] = [req.shopId];
+  if (q) {
+    const like = `%${q}%`;
+    where.push(`(
+      CAST(s.id AS TEXT) = ?
+      OR c.name LIKE ?
+      OR c.phone LIKE ?
+      OR EXISTS (
+        SELECT 1 FROM sale_items si JOIN products p ON p.id = si.product_id
+        WHERE si.sale_id = s.id
+          AND (p.name LIKE ?
+               OR p.barcode = ?
+               OR EXISTS (SELECT 1 FROM product_barcodes pb
+                          WHERE pb.product_id = p.id AND pb.barcode = ?))
+      )
+    )`);
+    args.push(q.replace(/^#/, ''), like, like, like, q, q);
+  }
+  args.push(limit);
+
   return db
     .prepare(
       `SELECT s.*, c.name AS customer_name, c.phone AS customer_phone,
@@ -1696,9 +1725,9 @@ app.get<{ Querystring: { limit?: string } }>('/sales', { preHandler: requireAuth
                FROM sale_items si JOIN products p ON p.id = si.product_id WHERE si.sale_id = s.id) AS items,
               (SELECT COALESCE(SUM(r.total), 0) FROM returns r WHERE r.sale_id = s.id) AS returned
        FROM sales s LEFT JOIN customers c ON c.id = s.customer_id
-       WHERE s.shop_id = ? ORDER BY s.created_at DESC, s.id DESC LIMIT ?`
+       WHERE ${where.join(' AND ')} ORDER BY s.created_at DESC, s.id DESC LIMIT ?`
     )
-    .all(req.shopId, limit);
+    .all(...(args as any[]));
 });
 
 app.get<{ Params: { id: string } }>('/sales/:id', { preHandler: requireAuth }, async (req, reply) => {
@@ -1850,14 +1879,17 @@ app.post<{
 // Barcha qaytarishlar ro'yxati (davr bo'yicha) — hisobot uchun
 app.get<{ Querystring: { period?: string; limit?: string } }>(
   '/returns',
-  { preHandler: requireOwner },
+  { preHandler: requireAuth },
   async (req) => {
     const since = expensePeriodSql(req.query.period);
     const limit = Math.min(Number(req.query.limit ?? 100), 300);
     const items = db
       .prepare(
         `SELECT r.*, c.name AS customer_name,
-                (SELECT GROUP_CONCAT(p.name || ' ×' || ri.qty, ', ')
+                (SELECT GROUP_CONCAT(p.name || ' ×' ||
+                          CASE WHEN ri.qty = CAST(ri.qty AS INTEGER)
+                               THEN CAST(CAST(ri.qty AS INTEGER) AS TEXT)
+                               ELSE CAST(ri.qty AS TEXT) END, ', ')
                  FROM return_items ri JOIN products p ON p.id = ri.product_id
                  WHERE ri.return_id = r.id) AS items
          FROM returns r LEFT JOIN customers c ON c.id = r.customer_id

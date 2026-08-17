@@ -50,12 +50,15 @@ export function SubHeader({ title, onBack }: { title: string; onBack: () => void
 // Ustki xulosa kartasi: ikonka, izoh va katta raqam
 export function Summary({
   icon,
+  iconColor,
   label,
   value,
   color,
   right,
 }: {
   icon: string;
+  /** ikonka rangi — qiymat rangiga mos kelishi uchun */
+  iconColor?: string;
   label: string;
   value: string;
   color?: string;
@@ -63,7 +66,7 @@ export function Summary({
 }) {
   return (
     <div className="summary">
-      <AppIcon glyph={icon} size={44} />
+      <AppIcon glyph={icon} color={iconColor} size={44} />
       <div style={{ flex: 1, minWidth: 0 }}>
         <div className="k">{label}</div>
         <div className="v" style={color ? { color } : undefined}>{value}</div>

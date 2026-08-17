@@ -154,7 +154,8 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ items }),
     }),
-  sales: (limit = 50) => request<SaleRow[]>(`/sales?limit=${limit}`),
+  sales: (limit = 50, q = '') =>
+    request<SaleRow[]>(`/sales?limit=${limit}${q ? `&q=${encodeURIComponent(q)}` : ''}`),
   sale: (id: number) => request<SaleDetail>(`/sales/${id}`),
   sendReceipt: (id: number) => request<{ ok: boolean; text: string }>(`/sales/${id}/receipt`, { method: 'POST' }),
   exportUrl: (period: string) => `${BASE}/reports/export?period=${period}`,
