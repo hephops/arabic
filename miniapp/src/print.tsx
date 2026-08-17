@@ -1,9 +1,9 @@
-import { useEffect, type ReactNode } from 'react';
+import { useLayoutEffect, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { ean13Svg } from './ean13';
-import { qrSvg } from './qr';
 import { group } from './i18n';
 import { fmtDateTime } from './format';
+import { qtyText } from './units';
 
 // Chek va yorliq chop etish.
 //
@@ -24,9 +24,19 @@ import { fmtDateTime } from './format';
  *  Shuning uchun endi chekni faqat chop etish haqiqatan tugagach
  *  o'chiramiz: `afterprint`, `matchMedia('print')` va sahifaga
  *  qaytish (focus) — uchalasidan qaysi biri birinchi kelsa. Hech biri
- *  kelmasa ham ilova qotib qolmasin deb zaxira taymer bor. */
+ *  kelmasa ham ilova qotib qolmasin deb zaxira taymer bor.
+ *
+ *  IKKINCHI MUHIM JOY — `window.print()` QACHON chaqiriladi:
+ *
+ *  iPhone (Safari) chop etishni faqat foydalanuvchi bosgan paytda
+ *  ochadi. Ilgari u `setTimeout` ichida chaqirilardi — taymer bosishdan
+ *  uzilib qolgani uchun Safari uni jimgina bekor qilardi va tugma
+ *  umuman ishlamayotgandek tuyulardi. Endi `useLayoutEffect` ichida,
+ *  bosish hali tugamasdan turib chaqiriladi. Chek DOM'ga qo'yilgan
+ *  bo'ladi, undan oldin bir marta reflow majburlanadi — shunda varaq
+ *  bo'sh chiqmaydi. */
 export function PrintSheet({ children, onDone }: { children: ReactNode; onDone: () => void }) {
-  useEffect(() => {
+  useLayoutEffect(() => {
     let finished = false;
     // Chop etish boshlanganini bilamiz — undan oldingi "focus" hodisasi
     // (masalan klaviatura yopilishi) chekni erta o'chirib yubormasin
@@ -62,7 +72,6 @@ export function PrintSheet({ children, onDone }: { children: ReactNode; onDone: 
       window.removeEventListener('afterprint', onAfterPrint);
       window.removeEventListener('focus', onFocus);
       mql?.removeEventListener?.('change', onMedia);
-      clearTimeout(openTimer);
       clearTimeout(guardTimer);
     };
 
@@ -70,12 +79,17 @@ export function PrintSheet({ children, onDone }: { children: ReactNode; onDone: 
     window.addEventListener('focus', onFocus);
     mql?.addEventListener?.('change', onMedia);
 
-    // Brauzer chizib bo'lishini kutamiz, aks holda bo'sh varaq chiqadi
-    const openTimer = setTimeout(() => {
-      printing = true;
-      printStartedAt = Date.now();
+    printing = true;
+    printStartedAt = Date.now();
+    // Reflow: chek o'lchamlari hisoblanib bo'lsin, aks holda ba'zi
+    // brauzerlarda bo'sh varaq chiqadi
+    void document.body.offsetHeight;
+    try {
       window.print();
-    }, 150);
+    } catch {
+      // Chop etish umuman yo'q qurilma — oynada osilib qolmaymiz
+      finish();
+    }
 
     // Zaxira: hech qanday hodisa kelmasa ham ilova chop etish holatida
     // qotib qolmaydi (do'konchi keyingi chekni chiqara olsin)
@@ -110,7 +124,6 @@ export interface ReceiptData {
 export function Receipt({ data, t }: { data: ReceiptData; t: (k: string) => string }) {
   const payLabel =
     data.payment_type === 'cash' ? t('payCash') : data.payment_type === 'card' ? t('payCard') : t('payDebt');
-  const qr = qrSvg(receiptQrText(data, t), { size: 3 });
   return (
     <div className="receipt">
       <div className="r-head">
@@ -139,7 +152,7 @@ export function Receipt({ data, t }: { data: ReceiptData; t: (k: string) => stri
               <td className="r-name">
                 {i.name}
                 <div className="r-qty">
-                  {i.qty} {i.unit ?? t('pcs')} × {group(i.price)}
+                  {qtyText(i.qty)} {i.unit ?? t('pcs')} × {group(i.price)}
                 </div>
               </td>
               <td className="r-sum">{group(i.price * i.qty)}</td>
@@ -180,31 +193,9 @@ export function Receipt({ data, t }: { data: ReceiptData; t: (k: string) => stri
         </>
       )}
 
-      {/* QR — xaridor telefoni bilan o'qiydi: do'kon, chek raqami, sana,
-          summa; qarzga olingan bo'lsa karta raqami ham shu yerda */}
-      {qr && (
-        <div className="r-qr" dangerouslySetInnerHTML={{ __html: qr }} />
-      )}
-
       <div className="r-thanks">{t('receiptThanks')}</div>
     </div>
   );
-}
-
-/** Chekdagi QR ichiga yoziladigan matn */
-export function receiptQrText(data: ReceiptData, t: (k: string) => string): string {
-  const lines = [
-    data.shop?.name ?? '',
-    `${t('receipt')} #${data.id} · ${fmtDateTime(data.created_at)}`,
-    `${t('total')}: ${group(data.total)} ${t('currency')}`,
-  ];
-  if (data.payment_type === 'debt') {
-    lines.push(t('payDebt'));
-    if (data.customer?.name) lines.push(data.customer.name);
-    if (data.shop?.card_number) lines.push(`${t('cardNumber')}: ${data.shop.card_number}`);
-  }
-  if (data.shop?.phone) lines.push(data.shop.phone);
-  return lines.filter(Boolean).join('\n');
 }
 
 export interface LabelItem {

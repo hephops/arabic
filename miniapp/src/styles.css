@@ -1375,6 +1375,9 @@ button.link { background: none; color: var(--accent); font-size: 15px; font-weig
   line-height: 1.35;
   color: #000;
 }
+/* Chekdagi hamma yozuv qop-qora. Ilovaning kulrang/ko'k ranglari
+   qog'ozda oqarib ketadi — termal printerda esa umuman o'qilmaydi. */
+.receipt, .receipt * { color: #000; }
 .r-head { text-align: center; margin-bottom: 6px; }
 .r-shop { font-size: 15px; font-weight: 700; letter-spacing: -0.2px; }
 .r-sub { font-size: 10px; }
@@ -1391,8 +1394,6 @@ button.link { background: none; color: var(--accent); font-size: 15px; font-weig
 }
 .r-card { font-size: 10.5px; margin-top: 3px; word-break: break-all; }
 .r-thanks { text-align: center; font-size: 10.5px; margin-top: 8px; }
-/* Chekdagi QR — xaridor telefoni bilan o'qiydi */
-.r-qr { display: flex; justify-content: center; margin-top: 8px; }
 /* Sotuv yakunlangandagi oyna */
 .sold-mark {
   width: 56px; height: 56px; margin: 2px auto 12px; border-radius: 50%;
@@ -1403,7 +1404,6 @@ button.link { background: none; color: var(--accent); font-size: 15px; font-weig
   letter-spacing: -0.8px; margin: 2px 0 4px;
 }
 .sheet-title.center, .sheet-sub.center { text-align: center; }
-.r-qr svg { width: 30mm; height: 30mm; }
 
 /* ── Javon yorliqlari ──
    DIQQAT: klass nomi ".label" emas ".print-label" — ".label" nomi
