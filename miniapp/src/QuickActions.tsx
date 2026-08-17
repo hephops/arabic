@@ -2,18 +2,27 @@ import { useState } from 'react';
 import { AppIcon, Glyph } from './icons';
 import { useT } from './i18n';
 import { haptic } from './telegram';
-import type { Tab } from './App';
+import type { Tab, SubScreen } from './App';
 
 // Tezkor amallar — istalgan ekrandan ikki bosishda:
-// suzuvchi tugma → uchta asosiy amal (sotuv, qarz yozish, tovar kirimi).
+// suzuvchi tugma → kunlik asosiy amallar.
+//
+// Qaytarish shu yerda turishi muhim: mijoz tovarni ko'tarib kelganda
+// do'konchi qaysi ekranda turgani noma'lum, "+" esa hamma joyda
+// ko'rinib turadi. Bosilganda skaner darhol ochiladi.
 
-const ACTIONS: { tab: Tab; glyph: string; key: string; mode?: 'sale' | 'intake' }[] = [
+const ACTIONS: { tab?: Tab; sub?: SubScreen; glyph: string; color?: string; key: string; mode?: 'sale' | 'intake' }[] = [
   { tab: 'kassa', glyph: 'cart', key: 'modeSale', mode: 'sale' },
   { tab: 'add', glyph: 'note', key: 'tabAdd' },
   { tab: 'kassa', glyph: 'boxes', key: 'modeIntake', mode: 'intake' },
+  { sub: 'returns', glyph: 'arrowDown', color: 'red', key: 'navReturns' },
 ];
 
-export default function QuickActions({ onPick }: { onPick: (tab: Tab, mode?: 'sale' | 'intake') => void }) {
+export default function QuickActions({
+  onPick,
+}: {
+  onPick: (target: { tab?: Tab; sub?: SubScreen }, mode?: 'sale' | 'intake') => void;
+}) {
   const [open, setOpen] = useState(false);
   const { t } = useT();
 
@@ -30,10 +39,10 @@ export default function QuickActions({ onPick }: { onPick: (tab: Tab, mode?: 'sa
               onClick={() => {
                 haptic.tap();
                 setOpen(false);
-                onPick(a.tab, a.mode);
+                onPick({ tab: a.tab, sub: a.sub }, a.mode);
               }}
             >
-              <AppIcon glyph={a.glyph} size={38} />
+              <AppIcon glyph={a.glyph} color={a.color} size={38} />
               <span>{t(a.key)}</span>
             </button>
           ))}

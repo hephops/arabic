@@ -25,7 +25,7 @@ const DOCK_ITEMS: { id: Tab; glyph: string }[] = [
   { id: 'profile', glyph: 'gear' },
 ];
 
-const LAUNCHER_ITEMS: { key: string; glyph: string; target: NavTarget }[] = [
+const LAUNCHER_ITEMS: { key: string; glyph: string; color?: string; target: NavTarget }[] = [
   { key: 'tabHome', glyph: 'house', target: { tab: 'home' } },
   { key: 'tabCustomers', glyph: 'people', target: { tab: 'customers' } },
   { key: 'tabAdd', glyph: 'note', target: { tab: 'add' } },
@@ -33,6 +33,7 @@ const LAUNCHER_ITEMS: { key: string; glyph: string; target: NavTarget }[] = [
   { key: 'navScanner', glyph: 'scan', target: { tab: 'kassa' } },
   { key: 'navSuppliers', glyph: 'truck', target: { sub: 'suppliers' } },
   { key: 'navOrders', glyph: 'boxes', target: { sub: 'orders' } },
+  { key: 'navReturns', glyph: 'arrowDown', color: 'red', target: { sub: 'returns' } },
   { key: 'navReminders', glyph: 'calendar', target: { sub: 'reminders' } },
   { key: 'navReports', glyph: 'chart', target: { sub: 'reports' } },
   { key: 'navExpenses', glyph: 'wallet', target: { sub: 'expenses' } },
@@ -48,7 +49,7 @@ const LAUNCHER_ITEMS: { key: string; glyph: string; target: NavTarget }[] = [
 
 // Kompyuterda dock o'rniga chapda doimiy menyu turadi — sichqoncha bilan
 // bir bosishda hamma bo'limga o'tish uchun. Qaysi biri ko'rinishini CSS hal qiladi.
-const SIDE_GROUPS: { key: string; glyph: string; target: NavTarget }[][] = [
+const SIDE_GROUPS: { key: string; glyph: string; color?: string; target: NavTarget }[][] = [
   [
     { key: 'tabHome', glyph: 'house', target: { tab: 'home' } },
     { key: 'tabCustomers', glyph: 'people', target: { tab: 'customers' } },
@@ -59,6 +60,7 @@ const SIDE_GROUPS: { key: string; glyph: string; target: NavTarget }[][] = [
     { key: 'navInventory', glyph: 'boxes', target: { sub: 'inventory' } },
     { key: 'navSuppliers', glyph: 'truck', target: { sub: 'suppliers' } },
     { key: 'navOrders', glyph: 'boxes', target: { sub: 'orders' } },
+    { key: 'navReturns', glyph: 'arrowDown', color: 'red', target: { sub: 'returns' } },
     { key: 'navReminders', glyph: 'calendar', target: { sub: 'reminders' } },
     { key: 'navReports', glyph: 'chart', target: { sub: 'reports' } },
     { key: 'navExpenses', glyph: 'wallet', target: { sub: 'expenses' } },
@@ -143,7 +145,7 @@ export default function Dock({
                   onClick={() => onNavigate(item.target)}
                   title={t(item.key)}
                 >
-                  <AppIcon glyph={item.glyph} size={26} />
+                  <AppIcon glyph={item.glyph} color={item.color} size={26} />
                   <span className="side-label">{t(item.key)}</span>
                   {item.target.tab === 'kassa' && openCarts > 0 && (
                     <span className="side-badge">{openCarts}</span>
@@ -196,7 +198,7 @@ export default function Dock({
                 onNavigate(item.target);
               }}
             >
-              <AppIcon glyph={item.glyph} size={44} />
+              <AppIcon glyph={item.glyph} color={item.color} size={44} />
               <span className="deck-tip">{t(item.key)}</span>
             </button>
           ))}
@@ -260,7 +262,7 @@ export default function Dock({
                   onNavigate(item.target);
                 }}
               >
-                <AppIcon glyph={item.glyph} size={58} />
+                <AppIcon glyph={item.glyph} color={item.color} size={58} />
                 {t(item.key)}
               </button>
             ))}

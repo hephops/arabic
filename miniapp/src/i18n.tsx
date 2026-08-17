@@ -631,6 +631,7 @@ const UZ: Record<string, string> = {
 
   // Qaytarish (vozvrat)
   returnTitle: 'Qaytarish',
+  navReturns: 'Qaytarish',
   historySearch: 'Kod, tovar, mijoz yoki chek raqami',
   historyScanHint: 'Qaytarilayotgan tovarni skanerlang — cheki topiladi',
   historySales: 'Sotuvlar',
@@ -1284,6 +1285,7 @@ const RU: Record<string, string> = {
 
   // Возврат
   returnTitle: 'Возврат',
+  navReturns: 'Возврат',
   historySearch: 'Код, товар, клиент или номер чека',
   historyScanHint: 'Отсканируйте возвращаемый товар — чек найдётся',
   historySales: 'Продажи',

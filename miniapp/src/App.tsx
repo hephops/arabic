@@ -14,6 +14,7 @@ import Inventory from './screens/Inventory';
 import Reminders from './screens/Reminders';
 import Expenses from './screens/Expenses';
 import Orders from './screens/Orders';
+import Returns from './screens/Returns';
 import QuickActions from './QuickActions';
 import InstallPrompt from './InstallPrompt';
 import { ToastHost } from './toast';
@@ -21,7 +22,7 @@ import { useT } from './i18n';
 import { setBackButton, haptic } from './telegram';
 
 export type Tab = 'home' | 'customers' | 'add' | 'kassa' | 'profile';
-export type SubScreen = 'suppliers' | 'reports' | 'inventory' | 'reminders' | 'expenses' | 'orders' | null;
+export type SubScreen = 'suppliers' | 'reports' | 'inventory' | 'reminders' | 'expenses' | 'orders' | 'returns' | null;
 
 export default function App() {
   const [authed, setAuthed] = useState(!!getToken());
@@ -84,6 +85,7 @@ export default function App() {
       {sub === 'reminders' && <Reminders onBack={() => setSub(null)} />}
       {sub === 'expenses' && <Expenses onBack={() => setSub(null)} />}
       {sub === 'orders' && <Orders onBack={() => setSub(null)} />}
+      {sub === 'returns' && <Returns onBack={() => setSub(null)} />}
 
       {!sub && tab === 'home' && (
         <Dashboard key={refreshKey} onNavigate={setSub} isEmployee={isEmployee} employeeName={shop?.employee?.name} />
@@ -114,9 +116,12 @@ export default function App() {
       {!sub && (
         <QuickActions
           onPick={(target, mode) => {
-            setSub(null);
             if (mode) setKassaMode(mode);
-            setTab(target);
+            if (target.sub) setSub(target.sub);
+            else {
+              setSub(null);
+              if (target.tab) setTab(target.tab);
+            }
           }}
         />
       )}
