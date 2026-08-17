@@ -5,14 +5,16 @@
 // "шт" kabi ko'rinishlarni yuborishi mumkin. Bittasi ham o'tib ketsa,
 // hisobotlarda bir tovar ikki xil birlikda ko'rinadi.
 
-export const UNITS = ['dona', 'kg', 'litr', 'metr'] as const;
+export const UNITS = ['dona', 'kg', 'gramm', 'litr', 'ml', 'metr'] as const;
 export type Unit = (typeof UNITS)[number];
 
 export function normalizeUnit(value: unknown): Unit {
   const v = String(value ?? '').trim().toLowerCase();
   if ((UNITS as readonly string[]).includes(v)) return v as Unit;
-  if (['kilo', 'kilogramm', 'kilogram', 'gr', 'кг', 'килограмм'].includes(v)) return 'kg';
+  if (['kilo', 'kilogramm', 'kilogram', 'кг', 'килограмм'].includes(v)) return 'kg';
+  if (['g', 'gr', 'gram', 'г', 'гр', 'грамм'].includes(v)) return 'gramm';
   if (['l', 'litre', 'liter', 'л', 'литр'].includes(v)) return 'litr';
+  if (['mililitr', 'мл', 'миллилитр'].includes(v)) return 'ml';
   if (['m', 'м', 'метр'].includes(v)) return 'metr';
   if (['ta', 'sht', 'шт', 'штук', 'штука'].includes(v)) return 'dona';
   return 'dona';

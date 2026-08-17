@@ -1798,18 +1798,19 @@ button.link { background: none; color: var(--accent); font-size: 15px; font-weig
 }
 .date-clear:active { opacity: 0.6; }
 
-/* Tovar kirimi xulosasi — kiritilgan raqamlar qanday tushunilgani */
-.intake-sum {
-  background: rgba(120, 120, 128, 0.07); border-radius: 12px;
-  padding: 10px 13px; margin-top: 4px;
+/* Tovar kirimi — ixcham joylashuv.
+   Forma juda cho'zilib ketgan edi: har bir yorliq alohida qator,
+   narx uchun esa yana bir tanlov qatori bor edi. Endi birlik yorlig'i
+   chiplar bilan bir qatorda, xulosa esa bitta satrda. */
+.unit-row { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.unit-cap { font-size: 13px; color: var(--muted); flex-shrink: 0; }
+.unit-chips { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 2px; }
+.unit-chips::-webkit-scrollbar { display: none; }
+.chip.sm { height: 30px; padding: 0 12px; font-size: 13px; }
+
+.intake-line {
+  font-size: 13px; color: var(--muted); margin: 2px 0 0;
+  background: rgba(120, 120, 128, 0.07); border-radius: 10px; padding: 8px 11px;
 }
-.intake-sum .is-row {
-  display: flex; justify-content: space-between; align-items: baseline;
-  gap: 10px; font-size: 13.5px; padding: 3px 0;
-}
-.intake-sum .is-row span { color: var(--muted); }
-.intake-sum .is-row b { font-variant-numeric: tabular-nums; }
-.intake-sum .is-row.total {
-  border-top: 1px solid rgba(120, 120, 128, 0.18);
-  margin-top: 5px; padding-top: 7px;
-}
+.intake-line b { color: var(--text); font-variant-numeric: tabular-nums; }
+.intake-line.bad, .intake-line.bad b { color: var(--red); }

@@ -8,7 +8,7 @@
 // Ro'yxat qat'iy: erkin matn bo'lsa bir do'konda "kg", boshqasida
 // "килограмм", uchinchisida "kilo" paydo bo'lardi va hisobot buzilardi.
 
-export const UNITS = ['dona', 'kg', 'litr', 'metr'] as const;
+export const UNITS = ['dona', 'kg', 'gramm', 'litr', 'ml', 'metr'] as const;
 export type Unit = (typeof UNITS)[number];
 
 /** Kasrli miqdor mumkinmi. Donada yo'q — yarim dona non bo'lmaydi. */
@@ -20,7 +20,9 @@ export function normalizeUnit(value: string | null | undefined): Unit {
   if ((UNITS as readonly string[]).includes(v)) return v as Unit;
   // Eski yozuvlar va ovozli kiritishdan keladigan ko'rinishlar
   if (['kilo', 'kilogramm', 'kilogram', 'кг', 'килограмм'].includes(v)) return 'kg';
+  if (['g', 'gr', 'gram', 'г', 'гр', 'грамм'].includes(v)) return 'gramm';
   if (['l', 'litre', 'liter', 'л', 'литр'].includes(v)) return 'litr';
+  if (['mililitr', 'мл', 'миллилитр'].includes(v)) return 'ml';
   if (['m', 'м', 'метр'].includes(v)) return 'metr';
   return 'dona';
 }
