@@ -14,7 +14,7 @@ import { sendMessage, telegramEnabled } from './telegram.js';
 
 // Vaqt hisobi bitta joyda — tz.ts. Bu yerdan ham eksport qilinadi,
 // chunki hisobot jadvali uni shu modul nomi bilan ishlatib kelgan.
-import { uzNow } from './tz.js';
+import { uzNow, uzDayStartUtc } from './tz.js';
 export { uzNow };
 
 export interface DailyFigures {
@@ -37,47 +37,50 @@ export interface DailyFigures {
 
 /** Do'konning shu kungi ko'rsatkichlari (hisobot matni uchun) */
 export function dailyFigures(shopId: number): DailyFigures {
+  // Kun chegaralari UTC'da — shunda indeks ishlaydi (tz.ts dagi izohga qarang)
+  const from = uzDayStartUtc(0);
+  const to = uzDayStartUtc(1);
   const sales = db
     .prepare(
       `SELECT COUNT(*) AS count, COALESCE(SUM(total), 0) AS revenue,
               COALESCE(SUM(CASE WHEN payment_type = 'cash' THEN total END), 0) AS cash,
               COALESCE(SUM(CASE WHEN payment_type = 'card' THEN total END), 0) AS card,
               COALESCE(SUM(CASE WHEN payment_type = 'debt' THEN total END), 0) AS debt
-       FROM sales WHERE shop_id = ? AND date(created_at, '+5 hours') = date('now', '+5 hours')`
+       FROM sales WHERE shop_id = ? AND created_at >= ? AND created_at < ?`
     )
-    .get(shopId) as any;
+    .get(shopId, from, to) as any;
   const profit = db
     .prepare(
       `SELECT COALESCE(SUM((si.price - p.cost_price) * si.qty), 0) AS profit
        FROM sale_items si JOIN sales s ON s.id = si.sale_id JOIN products p ON p.id = si.product_id
-       WHERE s.shop_id = ? AND date(s.created_at, '+5 hours') = date('now', '+5 hours')`
+       WHERE s.shop_id = ? AND s.created_at >= ? AND s.created_at < ?`
     )
-    .get(shopId) as any;
+    .get(shopId, from, to) as any;
   const ret = db
     .prepare(
       `SELECT COALESCE(SUM(ri.price * ri.qty), 0) AS total,
               COALESCE(SUM(p.cost_price * ri.qty), 0) AS cost
        FROM return_items ri JOIN returns r ON r.id = ri.return_id
        JOIN products p ON p.id = ri.product_id
-       WHERE r.shop_id = ? AND date(r.created_at, '+5 hours') = date('now', '+5 hours')`
+       WHERE r.shop_id = ? AND r.created_at >= ? AND r.created_at < ?`
     )
-    .get(shopId) as any;
+    .get(shopId, from, to) as any;
   const expenses = db
     .prepare(`SELECT COALESCE(SUM(amount), 0) AS s FROM expenses WHERE shop_id = ? AND spent_at = date('now', '+5 hours')`)
     .get(shopId) as any;
   const debts = db
     .prepare(
       `SELECT COUNT(*) AS c, COALESCE(SUM(amount), 0) AS s FROM debts
-       WHERE shop_id = ? AND date(created_at, '+5 hours') = date('now', '+5 hours')`
+       WHERE shop_id = ? AND created_at >= ? AND created_at < ?`
     )
-    .get(shopId) as any;
+    .get(shopId, from, to) as any;
   const paid = db
     .prepare(
       `SELECT COALESCE(SUM(dp.amount), 0) AS s FROM debt_payments dp
        JOIN debts d ON d.id = dp.debt_id
-       WHERE d.shop_id = ? AND date(dp.created_at, '+5 hours') = date('now', '+5 hours')`
+       WHERE d.shop_id = ? AND dp.created_at >= ? AND dp.created_at < ?`
     )
-    .get(shopId) as any;
+    .get(shopId, from, to) as any;
   const low = db
     .prepare('SELECT COUNT(*) AS c FROM products WHERE shop_id = ? AND stock <= low_stock_threshold')
     .get(shopId) as any;

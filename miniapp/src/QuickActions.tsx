@@ -11,8 +11,10 @@ import type { Tab, SubScreen } from './App';
 // do'konchi qaysi ekranda turgani noma'lum, "+" esa hamma joyda
 // ko'rinib turadi. Bosilganda skaner darhol ochiladi.
 
-const ACTIONS: { tab?: Tab; sub?: SubScreen; glyph: string; color?: string; key: string; mode?: 'sale' | 'intake' }[] = [
-  { tab: 'kassa', glyph: 'cart', key: 'modeSale', mode: 'sale' },
+const ACTIONS: { tab?: Tab; sub?: SubScreen; glyph: string; color?: string; key: string; mode?: 'sale' | 'intake'; scan?: boolean }[] = [
+  // Sotuv skaner bilan ochiladi: do'konchi "+" ni bosgan payt qo'lida
+  // allaqachon tovar turadi, qidiruv maydoni emas skaner kerak
+  { tab: 'kassa', glyph: 'cart', key: 'modeSale', mode: 'sale', scan: true },
   { tab: 'add', glyph: 'note', key: 'tabAdd' },
   { tab: 'kassa', glyph: 'boxes', key: 'modeIntake', mode: 'intake' },
   { sub: 'returns', glyph: 'arrowDown', color: 'red', key: 'navReturns' },
@@ -21,7 +23,7 @@ const ACTIONS: { tab?: Tab; sub?: SubScreen; glyph: string; color?: string; key:
 export default function QuickActions({
   onPick,
 }: {
-  onPick: (target: { tab?: Tab; sub?: SubScreen }, mode?: 'sale' | 'intake') => void;
+  onPick: (target: { tab?: Tab; sub?: SubScreen; scan?: boolean }, mode?: 'sale' | 'intake') => void;
 }) {
   const [open, setOpen] = useState(false);
   const { t } = useT();
@@ -39,7 +41,7 @@ export default function QuickActions({
               onClick={() => {
                 haptic.tap();
                 setOpen(false);
-                onPick({ tab: a.tab, sub: a.sub }, a.mode);
+                onPick({ tab: a.tab, sub: a.sub, scan: a.scan }, a.mode);
               }}
             >
               <AppIcon glyph={a.glyph} color={a.color} size={38} />

@@ -1730,3 +1730,34 @@ button.link { background: none; color: var(--accent); font-size: 15px; font-weig
 .sc-plu { font-size: 26px; font-weight: 800; letter-spacing: 1px; font-variant-numeric: tabular-nums; }
 .sc-sample { text-align: right; min-width: 0; }
 .sc-sample .mono-code { font-size: 13px; margin-top: 3px; }
+
+/* ── Qaytarish: skanerlangan tovar kartasi ──
+   Do'konchi bir qarashda uchta narsani ko'rishi kerak: nima qaytyapti,
+   qaysi sotuvdan, qancha pul chiqadi. */
+.ret-done {
+  display: flex; align-items: center; gap: 7px;
+  background: rgba(52, 199, 89, 0.1); color: var(--text);
+  border-radius: 12px; padding: 10px 13px; font-size: 14px; margin-bottom: 12px;
+}
+.ret-card { padding: 14px 15px 15px; }
+.ret-head { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+.ret-name { font-size: 17px; font-weight: 700; }
+.ret-sub { font-size: 13px; color: var(--muted); margin-top: 2px; }
+.ret-qty { display: flex; align-items: center; gap: 8px; }
+.ret-qty input {
+  width: 74px; margin: 0; text-align: center; font-size: 18px; font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.rq-btn {
+  width: 40px; height: 40px; flex-shrink: 0; border-radius: 11px;
+  background: rgba(120, 120, 128, 0.12); font-size: 21px; font-weight: 600; color: var(--text);
+}
+.rq-btn:active { opacity: 0.7; }
+.rq-unit { font-size: 14px; color: var(--muted); }
+.ret-left { font-size: 12.5px; color: var(--muted); margin-top: 7px; }
+.ret-total {
+  display: flex; justify-content: space-between; align-items: baseline;
+  border-top: 1px solid rgba(120, 120, 128, 0.16); margin-top: 13px; padding-top: 12px;
+}
+.ret-total span { font-size: 14px; color: var(--muted); }
+.ret-total b { font-size: 22px; color: var(--red); font-variant-numeric: tabular-nums; }

@@ -35,6 +35,9 @@ export default function App() {
   const [profileNav, setProfileNav] = useState(0);
   const [shop, setShop] = useState<Shop | null>(null);
   const [kassaMode, setKassaMode] = useState<KassaMode>('sale');
+  // Har bosishda o'sadi — bir xil ekranda turgan bo'lsa ham skaner
+  // qaytadan ochilishi uchun oddiy bayroq yetmaydi
+  const [scanNonce, setScanNonce] = useState(0);
   const { t, lang, setLang } = useT();
 
   // Telegram'ning o'z "orqaga" tugmasi ichki ekranlarda ko'rinadi
@@ -99,7 +102,9 @@ export default function App() {
           }}
         />
       )}
-      {!sub && tab === 'kassa' && <Kassa onDone={refresh} isEmployee={isEmployee} initialMode={kassaMode} />}
+      {!sub && tab === 'kassa' && (
+        <Kassa onDone={refresh} isEmployee={isEmployee} initialMode={kassaMode} autoScan={scanNonce} />
+      )}
       {!sub && tab === 'profile' && (
         <Profile
           key={`${profileNav}-${refreshKey}`}
@@ -117,6 +122,7 @@ export default function App() {
         <QuickActions
           onPick={(target, mode) => {
             if (mode) setKassaMode(mode);
+            if (target.scan) setScanNonce((n) => n + 1);
             if (target.sub) setSub(target.sub);
             else {
               setSub(null);

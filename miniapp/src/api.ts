@@ -191,6 +191,7 @@ export const api = {
   createReturn: (saleId: number, data: { items: { sale_item_id: number; qty: number }[]; reason?: string; refund_type?: 'cash' | 'card' | 'debt' }) =>
     request<ReturnRow>(`/sales/${saleId}/returns`, { method: 'POST', body: JSON.stringify(data) }),
   returns: (period: ExpensePeriod = 'month') => request<ReturnsInfo>(`/returns?period=${period}`),
+  returnLookup: (code: string) => request<ReturnLookup>(`/returns/lookup?code=${encodeURIComponent(code)}`),
   generateBarcode: (productId: number) =>
     request<{ barcode: string; product: Product }>(`/products/${productId}/barcode`, { method: 'POST' }),
 };
@@ -478,6 +479,28 @@ export interface ReturnRow {
   refund_type: string;
   created_at: string;
   items?: string | null;
+}
+
+/** Skanerlangan tovarni qaytarish uchun: tovar va qaytarsa bo'ladigan sotuvlar */
+export interface ReturnCandidate {
+  sale_item_id: number;
+  sale_id: number;
+  price: number;
+  qty: number;
+  returned_qty: number;
+  /** shu satrdan yana qancha qaytarish mumkin */
+  left_qty: number;
+  created_at: string;
+  payment_type: string;
+  customer_name: string | null;
+}
+
+export interface ReturnLookup {
+  code: string;
+  product: Product | null;
+  /** tarozi yorlig'i bo'lsa — og'irlik kodning ichidan o'qiladi */
+  scale: { plu: string; qty: number; mode: string } | null;
+  candidates: ReturnCandidate[];
 }
 
 export interface ReturnsInfo {

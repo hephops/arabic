@@ -54,3 +54,41 @@ export function uzParts(at: Date = new Date()): { year: number; month: number; d
   const d = uzDate(at);
   return { year: d.getUTCFullYear(), month: d.getUTCMonth(), day: d.getUTCDate() };
 }
+
+/* ── SQL uchun vaqt oralig'i ──
+ *
+ * Nega kerak: `date(created_at, '+5 hours') = date('now', '+5 hours')`
+ * to'g'ri ishlaydi, lekin har bir qatorda hisoblanadigan ifoda bo'lgani
+ * uchun indeksdan foydalanib bo'lmaydi — SQLite do'konning BARCHA
+ * sotuvlarini ko'rib chiqishga majbur. Yangi do'konda bu sezilmaydi,
+ * bir necha yillik tarix to'plangach esa har bir hisobot sekinlashadi.
+ *
+ * Oraliq bilan yozilsa (`created_at >= ? AND created_at < ?`) indeks
+ * ishlaydi va faqat kerakli qatorlar o'qiladi — o'lchov 10–25 barobar
+ * farq ko'rsatdi.
+ *
+ * Chegaralar UTC'da qaytadi, chunki bazada shunday saqlanadi.
+ */
+
+/** Toshkent kunining UTC boshlanishi: "2026-08-16 19:00:00" */
+export function uzDayStartUtc(dayOffset = 0, at: Date = new Date()): string {
+  const day = uzDayShift(dayOffset, at);
+  const ms = Date.parse(`${day}T00:00:00Z`) - UZ_OFFSET_MINUTES * 60_000;
+  return new Date(ms).toISOString().slice(0, 19).replace('T', ' ');
+}
+
+/**
+ * "-6 days" kabi davr belgisidan boshlanish vaqti.
+ * Hisobotlar davrni shu ko'rinishda uzatadi.
+ */
+export function uzPeriodStartUtc(modifier: string, at: Date = new Date()): string {
+  const m = /^-\s*(\d+)\s*days?$/.exec(modifier.trim());
+  return uzDayStartUtc(m ? -Number(m[1]) : 0, at);
+}
+
+/** Toshkent oyi boshining UTC vaqti */
+export function uzMonthStartUtc(at: Date = new Date()): string {
+  const { year, month } = uzParts(at);
+  const ms = Date.UTC(year, month, 1) - UZ_OFFSET_MINUTES * 60_000;
+  return new Date(ms).toISOString().slice(0, 19).replace('T', ' ');
+}

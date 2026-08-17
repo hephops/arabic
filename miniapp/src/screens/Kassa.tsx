@@ -25,10 +25,13 @@ export default function Kassa({
   onDone,
   isEmployee = false,
   initialMode = 'sale',
+  autoScan = 0,
 }: {
   onDone: () => void;
   isEmployee?: boolean;
   initialMode?: KassaMode;
+  /** "+" dan "Sotuv" tanlanganda o'sadi — skaner o'zi ochiladi */
+  autoScan?: number;
 }) {
   const [mode, setMode] = useState<KassaMode>(initialMode);
   const { t } = useT();
@@ -53,7 +56,7 @@ export default function Kassa({
           <Glyph name="clock" size={16} /> {t('modeHistory')}
         </button>
       </div>
-      {mode === 'sale' && <SaleMode onDone={onDone} />}
+      {mode === 'sale' && <SaleMode onDone={onDone} autoScan={autoScan} />}
       {mode === 'intake' && <IntakeMode onDone={onDone} />}
       {mode === 'history' && <HistoryMode />}
     </div>
@@ -61,7 +64,7 @@ export default function Kassa({
 }
 
 
-function SaleMode({ onDone }: { onDone: () => void }) {
+function SaleMode({ onDone, autoScan = 0 }: { onDone: () => void; autoScan?: number }) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<Product[]>([]);
   // Bir nechta savat: har bir oluvchiga alohida. Yozuv localStorage'da —
@@ -74,6 +77,10 @@ function SaleMode({ onDone }: { onDone: () => void }) {
   // to'lov odati esa sotuvchiga darhol ko'rinadi
   const [known, setKnown] = useState<Customer | null>(null);
   const [scanning, setScanning] = useState(false);
+  // "+" → Sotuv: qo'lda tovar turganda qidiruv maydoni emas, skaner kerak
+  useEffect(() => {
+    if (autoScan > 0) setScanning(true);
+  }, [autoScan]);
   const [voice, setVoice] = useState(false);
   // Skanerda topilmagan kod: mahsulot tanlansa, kod o'shanga biriktiriladi
   const [pendingCode, setPendingCode] = useState<string | null>(null);
@@ -745,6 +752,7 @@ function IntakeMode({ onDone }: { onDone: () => void }) {
   const [image, setImage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [scanning, setScanning] = useState(false);
+
   const [voice, setVoice] = useState(false);
   const [codeWarning, setCodeWarning] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);

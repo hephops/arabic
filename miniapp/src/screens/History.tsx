@@ -351,7 +351,7 @@ export function HistoryMode({ autoScan = false }: { autoScan?: boolean }) {
    javob topadigan joy. Ilgari bu ma'lumot faqat har bir chekning
    ichida turardi — umumiy manzara ko'rinmasdi. */
 
-function ReturnsList({ data }: { data: ReturnsInfo | null }) {
+export function ReturnsList({ data }: { data: ReturnsInfo | null }) {
   const { t } = useT();
   if (!data) return <div className="empty">{t('loading')}</div>;
   if (data.items.length === 0) return <EmptyState icon="arrowDown" title={t('returnsNone')} sub={t('returnsNoneSub')} />;

@@ -14,13 +14,21 @@ import { normalizeBarcode, barcodeVariants, checkGtin, makeInStoreEan13, parseSc
 import { normalizePhone } from './phone.js';
 import { dailyFigures, reportText, sendDailyReport, startDailyReportScheduler } from './dailyReport.js';
 import { customerCode, receiptText } from './customerLink.js';
-import { uzToday, uzDayShift } from './tz.js';
+import { uzToday, uzDayShift, uzDayStartUtc, uzPeriodStartUtc, uzMonthStartUtc } from './tz.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const UPLOADS_DIR = join(__dirname, '..', 'uploads');
 mkdirSync(UPLOADS_DIR, { recursive: true });
 
-const app = Fastify({ logger: true, bodyLimit: 10 * 1024 * 1024 });
+// Jurnal darajasi sozlanadigan. Har bir so'rov uchun ikkita satr yozish
+// (kelgani va tugagani) diskka yozuv va JSON tuzish demak — bir vaqtda
+// yuzlab so'rov kelganda bu ham sezilarli qismni yeydi. Ishlab
+// chiqarishda LOG_LEVEL=warn qo'yilsa faqat muammolar yoziladi.
+const logLevel = process.env.LOG_LEVEL ?? 'info';
+const app = Fastify({
+  logger: logLevel === 'off' ? false : { level: logLevel },
+  bodyLimit: 10 * 1024 * 1024,
+});
 
 // CORS (Mini App va admin panel boshqa domendan keladi)
 app.addHook('onSend', async (_req, reply) => {
@@ -299,7 +307,14 @@ app.post<{ Body: { plan: string; period?: 'month' | 'year' } }>(
 
 // ---------- DASHBOARD ----------
 app.get('/dashboard', { preHandler: requireAuth }, async (req) => {
-  markOverdueDebts();
+  // Kechikkan qarzlarni belgilash bu yerdan olib tashlandi: u BARCHA
+  // do'konlarning qarzlarini yangilaydigan yozuv amali edi va bosh
+  // sahifa har ochilganda ishga tushardi. Endi soatiga bir marta,
+  // fonda bajariladi (pastdagi jadval) — sana kuniga bir marta
+  // o'zgargani uchun bu yetarli.
+  // Bugungi kun chegaralari — UTC'da, indeks ishlashi uchun
+  const dayFrom = uzDayStartUtc(0);
+  const dayTo = uzDayStartUtc(1);
   const owedToMe = db
     .prepare(`SELECT COALESCE(SUM(amount - paid_amount), 0) AS s FROM debts WHERE shop_id = ? AND status != 'paid'`)
     .get(req.shopId) as any;
@@ -358,16 +373,16 @@ app.get('/dashboard', { preHandler: requireAuth }, async (req) => {
               COALESCE(SUM(CASE WHEN payment_type = 'cash' THEN total END), 0) AS cash,
               COALESCE(SUM(CASE WHEN payment_type = 'card' THEN total END), 0) AS card,
               COALESCE(SUM(CASE WHEN payment_type = 'debt' THEN total END), 0) AS debt
-       FROM sales WHERE shop_id = ? AND date(created_at, '+5 hours') = date('now', '+5 hours')`
+       FROM sales WHERE shop_id = ? AND created_at >= ? AND created_at < ?`
     )
-    .get(req.shopId) as any;
+    .get(req.shopId, dayFrom, dayTo) as any;
   const todayProfit = db
     .prepare(
       `SELECT COALESCE(SUM((si.price - p.cost_price) * si.qty), 0) AS profit
        FROM sale_items si JOIN sales s ON s.id = si.sale_id JOIN products p ON p.id = si.product_id
-       WHERE s.shop_id = ? AND date(s.created_at, '+5 hours') = date('now', '+5 hours')`
+       WHERE s.shop_id = ? AND s.created_at >= ? AND s.created_at < ?`
     )
-    .get(req.shopId) as any;
+    .get(req.shopId, dayFrom, dayTo) as any;
   // Bugungi qaytarishlar — tushum va foydadan chiqariladi
   const todayReturns = returnsTotals(req.shopId!, '-0 days');
   // Bugungi xarajatlar — "foyda" faqat tovar ustamasi bo'lib qolmasligi uchun
@@ -384,10 +399,10 @@ app.get('/dashboard', { preHandler: requireAuth }, async (req) => {
   const raw = db
     .prepare(
       `SELECT date(created_at, '+5 hours') AS d, COALESCE(SUM(total), 0) AS revenue
-       FROM sales WHERE shop_id = ? AND date(created_at, '+5 hours') >= date('now', '+5 hours', '-6 days')
+       FROM sales WHERE shop_id = ? AND created_at >= ?
        GROUP BY date(created_at, '+5 hours')`
     )
-    .all(req.shopId) as any[];
+    .all(req.shopId, uzDayStartUtc(-6)) as any[];
   const byDay = new Map(raw.map((r) => [r.d, r.revenue]));
   const week: { day: string; revenue: number }[] = [];
   for (let i = 6; i >= 0; i--) {
@@ -676,9 +691,9 @@ app.get<{ Querystring: { limit?: string } }>('/reminders', { preHandler: require
       `SELECT SUM(CASE WHEN channel != 'call' THEN 1 ELSE 0 END) AS sms,
               SUM(CASE WHEN channel = 'call' THEN 1 ELSE 0 END) AS calls
        FROM reminder_logs
-       WHERE shop_id = ? AND status = 'sent' AND date(created_at, '+5 hours') >= date('now', '+5 hours', 'start of month')`
+       WHERE shop_id = ? AND status = 'sent' AND created_at >= ?`
     )
-    .get(req.shopId) as any;
+    .get(req.shopId, uzMonthStartUtc()) as any;
   const smsPrice = Number(getSetting('sms_price', '150'));
   const callPrice = Number(getSetting('call_price', '900'));
   const cost = {
@@ -936,12 +951,12 @@ app.get('/orders/suggest', { preHandler: requireAuth }, async (req) => {
               COALESCE((SELECT SUM(si.qty) FROM sale_items si
                         JOIN sales sa ON sa.id = si.sale_id
                         WHERE si.product_id = p.id
-                          AND date(sa.created_at, '+5 hours') >= date('now', '+5 hours', '-30 days')), 0) AS sold30
+                          AND sa.created_at >= ?), 0) AS sold30
        FROM products p LEFT JOIN suppliers s ON s.id = p.supplier_id
        WHERE p.shop_id = ? AND p.stock <= p.low_stock_threshold
        ORDER BY (p.stock - p.low_stock_threshold) ASC, p.name`
     )
-    .all(req.shopId) as any[];
+    .all(uzDayStartUtc(-29), req.shopId) as any[];
   return rows.map((r) => ({ ...r, suggest_qty: suggestQty(r) }));
 });
 
@@ -1701,20 +1716,27 @@ app.get<{ Querystring: { limit?: string; q?: string } }>('/sales', { preHandler:
   const args: unknown[] = [req.shopId];
   if (q) {
     const like = `%${q}%`;
+    // Tovar bo'yicha qidiruvda tartib muhim: avval tovarni topamiz
+    // (ular kam), keyin o'sha tovar uchraydigan cheklarni. Teskarisi —
+    // har bir chekni ochib ichidagi tovarlarni tekshirish — do'konda
+    // o'n minglab chek to'planganda sekinlashib ketardi.
     where.push(`(
       CAST(s.id AS TEXT) = ?
       OR c.name LIKE ?
       OR c.phone LIKE ?
-      OR EXISTS (
-        SELECT 1 FROM sale_items si JOIN products p ON p.id = si.product_id
-        WHERE si.sale_id = s.id
-          AND (p.name LIKE ?
-               OR p.barcode = ?
-               OR EXISTS (SELECT 1 FROM product_barcodes pb
-                          WHERE pb.product_id = p.id AND pb.barcode = ?))
+      OR s.id IN (
+        SELECT si.sale_id FROM sale_items si
+        WHERE si.product_id IN (
+          SELECT p.id FROM products p
+          WHERE p.shop_id = ?
+            AND (p.name LIKE ?
+                 OR p.barcode = ?
+                 OR EXISTS (SELECT 1 FROM product_barcodes pb
+                            WHERE pb.product_id = p.id AND pb.barcode = ?))
+        )
       )
     )`);
-    args.push(q.replace(/^#/, ''), like, like, like, q, q);
+    args.push(q.replace(/^#/, ''), like, like, req.shopId, like, q, q);
   }
   args.push(limit);
 
@@ -1877,6 +1899,52 @@ app.post<{
 });
 
 // Barcha qaytarishlar ro'yxati (davr bo'yicha) — hisobot uchun
+/**
+ * Skanerlangan tovar bo'yicha qaytarish uchun ma'lumot.
+ *
+ * Nega chek qidirish emas: bitta tovar o'nlab odamga sotilgan bo'ladi,
+ * shuning uchun kod bo'yicha qidirish o'nlab chek chiqaradi va do'konchi
+ * ular orasidan tanlab o'tirishi kerak bo'lardi. Bu yerda esa aksincha —
+ * tovar aniqlanadi va qaytarish mumkin bo'lgan sotuvlar yangisidan
+ * boshlab beriladi. Birinchisi deyarli har doim to'g'ri chiqadi: mijoz
+ * odatda yaqinda olgan tovarini qaytaradi.
+ */
+app.get<{ Querystring: { code?: string } }>('/returns/lookup', { preHandler: requireAuth }, async (req) => {
+  const code = normalizeBarcode(req.query.code);
+  if (!code) return { code: '', product: null, scale: null, candidates: [] };
+
+  const scale = parseScaleBarcode(code);
+  const product = scale
+    ? ((db.prepare('SELECT * FROM products WHERE shop_id = ? AND plu = ?').get(req.shopId, scale.plu) as any) ?? null)
+    : (findByBarcode(req.shopId, code) ?? null);
+  if (!product) {
+    return { code, product: null, scale: scale ? { ...scale, qty: 0 } : null, candidates: [] };
+  }
+
+  const candidates = db
+    .prepare(
+      `SELECT si.id AS sale_item_id, si.sale_id, si.price, si.qty,
+              COALESCE(si.returned_qty, 0) AS returned_qty,
+              si.qty - COALESCE(si.returned_qty, 0) AS left_qty,
+              s.created_at, s.payment_type, c.name AS customer_name
+       FROM sale_items si
+       JOIN sales s ON s.id = si.sale_id
+       LEFT JOIN customers c ON c.id = s.customer_id
+       WHERE s.shop_id = ? AND si.product_id = ?
+         AND si.qty - COALESCE(si.returned_qty, 0) > 0.000001
+       ORDER BY s.created_at DESC, s.id DESC
+       LIMIT 10`
+    )
+    .all(req.shopId, product.id);
+
+  return {
+    code,
+    product,
+    scale: scale ? { ...scale, qty: scaleQty(scale, priceWithDiscount(product)) } : null,
+    candidates,
+  };
+});
+
 app.get<{ Querystring: { period?: string; limit?: string } }>(
   '/returns',
   { preHandler: requireAuth },
@@ -1893,16 +1961,16 @@ app.get<{ Querystring: { period?: string; limit?: string } }>(
                  FROM return_items ri JOIN products p ON p.id = ri.product_id
                  WHERE ri.return_id = r.id) AS items
          FROM returns r LEFT JOIN customers c ON c.id = r.customer_id
-         WHERE r.shop_id = ?${since ? " AND date(r.created_at, '+5 hours') >= date('now', '+5 hours', ?)" : ''}
+         WHERE r.shop_id = ?${since ? ' AND r.created_at >= ?' : ''}
          ORDER BY r.created_at DESC, r.id DESC LIMIT ?`
       )
-      .all(...(since ? [req.shopId, since, limit] : [req.shopId, limit]));
+      .all(...(since ? [req.shopId, uzPeriodStartUtc(since), limit] : [req.shopId, limit]));
     const sum = db
       .prepare(
         `SELECT COUNT(*) AS count, COALESCE(SUM(total), 0) AS total FROM returns
-         WHERE shop_id = ?${since ? " AND date(created_at, '+5 hours') >= date('now', '+5 hours', ?)" : ''}`
+         WHERE shop_id = ?${since ? ' AND created_at >= ?' : ''}`
       )
-      .get(...(since ? [req.shopId, since] : [req.shopId])) as any;
+      .get(...(since ? [req.shopId, uzPeriodStartUtc(since)] : [req.shopId])) as any;
     return { items, count: sum.count, total: sum.total };
   }
 );
@@ -1916,9 +1984,9 @@ function returnsTotals(shopId: number, sinceDays: string): { total: number; cost
        FROM return_items ri
        JOIN returns r ON r.id = ri.return_id
        JOIN products p ON p.id = ri.product_id
-       WHERE r.shop_id = ? AND date(r.created_at, '+5 hours') >= date('now', '+5 hours', ?)`
+       WHERE r.shop_id = ? AND r.created_at >= ?`
     )
-    .get(shopId, sinceDays) as any;
+    .get(shopId, uzPeriodStartUtc(sinceDays)) as any;
   return { total: row.total as number, cost: row.cost as number };
 }
 
@@ -2118,30 +2186,32 @@ app.get<{ Querystring: { period?: string } }>('/expenses/export', { preHandler: 
 // ---------- HISOBOTLAR ----------
 app.get<{ Querystring: { period?: string } }>('/reports/summary', { preHandler: requireOwner }, async (req) => {
   const period = reportPeriodSql(req.query.period);
+  // Davr boshlanishi UTC'da — indeks ishlashi uchun (tz.ts izohi)
+  const periodFrom = uzPeriodStartUtc(period);
   const sales = db
     .prepare(
       `SELECT COUNT(*) AS count, COALESCE(SUM(total), 0) AS revenue,
               COALESCE(SUM(CASE WHEN payment_type = 'cash' THEN total END), 0) AS cash,
               COALESCE(SUM(CASE WHEN payment_type = 'card' THEN total END), 0) AS card,
               COALESCE(SUM(CASE WHEN payment_type = 'debt' THEN total END), 0) AS debt
-       FROM sales WHERE shop_id = ? AND date(created_at, '+5 hours') >= date('now', '+5 hours', ?)`
+       FROM sales WHERE shop_id = ? AND created_at >= ?`
     )
-    .get(req.shopId, period) as any;
+    .get(req.shopId, periodFrom) as any;
   const profit = db
     .prepare(
       `SELECT COALESCE(SUM((si.price - p.cost_price) * si.qty), 0) AS profit
        FROM sale_items si JOIN sales s ON s.id = si.sale_id JOIN products p ON p.id = si.product_id
-       WHERE s.shop_id = ? AND date(s.created_at, '+5 hours') >= date('now', '+5 hours', ?)`
+       WHERE s.shop_id = ? AND s.created_at >= ?`
     )
-    .get(req.shopId, period) as any;
+    .get(req.shopId, periodFrom) as any;
   const topProducts = db
     .prepare(
       `SELECT p.name, SUM(si.qty) AS sold, SUM(si.price * si.qty) AS revenue
        FROM sale_items si JOIN sales s ON s.id = si.sale_id JOIN products p ON p.id = si.product_id
-       WHERE s.shop_id = ? AND date(s.created_at, '+5 hours') >= date('now', '+5 hours', ?)
+       WHERE s.shop_id = ? AND s.created_at >= ?
        GROUP BY p.id ORDER BY sold DESC LIMIT 10`
     )
-    .all(req.shopId, period);
+    .all(req.shopId, periodFrom);
   // Qaytarilgan tovarlar tushum va foydadan chiqariladi
   const ret = returnsTotals(req.shopId!, period);
   const grossProfit = profit.profit - (ret.total - ret.cost);
@@ -2175,6 +2245,8 @@ app.get<{ Querystring: { period?: string } }>('/reports/summary', { preHandler: 
 // Do'kon egasi o'zi sotgan bo'lsa (created_by bo'sh) — alohida satr.
 app.get<{ Querystring: { period?: string } }>('/reports/employees', { preHandler: requireOwner }, async (req) => {
   const period = reportPeriodSql(req.query.period);
+  // Davr boshlanishi UTC'da — indeks ishlashi uchun (tz.ts izohi)
+  const periodFrom = uzPeriodStartUtc(period);
   const rows = db
     .prepare(
       `SELECT s.created_by AS employee_id,
@@ -2184,10 +2256,10 @@ app.get<{ Querystring: { period?: string } }>('/reports/employees', { preHandler
               COALESCE(SUM(s.total), 0) AS revenue,
               COALESCE(SUM(CASE WHEN s.payment_type = 'debt' THEN s.total END), 0) AS debt_revenue
        FROM sales s LEFT JOIN employees e ON e.id = s.created_by
-       WHERE s.shop_id = ? AND date(s.created_at, '+5 hours') >= date('now', '+5 hours', ?)
+       WHERE s.shop_id = ? AND s.created_at >= ?
        GROUP BY s.created_by ORDER BY revenue DESC`
     )
-    .all(req.shopId, period) as any[];
+    .all(req.shopId, periodFrom) as any[];
 
   // Foyda alohida so'rovda — sale_items bilan qo'shilsa sotuvlar soni
   // ko'payib ketardi (bitta chekdagi har bir satr uchun takrorlanib)
@@ -2197,10 +2269,10 @@ app.get<{ Querystring: { period?: string } }>('/reports/employees', { preHandler
               COALESCE(SUM((si.price - p.cost_price) * si.qty), 0) AS profit,
               COALESCE(SUM(si.qty), 0) AS items
        FROM sale_items si JOIN sales s ON s.id = si.sale_id JOIN products p ON p.id = si.product_id
-       WHERE s.shop_id = ? AND date(s.created_at, '+5 hours') >= date('now', '+5 hours', ?)
+       WHERE s.shop_id = ? AND s.created_at >= ?
        GROUP BY s.created_by`
     )
-    .all(req.shopId, period) as any[];
+    .all(req.shopId, periodFrom) as any[];
 
   // Qaytarishlar ham xodimga tegishli — sotuvchining haqiqiy natijasi shu
   const returnRows = db
@@ -2209,10 +2281,10 @@ app.get<{ Querystring: { period?: string } }>('/reports/employees', { preHandler
               COALESCE(SUM(ri.price * ri.qty), 0) AS returned,
               COUNT(DISTINCT r.id) AS returns_count
        FROM return_items ri JOIN returns r ON r.id = ri.return_id
-       WHERE r.shop_id = ? AND date(r.created_at, '+5 hours') >= date('now', '+5 hours', ?)
+       WHERE r.shop_id = ? AND r.created_at >= ?
        GROUP BY r.created_by`
     )
-    .all(req.shopId, period) as any[];
+    .all(req.shopId, periodFrom) as any[];
 
   const byId = <T extends { employee_id: number | null }>(list: T[], id: number | null) =>
     list.find((x) => (x.employee_id ?? null) === (id ?? null));
@@ -2289,6 +2361,8 @@ app.get('/reports/daily/preview', { preHandler: requireOwner }, async (req) => {
 // Hisobotni CSV (Excel ochadi) qilib yuklab olish
 app.get<{ Querystring: { period?: string } }>('/reports/export', { preHandler: requireOwner }, async (req, reply) => {
   const period = reportPeriodSql(req.query.period);
+  // Davr boshlanishi UTC'da — indeks ishlashi uchun (tz.ts izohi)
+  const periodFrom = uzPeriodStartUtc(period);
   const rows = db
     .prepare(
       `SELECT s.created_at AS sana, s.total AS summa, s.payment_type AS tolov,
@@ -2296,7 +2370,7 @@ app.get<{ Querystring: { period?: string } }>('/reports/export', { preHandler: r
               (SELECT GROUP_CONCAT(p.name || ' x' || CAST(si.qty AS INTEGER), '; ')
                FROM sale_items si JOIN products p ON p.id = si.product_id WHERE si.sale_id = s.id) AS mahsulotlar
        FROM sales s LEFT JOIN customers c ON c.id = s.customer_id
-       WHERE s.shop_id = ? AND date(s.created_at, '+5 hours') >= date('now', '+5 hours', ?)
+       WHERE s.shop_id = ? AND s.created_at >= ?
        ORDER BY s.created_at DESC`
     )
     .all(req.shopId, period) as any[];
@@ -2314,6 +2388,15 @@ const port = Number(process.env.PORT ?? 3000);
 app.listen({ port, host: '0.0.0.0' }).then(() => {
   seedAdmin();
   markOverdueDebts();
+  // Muddati o'tgan qarzlar kuniga bir marta ma'noli o'zgaradi —
+  // soatiga bir tekshiruv yetarli va so'rovlar yo'lidan chiqadi
+  setInterval(() => {
+    try {
+      markOverdueDebts();
+    } catch (e) {
+      console.error('[qarz]', e);
+    }
+  }, 60 * 60 * 1000).unref?.();
   runReminders();
   startReminderScheduler();
   startDailyReportScheduler();

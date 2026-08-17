@@ -8,7 +8,34 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const DB_PATH = process.env.DB_PATH ?? join(__dirname, '..', 'db', 'arabic.db');
 
 const raw = new DatabaseSync(DB_PATH, { enableForeignKeyConstraints: true });
-raw.exec('PRAGMA journal_mode = WAL');
+
+// Ishlash sozlamalari. Bir vaqtda o'nlab do'kon ishlaganda sezilarli
+// farq qiladi, shuning uchun boshidayoq qo'yiladi.
+//
+// WAL — o'qish yozishni kutmaydi (SQLite'ning odatdagi rejimida kutardi).
+// synchronous=NORMAL — WAL bilan birga xavfsiz: ilova qulasa ham ma'lumot
+//   joyida qoladi, faqat tok uzilishida oxirgi bir necha yozuv yo'qolishi
+//   mumkin. FULL da har bir yozuvda diskka fsync qilinadi va bu eng katta
+//   tormoz edi.
+// busy_timeout — qulf band bo'lsa darhol xato bermay, kutib turadi.
+//   0 (standart) bo'lsa bir vaqtda yozilganda "database is locked" chiqardi.
+// cache_size manfiy — kilobaytda: 64 MB. Standart 2 MB indekslarni ham
+//   sig'dira olmasdi.
+// temp_store=MEMORY — ORDER BY/GROUP BY uchun vaqtinchalik fayl emas, xotira.
+for (const pragma of [
+  'journal_mode = WAL',
+  'synchronous = NORMAL',
+  'busy_timeout = 5000',
+  'cache_size = -64000',
+  'temp_store = MEMORY',
+  'mmap_size = 268435456',
+]) {
+  try {
+    raw.exec(`PRAGMA ${pragma}`);
+  } catch (e) {
+    console.warn(`[db] PRAGMA ${pragma} qo'llanmadi:`, e);
+  }
+}
 
 // better-sqlite3 uchun yozilgan kodni o'zgartirmaslik uchun transaction() helperini qo'shamiz
 function transaction<T extends (...args: any[]) => any>(fn: T) {
@@ -103,6 +130,45 @@ try {
   );
 } catch (e) {
   console.warn('[db] tarozi raqami indeksi yaratilmadi:', e);
+}
+
+// Ro'yxatlar va hisobotlar tayanadigan indekslar.
+//
+// Bularsiz chek ro'yxati har bir qatorda butun sale_items jadvalini
+// skanerlardi: 50 ta chek × 150 000 satr. Bitta so'rov 400 ms ni yeb,
+// boshqa hamma so'rov navbatda turardi — bir vaqtda 100 kishi kirsa
+// server umuman javob bermay qolardi.
+for (const sql of [
+  // Chek satrlari: chek bo'yicha (ro'yxatdagi tovar nomlari, qaytarish)
+  'CREATE INDEX IF NOT EXISTS idx_sale_items_sale ON sale_items(sale_id)',
+  // ...va tovar bo'yicha (qaytarish uchun qidiruv, 30 kunlik sotuv tezligi)
+  'CREATE INDEX IF NOT EXISTS idx_sale_items_product ON sale_items(product_id)',
+  // Sotuvlar sana bo'yicha tartiblanadi — indekssiz har safar saralanardi
+  'CREATE INDEX IF NOT EXISTS idx_sales_shop_date ON sales(shop_id, created_at)',
+  // Chekdagi "qaytarilgan" summasi
+  'CREATE INDEX IF NOT EXISTS idx_returns_sale ON returns(sale_id)',
+  'CREATE INDEX IF NOT EXISTS idx_return_items_product ON return_items(product_id)',
+  // Qarz to'lovlari — ishonch reytingi har bir qarz uchun qidiradi
+  'CREATE INDEX IF NOT EXISTS idx_debt_payments_debt ON debt_payments(debt_id)',
+  // Ombor harakati — tovar kartochkasi va inventarizatsiya
+  'CREATE INDEX IF NOT EXISTS idx_stock_movements_product ON stock_movements(product_id)',
+  'CREATE INDEX IF NOT EXISTS idx_supplier_debts_shop ON supplier_debts(shop_id, status)',
+  'CREATE INDEX IF NOT EXISTS idx_reminder_logs_shop ON reminder_logs(shop_id, created_at)',
+  'CREATE INDEX IF NOT EXISTS idx_products_supplier ON products(supplier_id)',
+]) {
+  try {
+    db.exec(sql);
+  } catch (e) {
+    console.warn('[db] indeks yaratilmadi:', sql, e);
+  }
+}
+
+// Rejalashtiruvchiga jadval hajmlarini bildiramiz — indeks tanlashda
+// shu ma'lumotga tayanadi. Bir marta, ochilishda.
+try {
+  db.exec('PRAGMA optimize');
+} catch {
+  /* muhim emas */
 }
 
 // Eski bazalarda mahsulot kodlari faqat products.barcode da edi —
