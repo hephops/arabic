@@ -9,7 +9,7 @@ import { toast, loadFailed } from '../toast';
 import { DiscountSheet, priceAfter } from '../discount';
 import { PrintSheet, Labels } from '../print';
 import { ean13Svg, isEan13, scaleBarcode } from '../ean13';
-import { beepError } from '../beep';
+import { scanFail } from '../beep';
 
 // Ombor: mahsulotlar ro'yxati, tahrirlash va inventarizatsiya
 
@@ -591,7 +591,7 @@ function Stocktake({ products, onBack }: { products: Product[]; onBack: () => vo
     } else {
       // Bu kod omborda yo'q — ilgari hech narsa bo'lmasdi va sanoqchi
       // buni sezmay o'tib ketardi
-      beepError();
+      scanFail();
       toast.error(t('toastNotFound'), code);
     }
   }

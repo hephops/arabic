@@ -5,7 +5,7 @@ import { SubHeader, EmptyState } from '../ui';
 import { useT, LANG_NAMES, group, type Lang } from '../i18n';
 import { formatCard, cardDigits, formatPhone, maskCard, formatAmount, amountValue, fmtDateTime } from '../format';
 import { toast, loadFailed } from '../toast';
-import { scanSoundOn, setScanSound, beepOk } from '../beep';
+import { scanSoundOn, setScanSound, beepOk, scanVibeOn, setScanVibe, canVibrate, vibrate } from '../beep';
 
 // iOS Sozlamalar uslubidagi kabinet: asosiy ekranda qatorlar,
 // har biri o'z ichki ekraniga ochiladi.
@@ -63,6 +63,7 @@ export default function Profile({
   const [shop, setShop] = useState<Shop | null>(null);
   const [balance, setBalance] = useState<BalanceInfo | null>(null);
   const [sound, setSound] = useState(scanSoundOn());
+  const [vibe, setVibe] = useState(scanVibeOn());
   const { t } = useT();
 
   async function load() {
@@ -168,6 +169,30 @@ export default function Profile({
             if (next) beepOk(); // yoqilganda darhol namuna
           }}
           aria-label={t('scanSound')}
+        >
+          <span />
+        </button>
+      </div>
+
+      {/* Titrash — ovozning juftlashi. Bozorda karnay-surnay ostida
+          ovoz eshitilmasligi mumkin, qo'ldagi turtki esa sezuvchan.
+          iPhone Safari'da bunday imkoniyat yo'q — o'sha yerda tugma
+          o'chiq turadi va sababi yozib qo'yiladi. */}
+      <div className="switch-row">
+        <div style={{ minWidth: 0 }}>
+          <div className="sw-title">{t('scanVibe')}</div>
+          <div className="sw-sub">{canVibrate() ? t('scanVibeSub') : t('scanVibeNone')}</div>
+        </div>
+        <button
+          className={`switch ${vibe && canVibrate() ? 'on' : ''}`}
+          disabled={!canVibrate()}
+          onClick={() => {
+            const next = !vibe;
+            setScanVibe(next);
+            setVibe(next);
+            if (next) vibrate(60); // yoqilganda darhol namuna
+          }}
+          aria-label={t('scanVibe')}
         >
           <span />
         </button>

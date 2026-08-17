@@ -16,7 +16,7 @@ import { TrustWarning } from '../trust';
 import { GoalStrip } from '../goal';
 import { VoiceCartSheet } from '../voiceCart';
 import { priceAfter } from '../discount';
-import { beepError } from '../beep';
+import { scanFail } from '../beep';
 
 export type KassaMode = 'sale' | 'intake' | 'history';
 
@@ -485,7 +485,7 @@ function SaleMode({ onDone }: { onDone: () => void }) {
         if (res.product && res.scale.qty > 0) {
           addToCart(res.product, res.scale.qty);
         } else {
-          beepError();
+          scanFail();
           toast.error(t('scalePluUnknown'), `PLU ${res.scale.plu}`);
         }
         setQuery('');
@@ -501,7 +501,7 @@ function SaleMode({ onDone }: { onDone: () => void }) {
       // Topilmadi — kodni eslab qolamiz va tanlash uchun ro'yxatni ochamiz.
       // Katalogda nomi bo'lsa shu nom bo'yicha, aks holda ombordagi barcha
       // mahsulot chiqadi: do'konchi tovarni topib bossa, kod o'shanga bog'lanadi.
-      beepError();
+      scanFail();
       toast.error(t('toastNotFound'), res.code);
       setPendingCode(res.code);
       setQuery('');
@@ -829,14 +829,14 @@ function SaleMode({ onDone }: { onDone: () => void }) {
                 addToCart(res.product, res.scale.qty);
               } else if (res?.scale && !res.product) {
                 setScanning(false);
-                beepError();
+                scanFail();
                 toast.error(t('scalePluUnknown'), `PLU ${res.scale.plu}`);
               } else if (res?.product) {
                 addToCart(res.product);
               } else {
                 // topilmadi: skanerni yopib, kodni biriktirishga taklif qilamiz
                 setScanning(false);
-                beepError();
+                scanFail();
                 handleCode(code);
               }
             }}

@@ -600,6 +600,9 @@ button.link { background: none; color: var(--accent); font-size: 15px; font-weig
 }
 .switch.on { background: var(--green); }
 .switch.on span { transform: translateX(20px); }
+/* Qurilma qo'llab-quvvatlamaydigan sozlama — bosilmaydi va shundayligi
+   ko'rinib turadi (sababi yonidagi izohda yozilgan) */
+.switch:disabled { opacity: 0.4; cursor: default; }
 
 /* Kategoriya tugmachalari */
 .chip-row {

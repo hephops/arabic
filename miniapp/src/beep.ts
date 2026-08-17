@@ -1,4 +1,4 @@
-// Skaner ovozi.
+// Skaner javobi: ovoz va titrash.
 //
 // Do'konchi kodni kameraga tutganda ekranga qaramaydi — qo'lida tovar,
 // ko'zi mijozda. Haqiqiy skanerdagi "bip" shuning uchun bor: o'qildimi
@@ -12,28 +12,59 @@
 // Ohanglar atayin ikki xil:
 //   bip        — kod o'qildi (qisqa, baland — do'kon shovqinida ham eshitiladi)
 //   bip-bip    — tovar topilmadi (past va ikki marta — xatoni ajratib turadi)
+//
+// Titrash ham shu ikki xillikni takrorlaydi: bitta qisqa turtki yoki
+// ikkita. Bozorda karnay-surnay ostida ovoz eshitilmasligi mumkin —
+// qo'lda sezilgan turtki o'shanda yagona javob bo'lib qoladi.
+// Titrash Android/Chrome'da ishlaydi; iPhone Safari'da bunday imkoniyat
+// yo'q, shuning uchun u yerda faqat ovoz qoladi.
 
-const SETTING_KEY = 'arabic.scanSound.v1';
+const SOUND_KEY = 'arabic.scanSound.v1';
+const VIBE_KEY = 'arabic.scanVibe.v1';
 
 let ctx: AudioContext | null = null;
 let unlockInstalled = false;
 
-/** Ovoz yoqilganmi (qurilmaga bog'liq sozlama, do'konga emas) */
-export function scanSoundOn(): boolean {
+function flagOn(key: string): boolean {
   try {
-    return localStorage.getItem(SETTING_KEY) !== 'off';
+    return localStorage.getItem(key) !== 'off';
   } catch {
-    return true;
+    return true; // shaxsiy rejimda localStorage yopiq bo'lishi mumkin
   }
 }
 
-export function setScanSound(on: boolean) {
+function setFlag(key: string, on: boolean) {
   try {
-    localStorage.setItem(SETTING_KEY, on ? 'on' : 'off');
+    localStorage.setItem(key, on ? 'on' : 'off');
   } catch {
-    /* shaxsiy rejimda localStorage yopiq bo'lishi mumkin */
+    /* saqlanmasa ham joriy seansda ishlayveradi */
   }
+}
+
+/** Ovoz yoqilganmi (qurilmaga bog'liq sozlama, do'konga emas) */
+export const scanSoundOn = () => flagOn(SOUND_KEY);
+
+export function setScanSound(on: boolean) {
+  setFlag(SOUND_KEY, on);
   if (on) unlockBeep();
+}
+
+/** Bu qurilma umuman titray oladimi (iPhone Safari'da yo'q) */
+export const canVibrate = () => typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function';
+
+/** Titrash yoqilganmi */
+export const scanVibeOn = () => flagOn(VIBE_KEY);
+
+export const setScanVibe = (on: boolean) => setFlag(VIBE_KEY, on);
+
+/** Sozlama yoqilgan bo'lsa qurilmani titratadi */
+export function vibrate(pattern: number | number[]) {
+  if (!scanVibeOn() || !canVibrate()) return;
+  try {
+    navigator.vibrate(pattern);
+  } catch {
+    /* titrash bo'lmasa ham skanerlash to'xtamasligi kerak */
+  }
 }
 
 function audio(): AudioContext | null {
@@ -114,4 +145,16 @@ export function beepError() {
     tone(560, 0, 110, 0.18);
     tone(400, 0.14, 160, 0.18);
   });
+}
+
+/** Kod o'qildi: bitta "bip" va bitta qisqa turtki */
+export function scanOk() {
+  beepOk();
+  vibrate(60);
+}
+
+/** Tovar topilmadi: past ikki ohang va ikkita turtki */
+export function scanFail() {
+  beepError();
+  vibrate([70, 70, 70]);
 }
