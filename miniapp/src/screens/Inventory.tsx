@@ -9,6 +9,7 @@ import { toast, loadFailed } from '../toast';
 import { DiscountSheet, priceAfter } from '../discount';
 import { PrintSheet, Labels } from '../print';
 import { ean13Svg, isEan13, scaleBarcode } from '../ean13';
+import { beepError } from '../beep';
 
 // Ombor: mahsulotlar ro'yxati, tahrirlash va inventarizatsiya
 
@@ -587,6 +588,11 @@ function Stocktake({ products, onBack }: { products: Product[]; onBack: () => vo
       // skaner qilingan mahsulot sonini bittaga oshiramiz
       setCounts((prev) => ({ ...prev, [p.id!]: String((parseFloat(prev[p.id!] ?? '0') || 0) + 1) }));
       setQuery(p.name);
+    } else {
+      // Bu kod omborda yo'q — ilgari hech narsa bo'lmasdi va sanoqchi
+      // buni sezmay o'tib ketardi
+      beepError();
+      toast.error(t('toastNotFound'), code);
     }
   }
 

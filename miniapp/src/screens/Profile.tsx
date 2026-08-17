@@ -5,6 +5,7 @@ import { SubHeader, EmptyState } from '../ui';
 import { useT, LANG_NAMES, group, type Lang } from '../i18n';
 import { formatCard, cardDigits, formatPhone, maskCard, formatAmount, amountValue, fmtDateTime } from '../format';
 import { toast, loadFailed } from '../toast';
+import { scanSoundOn, setScanSound, beepOk } from '../beep';
 
 // iOS Sozlamalar uslubidagi kabinet: asosiy ekranda qatorlar,
 // har biri o'z ichki ekraniga ochiladi.
@@ -61,6 +62,7 @@ export default function Profile({
   };
   const [shop, setShop] = useState<Shop | null>(null);
   const [balance, setBalance] = useState<BalanceInfo | null>(null);
+  const [sound, setSound] = useState(scanSoundOn());
   const { t } = useT();
 
   async function load() {
@@ -148,6 +150,27 @@ export default function Profile({
         <Row icon="house" label={t('shopInfo')} onClick={() => setView('shop')} />
         <Row icon="globe" label={t('navLanguage')} value={LANG_NAMES[shop.language as Lang] ?? shop.language} onClick={() => setView('language')} />
         <Row icon="card" label={t('cardNumber')} value={maskCard(shop.card_number) || t('notSet')} onClick={() => setView('shop')} />
+      </div>
+
+      {/* Skaner ovozi — qurilmaga bog'liq sozlama (do'konga emas):
+          bittasi kassada ovoz bilan, boshqasi jim ishlashi mumkin */}
+      <div className="switch-row">
+        <div style={{ minWidth: 0 }}>
+          <div className="sw-title">{t('scanSound')}</div>
+          <div className="sw-sub">{t('scanSubSound')}</div>
+        </div>
+        <button
+          className={`switch ${sound ? 'on' : ''}`}
+          onClick={() => {
+            const next = !sound;
+            setScanSound(next);
+            setSound(next);
+            if (next) beepOk(); // yoqilganda darhol namuna
+          }}
+          aria-label={t('scanSound')}
+        >
+          <span />
+        </button>
       </div>
 
       {/* Ombor qoidasi: qoldiqdan ko'p sotishga ruxsat.

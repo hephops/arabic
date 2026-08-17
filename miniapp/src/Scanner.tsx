@@ -6,6 +6,7 @@ import {
 import { Glyph } from './icons';
 import { useT } from './i18n';
 import { createVoter } from './barcode';
+import { beepOk, unlockBeep } from './beep';
 
 // Kamera orqali shtrix-kod skaneri.
 // Brauzerning BarcodeDetector API'si ishlatiladi (Android/Chrome, Telegram webview).
@@ -43,6 +44,7 @@ export default function Scanner({
   onScanRef.current = onScan;
 
   useEffect(() => {
+    unlockBeep();
     let stream: MediaStream | null = null;
     let zxing: any = null;
     let stopped = false;
@@ -67,6 +69,9 @@ export default function Scanner({
       lastCode = code;
       lastAt = now;
       setSeen(code);
+      // Uch xil javob birdaniga: ovoz, titrash va ekran chaqnashi.
+      // Do'konchi ekranga qaramay ham o'qilganini biladi.
+      beepOk();
       navigator.vibrate?.(60);
       setFlash(true);
       setTimeout(() => setFlash(false), 260);
