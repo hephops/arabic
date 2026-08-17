@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, fmt, Customer, CustomerDetail, CustomerTelegram, ReminderMode } from '../api';
 import { AppIcon, Glyph } from '../icons';
-import { NavBar } from '../ui';
+import { NavBar, DateField } from '../ui';
 import { useT, LANG_NAMES, type Lang } from '../i18n';
 import { MODES } from './Reminders';
 import { formatAmount, formatPhoneSoft, phoneStore, formatPhone, phoneDigits, phoneE164, isPhoneComplete } from '../format';
@@ -290,7 +290,7 @@ export default function Customers() {
                   <label>
                     {t('dueDate')} ({t('optional')})
                   </label>
-                  <input type="date" value={debtForm.due} onChange={(e) => setDebtForm({ ...debtForm, due: e.target.value })} />
+                  <DateField value={debtForm.due} onChange={(v) => setDebtForm({ ...debtForm, due: v })} ariaLabel={t('dueDate')} />
                   {(needPhone || !selected.phone) && (
                     <>
                       <label>{t('debtorPhone')}</label>

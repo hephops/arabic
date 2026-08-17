@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, fmt, Supplier, SupplierDetail } from '../api';
 import { AppIcon, Glyph } from '../icons';
-import { SubHeader, Summary, EmptyState } from '../ui';
+import { SubHeader, Summary, EmptyState, DateField } from '../ui';
 import { useT } from '../i18n';
 import { formatAmount, formatPhoneSoft } from '../format';
 import { toast, loadFailed } from '../toast';
@@ -158,7 +158,7 @@ export default function Suppliers({ onBack }: { onBack: () => void }) {
             </div>
             <div className="form-row">
               <label>{t('payDeadline')} <span className="tag">{t('optional')}</span></label>
-              <input type="date" value={form.due} onChange={(e) => setForm({ ...form, due: e.target.value })} />
+              <DateField value={form.due} onChange={(v) => setForm({ ...form, due: v })} ariaLabel={t('dueDate')} />
             </div>
           </div>
           <button className="btn-primary btn-lg" onClick={addDebt} disabled={busy}>

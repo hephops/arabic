@@ -5,6 +5,7 @@ import { haptic } from '../telegram';
 import { useT } from '../i18n';
 import { formatAmount, amountValue, formatPhone, phoneDigits, phoneE164, isPhoneComplete } from '../format';
 import { toast } from '../toast';
+import { DateField } from '../ui';
 
 // Qarz yozishning ikki yo'li teng: ovoz bilan va qo'lda.
 // Ovoz: brauzer SpeechRecognition. Ishlamasa — sabab aniq aytiladi va
@@ -360,7 +361,7 @@ function ManualMode({ onDone }: { onDone: () => void }) {
           <label>
             {t('dueDate')} <span className="tag">{t('optional')}</span>
           </label>
-          <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+          <DateField value={dueDate} onChange={setDueDate} ariaLabel={t('dueDate')} />
         </div>
         <div className="form-row">
           <label>

@@ -12,7 +12,7 @@ import {
 } from '../carts';
 import { PrintSheet, Receipt } from '../print';
 import { HistoryMode } from './History';
-import { ProductThumb, EmptyState, Summary } from '../ui';
+import { ProductThumb, EmptyState, Summary, DateField } from '../ui';
 import { TrustWarning } from '../trust';
 import { GoalStrip } from '../goal';
 import { VoiceCartSheet } from '../voiceCart';
@@ -976,7 +976,7 @@ function IntakeMode({ onDone }: { onDone: () => void }) {
             <label>
               {t('expiry')} <span className="tag">{t('optional')}</span>
             </label>
-            <input type="date" value={expiry} onChange={(e) => setExpiry(e.target.value)} />
+            <DateField value={expiry} onChange={setExpiry} ariaLabel={t('expiry')} />
           </div>
         </div>
         {margin > 0 && (

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { api, fmt, Product, StocktakeRow, Supplier, BASE } from '../api';
 import { AppIcon, Glyph } from '../icons';
-import { NavBar, Summary, EmptyState, Segmented } from '../ui';
+import { NavBar, Summary, EmptyState, Segmented, DateField } from '../ui';
 import { useT } from '../i18n';
 import Scanner from '../Scanner';
 import { formatAmount } from '../format';
@@ -561,7 +561,7 @@ function ProductEdit({ product, onBack, onSaved }: { product: Product; onBack: (
         <label>
           {t('expiry')} ({t('optional')})
         </label>
-        <input type="date" value={form.expiry_date} onChange={(e) => setForm({ ...form, expiry_date: e.target.value })} />
+        <DateField value={form.expiry_date} onChange={(v) => setForm({ ...form, expiry_date: v })} ariaLabel={t('expiry')} />
 
         {/* Ta'minotchi — "Buyurtma" bo'limi shu bo'yicha guruhlaydi,
             shunda har bir ta'minotchiga alohida ro'yxat tayyorlanadi */}

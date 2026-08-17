@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api, fmt, getToken, Expense, ExpensePeriod, ExpensesInfo } from '../api';
 import { AppIcon, Glyph } from '../icons';
-import { SubHeader, EmptyState, Segmented, Summary } from '../ui';
+import { SubHeader, EmptyState, Segmented, Summary, DateField } from '../ui';
 import { useT, group } from '../i18n';
 import { formatAmount, amountValue, uzToday } from '../format';
 import { EXPENSE_CATS as CATS, expenseCatLabel, expenseCatIcon } from '../expenseCats';
@@ -353,11 +353,11 @@ export default function Expenses({ onBack }: { onBack: () => void }) {
             />
 
             <label className="sheet-label">{t('expenseDate')}</label>
-            <input
-              type="date"
+            <DateField
               value={draft.spent_at}
               max={today()}
-              onChange={(e) => setDraft({ ...draft, spent_at: e.target.value })}
+              onChange={(v) => setDraft({ ...draft, spent_at: v })}
+              ariaLabel={t('expenseDate')}
             />
 
             <div className="switch-row" style={{ marginTop: 10 }}>

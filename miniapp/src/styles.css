@@ -1784,3 +1784,16 @@ button.link { background: none; color: var(--accent); font-size: 15px; font-weig
 }
 .stepper .st-qty:focus { box-shadow: 0 0 0 1.5px var(--accent); border-radius: 8px; }
 .stepper .st-unit { font-size: 12.5px; color: var(--muted); margin-right: 2px; }
+
+/* Sana maydoni va uning tozalash tugmasi.
+   iPhone'ning o'z tanlagichidagi "Сброс" ishonchsiz — bu tugma esa
+   har qanday qurilmada bir xil ishlaydi. */
+.date-field { position: relative; display: block; }
+.date-field input { width: 100%; padding-right: 42px; }
+.date-clear {
+  position: absolute; top: 50%; right: 8px; transform: translateY(-50%);
+  width: 30px; height: 30px; border-radius: 50%;
+  background: rgba(120, 120, 128, 0.14);
+  display: flex; align-items: center; justify-content: center;
+}
+.date-clear:active { opacity: 0.6; }

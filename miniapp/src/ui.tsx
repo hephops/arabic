@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { AppIcon, Glyph } from './icons';
 import { BASE } from './api';
-import { useT } from './i18n';
+import { useT, translate } from './i18n';
 import { toggleSide } from './sidebar';
 
 // iOS navigatsiya paneli: 44px balandlik, markazda 17px sarlavha,
@@ -140,4 +140,52 @@ export function ProductThumb({
     );
   }
   return <AppIcon glyph="box" color="gray" size={size} />;
+}
+
+/**
+ * Sana maydoni.
+ *
+ * Nega alohida komponent: iPhone'dagi sana tanlagichida "Сброс"
+ * (tozalash) tugmasi bor va u bosilganda Safari React tinglayotgan
+ * hodisani har doim ham yubormaydi. Natijada maydon ko'zga bo'shdek
+ * ko'rinadi, holbuki dasturdagi qiymat eskiligicha qoladi va saqlashda
+ * o'sha eski sana ketadi — sezish qiyin, oqibati esa jiddiy.
+ *
+ * Ikki himoya:
+ *   1. onChange bilan birga onInput ham tinglanadi (brauzerlar ikkalasini
+ *      har xil yuboradi);
+ *   2. yonida o'zimizning "×" tugmasi — u hech qanday tizim tanlagichiga
+ *      bog'liq emas va hamma joyda bir xil ishlaydi.
+ */
+export function DateField({
+  value,
+  onChange,
+  min,
+  max,
+  ariaLabel,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  min?: string;
+  max?: string;
+  ariaLabel?: string;
+}) {
+  return (
+    <div className="date-field">
+      <input
+        type="date"
+        value={value}
+        min={min}
+        max={max}
+        aria-label={ariaLabel}
+        onChange={(e) => onChange(e.target.value)}
+        onInput={(e) => onChange((e.target as HTMLInputElement).value)}
+      />
+      {value && (
+        <button className="date-clear" onClick={() => onChange('')} aria-label={translate('clear')}>
+          <Glyph name="close" size={16} color="#8a8a8e" />
+        </button>
+      )}
+    </div>
+  );
 }
