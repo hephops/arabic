@@ -777,6 +777,11 @@ function IntakeMode({ onDone }: { onDone: () => void }) {
   // Sabzi, semichka, go'sht — kilogrammda. Ilgari hammasi "dona" bo'lib
   // qolardi va omborda "1.5 dona sabzi" kabi ma'nosiz yozuv paydo bo'lardi.
   const [unit, setUnit] = useState<string>('dona');
+  // Narx qanday kiritiladi. Do'konchi qop semichkani "25 kg olдim,
+  // 200 ming to'ladim" deb biladi — 1 kg qancha turishini o'zi
+  // hisoblab o'tirmasligi kerak.
+  const [priceMode, setPriceMode] = useState<'unit' | 'total'>('unit');
+  const [totalCost, setTotalCost] = useState('');
   const [expiry, setExpiry] = useState('');
   const [category, setCategory] = useState('');
   const [cats, setCats] = useState<{ name: string }[]>([]);
@@ -842,8 +847,8 @@ function IntakeMode({ onDone }: { onDone: () => void }) {
       const product = await api.intake({
         barcode: barcode.trim() || undefined,
         name: name.trim(),
-        cost_price: parseInt(costPrice.replace(/\D/g, ''), 10) || 0,
-        sell_price: parseInt(sellPrice.replace(/\D/g, ''), 10) || 0,
+        cost_price: unitCost,
+        sell_price: unitSell,
         unit,
         qty: parseQty(qty, unit),
         expiry_date: expiry || undefined,
@@ -854,7 +859,7 @@ function IntakeMode({ onDone }: { onDone: () => void }) {
       // forma yopilmaydi — keyingi tovarga tayyor turadi
       // Birlik saqlanib qoladi: do'konchi odatda bir turdagi tovarni
       // ketma-ket kiritadi (bir necha xil sabzavot, keyin ichimliklar)
-      setBarcode(''); setName(''); setCostPrice(''); setSellPrice(''); setQty(''); setExpiry(''); setImage(null);
+      setBarcode(''); setName(''); setCostPrice(''); setSellPrice(''); setTotalCost(''); setQty(''); setExpiry(''); setImage(null);
       api.categories().then(setCats).catch(() => {});
       onDone();
     } catch (e: any) {
@@ -864,10 +869,18 @@ function IntakeMode({ onDone }: { onDone: () => void }) {
     }
   }
 
-  const margin =
-    amountValue(sellPrice) && amountValue(costPrice)
-      ? amountValue(sellPrice) - amountValue(costPrice)
-      : 0;
+  // Bazada narx HAR DOIM bitta birlik uchun saqlanadi. "Jami summa"
+  // usuli tanlansa uni miqdorga bo'lib olamiz — do'konchiga qulay,
+  // hisob esa o'zgarmaydi.
+  const qtyNum = parseQty(qty, unit);
+  const unitCost =
+    priceMode === 'total'
+      ? qtyNum > 0
+        ? Math.round(amountValue(totalCost) / qtyNum)
+        : 0
+      : amountValue(costPrice);
+  const unitSell = amountValue(sellPrice);
+  const margin = unitSell && unitCost ? unitSell - unitCost : 0;
 
   return (
     <>
@@ -938,20 +951,12 @@ function IntakeMode({ onDone }: { onDone: () => void }) {
         </div>
       </div>
 
-      {/* Narx va miqdor */}
+      {/* Miqdor va narx.
+          Tartib ataylab shunday: avval birlik, keyin qancha kelgani,
+          oxirida narx. Narx qaysi birlik uchun ekani shundagina
+          aniq bo'ladi — ilgari "Kirim narxi" deb yozilgan-u, u bir
+          qopning narximi yoki bir kilonikimi ko'rinmasdi. */}
       <div className="form-group">
-        <div className="row-2">
-          <div className="form-row">
-            <label>{t('costPrice')}</label>
-            <input value={formatAmount(costPrice)} onChange={(e) => setCostPrice(e.target.value)} inputMode="numeric" placeholder="10 000" />
-          </div>
-          <div className="form-row">
-            <label>{t('sellPrice')}</label>
-            <input value={formatAmount(sellPrice)} onChange={(e) => setSellPrice(e.target.value)} inputMode="numeric" placeholder="13 000" />
-          </div>
-        </div>
-        {/* O'lchov birligi — miqdor maydonidan oldin turadi, chunki u
-            "Soni" yozuvini ham, kasr mumkinligini ham belgilaydi */}
         <div className="form-row">
           <label>{t('unitLabel')}</label>
           <div className="chip-row">
@@ -962,14 +967,15 @@ function IntakeMode({ onDone }: { onDone: () => void }) {
             ))}
           </div>
         </div>
+
         <div className="row-2">
           <div className="form-row">
-            <label>{isFractional(unit) ? `${t('qtyWeight')} (${t(`unit_${unit}`)})` : t('qty')}</label>
+            <label>{t('qtyArrived')} ({t(`unit_${unit}`)})</label>
             <input
               value={qty}
               onChange={(e) => setQty(e.target.value.replace(/[^\d.,]/g, ''))}
               inputMode="decimal"
-              placeholder={isFractional(unit) ? '12.5' : '24'}
+              placeholder={isFractional(unit) ? '25' : '24'}
             />
           </div>
           <div className="form-row">
@@ -979,11 +985,89 @@ function IntakeMode({ onDone }: { onDone: () => void }) {
             <DateField value={expiry} onChange={setExpiry} ariaLabel={t('expiry')} />
           </div>
         </div>
-        {margin > 0 && (
-          <p className="form-note">
-            {t('profit')}: <b style={{ color: 'var(--green)' }}>{fmt(margin)}</b>
-            {qty && ` · ${qtyText(parseQty(qty, unit))} ${t(`unit_${unit}`)} → ${fmt(margin * parseQty(qty, unit))}`}
-          </p>
+
+        {/* Narxni ikki xil kiritish mumkin. Qop, quti yoki meshda
+            olinganda do'konchi jami to'lagan pulini biladi, bir
+            kilosini emas — bo'lishni ilova o'zi qiladi. */}
+        <div className="form-row">
+          <label>{t('priceHow')}</label>
+          <div className="chip-row">
+            <button className={`chip ${priceMode === 'unit' ? 'on' : ''}`} onClick={() => setPriceMode('unit')}>
+              1 {t(`unit_${unit}`)} {t('perUnitSuffix')}
+            </button>
+            <button className={`chip ${priceMode === 'total' ? 'on' : ''}`} onClick={() => setPriceMode('total')}>
+              {t('totalPaid')}
+            </button>
+          </div>
+        </div>
+
+        <div className="row-2">
+          <div className="form-row">
+            <label>
+              {priceMode === 'total'
+                ? t('totalPaid')
+                : `${t('costPrice')} (1 ${t(`unit_${unit}`)})`}
+            </label>
+            {priceMode === 'total' ? (
+              <input
+                value={formatAmount(totalCost)}
+                onChange={(e) => setTotalCost(e.target.value)}
+                inputMode="numeric"
+                placeholder="200 000"
+              />
+            ) : (
+              <input
+                value={formatAmount(costPrice)}
+                onChange={(e) => setCostPrice(e.target.value)}
+                inputMode="numeric"
+                placeholder="10 000"
+              />
+            )}
+          </div>
+          <div className="form-row">
+            <label>{t('sellPrice')} (1 {t(`unit_${unit}`)})</label>
+            <input value={formatAmount(sellPrice)} onChange={(e) => setSellPrice(e.target.value)} inputMode="numeric" placeholder="13 000" />
+          </div>
+        </div>
+
+        {/* Xulosa — kiritilgan raqamlar qanday tushunilganini ochiq
+            ko'rsatadi. Xato shu yerda darrov ko'zga tashlanadi. */}
+        {(qtyNum > 0 || unitCost > 0) && (
+          <div className="intake-sum">
+            {qtyNum > 0 && (
+              <div className="is-row">
+                <span>{t('intakeToStock')}</span>
+                <b>{qtyText(qtyNum)} {t(`unit_${unit}`)}</b>
+              </div>
+            )}
+            {unitCost > 0 && (
+              <div className="is-row">
+                <span>1 {t(`unit_${unit}`)} {t('costsWord')}</span>
+                <b>{fmt(unitCost)}</b>
+              </div>
+            )}
+            {priceMode === 'unit' && qtyNum > 0 && unitCost > 0 && (
+              <div className="is-row">
+                <span>{t('totalPaid')}</span>
+                <b>{fmt(unitCost * qtyNum)}</b>
+              </div>
+            )}
+            {margin > 0 && (
+              <div className="is-row total">
+                <span>{t('profit')}</span>
+                <b style={{ color: 'var(--green)' }}>
+                  {fmt(margin)} / {t(`unit_${unit}`)}
+                  {qtyNum > 0 ? ` · ${t('allOf')} ${fmt(margin * qtyNum)}` : ''}
+                </b>
+              </div>
+            )}
+            {margin < 0 && unitCost > 0 && unitSell > 0 && (
+              <div className="is-row total">
+                <span style={{ color: 'var(--red)' }}>{t('sellBelowCost')}</span>
+                <b style={{ color: 'var(--red)' }}>{fmt(margin)}</b>
+              </div>
+            )}
+          </div>
         )}
       </div>
 

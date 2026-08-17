@@ -1797,3 +1797,19 @@ button.link { background: none; color: var(--accent); font-size: 15px; font-weig
   display: flex; align-items: center; justify-content: center;
 }
 .date-clear:active { opacity: 0.6; }
+
+/* Tovar kirimi xulosasi — kiritilgan raqamlar qanday tushunilgani */
+.intake-sum {
+  background: rgba(120, 120, 128, 0.07); border-radius: 12px;
+  padding: 10px 13px; margin-top: 4px;
+}
+.intake-sum .is-row {
+  display: flex; justify-content: space-between; align-items: baseline;
+  gap: 10px; font-size: 13.5px; padding: 3px 0;
+}
+.intake-sum .is-row span { color: var(--muted); }
+.intake-sum .is-row b { font-variant-numeric: tabular-nums; }
+.intake-sum .is-row.total {
+  border-top: 1px solid rgba(120, 120, 128, 0.18);
+  margin-top: 5px; padding-top: 7px;
+}
