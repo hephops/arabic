@@ -6,6 +6,7 @@ import { useT, LANG_NAMES, group, type Lang } from '../i18n';
 import { formatCard, cardDigits, formatPhone, maskCard, formatAmount, amountValue, fmtDateTime } from '../format';
 import { toast, loadFailed } from '../toast';
 import { scanSoundOn, setScanSound, beepOk, scanVibeOn, setScanVibe, canVibrate, vibrate } from '../beep';
+import { VibeCheckSheet } from '../vibeCheck';
 
 // iOS Sozlamalar uslubidagi kabinet: asosiy ekranda qatorlar,
 // har biri o'z ichki ekraniga ochiladi.
@@ -64,6 +65,7 @@ export default function Profile({
   const [balance, setBalance] = useState<BalanceInfo | null>(null);
   const [sound, setSound] = useState(scanSoundOn());
   const [vibe, setVibe] = useState(scanVibeOn());
+  const [vibeCheck, setVibeCheck] = useState(false);
   const { t } = useT();
 
   async function load() {
@@ -197,6 +199,13 @@ export default function Profile({
           <span />
         </button>
       </div>
+
+      {/* Titrash sezilmasa sababini uzoqdan topib bo'lmaydi — qurilmaning
+          o'zi javob bersin */}
+      <div className="list-group">
+        <Row icon="scan" label={t('vibeCheckTitle')} onClick={() => setVibeCheck(true)} />
+      </div>
+      {vibeCheck && <VibeCheckSheet onClose={() => setVibeCheck(false)} />}
 
       {/* Ombor qoidasi: qoldiqdan ko'p sotishga ruxsat.
           Odatda o'chiq — aks holda sotuvchi tasdiqlab yuborsa qoldiq

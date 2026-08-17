@@ -222,6 +222,85 @@ export function beepError() {
   });
 }
 
+/* ── Tekshiruv uchun ──
+ * Sozlamalardagi "Titrashni tekshirish" oynasi shu yerdan foydalanadi.
+ * Sozlamadan qat'i nazar ishlaydi: maqsad — qurilma nimaga qodirligini
+ * bilish, taxmin qilish emas.
+ */
+
+export interface VibeInfo {
+  /** navigator.vibrate mavjudmi (Android/Chrome) */
+  hasApi: boolean;
+  /** sensorli ekran nuqtalari — 0 bo'lsa bu kompyuter */
+  touchPoints: number;
+  /** iOS 17.4+ switch elementi bormi */
+  hasSwitch: boolean;
+  /** ilova alohida oyna sifatida o'rnatilganmi */
+  standalone: boolean;
+  /** HTTPS'mi (usiz ko'p imkoniyat yopiq) */
+  secure: boolean;
+  browser: string;
+}
+
+export function vibeInfo(): VibeInfo {
+  const ua = typeof navigator === 'undefined' ? '' : navigator.userAgent;
+  const browser = /CriOS/.test(ua)
+    ? 'Chrome (iPhone)'
+    : /FxiOS/.test(ua)
+      ? 'Firefox (iPhone)'
+      : /iPhone|iPad|iPod/.test(ua)
+        ? 'Safari (iPhone)'
+        : /SamsungBrowser/.test(ua)
+          ? 'Samsung Internet'
+          : /YaBrowser/.test(ua)
+            ? 'Yandex'
+            : /Edg\//.test(ua)
+              ? 'Edge'
+              : /Chrome/.test(ua)
+                ? 'Chrome'
+                : /Firefox/.test(ua)
+                  ? 'Firefox'
+                  : /Safari/.test(ua)
+                    ? 'Safari'
+                    : '—';
+  return {
+    hasApi: hasVibrateApi(),
+    touchPoints: typeof navigator === 'undefined' ? 0 : (navigator.maxTouchPoints ?? 0),
+    hasSwitch: hasSwitchHaptic(),
+    standalone:
+      typeof window !== 'undefined' &&
+      (window.matchMedia?.('(display-mode: standalone)').matches ||
+        (navigator as any).standalone === true),
+    secure: typeof window !== 'undefined' && window.isSecureContext,
+    browser,
+  };
+}
+
+/**
+ * To'g'ridan-to'g'ri navigator.vibrate. Qaytgan qiymat muhim:
+ * false bo'lsa brauzer so'rovni rad etgan (odatda foydalanuvchi hali
+ * sahifada hech narsa bosmagan bo'lsa yoki tizim taqiqlagan bo'lsa).
+ */
+export function tryVibrateApi(pattern: number | number[]): boolean | null {
+  if (!hasVibrateApi()) return null;
+  try {
+    return navigator.vibrate(pattern);
+  } catch {
+    return false;
+  }
+}
+
+/** To'g'ridan-to'g'ri iPhone usuli */
+export function tryIosHaptic(): boolean {
+  if (!hasSwitchHaptic()) return false;
+  try {
+    tapSwitch();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** Kod o'qildi: bitta "bip" va bitta turtki */
 export function scanOk() {
   beepOk();
