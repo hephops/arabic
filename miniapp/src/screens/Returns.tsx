@@ -25,10 +25,13 @@ import { ReturnsList } from './History';
 
 type View = 'scan' | 'list';
 
-export default function Returns({ onBack }: { onBack: () => void }) {
+export default function Returns({ onBack, autoScan = false }: { onBack: () => void; autoScan?: boolean }) {
   const { t } = useT();
   const [view, setView] = useState<View>('scan');
-  const [scanning, setScanning] = useState(true);
+  // Skaner faqat "+" dan kelinganda o'zi ochiladi: u yerda do'konchi
+  // qo'lida tovar bilan turadi. Menyudan kirilganda esa ko'pincha
+  // "nima qaytgan edi" deb qarash uchun kiriladi — kamera keraksiz.
+  const [scanning, setScanning] = useState(autoScan);
   const [found, setFound] = useState<ReturnLookup | null>(null);
   const [pick, setPick] = useState<ReturnCandidate | null>(null);
   const [choosing, setChoosing] = useState(false);

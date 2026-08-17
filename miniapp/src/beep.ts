@@ -62,14 +62,9 @@ export function setScanSound(on: boolean) {
  *    titrash beradi. Ko'rinmaydigan shunday element yasab, o'sha
  *    "chertish"dan foydalanamiz — iPhone'da titrashning yagona yo'li shu.
  *
- * Kompyuterda titraydigan qismning o'zi yo'q: navigator.vibrate
- * Chrome'da mavjud bo'lsa ham hech narsa qilmaydi. Shuning uchun
- * "titray oladi" deb faqat sensorli qurilmani hisoblaymiz — aks holda
- * sozlama yoqilgandek ko'rinib, aslida ishlamasdi.
+ * Kompyuterda titraydigan qismning o'zi yo'q — u yerda chaqiruv
+ * shunchaki hech narsa qilmaydi va bu zarar keltirmaydi.
  */
-
-const isTouchDevice = () =>
-  typeof navigator !== 'undefined' && (navigator.maxTouchPoints ?? 0) > 0;
 
 const hasVibrateApi = () =>
   typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function';
@@ -102,30 +97,30 @@ function tapSwitch() {
   hapticSwitch.click();
 }
 
-/** Bu qurilma umuman titray oladimi */
-export function canVibrate(): boolean {
-  // Sensorli ekran — "bu telefon" degan eng ishonchli belgi. Usiz
-  // tekshirsak, kompyuterdagi Chrome ham "titray olaman" derdi
-  // (navigator.vibrate bor, lekin titraydigan qismi yo'q), Mac'dagi
-  // Safari ham switch elementini biladi.
-  if (!isTouchDevice()) return false;
-  return hasVibrateApi() || hasSwitchHaptic();
-}
-
 /** Titrash yoqilganmi */
 export const scanVibeOn = () => flagOn(VIBE_KEY);
 
 export const setScanVibe = (on: boolean) => setFlag(VIBE_KEY, on);
 
 /**
- * Sozlama yoqilgan bo'lsa qurilmani titratadi.
- * `pulses` — nechta turtki (iPhone'da uzunlikni boshqarib bo'lmaydi,
- * faqat sonini; shuning uchun ikkala yo'l uchun bir xil o'lchov).
+ * Qurilmani titratadi.
+ *
+ * DIQQAT: "bu qurilma titray oladimi" deb oldindan tekshirmaydi.
+ * Ilgari shunday tekshiruv bor edi (sensorli ekran + API bormi) va
+ * aynan o'sha xatoga sabab bo'ldi: tekshiruv "yo'q" degan qurilmalarda
+ * skanerlash paytida titrash umuman chaqirilmasdi, holbuki brauzer
+ * uni bemalol bajarardi. Endi ikkala yo'l ham shunchaki sinab
+ * ko'riladi — qo'llab-quvvatlamaydigan qurilmada bu zararsiz
+ * (navigator.vibrate yo'q bo'lsa chaqirilmaydi, ko'rinmas element
+ * chertilishi esa hech narsa qilmaydi).
+ *
+ * `pulses` — nechta turtki. iPhone'da uzunlikni boshqarib bo'lmaydi,
+ * faqat sonini; shuning uchun ikkala yo'l uchun bir xil o'lchov.
  */
 export function vibrate(pulses = 1) {
-  if (!scanVibeOn() || !canVibrate()) return;
+  if (!scanVibeOn()) return;
   try {
-    if (hasVibrateApi() && isTouchDevice()) {
+    if (hasVibrateApi()) {
       // 60ms ko'p telefonda sezilmay ketardi — motor to'liq
       // aylanishga ulgurmaydi. 110ms aniq seziladigan chegara.
       const pattern: number[] = [];
@@ -134,9 +129,12 @@ export function vibrate(pulses = 1) {
         pattern.push(110);
       }
       navigator.vibrate(pattern);
-      return;
     }
-    for (let i = 0; i < pulses; i++) setTimeout(tapSwitch, i * 190);
+    // iPhone'da navigator.vibrate yo'q — switch usuli bilan sinaymiz.
+    // Ikkalasi ham chaqirilishi mumkin: qaysi biri ishlasa o'sha ishlaydi.
+    if (!hasVibrateApi() && hasSwitchHaptic()) {
+      for (let i = 0; i < pulses; i++) setTimeout(tapSwitch, i * 190);
+    }
   } catch {
     /* titrash bo'lmasa ham skanerlash to'xtamasligi kerak */
   }
@@ -220,85 +218,6 @@ export function beepError() {
     tone(560, 0, 110, 0.18);
     tone(400, 0.14, 160, 0.18);
   });
-}
-
-/* ── Tekshiruv uchun ──
- * Sozlamalardagi "Titrashni tekshirish" oynasi shu yerdan foydalanadi.
- * Sozlamadan qat'i nazar ishlaydi: maqsad — qurilma nimaga qodirligini
- * bilish, taxmin qilish emas.
- */
-
-export interface VibeInfo {
-  /** navigator.vibrate mavjudmi (Android/Chrome) */
-  hasApi: boolean;
-  /** sensorli ekran nuqtalari — 0 bo'lsa bu kompyuter */
-  touchPoints: number;
-  /** iOS 17.4+ switch elementi bormi */
-  hasSwitch: boolean;
-  /** ilova alohida oyna sifatida o'rnatilganmi */
-  standalone: boolean;
-  /** HTTPS'mi (usiz ko'p imkoniyat yopiq) */
-  secure: boolean;
-  browser: string;
-}
-
-export function vibeInfo(): VibeInfo {
-  const ua = typeof navigator === 'undefined' ? '' : navigator.userAgent;
-  const browser = /CriOS/.test(ua)
-    ? 'Chrome (iPhone)'
-    : /FxiOS/.test(ua)
-      ? 'Firefox (iPhone)'
-      : /iPhone|iPad|iPod/.test(ua)
-        ? 'Safari (iPhone)'
-        : /SamsungBrowser/.test(ua)
-          ? 'Samsung Internet'
-          : /YaBrowser/.test(ua)
-            ? 'Yandex'
-            : /Edg\//.test(ua)
-              ? 'Edge'
-              : /Chrome/.test(ua)
-                ? 'Chrome'
-                : /Firefox/.test(ua)
-                  ? 'Firefox'
-                  : /Safari/.test(ua)
-                    ? 'Safari'
-                    : '—';
-  return {
-    hasApi: hasVibrateApi(),
-    touchPoints: typeof navigator === 'undefined' ? 0 : (navigator.maxTouchPoints ?? 0),
-    hasSwitch: hasSwitchHaptic(),
-    standalone:
-      typeof window !== 'undefined' &&
-      (window.matchMedia?.('(display-mode: standalone)').matches ||
-        (navigator as any).standalone === true),
-    secure: typeof window !== 'undefined' && window.isSecureContext,
-    browser,
-  };
-}
-
-/**
- * To'g'ridan-to'g'ri navigator.vibrate. Qaytgan qiymat muhim:
- * false bo'lsa brauzer so'rovni rad etgan (odatda foydalanuvchi hali
- * sahifada hech narsa bosmagan bo'lsa yoki tizim taqiqlagan bo'lsa).
- */
-export function tryVibrateApi(pattern: number | number[]): boolean | null {
-  if (!hasVibrateApi()) return null;
-  try {
-    return navigator.vibrate(pattern);
-  } catch {
-    return false;
-  }
-}
-
-/** To'g'ridan-to'g'ri iPhone usuli */
-export function tryIosHaptic(): boolean {
-  if (!hasSwitchHaptic()) return false;
-  try {
-    tapSwitch();
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 /** Kod o'qildi: bitta "bip" va bitta turtki */

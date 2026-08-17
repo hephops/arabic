@@ -38,6 +38,9 @@ export default function App() {
   // Har bosishda o'sadi — bir xil ekranda turgan bo'lsa ham skaner
   // qaytadan ochilishi uchun oddiy bayroq yetmaydi
   const [scanNonce, setScanNonce] = useState(0);
+  // Qaytarish ekraniga "+" dan kelindimi (skaner o'zi ochiladi) yoki
+  // menyudan (oddiy ochiladi)
+  const [returnsAutoScan, setReturnsAutoScan] = useState(false);
   const { t, lang, setLang } = useT();
 
   // Telegram'ning o'z "orqaga" tugmasi ichki ekranlarda ko'rinadi
@@ -88,7 +91,7 @@ export default function App() {
       {sub === 'reminders' && <Reminders onBack={() => setSub(null)} />}
       {sub === 'expenses' && <Expenses onBack={() => setSub(null)} />}
       {sub === 'orders' && <Orders onBack={() => setSub(null)} />}
-      {sub === 'returns' && <Returns onBack={() => setSub(null)} />}
+      {sub === 'returns' && <Returns onBack={() => setSub(null)} autoScan={returnsAutoScan} />}
 
       {!sub && tab === 'home' && (
         <Dashboard key={refreshKey} onNavigate={setSub} isEmployee={isEmployee} employeeName={shop?.employee?.name} />
@@ -122,9 +125,12 @@ export default function App() {
         <QuickActions
           onPick={(target, mode) => {
             if (mode) setKassaMode(mode);
-            if (target.scan) setScanNonce((n) => n + 1);
-            if (target.sub) setSub(target.sub);
-            else {
+            if (target.sub) {
+              // "+" dan kelingan — skaner o'zi ochilsin
+              setReturnsAutoScan(!!target.scan);
+              setSub(target.sub);
+            } else {
+              if (target.scan) setScanNonce((n) => n + 1);
               setSub(null);
               if (target.tab) setTab(target.tab);
             }
@@ -138,6 +144,8 @@ export default function App() {
         profileView={profileView}
         active={!sub}
         onNavigate={(target: NavTarget) => {
+          // Menyudan kirilganda skaner ochilmaydi
+          setReturnsAutoScan(false);
           setSub(target.sub ?? null);
           if (target.tab === 'kassa') setKassaMode('sale');
           if (target.tab) setTab(target.tab);

@@ -17,7 +17,7 @@ const ACTIONS: { tab?: Tab; sub?: SubScreen; glyph: string; color?: string; key:
   { tab: 'kassa', glyph: 'cart', key: 'modeSale', mode: 'sale', scan: true },
   { tab: 'add', glyph: 'note', key: 'tabAdd' },
   { tab: 'kassa', glyph: 'boxes', key: 'modeIntake', mode: 'intake' },
-  { sub: 'returns', glyph: 'arrowDown', color: 'red', key: 'navReturns' },
+  { sub: 'returns', glyph: 'arrowDown', color: 'red', key: 'navReturns', scan: true },
 ];
 
 export default function QuickActions({
