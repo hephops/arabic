@@ -8,6 +8,7 @@ import { formatAmount } from '../format';
 import { toast, loadFailed } from '../toast';
 import { DiscountSheet, priceAfter } from '../discount';
 import { PrintSheet, Labels } from '../print';
+import { UNITS, isFractional, parseQty, normalizeUnit } from '../units';
 import { ean13Svg, isEan13, scaleBarcode } from '../ean13';
 import { scanFail } from '../beep';
 
@@ -209,6 +210,9 @@ function ProductEdit({ product, onBack, onSaved }: { product: Product; onBack: (
     stock: String(product.stock),
     low_stock_threshold: String(product.low_stock_threshold ?? 5),
     expiry_date: product.expiry_date ?? '',
+    // Birlikni keyin ham o'zgartirish mumkin: do'konchi "dona" deb
+    // kiritib qo'yib, keyin bu tovar kilogrammda ekanini eslashi mumkin
+    unit: normalizeUnit(product.unit),
   });
   // Buyurtma shu bo'yicha guruhlanadi
   const [supplierId, setSupplierId] = useState<string>(product.supplier_id ? String(product.supplier_id) : '');
@@ -315,8 +319,9 @@ function ProductEdit({ product, onBack, onSaved }: { product: Product; onBack: (
       name: form.name.trim(),
       cost_price: parseInt(form.cost_price.replace(/\D/g, ''), 10) || 0,
       sell_price: parseInt(form.sell_price.replace(/\D/g, ''), 10) || 0,
-      stock: parseFloat(form.stock) || 0,
-      low_stock_threshold: parseFloat(form.low_stock_threshold) || 5,
+      unit: form.unit,
+      stock: parseQty(form.stock, form.unit),
+      low_stock_threshold: parseQty(form.low_stock_threshold, form.unit) || 5,
       expiry_date: form.expiry_date || null,
       supplier_id: supplierId ? Number(supplierId) : null,
       discount_percent: discount,
@@ -508,10 +513,22 @@ function ProductEdit({ product, onBack, onSaved }: { product: Product; onBack: (
             <input value={formatAmount(form.sell_price)} onChange={(e) => setForm({ ...form, sell_price: e.target.value })} inputMode="numeric" />
           </div>
         </div>
+        <label>{t('unitLabel')}</label>
+        <div className="chip-row">
+          {UNITS.map((u) => (
+            <button key={u} className={`chip ${form.unit === u ? 'on' : ''}`} onClick={() => setForm({ ...form, unit: u })}>
+              {t(`unit_${u}`)}
+            </button>
+          ))}
+        </div>
         <div style={{ display: 'flex', gap: 10 }}>
           <div style={{ flex: 1 }}>
-            <label>{t('stock')}</label>
-            <input value={form.stock} onChange={(e) => setForm({ ...form, stock: e.target.value })} inputMode="decimal" />
+            <label>{t('stock')} ({t(`unit_${form.unit}`)})</label>
+            <input
+              value={form.stock}
+              onChange={(e) => setForm({ ...form, stock: e.target.value.replace(/[^\d.,]/g, '') })}
+              inputMode="decimal"
+            />
           </div>
           <div style={{ flex: 1 }}>
             <label>{t('lowStockLimit')}</label>

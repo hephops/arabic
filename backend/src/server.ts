@@ -12,6 +12,7 @@ import { handleUpdate, verifyInitData, telegramEnabled, setWebhook, sendMessage 
 import { registerAdminRoutes, seedAdmin } from './admin.js';
 import { normalizeBarcode, barcodeVariants, checkGtin, makeInStoreEan13, parseScaleBarcode, makeScaleBarcode, scaleQty } from './barcodes.js';
 import { normalizePhone } from './phone.js';
+import { normalizeUnit } from './units.js';
 import { dailyFigures, reportText, sendDailyReport, startDailyReportScheduler } from './dailyReport.js';
 import { customerCode, receiptText } from './customerLink.js';
 import { uzToday, uzDayShift, uzDayStartUtc, uzPeriodStartUtc, uzMonthStartUtc } from './tz.js';
@@ -1205,7 +1206,9 @@ app.post<{ Body: { barcode?: string; name: string; unit?: string; cost_price?: n
   '/products/intake',
   { preHandler: requireOwner },
   async (req, reply) => {
-    const { name, unit, cost_price, sell_price, qty, expiry_date, image, category } = req.body as any;
+    const { name, cost_price, sell_price, qty, expiry_date, image, category } = req.body as any;
+    // Birlik qat'iy ro'yxatdan — erkin matn kirib qolsa hisobot buzilardi
+    const unit = normalizeUnit(req.body.unit);
     const barcode = normalizeBarcode(req.body.barcode);
     if (!name?.trim()) return reply.code(400).send({ error: 'name_required' });
 
@@ -1224,7 +1227,7 @@ app.post<{ Body: { barcode?: string; name: string; unit?: string; cost_price?: n
           'INSERT INTO products (shop_id, barcode, name, unit, cost_price, sell_price, stock, expiry_date, category) VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?)'
         )
         .run(
-          req.shopId, barcode || null, name.trim(), unit ?? 'dona',
+          req.shopId, barcode || null, name.trim(), unit,
           cost_price ?? 0, sell_price ?? 0, expiry_date ?? null, category?.trim() || null
         );
       product = db.prepare('SELECT * FROM products WHERE id = ?').get(info.lastInsertRowid);
@@ -1245,7 +1248,7 @@ app.post<{ Body: { barcode?: string; name: string; unit?: string; cost_price?: n
         db.prepare('INSERT INTO barcode_catalog (barcode, name, unit, created_by_shop) VALUES (?, ?, ?, ?)').run(
           barcode,
           name.trim(),
-          unit ?? 'dona',
+          unit,
           req.shopId
         );
       }
@@ -1461,6 +1464,7 @@ app.patch<{ Params: { id: string }; Body: Record<string, unknown> }>(
     for (const key of ['name', 'barcode', 'unit', 'cost_price', 'sell_price', 'low_stock_threshold', 'expiry_date', 'stock', 'category', 'supplier_id', 'discount_percent']) {
       if (key in req.body) {
         let value = key === 'barcode' ? normalizeBarcode(req.body[key] as string) || null : (req.body[key] as any);
+        if (key === 'unit') value = normalizeUnit(value);
         if (key === 'discount_percent') {
           // 0..90 oralig'ida — 100% chegirma "tekin berish" bo'lardi
           value = Math.min(90, Math.max(0, Math.round(Number(value) || 0)));

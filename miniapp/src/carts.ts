@@ -111,4 +111,8 @@ export const linePrice = (p: { sell_price: number; discount_percent?: number }) 
   return Math.round((p.sell_price * (100 - pct)) / 100 / 100) * 100;
 };
 export const cartTotal = (c: Cart) => c.lines.reduce((s, l) => s + linePrice(l.product) * l.qty, 0);
+// DIQQAT: turli birlikdagi tovarlarni qo'shib bo'lmaydi — 2 dona non
+// va 1.5 kg sabzi "3.5" degan ma'nosiz raqam beradi. Shuning uchun
+// savat sarlavhalarida tovar TURLARI soni (lines.length) ko'rsatiladi.
+// Bu funksiya faqat ichki hisob-kitoblar uchun qoldirilgan.
 export const cartQty = (c: Cart) => c.lines.reduce((s, l) => s + l.qty, 0);

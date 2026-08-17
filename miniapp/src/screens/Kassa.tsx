@@ -8,7 +8,7 @@ import { useT } from '../i18n';
 import { formatAmount, amountValue, formatPhone, formatPhoneSoft, phoneDigits, phoneE164, isPhoneComplete, fmtDateTime, fmtWhen } from '../format';
 import { toast, loadFailed } from '../toast';
 import {
-  Cart, MAX_CARTS, cartQty, cartTotal, linePrice, loadCarts, newCart, nextNo, saveCarts,
+  Cart, MAX_CARTS, cartTotal, linePrice, loadCarts, newCart, nextNo, saveCarts,
 } from '../carts';
 import { PrintSheet, Receipt } from '../print';
 import { HistoryMode } from './History';
@@ -18,6 +18,7 @@ import { GoalStrip } from '../goal';
 import { VoiceCartSheet } from '../voiceCart';
 import { priceAfter } from '../discount';
 import { scanFail } from '../beep';
+import { UNITS, isFractional, parseQty, qtyText, qtyWithUnit } from '../units';
 
 export type KassaMode = 'sale' | 'intake' | 'history';
 
@@ -291,7 +292,7 @@ function SaleMode({ onDone, autoScan = 0 }: { onDone: () => void; autoScan?: num
         ? c.lines.map((l) => (l.product.id === p.id ? { ...l, qty: want } : l))
         : [...c.lines, { product: p, qty: want }],
     }));
-    toast.success(p.name, `${want} ${t('pcs')} · ${fmt(p.sell_price * want)} · ${cartName(cur)}`);
+    toast.success(p.name, `${qtyWithUnit(want, p.unit)} · ${fmt(p.sell_price * want)} · ${cartName(cur)}`);
     setQuery('');
     setResults([]);
   }
@@ -313,8 +314,22 @@ function SaleMode({ onDone, autoScan = 0 }: { onDone: () => void; autoScan?: num
     }));
   }
 
+  /** Miqdorni to'g'ridan-to'g'ri qo'yish — kilogramm/litr uchun */
+  function setQty(id: number, qty: number) {
+    const line = cart.find((l) => l.product.id === id);
+    if (!line) return;
+    if (qty > line.product.stock) {
+      toast.error(line.product.name, `${t('stockShort')}: ${line.product.stock} ${line.product.unit}`);
+    }
+    // Nolga tushsa satr o'chmaydi: do'konchi raqamni tozalab qayta
+    // yozayotgan bo'lishi mumkin. O'chirish "−" orqali qoladi.
+    patchActive((c) => ({
+      ...c,
+      lines: c.lines.map((l) => (l.product.id === id ? { ...l, qty: Math.min(qty, l.product.stock) } : l)),
+    }));
+  }
+
   const total = cartTotal(active);
-  const qtyTotal = cartQty(active);
 
   async function checkout(allowNegative = false) {
     if (busy) return;
@@ -422,7 +437,7 @@ function SaleMode({ onDone, autoScan = 0 }: { onDone: () => void; autoScan?: num
               </div>
               <div className="cc-total">{fmt(cartTotal(c))}</div>
               <div className="cc-sub">
-                {c.lines.length > 0 ? `${cartQty(c)} ${t('pcs')}` : t('cartEmptyShort')}
+                {c.lines.length > 0 ? `${c.lines.length} ${t('itemsShort')}` : t('cartEmptyShort')}
               </div>
             </button>
           ))}
@@ -563,7 +578,7 @@ function SaleMode({ onDone, autoScan = 0 }: { onDone: () => void; autoScan?: num
           <Scanner
             continuous
             status={
-              cart.length > 0 ? `${cartName(active)} · ${qtyTotal} ${t('pcs')} · ${fmt(total)}` : cartName(active)
+              cart.length > 0 ? `${cartName(active)} · ${cart.length} ${t('itemsShort')} · ${fmt(total)}` : cartName(active)
             }
             onScan={async (code) => {
               // topilgan mahsulot darhol savatga tushadi — skaner ochiq qoladi
@@ -636,7 +651,7 @@ function SaleMode({ onDone, autoScan = 0 }: { onDone: () => void; autoScan?: num
         {cart.length > 0 && (
           <>
             <div className="section-title">
-              {cartName(active)} · {qtyTotal} {t('pcs')}
+              {cartName(active)} · {cart.length} {t('itemsShort')}
             </div>
             <div className="list-group">
               {cart.map((l) => (
@@ -658,9 +673,22 @@ function SaleMode({ onDone, autoScan = 0 }: { onDone: () => void; autoScan?: num
                       </div>
                     </div>
                   </div>
+                  {/* Kilogramm/litrda miqdor yoziladi: tarozidagi 1.35 kg ni
+                      "+" bilan terib bo'lmaydi */}
                   <div className="stepper">
                     <button onClick={() => changeQty(l.product.id!, -1)}>−</button>
-                    <span>{l.qty}</span>
+                    {isFractional(l.product.unit) ? (
+                      <input
+                        className="st-qty"
+                        value={qtyText(l.qty)}
+                        inputMode="decimal"
+                        onChange={(e) => setQty(l.product.id!, parseQty(e.target.value.replace(/[^\d.,]/g, ''), l.product.unit))}
+                        aria-label={l.product.name}
+                      />
+                    ) : (
+                      <span>{l.qty}</span>
+                    )}
+                    {isFractional(l.product.unit) && <span className="st-unit">{l.product.unit}</span>}
                     <button onClick={() => changeQty(l.product.id!, 1)}>+</button>
                   </div>
                 </div>
@@ -746,6 +774,9 @@ function IntakeMode({ onDone }: { onDone: () => void }) {
   const [costPrice, setCostPrice] = useState('');
   const [sellPrice, setSellPrice] = useState('');
   const [qty, setQty] = useState('');
+  // Sabzi, semichka, go'sht — kilogrammda. Ilgari hammasi "dona" bo'lib
+  // qolardi va omborda "1.5 dona sabzi" kabi ma'nosiz yozuv paydo bo'lardi.
+  const [unit, setUnit] = useState<string>('dona');
   const [expiry, setExpiry] = useState('');
   const [category, setCategory] = useState('');
   const [cats, setCats] = useState<{ name: string }[]>([]);
@@ -802,7 +833,7 @@ function IntakeMode({ onDone }: { onDone: () => void }) {
       toast.error(t('productNameRequired'));
       return;
     }
-    if (!(parseFloat(qty) > 0)) {
+    if (!(parseQty(qty, unit) > 0)) {
       toast.error(t('qtyRequired'));
       return;
     }
@@ -813,13 +844,16 @@ function IntakeMode({ onDone }: { onDone: () => void }) {
         name: name.trim(),
         cost_price: parseInt(costPrice.replace(/\D/g, ''), 10) || 0,
         sell_price: parseInt(sellPrice.replace(/\D/g, ''), 10) || 0,
-        qty: parseFloat(qty) || 0,
+        unit,
+        qty: parseQty(qty, unit),
         expiry_date: expiry || undefined,
         category: category.trim() || undefined,
         image: image ?? undefined,
       });
       toast.success(t('toastIntakeSaved'), `${product.name} · ${t('toastStockLeft')}: ${product.stock} ${product.unit}`);
       // forma yopilmaydi — keyingi tovarga tayyor turadi
+      // Birlik saqlanib qoladi: do'konchi odatda bir turdagi tovarni
+      // ketma-ket kiritadi (bir necha xil sabzavot, keyin ichimliklar)
       setBarcode(''); setName(''); setCostPrice(''); setSellPrice(''); setQty(''); setExpiry(''); setImage(null);
       api.categories().then(setCats).catch(() => {});
       onDone();
@@ -916,10 +950,27 @@ function IntakeMode({ onDone }: { onDone: () => void }) {
             <input value={formatAmount(sellPrice)} onChange={(e) => setSellPrice(e.target.value)} inputMode="numeric" placeholder="13 000" />
           </div>
         </div>
+        {/* O'lchov birligi — miqdor maydonidan oldin turadi, chunki u
+            "Soni" yozuvini ham, kasr mumkinligini ham belgilaydi */}
+        <div className="form-row">
+          <label>{t('unitLabel')}</label>
+          <div className="chip-row">
+            {UNITS.map((u) => (
+              <button key={u} className={`chip ${unit === u ? 'on' : ''}`} onClick={() => setUnit(u)}>
+                {t(`unit_${u}`)}
+              </button>
+            ))}
+          </div>
+        </div>
         <div className="row-2">
           <div className="form-row">
-            <label>{t('qty')}</label>
-            <input value={qty} onChange={(e) => setQty(e.target.value)} inputMode="decimal" placeholder="24" />
+            <label>{isFractional(unit) ? `${t('qtyWeight')} (${t(`unit_${unit}`)})` : t('qty')}</label>
+            <input
+              value={qty}
+              onChange={(e) => setQty(e.target.value.replace(/[^\d.,]/g, ''))}
+              inputMode="decimal"
+              placeholder={isFractional(unit) ? '12.5' : '24'}
+            />
           </div>
           <div className="form-row">
             <label>
@@ -931,7 +982,7 @@ function IntakeMode({ onDone }: { onDone: () => void }) {
         {margin > 0 && (
           <p className="form-note">
             {t('profit')}: <b style={{ color: 'var(--green)' }}>{fmt(margin)}</b>
-            {qty && ` · ${t('qty')} ${qty} → ${fmt(margin * (parseFloat(qty) || 0))}`}
+            {qty && ` · ${qtyText(parseQty(qty, unit))} ${t(`unit_${unit}`)} → ${fmt(margin * parseQty(qty, unit))}`}
           </p>
         )}
       </div>
