@@ -1776,14 +1776,25 @@ button.link { background: none; color: var(--accent); font-size: 15px; font-weig
 }
 .ro-title { font-size: 15px; font-weight: 700; }
 .ro-sub { font-size: 13px; opacity: 0.9; margin-top: 2px; }
-/* Savatdagi kasrli miqdor: kilogramm/litrda raqam yoziladi */
-.stepper .st-qty {
-  width: 58px; margin: 0; padding: 0; height: 30px;
-  background: none; box-shadow: none; text-align: center;
-  font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums;
+/* Savatdagi kasrli miqdor: kilogramm/litrda raqam qo'lda yoziladi.
+   Maydon ramka bilan ajratib turiladi — do'konchi uni bosib "1,5"
+   yozish mumkinligini ko'rib tursin. */
+.stepper.frac { gap: 6px; }
+.st-box {
+  display: flex; align-items: center; gap: 3px;
+  background: var(--fill); border-radius: 9px;
+  padding: 0 8px; height: 34px;
+  box-shadow: inset 0 0 0 1px rgba(120, 120, 128, 0.18);
 }
-.stepper .st-qty:focus { box-shadow: 0 0 0 1.5px var(--accent); border-radius: 8px; }
-.stepper .st-unit { font-size: 12.5px; color: var(--muted); margin-right: 2px; }
+.st-box:focus-within { box-shadow: inset 0 0 0 1.6px var(--accent); }
+.stepper .st-qty {
+  width: 46px; margin: 0; padding: 0; height: 32px;
+  background: none; box-shadow: none; text-align: right;
+  /* 16px — kichikroq bo'lsa iPhone maydonni bosganda sahifani kattalashtiradi */
+  font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums;
+}
+.stepper .st-qty:focus { box-shadow: none; }
+.stepper .st-unit { font-size: 12.5px; color: var(--muted); }
 
 /* Sana maydoni va uning tozalash tugmasi.
    iPhone'ning o'z tanlagichidagi "Сброс" ishonchsiz — bu tugma esa

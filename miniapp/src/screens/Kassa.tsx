@@ -71,6 +71,10 @@ export default function Kassa({
 function SaleMode({ onDone, autoScan = 0 }: { onDone: () => void; autoScan?: number }) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<Product[]>([]);
+  // Savatda qo'lda yozilayotgan miqdor matni (tovar id -> matn).
+  // Songa aylantirilmagan holda turadi, aks holda "1," ni yozib
+  // bo'lmasdi. Maydondan chiqilganda tozalanadi.
+  const [qtyDraft, setQtyDraft] = useState<Record<number, string>>({});
   // Bir nechta savat: har bir oluvchiga alohida. Yozuv localStorage'da —
   // boshqa bo'limga o'tib qaytilsa ham savat joyida qoladi.
   const [state, setState] = useState(loadCarts);
@@ -304,7 +308,11 @@ function SaleMode({ onDone, autoScan = 0 }: { onDone: () => void; autoScan?: num
     haptic.tap();
     const line = cart.find((l) => l.product.id === id);
     if (!line) return;
-    const qty = line.qty + delta;
+    // Kilogramm/litrda "+" bir kilodan sakrash noqulay: xaridor 1,5 kg
+    // ham oladi. Shuning uchun bunday tovarlarda qadam yarim birlik.
+    const step = isFractional(line.product.unit) ? 0.5 : 1;
+    const qty = Math.round((line.qty + delta * step) * 1000) / 1000;
+    setQtyDraft((d) => { const n = { ...d }; delete n[id]; return n; });
     // Qoldiqdan oshirib bo'lmaydi
     if (delta > 0 && qty > line.product.stock) {
       toast.error(line.product.name, `${t('stockShort')}: ${line.product.stock} ${line.product.unit}`);
@@ -317,7 +325,20 @@ function SaleMode({ onDone, autoScan = 0 }: { onDone: () => void; autoScan?: num
     }));
   }
 
-  /** Miqdorni to'g'ridan-to'g'ri qo'yish — kilogramm/litr uchun */
+  /**
+   * Miqdorni qo'lda yozish — kilogramm/litr uchun.
+   *
+   * Yozilayotgan matn alohida saqlanadi (qtyDraft). Ilgari maydon
+   * to'g'ridan-to'g'ri songa bog'langan edi va "1," yozilishi bilan u
+   * 1 ga aylanib qaytardi — keyin "5" bosilsa 15 chiqardi, ya'ni 1,5 kg
+   * ni umuman kiritib bo'lmasdi.
+   */
+  function typeQty(id: number, text: string, unit: string) {
+    const clean = text.replace(/[^\d.,]/g, '');
+    setQtyDraft((d) => ({ ...d, [id]: clean }));
+    setQty(id, parseQty(clean, unit));
+  }
+
   function setQty(id: number, qty: number) {
     const line = cart.find((l) => l.product.id === id);
     if (!line) return;
@@ -677,22 +698,35 @@ function SaleMode({ onDone, autoScan = 0 }: { onDone: () => void; autoScan?: num
                       </div>
                     </div>
                   </div>
-                  {/* Kilogramm/litrda miqdor yoziladi: tarozidagi 1.35 kg ni
-                      "+" bilan terib bo'lmaydi */}
-                  <div className="stepper">
+                  {/* Kilogramm/litrda miqdor qo'lda yoziladi: xaridor 1,5
+                      yoki 1,3 kg olishi mumkin, buni "+" bilan terib
+                      bo'lmaydi. Maydon ko'rinib turadi — bosish mumkinligi
+                      bilinsin. "+/−" esa yarim birlikdan yuradi. */}
+                  <div className={`stepper ${isFractional(l.product.unit) ? 'frac' : ''}`}>
                     <button onClick={() => changeQty(l.product.id!, -1)}>−</button>
                     {isFractional(l.product.unit) ? (
-                      <input
-                        className="st-qty"
-                        value={qtyText(l.qty)}
-                        inputMode="decimal"
-                        onChange={(e) => setQty(l.product.id!, parseQty(e.target.value.replace(/[^\d.,]/g, ''), l.product.unit))}
-                        aria-label={l.product.name}
-                      />
+                      <label className="st-box">
+                        <input
+                          className="st-qty"
+                          value={qtyDraft[l.product.id!] ?? qtyText(l.qty)}
+                          inputMode="decimal"
+                          // Har bosilganda eski raqam belgilanadi — yangisi
+                          // uning ustiga qo'shilib "21,4" bo'lib ketmasin.
+                          // onFocus yetmaydi: maydon allaqachon fokusda
+                          // bo'lsa qayta bosilganda u umuman ishlamaydi.
+                          onFocus={(e) => e.currentTarget.select()}
+                          onClick={(e) => e.currentTarget.select()}
+                          onChange={(e) => typeQty(l.product.id!, e.target.value, l.product.unit)}
+                          onBlur={() =>
+                            setQtyDraft((d) => { const n = { ...d }; delete n[l.product.id!]; return n; })
+                          }
+                          aria-label={l.product.name}
+                        />
+                        <span className="st-unit">{l.product.unit}</span>
+                      </label>
                     ) : (
                       <span>{l.qty}</span>
                     )}
-                    {isFractional(l.product.unit) && <span className="st-unit">{l.product.unit}</span>}
                     <button onClick={() => changeQty(l.product.id!, 1)}>+</button>
                   </div>
                 </div>
