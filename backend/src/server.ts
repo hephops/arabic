@@ -96,7 +96,11 @@ app.post<{ Body: { phone: string } }>('/auth/request-otp', async (req, reply) =>
     via: sent ? 'telegram' : 'none',
     bot: botUsername() || undefined,
     deep_link: otpDeepLink(phone) ?? undefined,
-    dev_hint: process.env.NODE_ENV === 'production' ? undefined : code,
+    // Kodni javobda qaytarish FAQAT sinov rejimida (OTP_DEV_CODE
+    // qo'yilganda). Ilgari u NODE_ENV ga bog'liq edi va serverda o'sha
+    // o'zgaruvchi yo'qligi uchun kod har kimga ochiq qaytardi — raqamni
+    // bilgan odam so'rov yuborib, kodni javobdan o'qib olardi.
+    dev_hint: process.env.OTP_DEV_CODE ? code : undefined,
   };
 });
 

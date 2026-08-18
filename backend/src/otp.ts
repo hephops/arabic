@@ -14,13 +14,22 @@ export const OTP_TTL_MS = 5 * 60 * 1000;
 type Entry = { code: string; expires: number };
 const store = new Map<string, Entry>();
 
-/** Yangi kod yasab saqlaydi */
+/**
+ * Yangi kod yasab saqlaydi.
+ *
+ * Kod HAR DOIM tasodifiy. Ilgari u NODE_ENV ga bog'liq edi va serverda
+ * o'sha o'zgaruvchi qo'yilmagani uchun hammaga bir xil "123456" ketardi —
+ * ya'ni raqamini bilgan har kim begona hisobga kira olardi.
+ *
+ * Sinov uchun qotib qolgan kod kerak bo'lsa .env ga OTP_DEV_CODE
+ * yoziladi. Bu ataylab qilinadigan ish: tasodifan yoqilib qolmaydi.
+ */
 export function issueCode(phone: string): string {
-  // DEV: kod doim 123456 — sinovda haqiqiy bot kerak bo'lmasin
+  const fixed = process.env.OTP_DEV_CODE;
   const code =
-    process.env.NODE_ENV === 'production'
-      ? String(Math.floor(100000 + Math.random() * 900000))
-      : '123456';
+    fixed && /^\d{4,8}$/.test(fixed)
+      ? fixed
+      : String(Math.floor(100000 + Math.random() * 900000));
   store.set(phone, { code, expires: Date.now() + OTP_TTL_MS });
   return code;
 }

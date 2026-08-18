@@ -86,9 +86,26 @@ export function langFor(tgId?: number | null, fallbackCode?: string | null): Bot
   if (tgId) {
     const shop = db.prepare('SELECT language FROM shops WHERE telegram_user_id = ?').get(tgId) as any;
     if (shop?.language) return normalizeLang(shop.language);
-    const link = db.prepare('SELECT language FROM telegram_links WHERE telegram_user_id = ? LIMIT 1').get(tgId) as any;
+    const link = db
+      .prepare('SELECT language, phone FROM telegram_links WHERE telegram_user_id = ? LIMIT 1')
+      .get(tgId) as any;
+    // Bog'lanish raqami bo'yicha do'kon topilsa — uning tili kuchliroq:
+    // do'konchi ilovada ataylab tanlagan
+    if (link?.phone) {
+      const byPhone = db.prepare('SELECT language FROM shops WHERE phone = ?').get(link.phone) as any;
+      if (byPhone?.language) return normalizeLang(byPhone.language);
+    }
     if (link?.language) return normalizeLang(link.language);
   }
+  return langFromTelegram(fallbackCode);
+}
+
+/** Telefon raqami bo'yicha til: do'kon tanlagani, bo'lmasa taxmin */
+export function langForPhone(phone: string, fallbackCode?: string | null): BotLang {
+  const shop = db.prepare('SELECT language FROM shops WHERE phone = ?').get(phone) as any;
+  if (shop?.language) return normalizeLang(shop.language);
+  const link = db.prepare('SELECT language FROM telegram_links WHERE phone = ?').get(phone) as any;
+  if (link?.language) return normalizeLang(link.language);
   return langFromTelegram(fallbackCode);
 }
 
@@ -149,8 +166,7 @@ export function chatForPhone(phone: string): number | null {
 export async function sendLoginCode(phone: string, code: string): Promise<boolean> {
   const chatId = chatForPhone(phone);
   if (!chatId) return false;
-  const lang = langFor(chatId);
-  const res: any = await sendMessage(chatId, codeMessage(lang, code));
+  const res: any = await sendMessage(chatId, codeMessage(langForPhone(phone), code));
   return !!res?.ok;
 }
 
@@ -281,6 +297,10 @@ export async function handleUpdate(update: any) {
     // bosiladi. Raqam havola ichida — do'konchi hech narsa yozmaydi.
     const otpPhone = phoneFromPayload(payload);
     if (otpPhone) {
+      // Til do'konning o'zidan olinadi. Telegram tilidan taxmin qilish
+      // xato berardi: do'konchining Telegrami ruscha bo'lsa ham ilovada
+      // o'zbekchani tanlagan bo'lishi mumkin.
+      const otpLang = langForPhone(otpPhone, msg.from?.language_code);
       db.prepare(
         `INSERT INTO telegram_links (phone, telegram_user_id, chat_id, language, first_name)
          VALUES (?, ?, ?, ?, ?)
@@ -288,15 +308,15 @@ export async function handleUpdate(update: any) {
            telegram_user_id = excluded.telegram_user_id,
            chat_id = excluded.chat_id,
            first_name = excluded.first_name`
-      ).run(otpPhone, tgId, chatId, lang, msg.from?.first_name ?? null);
+      ).run(otpPhone, tgId, chatId, otpLang, msg.from?.first_name ?? null);
       db.prepare('UPDATE shops SET telegram_user_id = ? WHERE phone = ?').run(tgId, otpPhone);
 
       const waiting = pendingCode(otpPhone);
       if (waiting) {
-        await sendMessage(chatId, codeMessage(lang, waiting));
+        await sendMessage(chatId, codeMessage(otpLang, waiting));
       } else {
         // Kod eskirgan — ilovada qaytadan so'ralsin
-        await sendMessage(chatId, bt(lang, 'codeExpired'), { reply_markup: miniAppKeyboard() });
+        await sendMessage(chatId, bt(otpLang, 'codeExpired'), { reply_markup: miniAppKeyboard() });
       }
       return;
     }
