@@ -384,9 +384,9 @@ label { font-size: 13px; color: var(--muted); display: block; margin: 6px 4px 5p
 .auth-card {
   background: #fff; border-radius: 22px; padding: 18px;
   box-shadow:
-    0 20px 44px -22px rgba(16, 32, 64, 0.28),
-    0 2px 8px rgba(16, 32, 64, 0.05),
-    0 0 0 0.5px rgba(16, 32, 64, 0.04);
+    0 30px 60px -26px rgba(16, 32, 64, 0.34),
+    0 3px 10px -4px rgba(16, 32, 64, 0.08),
+    0 0 0 0.5px rgba(16, 32, 64, 0.05);
 }
 .auth-card-title { font-size: 19px; font-weight: 700; letter-spacing: -0.4px; text-align: center; }
 .auth-card-sub {
@@ -420,11 +420,13 @@ button.link { background: none; color: var(--accent); font-size: 15px; font-weig
 }
 .btn-soft:active { background: rgba(255, 255, 255, 0.95); }
 
-/* Telefon maydoni: +998 qismi qotib turadi */
+/* Telefon maydoni: +998 qismi qotib turadi.
+   Fokusda ramka aksent rangga o'tadi — qaysi maydonda turgani aniq. */
 .phone-field {
   display: flex; align-items: center; gap: 10px;
   background: var(--bg); border-radius: 14px; padding: 0 14px; height: 54px;
   box-shadow: inset 0 0 0 1px rgba(16, 32, 64, 0.06);
+  transition: box-shadow 0.15s ease, background 0.15s ease;
   transition: box-shadow 0.15s ease;
 }
 .phone-field:focus-within { box-shadow: inset 0 0 0 2px var(--accent); }
@@ -436,7 +438,9 @@ button.link { background: none; color: var(--accent); font-size: 15px; font-weig
   flex: 1; border: none; background: none; margin: 0; padding: 0;
   font-size: 19px; font-weight: 650; letter-spacing: 0.7px;
 }
-.phone-input:focus { box-shadow: none; }
+/* Ramka maydonning o'zida — ichkarida brauzerning yana bitta
+   chizig'i chiqib, ikkilangan ko'rinish bermasin */
+.phone-input:focus { box-shadow: none; outline: none; }
 
 /* SMS kod kataklari */
 .otp { position: relative; display: flex; gap: 8px; justify-content: center; }
@@ -1887,3 +1891,15 @@ button.link { background: none; color: var(--accent); font-size: 15px; font-weig
 .wordmark { font-weight: 800; letter-spacing: -0.5px; white-space: nowrap; }
 .wordmark b { font-weight: 800; color: #0E1B33; }
 .wordmark i { font-style: normal; font-weight: 800; color: #1546E8; }
+
+/* Kirish ekrani ostidagi ishonch qatori */
+.auth-foot {
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  margin-top: 18px; font-size: 12.5px; color: var(--muted);
+}
+.phone-field:focus-within {
+  background: #fff;
+  box-shadow: inset 0 0 0 2px var(--accent), 0 0 0 4px rgba(0, 122, 255, 0.1);
+}
+/* Kartochka ichidagi telefon maydonida bu kerak emas — u yerda o'z ramkasi bor */
+.phone-field.inline:focus-within { box-shadow: inset 0 0 0 1.5px var(--accent); }

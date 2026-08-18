@@ -79,6 +79,7 @@ const UZ: Record<string, string> = {
 
   // Kirish
   loginSubtitle: 'Savdo · Ombor · Foyda',
+  secureLine: 'Himoyalangan ulanish',
   loginPhone: 'Telefon raqamingiz',
   loginGetCode: 'SMS kod olish',
   loginCode: 'SMS kod',
@@ -743,6 +744,7 @@ const RU: Record<string, string> = {
   navSettings: 'Настройки',
 
   loginSubtitle: 'Торговля · Склад · Прибыль',
+  secureLine: 'Защищённое соединение',
   loginPhone: 'Ваш номер телефона',
   loginGetCode: 'Получить SMS-код',
   loginCode: 'SMS-код',

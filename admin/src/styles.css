@@ -337,26 +337,67 @@ td.num, th.num { text-align: right; white-space: nowrap; }
 /* Kirish sahifasi */
 .login-page {
   height: 100vh; display: flex; align-items: center; justify-content: center;
+  padding: 20px;
   background:
-    radial-gradient(120% 55% at 50% -12%, #dceaff 0%, rgba(220, 234, 255, 0) 60%),
-    linear-gradient(180deg, #f7f9fc 0%, #eef1f6 100%);
+    radial-gradient(70% 40% at 50% -6%, rgba(18, 178, 74, 0.1) 0%, rgba(18, 178, 74, 0) 70%),
+    radial-gradient(90% 50% at 50% -10%, #dbe7ff 0%, rgba(219, 231, 255, 0) 62%),
+    linear-gradient(180deg, #f8fafc 0%, #eceff5 100%);
 }
 .login-card {
-  width: 100%; max-width: 380px; background: var(--card);
-  border-radius: 20px; padding: 26px 22px;
-  box-shadow: 0 20px 50px -20px rgba(0, 0, 0, 0.28), 0 0 0 0.5px rgba(60, 60, 67, 0.08);
+  width: 100%; max-width: 372px; background: var(--card);
+  border-radius: 24px; padding: 30px 26px 22px;
+  box-shadow:
+    0 32px 64px -28px rgba(16, 27, 51, 0.4),
+    0 4px 14px -6px rgba(16, 27, 51, 0.12),
+    0 0 0 0.5px rgba(60, 60, 67, 0.08);
 }
 .login-logo {
-  width: 76px; height: 76px; border-radius: 20px; margin: 0 auto 14px;
+  width: 78px; height: 78px; border-radius: 21px; margin: 0 auto 16px;
   background: #fff;
   display: flex; align-items: center; justify-content: center;
-  font-size: 38px; font-weight: 800; 
-  box-shadow: 0 14px 28px -12px rgba(16, 27, 51, 0.3), inset 0 0 0 0.5px rgba(60, 60, 67, 0.1);
+  box-shadow: 0 16px 30px -14px rgba(16, 27, 51, 0.34), inset 0 0 0 0.5px rgba(60, 60, 67, 0.1);
 }
-.login-title { text-align: center; font-size: 21px; font-weight: 800; letter-spacing: -0.5px; }
-.login-sub { text-align: center; font-size: 13px; color: var(--muted); margin: 3px 0 20px; }
-.login-card .field + .field { margin-top: 10px; }
-.login-card .btn { width: 100%; margin-top: 16px; padding: 13px; font-size: 16px; }
+.login-title { text-align: center; font-size: 25px; letter-spacing: -0.7px; margin-bottom: 22px; }
+
+/* Maydon: ikonka va yozuv ichida.
+   Ustidagi "Login"/"Parol" yozuvlari olib tashlandi — ikkita maydonda
+   ular ortiqcha edi va oynani cho'zib yuborardi. */
+.in-field {
+  display: flex; align-items: center; gap: 10px;
+  padding: 0 14px; height: 52px; border-radius: 14px;
+  background: #f4f6f9;
+  box-shadow: inset 0 0 0 1px rgba(60, 60, 67, 0.1);
+  transition: box-shadow 0.15s ease, background 0.15s ease;
+}
+.in-field + .in-field { margin-top: 10px; }
+.in-field:focus-within {
+  background: #fff;
+  box-shadow: inset 0 0 0 2px var(--accent), 0 0 0 4px rgba(0, 122, 255, 0.1);
+}
+.in-field.bad { box-shadow: inset 0 0 0 1.5px var(--red); }
+.in-field input {
+  flex: 1; min-width: 0; border: none; background: none; padding: 0; height: 100%;
+  font-family: inherit; font-size: 16px; color: var(--text); outline: none;
+  box-shadow: none;
+}
+.in-field input::placeholder { color: #9aa0aa; }
+.in-eye {
+  display: flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; border-radius: 8px; border: none;
+  background: none; cursor: pointer; flex-shrink: 0; padding: 0;
+}
+.in-eye:hover { background: rgba(120, 120, 128, 0.12); }
+
+.login-card .btn.login-go {
+  width: 100%; margin-top: 18px; padding: 14px; font-size: 16.5px; font-weight: 650;
+  border-radius: 14px;
+  box-shadow: 0 10px 22px -10px rgba(0, 122, 255, 0.7);
+}
+.login-card .btn.login-go:disabled { box-shadow: none; }
+.login-foot {
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  margin-top: 16px; font-size: 12.5px; color: var(--muted);
+}
 .error { color: var(--red); font-size: 13.5px; margin-top: 10px; text-align: center; }
 
 /* Grafik (Panel sahifasi) */

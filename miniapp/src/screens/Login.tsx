@@ -92,9 +92,11 @@ export default function Login({ onLogin }: { onLogin: () => void }) {
 
         {step === 'phone' ? (
           <>
+            {/* Maydon ustidagi yozuv yo'q — telefon ikonkasi va "+998"
+                nima so'ralayotganini o'zi aytib turibdi */}
             <div className="auth-card">
-              <label className="auth-label">{t('loginPhone')}</label>
               <div className="phone-field">
+                <Glyph name="call" size={18} color="#9aa0aa" />
                 <span className="cc">+998</span>
                 <input
                   className="phone-input"
@@ -107,13 +109,17 @@ export default function Login({ onLogin }: { onLogin: () => void }) {
                 />
               </div>
               <button className="btn-primary btn-lg" onClick={sendOtp} disabled={busy || !isPhoneComplete(phone)}>
-                {t('loginGetCode')}
+                {busy ? t('loading') : t('loginGetCode')}
               </button>
             </div>
 
             <button className="btn-soft" onClick={() => setStep('employee')}>
               <Glyph name="person" size={17} /> {t('employeeLoginLink')}
             </button>
+
+            <div className="auth-foot">
+              <Glyph name="shield" size={14} color="var(--muted)" /> {t('secureLine')}
+            </div>
           </>
         ) : (
           <CodeStep

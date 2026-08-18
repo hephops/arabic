@@ -15,6 +15,7 @@ import {
   IoStarOutline, IoGlobeOutline, IoLogOutOutline, IoCameraOutline, IoCloseOutline,
   IoBarChartOutline, IoTrendingUpOutline, IoTrendingDownOutline, IoTrashOutline,
   IoMenuOutline, IoCallOutline, IoPaperPlaneOutline, IoHelpBuoyOutline,
+  IoLockClosedOutline, IoEyeOutline, IoEyeOffOutline, IoShieldCheckmarkOutline,
   IoCopyOutline, IoFlashOutline, IoTrophyOutline, IoRibbonOutline,
 } from 'react-icons/io5';
 
@@ -35,6 +36,8 @@ const GLYPHS: Record<string, IconType> = {
   chart: IoBarChartOutline, trendUp: IoTrendingUpOutline, trendDown: IoTrendingDownOutline,
   trash: IoTrashOutline, menu: IoMenuOutline, call: IoCallOutline, send: IoPaperPlaneOutline,
   help: IoHelpBuoyOutline, copy: IoCopyOutline, flash: IoFlashOutline,
+  lock: IoLockClosedOutline, eye: IoEyeOutline, eyeOff: IoEyeOffOutline,
+  shield: IoShieldCheckmarkOutline,
   trophy: IoTrophyOutline, ribbon: IoRibbonOutline,
 };
 
