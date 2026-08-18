@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { api, setToken } from '../api';
 import { Glyph, Logo, Wordmark } from '../icons';
 import { useT, LANG_NAMES, type Lang } from '../i18n';
-import { inTelegram, initData, haptic } from '../telegram';
+import { inTelegram, initData, haptic, openBot } from '../telegram';
 import { formatPhone, phoneE164, isPhoneComplete, phoneDigits, formatCard, cardDigits } from '../format';
 
 // Ro'yxatdan o'tish: telefon → SMS-kod → (yangi do'kon bo'lsa) profilni to'ldirish.
@@ -15,7 +15,6 @@ export default function Login({ onLogin }: { onLogin: () => void }) {
   // Kod allaqachon yuborildimi (raqam ilgari ulangan bo'lsa)
   const [sent, setSent] = useState(false);
   const [phone, setPhone] = useState('');
-  const [hint, setHint] = useState<string | undefined>();
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const { t } = useT();
@@ -39,7 +38,6 @@ export default function Login({ onLogin }: { onLogin: () => void }) {
     setError('');
     try {
       const res = await api.requestOtp(phoneE164(phone));
-      setHint(res.dev_hint);
       setLink(res.deep_link ?? '');
       // Kod ilgari ulangan bo'lsa o'zi ketadi; ulanmagan bo'lsa
       // kod ekranidagi tugma botni ochadi va kod o'sha zahoti keladi.
@@ -132,7 +130,6 @@ export default function Login({ onLogin }: { onLogin: () => void }) {
         ) : (
           <CodeStep
             phone={phone}
-            hint={hint}
             link={link}
             sent={sent}
             busy={busy}
@@ -172,7 +169,6 @@ function Brand({ compact }: { compact?: boolean }) {
 
 function CodeStep({
   phone,
-  hint,
   link,
   sent,
   busy,
@@ -181,7 +177,6 @@ function CodeStep({
   onBack,
 }: {
   phone: string;
-  hint?: string;
   /** botga to'g'ridan-to'g'ri havola */
   link: string;
   /** kod allaqachon Telegramga ketganmi */
@@ -237,24 +232,18 @@ function CodeStep({
             do'konchi kutib qolmasligi kerak: kod o'zi kelmaydi,
             avval shu tugma bosiladi. */}
         {!sent && link && (
-          <a
+          <button
             className="btn-primary btn-lg tg-get"
-            href={link}
-            target="_blank"
-            rel="noreferrer"
-            onClick={() => setOpened(true)}
+            onClick={() => {
+              setOpened(true);
+              openBot(link);
+            }}
           >
             <Glyph name="send" size={18} color="#fff" /> {t('tgGetCode')}
-          </a>
+          </button>
         )}
         {sent && <p className="code-note">{t('tgCodeSent')}</p>}
         {!sent && opened && <p className="code-note">{t('tgPasteHint')}</p>}
-
-        {hint && (
-          <div className="dev-hint">
-            {t('loginDevHint')}: <b>{hint}</b>
-          </div>
-        )}
 
         <button
           className={`btn-primary btn-lg ${!sent && !opened ? 'quiet' : ''}`}

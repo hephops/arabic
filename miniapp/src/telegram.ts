@@ -91,3 +91,22 @@ export const haptic = {
 };
 
 export const initData = () => tg?.initData ?? '';
+
+/**
+ * Botni ochish.
+ *
+ * Ilova Telegram ichida ochilgan bo'lsa — chat to'g'ridan-to'g'ri
+ * Telegram ichida ochiladi (brauzer oynasi ochilmaydi). Oddiy
+ * brauzerda esa havola Telegram ilovasiga o'tkazadi.
+ *
+ * Havolada `?start=...` bo'lgani uchun bot ochilishi bilan /start
+ * o'zi yuboriladi va kod darhol keladi.
+ */
+export function openBot(url: string) {
+  if (!url) return;
+  if (tg?.openTelegramLink) {
+    tg.openTelegramLink(url);
+    return;
+  }
+  window.open(url, '_blank', 'noopener');
+}
