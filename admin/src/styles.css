@@ -1,4 +1,4 @@
-/* ARABIC.ONE admin panel — do'kon ilovasi bilan bir xil dizayn tili:
+/* BuySale admin panel — do'kon ilovasi bilan bir xil dizayn tili:
    iOS uslubidagi kartochkalar, squircle ikonkalar, yig'iladigan yon menyu
    va pastdagi yashirin panel. */
 
@@ -96,10 +96,10 @@ label { font-size: 12.5px; color: var(--muted); display: block; margin: 0 2px 5p
 }
 .side-logo {
   width: 40px; height: 40px; border-radius: 11px; flex-shrink: 0;
-  background: linear-gradient(165deg, #5cabff, #0a5fe0);
+  background: #fff;
   display: flex; align-items: center; justify-content: center;
-  color: #fff; font-size: 21px; font-weight: 800;
-  box-shadow: 0 6px 14px -6px rgba(10, 95, 224, 0.6);
+   font-size: 21px; font-weight: 800;
+  box-shadow: 0 2px 8px -3px rgba(16, 27, 51, 0.28), inset 0 0 0 0.5px rgba(60, 60, 67, 0.12);
 }
 .side-brand-text { min-width: 0; overflow: hidden; }
 .side-name { font-size: 15.5px; font-weight: 700; letter-spacing: -0.3px; white-space: nowrap; }
@@ -348,10 +348,10 @@ td.num, th.num { text-align: right; white-space: nowrap; }
 }
 .login-logo {
   width: 76px; height: 76px; border-radius: 20px; margin: 0 auto 14px;
-  background: linear-gradient(165deg, #5cabff 0%, #1f7bf5 48%, #0a5fe0 100%);
+  background: #fff;
   display: flex; align-items: center; justify-content: center;
-  font-size: 38px; font-weight: 800; color: #fff;
-  box-shadow: 0 14px 28px -12px rgba(10, 95, 224, 0.8);
+  font-size: 38px; font-weight: 800; 
+  box-shadow: 0 14px 28px -12px rgba(16, 27, 51, 0.3), inset 0 0 0 0.5px rgba(60, 60, 67, 0.1);
 }
 .login-title { text-align: center; font-size: 21px; font-weight: 800; letter-spacing: -0.5px; }
 .login-sub { text-align: center; font-size: 13px; color: var(--muted); margin: 3px 0 20px; }
@@ -435,3 +435,8 @@ th.pick input, td.pick input { width: 16px; height: 16px; cursor: pointer; accen
 tr.picked { background: rgba(0, 122, 255, 0.06); }
 .btn.danger { background: var(--red); color: #fff; }
 .btn.danger:hover { filter: brightness(0.94); }
+
+/* ── Brend nomi: "Buy" to'q, "Sale" ko'k ── */
+.wordmark { font-weight: 800; letter-spacing: -0.5px; white-space: nowrap; }
+.wordmark b { font-weight: 800; color: #0E1B33; }
+.wordmark i { font-style: normal; font-weight: 800; color: #1B5CE8; }

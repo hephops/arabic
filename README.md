@@ -1,4 +1,4 @@
-# ARABIC.ONE — Do'kon Daftari
+# BuySale — Savdo, ombor, foyda
 
 Do'konchilar uchun raqamli qarz daftari va savdo hisobi: ovozli/qo'lda kiritish,
 shtrix-kodli ombor va kassa (POS), avtomatik eslatmalar va AI qo'ng'iroq.

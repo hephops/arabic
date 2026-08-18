@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 296 200" role="img" aria-label="BuySale">
+  <title>BuySale</title>
+  <!-- Bir rangli variant: chek, yorliq va shtamp uchun.
+       Rang currentColor — qo'yilgan joyning rangini oladi. -->
+  <g fill="none" stroke="currentColor" stroke-width="19" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M16 32 H46 C64 32 72 43 74 58"/>
+    <path d="M74 58 V150"/>
+    <path d="M74 58 H110 C132 58 132 98 110 98 H74"/>
+    <path d="M74 98 H120 C144 98 144 150 120 150 H74"/>
+    <path d="M170 32 H252"/>
+    <path d="M234 66 H196 C176 66 176 98 196 98 H214 C236 98 236 132 214 132 H172"/>
+  </g>
+  <circle cx="104" cy="178" r="14" fill="currentColor"/>
+  <circle cx="212" cy="178" r="14" fill="currentColor"/>
+</svg>

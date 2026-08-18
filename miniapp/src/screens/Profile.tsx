@@ -702,7 +702,7 @@ function ReferralView({ onBack }: { onBack: () => void }) {
 
   if (!data) return <div className="screen empty">{t('loading')}</div>;
 
-  const shareText = `Arabic.One — Do'kon Daftari ilovasiga qo'shiling! Promo-kodim: ${data.code}. ${data.reward_text}.`;
+  const shareText = `BuySale — Savdo, ombor, foyda ilovasiga qo'shiling! Promo-kodim: ${data.code}. ${data.reward_text}.`;
 
   return (
     <>

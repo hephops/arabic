@@ -2429,5 +2429,5 @@ app.listen({ port, host: '0.0.0.0' }).then(() => {
       console.log('[telegram] webhook:', r.ok ? 'ulandi' : r.description ?? r.error)
     );
   }
-  console.log(`ARABIC.ONE backend :${port}`);
+  console.log(`BuySale backend :${port}`);
 });

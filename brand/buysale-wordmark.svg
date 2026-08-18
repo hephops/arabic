@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 580 156" role="img" aria-label="BuySale">
+  <title>BuySale</title>
+  <!-- Faqat nom — belgi allaqachon yonida turgan joylar uchun -->
+  <text x="0" y="122" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" font-size="132" font-weight="800" letter-spacing="-4">
+    <tspan fill="#0E1B33">Buy</tspan><tspan fill="#1B5CE8">Sale</tspan>
+  </text>
+</svg>

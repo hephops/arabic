@@ -1,7 +1,7 @@
 {
-  "name": "Arabic.One — Do'kon Daftari",
-  "short_name": "Do'kon Daftari",
-  "description": "Qarz daftari, ombor va kassa — bitta ilovada",
+  "name": "BuySale — Savdo, ombor, foyda",
+  "short_name": "BuySale",
+  "description": "Savdo, ombor va qarz daftari — bitta ilovada",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

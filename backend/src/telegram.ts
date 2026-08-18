@@ -70,7 +70,7 @@ export function verifyInitData(initData: string): { id: number; first_name?: str
 
 /* ─────────── Bot webhook ─────────── */
 
-const WELCOME = `<b>Arabic.One — Do'kon Daftari</b>
+const WELCOME = `<b>BuySale — Savdo, ombor, foyda</b>
 
 Qarz daftari, ombor va kassa — bitta ilovada.
 
@@ -93,7 +93,7 @@ tizim uni qarz yozuviga aylantiradi.`;
 function miniAppKeyboard() {
   if (!MINIAPP_URL) return undefined;
   return {
-    inline_keyboard: [[{ text: "📒 Do'kon Daftarini ochish", web_app: { url: MINIAPP_URL } }]],
+    inline_keyboard: [[{ text: "🛒 BuySale ni ochish", web_app: { url: MINIAPP_URL } }]],
   };
 }
 

@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 620 400" role="img" aria-label="BuySale — savdo, ombor, foyda">
+  <title>BuySale</title>
+  <!-- Tik qulf: belgi tepada, nom va shior pastda.
+       Kirish ekrani, ilova do'koni va bosma uchun. -->
+  <g transform="translate(162,8)">
+<!-- Yashil: savat (dastasi + "B" shaklidagi tanasi) -->
+  <g fill="none" stroke-width="19" stroke-linecap="round" stroke-linejoin="round">
+    <g stroke="#21A038">
+      <path d="M16 32 H46 C64 32 72 43 74 58"/>
+      <path d="M74 58 V150"/>
+      <path d="M74 58 H110 C132 58 132 98 110 98 H74"/>
+      <path d="M74 98 H120 C144 98 144 150 120 150 H74"/>
+    </g>
+    <!-- Ko'k: savatning o'ng chekkasi va "S" -->
+    <g stroke="#1B5CE8">
+      <path d="M170 32 H252"/>
+      <path d="M234 66 H196 C176 66 176 98 196 98 H214 C236 98 236 132 214 132 H172"/>
+    </g>
+  </g>
+  <!-- G'ildiraklar -->
+  <circle cx="104" cy="178" r="14" fill="#21A038"/>
+  <circle cx="212" cy="178" r="14" fill="#1B5CE8"/>
+  </g>
+  <text x="310" y="320" text-anchor="middle" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" font-size="118" font-weight="800" letter-spacing="-3.5">
+    <tspan fill="#0E1B33">Buy</tspan><tspan fill="#1B5CE8">Sale</tspan>
+  </text>
+  <text x="310" y="368" text-anchor="middle" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" font-size="26" font-weight="600" letter-spacing="7" fill="#5B6472">
+    SAVDO <tspan fill="#21A038">•</tspan> OMBOR <tspan fill="#1B5CE8">•</tspan> FOYDA
+  </text>
+</svg>

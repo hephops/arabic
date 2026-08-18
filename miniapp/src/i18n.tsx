@@ -78,7 +78,7 @@ const UZ: Record<string, string> = {
   navSettings: 'Sozlamalar',
 
   // Kirish
-  loginSubtitle: "Do'kon Daftari",
+  loginSubtitle: 'Savdo · Ombor · Foyda',
   loginPhone: 'Telefon raqamingiz',
   loginGetCode: 'SMS kod olish',
   loginCode: 'SMS kod',
@@ -742,7 +742,7 @@ const RU: Record<string, string> = {
   navLanguage: 'Язык',
   navSettings: 'Настройки',
 
-  loginSubtitle: 'Тетрадь магазина',
+  loginSubtitle: 'Торговля · Склад · Прибыль',
   loginPhone: 'Ваш номер телефона',
   loginGetCode: 'Получить SMS-код',
   loginCode: 'SMS-код',
@@ -1358,7 +1358,7 @@ const LETTERS: Record<string, string> = {
 };
 
 // Kirillchada o'girilmaydigan atamalar
-const KEEP = ['AI', 'SMS', 'PIN', 'POS', 'Arabic.One', 'Payme', 'Click', 'Uzum', 'Telegram', 'DEV'];
+const KEEP = ['AI', 'SMS', 'PIN', 'POS', 'BuySale', 'Payme', 'Click', 'Uzum', 'Telegram', 'DEV'];
 
 export function toCyrillic(text: string): string {
   let out = text;

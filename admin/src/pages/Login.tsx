@@ -1,3 +1,4 @@
+import { Logo, Wordmark } from '../icons';
 import { useState } from 'react';
 import { api, setToken, type Admin } from '../api';
 
@@ -25,8 +26,8 @@ export default function Login({ onLogin }: { onLogin: (a: Admin) => void }) {
   return (
     <div className="login-page">
       <form className="login-card" onSubmit={submit}>
-        <div className="login-logo">A</div>
-        <div className="login-title">ARABIC.ONE</div>
+        <div className="login-logo"><Logo size={52} /></div>
+        <div className="login-title"><Wordmark /></div>
         <div className="login-sub">Admin panelga kirish</div>
         <div className="field">
           <label>Login</label>

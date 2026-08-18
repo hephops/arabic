@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { api, setToken } from '../api';
-import { Glyph } from '../icons';
+import { Glyph, Logo, Wordmark } from '../icons';
 import { useT, LANG_NAMES, type Lang } from '../i18n';
 import { inTelegram, initData, haptic } from '../telegram';
 import { formatPhone, phoneE164, isPhoneComplete, phoneDigits, formatCard, cardDigits } from '../format';
@@ -139,10 +139,12 @@ function Brand({ compact }: { compact?: boolean }) {
   const { t } = useT();
   return (
     <div className={`auth-brand ${compact ? 'tight' : ''}`}>
-      <div className={`auth-logo ${compact ? 'sm' : ''}`}>A</div>
+      <div className={`auth-logo ${compact ? 'sm' : ''}`}>
+        <Logo size={compact ? 34 : 62} />
+      </div>
       {!compact && (
         <>
-          <div className="auth-name">Arabic.One</div>
+          <div className="auth-name"><Wordmark /></div>
           <div className="auth-tagline">{t('loginSubtitle')}</div>
         </>
       )}

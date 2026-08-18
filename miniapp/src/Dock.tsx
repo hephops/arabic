@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { AppIcon, Glyph } from './icons';
+import { AppIcon, Glyph, Logo, Wordmark } from './icons';
 import { haptic } from './telegram';
 import type { Tab, SubScreen } from './App';
 import { useT } from './i18n';
@@ -128,9 +128,9 @@ export default function Dock({
       {/* Kompyuter uchun yon menyu — yig'ilganda faqat ikonkalar qoladi */}
       <nav className="side">
         <button className="side-brand" onClick={toggleSide} title="Menyu">
-          <div className="side-logo">A</div>
+          <div className="side-logo"><Logo size={30} /></div>
           <div className="side-brand-text">
-            <div className="side-name">Arabic.One</div>
+            <div className="side-name"><Wordmark /></div>
             <div className="side-sub">{t('loginSubtitle')}</div>
           </div>
         </button>

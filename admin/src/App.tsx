@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api, getToken, logout, type Admin } from './api';
-import { AppIcon, Glyph } from './icons';
+import { AppIcon, Glyph, Logo, Wordmark } from './icons';
 import { toggleSide } from './sidebar';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
@@ -70,9 +70,9 @@ export default function App() {
       {/* Chapdagi menyu — logoni bosib yig'iladi */}
       <nav className="side">
         <button className="side-brand" onClick={toggleSide} title="Menyu">
-          <div className="side-logo">A</div>
+          <div className="side-logo"><Logo size={30} /></div>
           <div className="side-brand-text">
-            <div className="side-name">ARABIC.ONE</div>
+            <div className="side-name"><Wordmark /></div>
             <div className="side-sub">Admin panel</div>
           </div>
         </button>

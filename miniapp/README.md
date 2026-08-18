@@ -1,4 +1,4 @@
-# Arabic.One — Mini App
+# BuySale — Mini App
 
 Do'konchi ilovasi: qarz daftari, kassa, ombor, eslatmalar.
 React + Vite + TypeScript. Telegram Mini App va PWA sifatida ham ochiladi.
