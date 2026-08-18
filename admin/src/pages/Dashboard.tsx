@@ -23,11 +23,11 @@ export default function Dashboard({ onOpenShops }: { onOpenShops: () => void }) 
             <div className="v">{fmtNum(s.shops)}</div>
           </div>
         </div>
-        <div className="stat">
-          <AppIcon glyph="crown" size={38} />
+        <div className="stat" onClick={onOpenShops} style={{ cursor: 'pointer' }}>
+          <AppIcon glyph="check" size={38} />
           <div className="txt">
-            <div className="k">Faol obunalar</div>
-            <div className="v green">{fmtNum(s.active_subs)}</div>
+            <div className="k">Ishlayapti</div>
+            <div className="v green">{fmtNum(s.active_shops)}</div>
           </div>
         </div>
         <div className="stat">
@@ -46,26 +46,58 @@ export default function Dashboard({ onOpenShops }: { onOpenShops: () => void }) 
         </div>
       </div>
 
+      {/* Diqqat talab qiladiganlar: balansi tugayotgan va to'xtagan
+          do'konlar. Bu ikkisi qo'ng'iroq qilish uchun ro'yxat. */}
+      {(s.low_balance > 0 || s.stopped > 0) && (
+        <div className="cards">
+          <div className="stat" onClick={onOpenShops} style={{ cursor: 'pointer' }}>
+            <AppIcon glyph="clock" size={38} />
+            <div className="txt">
+              <div className="k">Balansi tugayapti</div>
+              <div className="v yellow">{fmtNum(s.low_balance)}</div>
+            </div>
+          </div>
+          <div className="stat" onClick={onOpenShops} style={{ cursor: 'pointer' }}>
+            <AppIcon glyph="warning" size={38} />
+            <div className="txt">
+              <div className="k">To'xtagan (balans tugagan)</div>
+              <div className="v red">{fmtNum(s.stopped)}</div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="cards">
         <div className="stat">
           <AppIcon glyph="banknote" size={38} />
           <div className="txt">
-            <div className="k">Oylik tushum (MRR)</div>
-            <div className="v green">{fmt(s.mrr)}</div>
-          </div>
-        </div>
-        <div className="stat">
-          <AppIcon glyph="card" size={38} />
-          <div className="txt">
-            <div className="k">Oxirgi 30 kun to'ldirish</div>
-            <div className="v">{fmt(s.month_topups)}</div>
+            <div className="k">Kunlik tushum</div>
+            <div className="v green">{fmt(s.daily_income)}</div>
+            <div className="sub">{fmt(s.daily_price)} x {fmtNum(s.active_shops)} do'kon</div>
           </div>
         </div>
         <div className="stat">
           <AppIcon glyph="chart" size={38} />
           <div className="txt">
-            <div className="k">Jami to'ldirish</div>
-            <div className="v">{fmt(s.total_topups)}</div>
+            <div className="k">30 kunda yechilgan</div>
+            <div className="v">{fmt(s.month_earned)}</div>
+            <div className="sub">haqiqiy tushum</div>
+          </div>
+        </div>
+        <div className="stat">
+          <AppIcon glyph="card" size={38} />
+          <div className="txt">
+            <div className="k">30 kunda to'ldirildi</div>
+            <div className="v">{fmt(s.month_topups)}</div>
+            <div className="sub">jami {fmt(s.total_topups)}</div>
+          </div>
+        </div>
+        <div className="stat">
+          <AppIcon glyph="box" size={38} />
+          <div className="txt">
+            <div className="k">Balanslarda turibdi</div>
+            <div className="v accent">{fmt(s.held_balance)}</div>
+            <div className="sub">hali ishlatilmagan</div>
           </div>
         </div>
       </div>

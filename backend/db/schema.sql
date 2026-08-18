@@ -9,9 +9,11 @@ CREATE TABLE IF NOT EXISTS shops (
   language TEXT NOT NULL DEFAULT 'uz',          -- uz | uz_cyrl | ru
   card_number TEXT,                              -- asosiy karta (Humo/Uzcard)
   telegram_user_id INTEGER,
-  plan TEXT NOT NULL DEFAULT 'free',             -- free | premium | business
-  plan_expires_at TEXT,
-  balance INTEGER NOT NULL DEFAULT 0,            -- obuna balansi (so'm)
+  balance INTEGER NOT NULL DEFAULT 0,            -- xizmat balansi (so'm)
+  -- Xizmat qaysi kungacha to'langan. Har kuni balansdan kunlik narx
+  -- yechiladi va bu sana bir kunga suriladi. Bugundan oldin bo'lsa —
+  -- balans tugagan, xizmat to'xtagan.
+  charged_through TEXT,
   default_reminder_mode TEXT NOT NULL DEFAULT 'soft',
   referred_by TEXT,                              -- referal kodi (ARABIC<id>)
   daily_goal INTEGER NOT NULL DEFAULT 0,         -- kunlik savdo maqsadi (0 — yo'q)
@@ -51,22 +53,25 @@ CREATE TABLE IF NOT EXISTS settings (
 );
 INSERT OR IGNORE INTO settings (key, value) VALUES
   ('min_topup_amount', '10000'),      -- balansni to'ldirishning eng kam summasi
-  ('price_starter', '39000'),         -- Boshlang'ich tarif narxi (30 kun)
-  ('price_premium', '99000'),         -- Premium tarif narxi (30 kun)
-  ('price_business', '199000'),       -- Biznes tarif narxi (30 kun)
-  ('yearly_bonus_months', '2'),       -- yillik to'lovda necha oy sovg'a
-  ('trial_days', '14'),               -- yangi do'kon uchun sinov muddati
+  ('daily_price', '3300'),            -- kunlik xizmat narxi (balansdan yechiladi)
+  ('trial_days', '14'),               -- yangi do'kon uchun bepul kunlar
+  ('low_balance_days', '5'),          -- shuncha kun qolganda ogohlantiriladi
+  ('block_on_empty', '0'),            -- balans tugasa xizmat to'xtasinmi
   ('referral_bonus', '20000'),        -- taklif qilgan do'konga bonus
   ('sms_price', '150'),               -- 1 ta SMS tannarxi
   ('call_price', '900'),              -- 1 ta AI qo'ng'iroq tannarxi
   ('support_phone', '+998 90 000 00 00'),
-  ('support_telegram', '@arabicone_support');
+  ('support_telegram', '@arabicone_support'),
+  -- Do'konchi balansni to'ldirish uchun pul o'tkazadigan karta
+  ('topup_card', ''),
+  ('topup_card_holder', ''),
+  ('low_balance_notify', '1');
 
 -- Balans harakatlari: to'ldirish va obuna yechimlari
 CREATE TABLE IF NOT EXISTS balance_transactions (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   shop_id INTEGER NOT NULL REFERENCES shops(id),
-  type TEXT NOT NULL,                            -- topup | subscription | refund
+  type TEXT NOT NULL,                            -- topup | daily | refund | grant | withdraw
   amount INTEGER NOT NULL,                       -- + to'ldirish, - yechim
   note TEXT,
   method TEXT,                                   -- naqd | karta | bank | payme | click | uzum

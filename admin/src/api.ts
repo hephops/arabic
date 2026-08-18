@@ -33,7 +33,7 @@ export const api = {
     }),
   me: () => request<Admin>('/admin/me'),
   stats: () => request<Stats>('/admin/stats'),
-  shops: (params: { q?: string; plan?: string; limit?: number; offset?: number } = {}) => {
+  shops: (params: { q?: string; status?: string; limit?: number; offset?: number } = {}) => {
     const qs = new URLSearchParams(
       Object.entries(params).filter(([, v]) => v !== undefined && v !== '') as [string, string][]
     ).toString();
@@ -42,10 +42,11 @@ export const api = {
   shop: (id: number) => request<ShopDetail>(`/admin/shops/${id}`),
   blockShop: (id: number, is_blocked: boolean, reason?: string) =>
     request<Shop>(`/admin/shops/${id}/block`, { method: 'PATCH', body: JSON.stringify({ is_blocked, reason }) }),
-  grantPlan: (id: number, plan: string, days: number) =>
-    request<Shop>(`/admin/shops/${id}/grant`, { method: 'POST', body: JSON.stringify({ plan, days }) }),
+  /** Bepul kun sovg'a qilish — balansga tegilmaydi */
+  grantDays: (id: number, days: number, note?: string) =>
+    request<ShopDetail>(`/admin/shops/${id}/grant`, { method: 'POST', body: JSON.stringify({ days, note }) }),
   adjustBalance: (id: number, amount: number, note?: string) =>
-    request<{ balance: number }>(`/admin/shops/${id}/balance`, {
+    request<ShopDetail>(`/admin/shops/${id}/balance`, {
       method: 'POST',
       body: JSON.stringify({ amount, note }),
     }),
@@ -84,12 +85,23 @@ export interface Admin {
 
 export interface Stats {
   shops: number;
-  active_subs: number;
+  /** xizmati bugungi kunga to'langan do'konlar */
+  active_shops: number;
   blocked: number;
   today_new: number;
   total_topups: number;
   month_topups: number;
-  mrr: number;
+  /** kunlik narx x faol do'kon — bugungi kutilayotgan tushum */
+  daily_income: number;
+  daily_price: number;
+  /** oxirgi 30 kunda balanslardan yechilgan haqiqiy tushum */
+  month_earned: number;
+  /** do'konlar balansida turgan, hali ishlatilmagan pul */
+  held_balance: number;
+  /** yaqin kunlarda to'xtaydiganlar */
+  low_balance: number;
+  /** balansi tugab to'xtaganlar */
+  stopped: number;
   debts: number;
   reminders: number;
   calls: number;
@@ -101,9 +113,10 @@ export interface Shop {
   name: string;
   phone: string;
   owner_name: string | null;
-  plan: string;
-  plan_expires_at: string | null;
   balance: number;
+  /** xizmat qaysi kungacha to'langan */
+  charged_through: string | null;
+  trial_ends_at?: string | null;
   is_blocked: number;
   blocked_reason: string | null;
   created_at: string;
@@ -127,6 +140,19 @@ export interface ShopDetail extends Shop {
     reminders: number;
   };
   transactions: Payment[];
+  service: ServiceState;
+}
+
+/** Do'konning xizmat holati — kunlik to'lov bo'yicha */
+export interface ServiceState {
+  balance: number;
+  charged_through: string;
+  active: boolean;
+  daily_price: number;
+  days_left: number;
+  runs_out_on: string;
+  on_trial: boolean;
+  low: boolean;
 }
 
 export interface Payment {
@@ -159,9 +185,14 @@ export interface PaymentsPage {
   rows: Payment[];
   total: number;
   summary: {
+    /** do'konlar tashlagan pul */
     kirim: number;
+    /** kunlik to'lov sifatida yechilgani — bizning tushum */
+    kunlik: number;
+    /** qo'lda yechib olingani (kunlik to'lov bunga kirmaydi) */
     chiqim: number;
     qaytarilgan: number;
+    /** hali balanslarda turgan pul */
     qoldiq: number;
     qarz: number;
     count: number;
@@ -181,11 +212,13 @@ export interface NewPayment {
 
 export interface ShopsSummary {
   jami: number;
-  faol: number;
+  /** xizmati bugungi kunga to'langan */
+  ishlayapti: number;
+  /** balansi tugab to'xtagan */
+  toxtagan: number;
   bloklangan: number;
-  bepul: number;
-  premium: number;
-  biznes: number;
+  /** do'konlar balansidagi umumiy summa */
+  balans: number;
 }
 
 export interface ReminderLog {

@@ -7,10 +7,10 @@ import { AppIcon, Glyph } from '../icons';
 
 const TYPE_LABEL: Record<string, string> = {
   topup: "To'ldirish",
-  subscription: 'Obuna',
+  daily: 'Kunlik to‘lov',
   withdraw: 'Yechim',
   refund: 'Qaytarilgan',
-  grant: "Sovg'a",
+  grant: 'Bepul kun',
 };
 
 const METHODS = [
@@ -104,12 +104,15 @@ export default function Payments() {
   return (
     <>
       <div className="cards">
-        <Stat glyph="banknote" color="green" k="Jami kirim" v={fmt(s?.kirim ?? 0)} />
-        <Stat glyph="card" color="red" k="Jami chiqim" v={fmt(s?.chiqim ?? 0)} />
+        {/* Kirim — do'konlar tashlagan pul; Kunlik — o'shandan bizga
+            o'tgani; Qoldiq — hali balanslarda turgani. Uchtasi bir-biriga
+            qo'shilmaydi, shuning uchun alohida ustunda. */}
+        <Stat glyph="banknote" color="green" k="To'ldirildi" v={fmt(s?.kirim ?? 0)} />
+        <Stat glyph="calendar" color="indigo" k="Kunlik yechildi" v={fmt(s?.kunlik ?? 0)} />
+        <Stat glyph="boxes" color="accent" k="Balanslarda qoldi" v={fmt(s?.qoldiq ?? 0)} />
+        <Stat glyph="card" color="red" k="Yechib olindi" v={fmt(s?.chiqim ?? 0)} />
         <Stat glyph="gift" color="yellow" k="Qaytarilgan" v={fmt(s?.qaytarilgan ?? 0)} />
-        <Stat glyph="boxes" color="accent" k="Qoldiq" v={fmt(s?.qoldiq ?? 0)} />
-        <Stat glyph="note" color="red" k="Qarz" v={fmt(s?.qarz ?? 0)} />
-        <Stat glyph="chart" color="indigo" k="Tranzaksiyalar" v={fmtNum(s?.count ?? 0)} />
+        <Stat glyph="chart" color="" k="Tranzaksiyalar" v={fmtNum(s?.count ?? 0)} />
       </div>
 
       <div className="panel">
@@ -121,7 +124,7 @@ export default function Payments() {
               <option value="in">Kirim</option>
               <option value="out">Chiqim</option>
               <option value="topup">To'ldirish</option>
-              <option value="subscription">Obuna</option>
+              <option value="daily">Kunlik to'lov</option>
               <option value="refund">Qaytarilgan</option>
               <option value="grant">Sovg'a</option>
             </select>

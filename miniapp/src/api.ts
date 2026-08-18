@@ -170,12 +170,7 @@ export const api = {
     request<Shop>('/me', { method: 'PATCH', body: JSON.stringify(data) }),
   balance: () => request<BalanceInfo>('/balance'),
   topup: (amount: number) =>
-    request<{ balance: number }>('/balance/topup', { method: 'POST', body: JSON.stringify({ amount }) }),
-  subscribe: (plan: string, period: 'month' | 'year' = 'month') =>
-    request<{ balance: number; plan: string; plan_expires_at: string }>('/balance/subscribe', {
-      method: 'POST',
-      body: JSON.stringify({ plan, period }),
-    }),
+    request<ServiceState>('/balance/topup', { method: 'POST', body: JSON.stringify({ amount }) }),
   categories: () => request<{ name: string; count: number }[]>('/categories'),
   expenses: (period: ExpensePeriod, category?: string) =>
     request<ExpensesInfo>(`/expenses?period=${period}${category ? `&category=${encodeURIComponent(category)}` : ''}`),
@@ -198,11 +193,9 @@ export const api = {
 
 export interface Shop {
   id: number;
-  /** sinov muddatidami va necha kun qolgani */
-  on_trial?: boolean;
-  days_left?: number;
+  /** xizmat holati: balans, kunlik narx, yana necha kun yetishi */
+  service?: ServiceState;
   trial_ends_at?: string | null;
-  plan_active?: string;
   /** to'ldirilgan bo'lsa — sessiya xodimniki, ilova cheklangan rejimda ishlaydi */
   employee?: Employee | null;
   phone: string;
@@ -211,8 +204,6 @@ export interface Shop {
   address: string | null;
   language: string;
   card_number: string | null;
-  plan: string;
-  plan_expires_at: string | null;
   balance: number;
   /** kunlik savdo maqsadi (0 — belgilanmagan) */
   daily_goal?: number;
@@ -223,13 +214,30 @@ export interface Shop {
   allow_negative_stock?: number;
 }
 
-export interface BalanceInfo {
+/** Xizmat holati: tarif yo'q, balansdan har kuni bir kunlik narx yechiladi */
+export interface ServiceState {
   balance: number;
+  /** xizmat qaysi kungacha to'langan */
+  charged_through: string;
+  active: boolean;
+  daily_price: number;
+  /** balans bilan yana necha kun ishlaydi */
+  days_left: number;
+  /** balans tugaydigan sana */
+  runs_out_on: string;
+  on_trial: boolean;
+  /** kam qoldi — ogohlantirish ko'rsatiladi */
+  low: boolean;
+}
+
+export interface BalanceInfo extends ServiceState {
   min_topup: number;
-  plan: string;
-  plan_expires_at: string | null;
   transactions: { id: number; type: string; amount: number; note: string | null; created_at: string }[];
-  plans: Record<string, { price: number; title: string; yearly: number }>;
+  /** tez to'ldirish tugmalari: summa va u necha kunga yetishi */
+  presets: { amount: number; days: number }[];
+  /** pul o'tkaziladigan karta (admin panelda kiritiladi) */
+  card: string;
+  card_holder: string;
 }
 
 export interface Supplier {

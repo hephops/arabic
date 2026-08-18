@@ -18,6 +18,8 @@ import Returns from './screens/Returns';
 import QuickActions from './QuickActions';
 import InstallPrompt from './InstallPrompt';
 import { ToastHost } from './toast';
+import { Glyph } from './icons';
+import { translate } from './i18n';
 import { useT } from './i18n';
 import { setBackButton, haptic } from './telegram';
 
@@ -84,6 +86,28 @@ export default function App() {
       {!sub && !(tab === 'profile' && profileView !== 'main') && <NavBar title={TITLES[tab]} />}
       <ToastHost />
       <InstallPrompt />
+
+      {/* Balans ogohlantirishi — har qanday ekranda ko'rinadi.
+          Do'konchi to'satdan to'xtab qolmasligi uchun oldindan aytamiz;
+          bosilsa to'g'ridan-to'g'ri to'ldirish ekraniga olib boradi. */}
+      {shop?.service && (!shop.service.active || shop.service.low) && (
+        <button
+          className={`bal-warn ${shop.service.active ? '' : 'stop'}`}
+          onClick={() => {
+            setSub(null);
+            setProfileView('balance');
+            setProfileNav((n) => n + 1);
+            setTab('profile');
+          }}
+        >
+          <Glyph name="warning" size={16} color="#fff" />
+          <span>
+            {shop.service.active
+              ? translate('balanceLowWarn').replace('{days}', String(shop.service.days_left))
+              : translate('balanceStopWarn')}
+          </span>
+        </button>
+      )}
 
       {sub === 'suppliers' && <Suppliers onBack={() => setSub(null)} />}
       {sub === 'reports' && <Reports onBack={() => setSub(null)} onOpenExpenses={() => setSub('expenses')} />}

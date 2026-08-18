@@ -201,6 +201,8 @@ label { font-size: 12.5px; color: var(--muted); display: block; margin: 0 2px 5p
 .stat .v.accent { color: var(--accent); }
 .stat .v.yellow { color: var(--yellow); }
 .stat .v.indigo { color: var(--indigo); }
+/* Raqam ostidagi izoh: "3 300 so'm x 12 do'kon" kabi hisob ochiq tursin */
+.stat .txt .sub { font-size: 11.5px; color: var(--muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* Panel (jadval va formalar ostidagi oq maydon) */
 .panel {
@@ -389,3 +391,35 @@ td.num, th.num { text-align: right; white-space: nowrap; }
   .modal-grid { grid-template-columns: 1fr; }
   .modal-grid .full { grid-column: span 1; }
 }
+
+/* ── Sozlamalar: ixcham setka ──
+   Ilgari har bir maydon butun kenglikni egallab, sahifa cho'zilib
+   ketardi va bitta bo'limni ko'rish uchun ham aylantirish kerak edi. */
+.set-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px 18px; }
+.set-field { min-width: 0; }
+.set-field.wide { grid-column: 1 / -1; }
+.set-field label { display: block; font-size: 12.5px; color: var(--muted); margin-bottom: 5px; }
+.set-field input { width: 100%; }
+.set-note { font-size: 12px; color: var(--muted); margin-top: 4px; }
+.set-hint { font-size: 11.5px; color: var(--muted); margin-top: 4px; line-height: 1.35; }
+
+/* Ha/yo'q tugmasi */
+.toggle {
+  display: flex; align-items: center; gap: 9px;
+  padding: 7px 12px 7px 9px; border-radius: 10px; cursor: pointer;
+  border: 1px solid var(--separator); background: var(--card);
+  font-family: inherit; font-size: 13px; color: var(--muted);
+}
+.toggle span {
+  width: 38px; height: 22px; border-radius: 11px; background: #d1d1d6;
+  position: relative; transition: background 0.15s; flex-shrink: 0;
+}
+.toggle span::after {
+  content: ''; position: absolute; top: 2px; left: 2px;
+  width: 18px; height: 18px; border-radius: 50%; background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2); transition: transform 0.15s;
+}
+.toggle.on span { background: var(--green); }
+.toggle.on span::after { transform: translateX(16px); }
+.toggle.on { color: var(--text); }
+.toggle b { font-weight: 600; }

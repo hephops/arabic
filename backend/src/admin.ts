@@ -2,7 +2,8 @@ import { randomBytes, scryptSync, timingSafeEqual, createHmac } from 'node:crypt
 import { hit, reset } from './ratelimit.js';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { db } from './db.js';
-import { uzDayShift } from './tz.js';
+import { uzDayShift, uzToday } from './tz.js';
+import { dailyPrice, lowBalanceDays, serviceState, chargeShop, setSetting } from './billing.js';
 
 // Admin panel: alohida autentifikatsiya (login + parol) va boshqaruv API'si.
 // Do'konchi tokeni bilan admin API'ga kirib bo'lmaydi — token turi ajratilgan.
@@ -132,10 +133,12 @@ export function registerAdminRoutes(app: FastifyInstance) {
 
   // Bosh sahifa statistikasi
   app.get('/admin/stats', { preHandler: requireAdmin }, async () => {
+    const today = uzToday();
     const shops = db.prepare('SELECT COUNT(*) AS c FROM shops').get() as any;
+    // Faol = xizmati bugungi kunga to'langan va bloklanmagan
     const active = db
-      .prepare("SELECT COUNT(*) AS c FROM shops WHERE plan != 'free' AND plan_expires_at >= date('now', '+5 hours')")
-      .get() as any;
+      .prepare('SELECT COUNT(*) AS c FROM shops WHERE is_blocked = 0 AND charged_through >= ?')
+      .get(today) as any;
     const blocked = db.prepare('SELECT COUNT(*) AS c FROM shops WHERE is_blocked = 1').get() as any;
     const todayNew = db
       .prepare("SELECT COUNT(*) AS c FROM shops WHERE date(created_at, '+5 hours') = date('now', '+5 hours')")
@@ -148,11 +151,30 @@ export function registerAdminRoutes(app: FastifyInstance) {
         "SELECT COALESCE(SUM(amount), 0) AS s FROM balance_transactions WHERE type = 'topup' AND created_at >= datetime('now', '-30 days')"
       )
       .get() as any;
-    const mrr = db
+    // Oxirgi 30 kunda kunlik to'lov sifatida yechilgani — haqiqiy tushum
+    const earned = db
       .prepare(
-        "SELECT COALESCE(-SUM(amount), 0) AS s FROM balance_transactions WHERE type = 'subscription' AND created_at >= datetime('now', '-30 days')"
+        "SELECT COALESCE(-SUM(amount), 0) AS s FROM balance_transactions WHERE type = 'daily' AND created_at >= datetime('now', '-30 days')"
       )
       .get() as any;
+    const price = dailyPrice();
+    // Do'konlar balansida turgan, hali ishlatilmagan pul — bu bizning
+    // oldimizdagi majburiyat, tushum emas
+    const held = db.prepare('SELECT COALESCE(SUM(balance), 0) AS s FROM shops WHERE balance > 0').get() as any;
+    // Balansi tugayotganlar: pul tashlamasa yaqin kunda to'xtaydi
+    const lowDays = lowBalanceDays();
+    const lowBalance = db
+      .prepare(
+        `SELECT COUNT(*) AS c FROM shops
+         WHERE is_blocked = 0 AND charged_through >= ?
+           AND (CAST(julianday(charged_through) - julianday(?) AS INTEGER)
+                + CASE WHEN ? > 0 THEN balance / ? ELSE 0 END) <= ?`
+      )
+      .get(today, today, price, price, lowDays) as any;
+    // To'xtaganlar: xizmati to'lanmagan
+    const stopped = db
+      .prepare('SELECT COUNT(*) AS c FROM shops WHERE is_blocked = 0 AND (charged_through IS NULL OR charged_through < ?)')
+      .get(today) as any;
     const debts = db.prepare("SELECT COUNT(*) AS c FROM debts").get() as any;
     const reminders = db.prepare('SELECT COUNT(*) AS c FROM reminder_logs').get() as any;
     const calls = db.prepare("SELECT COUNT(*) AS c FROM reminder_logs WHERE channel = 'call'").get() as any;
@@ -172,12 +194,18 @@ export function registerAdminRoutes(app: FastifyInstance) {
 
     return {
       shops: shops.c,
-      active_subs: active.c,
+      active_shops: active.c,
       blocked: blocked.c,
       today_new: todayNew.c,
       total_topups: revenue.s,
       month_topups: monthRevenue.s,
-      mrr: mrr.s,
+      /** kunlik narx × faol do'kon — bugungi kutilayotgan tushum */
+      daily_income: active.c * price,
+      daily_price: price,
+      month_earned: earned.s,
+      held_balance: held.s,
+      low_balance: lowBalance.c,
+      stopped: stopped.c,
       debts: debts.c,
       reminders: reminders.c,
       calls: calls.c,
@@ -186,11 +214,11 @@ export function registerAdminRoutes(app: FastifyInstance) {
   });
 
   // Do'konlar ro'yxati
-  app.get<{ Querystring: { q?: string; plan?: string; limit?: string; offset?: string } }>(
+  app.get<{ Querystring: { q?: string; status?: string; limit?: string; offset?: string } }>(
     '/admin/shops',
     { preHandler: requireAdmin },
     async (req) => {
-      const { q, plan } = req.query;
+      const { q, status } = req.query;
       const limit = Math.min(Number(req.query.limit ?? 50), 200);
       const offset = Number(req.query.offset ?? 0);
       const where: string[] = [];
@@ -199,9 +227,15 @@ export function registerAdminRoutes(app: FastifyInstance) {
         where.push('(s.name LIKE ? OR s.phone LIKE ? OR s.owner_name LIKE ?)');
         params.push(`%${q}%`, `%${q}%`, `%${q}%`);
       }
-      if (plan && plan !== 'all') {
-        where.push('s.plan = ?');
-        params.push(plan);
+      // Holat: ishlayapti / to'xtagan / bloklangan
+      if (status === 'active') {
+        where.push('s.is_blocked = 0 AND s.charged_through >= ?');
+        params.push(uzToday());
+      } else if (status === 'stopped') {
+        where.push('s.is_blocked = 0 AND (s.charged_through IS NULL OR s.charged_through < ?)');
+        params.push(uzToday());
+      } else if (status === 'blocked') {
+        where.push('s.is_blocked = 1');
       }
       const clause = where.length ? `WHERE ${where.join(' AND ')}` : '';
       const rows = db
@@ -237,7 +271,7 @@ export function registerAdminRoutes(app: FastifyInstance) {
     const transactions = db
       .prepare('SELECT * FROM balance_transactions WHERE shop_id = ? ORDER BY created_at DESC LIMIT 30')
       .all(req.params.id);
-    return { ...(shop as any), stats, transactions };
+    return { ...(shop as any), stats, transactions, service: serviceState(shop) };
   });
 
   // Do'konni boshqarish: bloklash, obuna berish, balans qo'shish
@@ -258,7 +292,9 @@ export function registerAdminRoutes(app: FastifyInstance) {
     }
   );
 
-  app.post<{ Params: { id: string }; Body: { plan: string; days?: number } }>(
+  /** Bepul kun sovg'a qilish. Balansga tegilmaydi — xizmat to'langan
+   *  sana oldinga suriladi, ya'ni o'sha kunlar uchun pul yechilmaydi. */
+  app.post<{ Params: { id: string }; Body: { days?: number; note?: string } }>(
     '/admin/shops/:id/grant',
     { preHandler: requireAdmin },
     async (req, reply) => {
@@ -266,16 +302,18 @@ export function registerAdminRoutes(app: FastifyInstance) {
       if (!shop) return reply.code(404).send({ error: 'not_found' });
       const days = Math.max(1, Math.min(Number(req.body.days ?? 30), 365));
       db.prepare(
-        `UPDATE shops SET plan = ?, plan_expires_at = date(
-           CASE WHEN plan_expires_at > date('now', '+5 hours') THEN plan_expires_at ELSE date('now', '+5 hours') END, '+' || ? || ' days')
+        `UPDATE shops SET charged_through = date(
+           CASE WHEN charged_through > date('now', '+5 hours') THEN charged_through ELSE date('now', '+5 hours') END,
+           '+' || ? || ' days')
          WHERE id = ?`
-      ).run(req.body.plan, days, shop.id);
-      // Sovg'a — pul harakati emas, shuning uchun alohida tur bilan yoziladi
+      ).run(days, shop.id);
+      // Sovg'a — pul harakati emas, shuning uchun summasi nol
       db.prepare(
         "INSERT INTO balance_transactions (shop_id, type, amount, note, admin_id) VALUES (?, 'grant', 0, ?, ?)"
-      ).run(shop.id, `Admin sovg'asi: ${req.body.plan} — ${days} kun`, req.admin!.id);
-      log(req.admin!.id, 'grant_plan', `shop:${shop.id}`, `${req.body.plan} ${days}d`);
-      return db.prepare('SELECT * FROM shops WHERE id = ?').get(shop.id);
+      ).run(shop.id, req.body.note?.trim() || `Bepul kun sovg'asi — ${days} kun`, req.admin!.id);
+      log(req.admin!.id, 'grant_days', `shop:${shop.id}`, `${days}d`);
+      const fresh = db.prepare('SELECT * FROM shops WHERE id = ?').get(shop.id) as any;
+      return { ...fresh, service: serviceState(fresh) };
     }
   );
 
@@ -294,7 +332,10 @@ export function registerAdminRoutes(app: FastifyInstance) {
         req.body.note ?? 'Admin tomonidan'
       );
       log(req.admin!.id, 'adjust_balance', `shop:${shop.id}`, String(amount));
-      return db.prepare('SELECT balance FROM shops WHERE id = ?').get(shop.id);
+      // Xizmat to'xtab turgan bo'lsa — pul tushishi bilan qayta ochiladi
+      chargeShop(shop.id);
+      const fresh = db.prepare('SELECT * FROM shops WHERE id = ?').get(shop.id) as any;
+      return { ...fresh, service: serviceState(fresh) };
     }
   );
 
@@ -350,12 +391,16 @@ export function registerAdminRoutes(app: FastifyInstance) {
       .prepare(`SELECT COUNT(*) AS c FROM balance_transactions b JOIN shops s ON s.id = b.shop_id ${clause}`)
       .get(...params) as any).c;
 
-    // Filtr bo'yicha jamlanma (sahifadagi emas, butun tanlov bo'yicha)
+    // Filtr bo'yicha jamlanma (sahifadagi emas, butun tanlov bo'yicha).
+    // Kunlik yechim alohida ajratiladi: u bizning tushumimiz, "chiqim"
+    // esa qaytarish va qo'lda yechib olishlar — bularni bir joyga
+    // qo'shib yuborish hisobni chalkashtirardi.
     const agg = db
       .prepare(
         `SELECT
            COALESCE(SUM(CASE WHEN b.amount > 0 AND b.type != 'refund' THEN b.amount END), 0) AS kirim,
-           COALESCE(-SUM(CASE WHEN b.amount < 0 THEN b.amount END), 0) AS chiqim,
+           COALESCE(-SUM(CASE WHEN b.type = 'daily' THEN b.amount END), 0) AS kunlik,
+           COALESCE(-SUM(CASE WHEN b.amount < 0 AND b.type != 'daily' THEN b.amount END), 0) AS chiqim,
            COALESCE(SUM(CASE WHEN b.type = 'refund' THEN ABS(b.amount) END), 0) AS qaytarilgan
          FROM balance_transactions b JOIN shops s ON s.id = b.shop_id ${clause}`
       )
@@ -417,6 +462,8 @@ export function registerAdminRoutes(app: FastifyInstance) {
       return info.lastInsertRowid;
     });
     const id = tx();
+    // Pul tushgan bo'lsa — to'xtab turgan xizmat darhol qayta ochiladi
+    if (signed > 0) chargeShop(shop.id);
     log(req.admin!.id, 'add_payment', `shop:${shop.id}`, String(signed));
     return db.prepare('SELECT * FROM balance_transactions WHERE id = ?').get(id);
   });
@@ -439,14 +486,13 @@ export function registerAdminRoutes(app: FastifyInstance) {
       .prepare(
         `SELECT
            COUNT(*) AS jami,
-           COALESCE(SUM(CASE WHEN is_blocked = 0 THEN 1 END), 0) AS faol,
+           COALESCE(SUM(CASE WHEN is_blocked = 0 AND charged_through >= ? THEN 1 END), 0) AS ishlayapti,
+           COALESCE(SUM(CASE WHEN is_blocked = 0 AND (charged_through IS NULL OR charged_through < ?) THEN 1 END), 0) AS toxtagan,
            COALESCE(SUM(CASE WHEN is_blocked = 1 THEN 1 END), 0) AS bloklangan,
-           COALESCE(SUM(CASE WHEN plan = 'free' THEN 1 END), 0) AS bepul,
-           COALESCE(SUM(CASE WHEN plan = 'premium' THEN 1 END), 0) AS premium,
-           COALESCE(SUM(CASE WHEN plan = 'business' THEN 1 END), 0) AS biznes
+           COALESCE(SUM(CASE WHEN balance > 0 THEN balance END), 0) AS balans
          FROM shops`
       )
-      .get()
+      .get(uzToday(), uzToday())
   );
 
   // Eslatmalar va qo'ng'iroqlar monitoringi

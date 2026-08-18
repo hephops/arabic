@@ -1825,3 +1825,51 @@ button.link { background: none; color: var(--accent); font-size: 15px; font-weig
 }
 .intake-line b { color: var(--text); font-variant-numeric: tabular-nums; }
 .intake-line.bad, .intake-line.bad b { color: var(--red); }
+
+/* ── Balans: kunlik to'lov ──
+   Ikkita raqam muhim: qancha pul qolgan va u necha kunga yetadi.
+   Tarif tanlash yo'q, shuning uchun kartochkalar ham yo'q. */
+.bal-hero {
+  border-radius: 18px; padding: 20px 16px 18px; text-align: center;
+  color: #fff; margin-bottom: 14px;
+  background: linear-gradient(180deg, #34c759, #1ea94b);
+}
+.bal-hero.yellow { background: linear-gradient(180deg, #ffb340, #f08c00); }
+.bal-hero.red { background: linear-gradient(180deg, #ff6961, #e5342a); }
+.bal-cap { font-size: 12.5px; opacity: 0.9; letter-spacing: 0.2px; }
+.bal-sum { font-size: 34px; font-weight: 800; letter-spacing: -1.2px; margin: 2px 0 6px; }
+.bal-days { font-size: 15px; font-weight: 700; }
+.bal-until { font-size: 12.5px; opacity: 0.9; margin-top: 2px; }
+
+/* Tez to'ldirish: so'm emas, kun tanlanadi */
+.topup-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(104px, 1fr)); gap: 8px; margin-bottom: 12px; }
+.topup-card {
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  padding: 12px 8px; border-radius: 14px; border: none;
+  background: var(--card); box-shadow: var(--shadow); cursor: pointer;
+  font-family: inherit; color: var(--text);
+}
+.topup-card:active { background: var(--fill); }
+.topup-card b { font-size: 15px; font-weight: 700; letter-spacing: -0.3px; }
+.topup-card span { font-size: 12px; color: var(--muted); }
+
+/* Ogohlantirish tasmasi — har qanday ekranda tepada turadi */
+.bal-warn {
+  position: sticky; top: 0; z-index: 40; width: 100%;
+  display: flex; align-items: center; justify-content: center; gap: 7px;
+  padding: 9px 14px; border: none; cursor: pointer;
+  font-family: inherit; font-size: 13.5px; font-weight: 600; color: #fff;
+  background: var(--yellow);
+}
+.bal-warn.stop { background: var(--red); }
+
+/* To'lov kartasi — bosilsa raqam nusxalanadi */
+.pay-card {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  background: var(--card); border-radius: 14px; padding: 13px 15px;
+  box-shadow: var(--shadow); margin-bottom: 12px; cursor: pointer;
+}
+.pay-card:active { background: var(--fill); }
+.pc-cap { font-size: 12px; color: var(--muted); }
+.pc-num { font-size: 17px; font-weight: 700; letter-spacing: 0.4px; font-variant-numeric: tabular-nums; margin-top: 2px; }
+.pc-holder { font-size: 12.5px; color: var(--muted); margin-top: 1px; }

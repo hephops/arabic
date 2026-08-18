@@ -2,51 +2,66 @@ import { useEffect, useState } from 'react';
 import { api, fmt, fmtNum, fmtPhone, type Shop, type ShopDetail, type ShopsSummary } from '../api';
 import { AppIcon, Glyph } from '../icons';
 
-const PLAN_LABEL: Record<string, string> = { free: 'Bepul', premium: 'Premium', business: 'Biznes' };
 const PAGE_SIZES = [10, 25, 50, 100];
+
+/** Do'kon holati — kunlik to'lov bo'yicha */
+function shopState(s: { is_blocked: number; charged_through: string | null }, today: string) {
+  if (s.is_blocked) return { cls: 'bad', text: 'Bloklangan' };
+  if (!s.charged_through || s.charged_through < today) return { cls: 'bad', text: "To'xtagan" };
+  return { cls: 'ok', text: 'Ishlayapti' };
+}
+
+/** Balans yana necha kunga yetadi — serverdagi hisob bilan bir xil:
+ *  bugun ham hisobga kiradi, xizmat to'xtagan bo'lsa nol */
+function daysLeft(s: { balance: number; charged_through: string | null }, today: string, price: number) {
+  if (!s.charged_through || s.charged_through < today) return 0;
+  const ahead = Math.round(
+    (Date.parse(`${s.charged_through}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / 86400000
+  );
+  return ahead + 1 + (price > 0 ? Math.floor(Math.max(0, s.balance) / price) : 0);
+}
 
 export default function Shops() {
   const [rows, setRows] = useState<Shop[]>([]);
   const [total, setTotal] = useState(0);
   const [sum, setSum] = useState<ShopsSummary | null>(null);
   const [q, setQ] = useState('');
-  const [plan, setPlan] = useState('all');
   const [status, setStatus] = useState('all');
+  const [price, setPrice] = useState(0);
   const [limit, setLimit] = useState(10);
   const [offset, setOffset] = useState(0);
   const [selected, setSelected] = useState<ShopDetail | null>(null);
 
   function load() {
-    api.shops({ q, plan, limit, offset }).then((r) => {
+    api.shops({ q, status, limit, offset }).then((r) => {
       setRows(r.rows);
       setTotal(r.total);
     });
     api.shopsSummary().then(setSum).catch(() => {});
+    api.stats().then((st) => setPrice(st.daily_price)).catch(() => {});
   }
 
   useEffect(() => {
     const timer = setTimeout(load, q ? 300 : 0);
     return () => clearTimeout(timer);
-  }, [q, plan, limit, offset]);
-  useEffect(() => setOffset(0), [q, plan, status, limit]);
+  }, [q, status, limit, offset]);
+  useEffect(() => setOffset(0), [q, status, limit]);
 
-  // Holat bo'yicha filtr ro'yxat ichida qo'llanadi
-  const shown = rows.filter((s) =>
-    status === 'all' ? true : status === 'blocked' ? !!s.is_blocked : !s.is_blocked
-  );
+  // Holat filtri serverda qo'llanadi — sahifalash to'g'ri ishlashi uchun
+  const today = new Date(Date.now() + 5 * 3600_000).toISOString().slice(0, 10);
+  const shown = rows;
   const pageFrom = total === 0 ? 0 : offset + 1;
   const pageTo = Math.min(offset + limit, total);
-  const filtered = !!q || plan !== 'all' || status !== 'all';
+  const filtered = !!q || status !== 'all';
 
   return (
     <>
       <div className="cards">
         <Stat glyph="house" color="accent" k="Jami do'konlar" v={fmtNum(sum?.jami ?? 0)} />
-        <Stat glyph="people" color="green" k="Faol" v={fmtNum(sum?.faol ?? 0)} />
+        <Stat glyph="check" color="green" k="Ishlayapti" v={fmtNum(sum?.ishlayapti ?? 0)} />
+        <Stat glyph="clock" color="red" k="To'xtagan" v={fmtNum(sum?.toxtagan ?? 0)} />
         <Stat glyph="warning" color="red" k="Bloklangan" v={fmtNum(sum?.bloklangan ?? 0)} />
-        <Stat glyph="box" color="" k="Bepul" v={fmtNum(sum?.bepul ?? 0)} />
-        <Stat glyph="crown" color="accent" k="Premium" v={fmtNum(sum?.premium ?? 0)} />
-        <Stat glyph="banknote" color="indigo" k="Biznes" v={fmtNum(sum?.biznes ?? 0)} />
+        <Stat glyph="banknote" color="indigo" k="Balanslarda" v={fmt(sum?.balans ?? 0)} />
       </div>
 
       <div className="panel">
@@ -60,26 +75,18 @@ export default function Shops() {
             />
           </div>
           <div className="f">
-            <label>Tarif</label>
-            <select value={plan} onChange={(e) => setPlan(e.target.value)}>
-              <option value="all">Barcha tariflar</option>
-              <option value="free">Bepul</option>
-              <option value="premium">Premium</option>
-              <option value="business">Biznes</option>
-            </select>
-          </div>
-          <div className="f">
             <label>Holat</label>
             <select value={status} onChange={(e) => setStatus(e.target.value)}>
               <option value="all">Barcha holat</option>
-              <option value="active">Faol</option>
+              <option value="active">Ishlayapti</option>
+              <option value="stopped">To'xtagan (balans tugagan)</option>
               <option value="blocked">Bloklangan</option>
             </select>
           </div>
           <div className="f clear">
             <button
               className="btn ghost"
-              onClick={() => { setQ(''); setPlan('all'); setStatus('all'); }}
+              onClick={() => { setQ(''); setStatus('all'); }}
               disabled={!filtered}
             >
               <Glyph name="close" size={15} /> Tozalash
@@ -109,8 +116,8 @@ export default function Shops() {
             <tr>
               <th>Do'kon</th>
               <th>Telefon</th>
-              <th>Tarif</th>
               <th className="num">Balans</th>
+              <th className="num">Qolgan kun</th>
               <th className="num">Mijoz</th>
               <th className="num">Qarz</th>
               <th>Holat</th>
@@ -126,19 +133,22 @@ export default function Shops() {
                   <div className="cell-sub">{s.owner_name ?? '—'}</div>
                 </td>
                 <td className="muted">{fmtPhone(s.phone)}</td>
-                <td>
-                  <span className={`badge ${s.plan}`}>{PLAN_LABEL[s.plan] ?? s.plan}</span>
-                  {s.plan_expires_at && <div className="cell-sub">{s.plan_expires_at}</div>}
-                </td>
                 <td className="num" style={{ fontWeight: 600, color: s.balance < 0 ? 'var(--red)' : undefined }}>
                   {fmtNum(s.balance)} so'm
+                </td>
+                <td className="num">
+                  {(() => {
+                    const d = daysLeft(s, today, price);
+                    return <b style={{ color: d <= 0 ? 'var(--red)' : d <= 5 ? 'var(--yellow)' : undefined }}>{d}</b>;
+                  })()}
                 </td>
                 <td className="num">{s.customers_count ?? 0}</td>
                 <td className="num">{s.debts_count ?? 0}</td>
                 <td>
-                  <span className={`badge ${s.is_blocked ? 'bad' : 'ok'}`}>
-                    {s.is_blocked ? 'Bloklangan' : 'Faol'}
-                  </span>
+                  {(() => {
+                    const st = shopState(s, today);
+                    return <span className={`badge ${st.cls}`}>{st.text}</span>;
+                  })()}
                 </td>
                 <td className="muted">{s.created_at.slice(0, 10)}</td>
                 <td className="num"><Glyph name="chevron" size={15} color="#c7c7cc" /></td>
@@ -177,7 +187,6 @@ function ShopModal({
 }) {
   const [data, setData] = useState(shop);
   const [msg, setMsg] = useState('');
-  const [grantPlan, setGrantPlan] = useState('premium');
   const [grantDays, setGrantDays] = useState('30');
   const [amount, setAmount] = useState('');
   const [reason, setReason] = useState('');
@@ -220,18 +229,23 @@ function ShopModal({
           </div>
         </div>
 
+        {/* Balans va kunlik to'lov. Tarif yo'q — bepul kun sovg'a
+            qilinadi yoki balans to'g'rilanadi. */}
         <div className="panel" style={{ marginBottom: 12 }}>
-          <div className="panel-title">Tarif va balans</div>
+          <div className="panel-title">Balans va kunlik to'lov</div>
           <div className="muted" style={{ marginBottom: 10 }}>
-            Joriy: <b>{PLAN_LABEL[data.plan] ?? data.plan}</b>
-            {data.plan_expires_at && ` (${data.plan_expires_at} gacha)`} · Balans: <b>{fmt(data.balance)}</b>
+            Balans: <b>{fmt(data.balance)}</b> · Kunlik: <b>{fmt(data.service.daily_price)}</b> ·{' '}
+            {data.service.active ? (
+              <>
+                yana <b>{data.service.days_left}</b> kun (<b>{data.service.runs_out_on}</b> gacha)
+              </>
+            ) : (
+              <b style={{ color: 'var(--red)' }}>balans tugagan — xizmat to'xtagan</b>
+            )}
+            {data.service.on_trial && ' · sinov muddatida'}
           </div>
 
           <div className="toolbar">
-            <select value={grantPlan} onChange={(e) => setGrantPlan(e.target.value)}>
-              <option value="premium">Premium</option>
-              <option value="business">Biznes</option>
-            </select>
             <input
               style={{ width: 80 }}
               value={grantDays}
@@ -241,12 +255,12 @@ function ShopModal({
             <button
               className="btn sm"
               onClick={async () => {
-                await api.grantPlan(data.id, grantPlan, Number(grantDays) || 30);
-                setMsg('Obuna berildi');
+                await api.grantDays(data.id, Number(grantDays) || 30);
+                setMsg("Bepul kun qo'shildi");
                 reload();
               }}
             >
-              Obuna berish
+              Bepul kun berish
             </button>
           </div>
 

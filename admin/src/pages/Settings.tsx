@@ -1,31 +1,48 @@
 import { useEffect, useState } from 'react';
 import { api, fmt } from '../api';
 
-type Field = { key: string; label: string; hint?: string; money?: boolean };
+type Field = {
+  key: string;
+  label: string;
+  hint?: string;
+  /** so'mda — yoniga yozuv bilan ko'rsatiladi */
+  money?: boolean;
+  /** ha/yo'q tugmasi */
+  toggle?: boolean;
+  /** kunlik narxdan kelib chiqib "oyiga shuncha" deb ko'rsatiladi */
+  perMonth?: boolean;
+  wide?: boolean;
+};
 type Group = { title: string; sub?: string; fields: Field[] };
 
 // Sozlamalar shu yerda turadi — mijoz ilovasi qiymatlarni serverdan oladi,
 // ya'ni bu yerda o'zgartirilgan raqam darhol butun tizimga tatbiq bo'ladi.
+//
+// Tarif degan narsa yo'q: bitta kunlik narx bor, u har kuni do'kon
+// balansidan yechiladi.
 const GROUPS: Group[] = [
   {
-    title: 'Balans',
-    sub: "Do'konchi balansini to'ldirganda tekshiriladi",
+    title: "Kunlik to'lov",
+    sub: "Har kuni do'kon balansidan shuncha yechiladi",
     fields: [
+      { key: 'daily_price', label: 'Kunlik narx', money: true, perMonth: true, hint: 'Asosiy narx — hamma uchun bir xil' },
+      { key: 'trial_days', label: 'Bepul kunlar', hint: "Yangi do'konga beriladi, bu muddatda pul yechilmaydi" },
+      { key: 'low_balance_days', label: 'Ogohlantirish (kun)', hint: 'Shuncha kun qolganda do‘konchi ogohlantiriladi' },
       {
-        key: 'min_topup_amount',
-        label: "Minimal to'ldirish summasi",
-        hint: "Bundan kam summa kiritilsa ilova to'ldirishga ruxsat bermaydi",
-        money: true,
+        key: 'block_on_empty',
+        label: 'Balans tugasa to‘xtatilsinmi',
+        toggle: true,
+        hint: "Yoqilsa: balansi tugagan do'kon yangi yozuv qo'sha olmaydi. O'chiq bo'lsa faqat ogohlantiriladi",
       },
     ],
   },
   {
-    title: 'Tariflar',
-    sub: '30 kunlik obuna narxi, balansdan yechiladi',
+    title: "Balansni to'ldirish",
+    sub: "Do'konchi pulni shu kartaga o'tkazadi, siz Balans bo'limida kiritasiz",
     fields: [
-      { key: 'price_premium', label: 'Premium narxi', money: true },
-      { key: 'price_business', label: 'Biznes narxi', money: true },
-      { key: 'trial_days', label: 'Sinov muddati (kun)', hint: "Yangi do'kon uchun bepul kunlar" },
+      { key: 'topup_card', label: 'Karta raqami', wide: true, hint: 'Ilovada do‘konchiga ko‘rsatiladi' },
+      { key: 'topup_card_holder', label: 'Karta egasi' },
+      { key: 'min_topup_amount', label: "Eng kam to'ldirish", money: true },
     ],
   },
   {
@@ -34,11 +51,8 @@ const GROUPS: Group[] = [
     fields: [
       { key: 'sms_price', label: '1 ta SMS narxi', money: true },
       { key: 'call_price', label: "1 ta AI qo'ng'iroq narxi", money: true },
+      { key: 'referral_bonus', label: 'Taklif uchun bonus', money: true, hint: "Do'kon balansiga qo'shiladi" },
     ],
-  },
-  {
-    title: 'Referal',
-    fields: [{ key: 'referral_bonus', label: 'Taklif uchun bonus', hint: "Do'kon balansiga qo'shiladi", money: true }],
   },
   {
     title: "Qo'llab-quvvatlash",
@@ -46,6 +60,7 @@ const GROUPS: Group[] = [
     fields: [
       { key: 'support_phone', label: 'Telefon raqami' },
       { key: 'support_telegram', label: 'Telegram' },
+      { key: 'low_balance_notify', label: 'Balans ogohlantirishi (Telegram)', toggle: true },
     ],
   },
 ];
@@ -86,27 +101,41 @@ export default function Settings() {
   return (
     <>
 
+      {/* Maydonlar ustunma-ustun joylashadi — ilgari har biri butun
+          kenglikni egallab, sahifa cho'zilib ketardi */}
       {GROUPS.map((g) => (
         <div className="panel" key={g.title}>
           <h3>{g.title}</h3>
           {g.sub && <div className="muted" style={{ marginTop: -6, marginBottom: 12, fontSize: 13 }}>{g.sub}</div>}
-          {g.fields.map((f) => (
-            <div className="field" key={f.key}>
-              <label>{f.label}</label>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <input
-                  style={{ width: 220 }}
-                  value={value(f.key)}
-                  onChange={(e) => set(f.key, e.target.value)}
-                  placeholder="—"
-                />
-                {f.money && value(f.key) !== '' && !Number.isNaN(Number(value(f.key))) && (
-                  <span className="muted">{fmt(Number(value(f.key)))}</span>
+          <div className="set-grid">
+            {g.fields.map((f) => (
+              <div className={`set-field ${f.wide ? 'wide' : ''}`} key={f.key}>
+                <label>{f.label}</label>
+                {f.toggle ? (
+                  <button
+                    className={`toggle ${value(f.key) === '1' ? 'on' : ''}`}
+                    onClick={() => set(f.key, value(f.key) === '1' ? '0' : '1')}
+                  >
+                    <span />
+                    <b>{value(f.key) === '1' ? 'Yoqilgan' : "O'chiq"}</b>
+                  </button>
+                ) : (
+                  <>
+                    <input value={value(f.key)} onChange={(e) => set(f.key, e.target.value)} placeholder="—" />
+                    {f.money && value(f.key) !== '' && !Number.isNaN(Number(value(f.key))) && (
+                      <div className="set-note">
+                        {fmt(Number(value(f.key)))}
+                        {f.perMonth && Number(value(f.key)) > 0 && (
+                          <> · oyiga ~{fmt(Number(value(f.key)) * 30)} · yiliga ~{fmt(Number(value(f.key)) * 365)}</>
+                        )}
+                      </div>
+                    )}
+                  </>
                 )}
+                {f.hint && <div className="set-hint">{f.hint}</div>}
               </div>
-              {f.hint && <div className="muted" style={{ fontSize: 12, marginTop: 5 }}>{f.hint}</div>}
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       ))}
 

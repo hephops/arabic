@@ -3,14 +3,14 @@ import { api, fmt, logout, Shop, BalanceInfo, Employee } from '../api';
 import { AppIcon, Glyph } from '../icons';
 import { SubHeader, EmptyState } from '../ui';
 import { useT, LANG_NAMES, group, type Lang } from '../i18n';
-import { formatCard, cardDigits, formatPhone, maskCard, formatAmount, amountValue, fmtDateTime } from '../format';
+import { formatCard, cardDigits, formatPhone, maskCard, formatAmount, amountValue, fmtDateTime, fmtDay } from '../format';
 import { toast, loadFailed } from '../toast';
 import { scanSoundOn, setScanSound, beepOk, scanVibeOn, setScanVibe, vibrate } from '../beep';
 
 // iOS Sozlamalar uslubidagi kabinet: asosiy ekranda qatorlar,
 // har biri o'z ichki ekraniga ochiladi.
 
-type View = 'main' | 'balance' | 'plan' | 'shop' | 'language' | 'employees' | 'referral' | 'report';
+type View = 'main' | 'balance' | 'shop' | 'language' | 'employees' | 'referral' | 'report';
 
 
 
@@ -111,10 +111,7 @@ export default function Profile({
     );
   }
 
-  const planTitle = shop.plan === 'free' ? t('planFree') : bal.plans[shop.plan]?.title ?? shop.plan;
-
-  if (view === 'balance') return <BalanceView shop={shop} balance={bal} onBack={() => setView('main')} reload={load} />;
-  if (view === 'plan') return <PlanView shop={shop} balance={bal} onBack={() => setView('main')} reload={load} />;
+  if (view === 'balance') return <BalanceView balance={bal} onBack={() => setView('main')} reload={load} />;
   if (view === 'shop') return <ShopView shop={shop} onBack={() => setView('main')} reload={load} />;
   if (view === 'language') return <LanguageView shop={shop} onBack={() => setView('main')} reload={load} />;
   if (view === 'employees') return <EmployeesView shopPhone={shop.phone} onBack={() => setView('main')} />;
@@ -142,9 +139,19 @@ export default function Profile({
         <Glyph name="chevron" size={16} color="#c7c7cc" strokeWidth={2.2} />
       </div>
 
+      {/* Balans — bitta qator yetadi: pul va u necha kunga yetishi.
+          Tarif tanlash degan narsa yo'q, shuning uchun ikkinchi qator ham yo'q. */}
       <div className="list-group" style={{ marginTop: 14 }}>
-        <Row icon="banknote" label={t('navBalance')} value={fmt(shop.balance)} onClick={() => setView('balance')} />
-        <Row icon="crown" label={t('navPlan')} value={planTitle} onClick={() => setView('plan')} />
+        <Row
+          icon="banknote"
+          label={t('navBalance')}
+          value={
+            shop.service
+              ? `${fmt(shop.service.balance)} · ${shop.service.days_left} ${t('daysShort')}`
+              : fmt(shop.balance)
+          }
+          onClick={() => setView('balance')}
+        />
       </div>
 
       <div className="list-group">
@@ -242,20 +249,28 @@ export default function Profile({
   );
 }
 
-function BalanceView({ shop, balance, onBack, reload }: { shop: Shop; balance: BalanceInfo; onBack: () => void; reload: () => void }) {
+/**
+ * Balans va kunlik to'lov.
+ *
+ * Tarif yo'q — bitta kunlik narx bor. Do'konchi balansiga xohlagancha
+ * pul tashlaydi, biz esa har kuni bir kunlik narxni yechib boramiz.
+ * Shuning uchun ekranda ikkita raqam muhim: qancha pul qolgan va u
+ * necha kunga yetadi. Qolgani — tarix.
+ */
+function BalanceView({ balance, onBack, reload }: { balance: BalanceInfo; onBack: () => void; reload: () => void }) {
   const [amount, setAmount] = useState('');
   const { t } = useT();
-  const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
 
-  async function doTopup() {
-    const value = amountValue(amount);
+  async function doTopup(value: number) {
     if (!value) return;
     setError('');
     if (value < balance.min_topup) {
       setError(`${t('minAmount')}: ${fmt(balance.min_topup)}`);
       return;
     }
+    setBusy(true);
     try {
       await api.topup(value);
       toast.success(t('topup'), `+${fmt(value)}`);
@@ -263,149 +278,136 @@ function BalanceView({ shop, balance, onBack, reload }: { shop: Shop; balance: B
       reload();
     } catch (e: any) {
       setError(t('error') + ': ' + e.message);
-    }
-  }
-
-  return (
-    <>
-      <SubHeader title={t('navBalance')} onBack={onBack} />
-      <div className="screen">
-      <div className="card center" style={{ padding: '22px 16px' }}>
-        <AppIcon glyph="banknote" size={52} />
-        <div style={{ fontSize: 32, fontWeight: 800, letterSpacing: -1, margin: '10px 0 2px' }}>{fmt(shop.balance)}</div>
-        <div className="hint">{t('balanceFrom')}</div>
-      </div>
-
-      <div className="section-title">{t('topup')}</div>
-      <div className="card">
-        <input value={formatAmount(amount)} onChange={(e) => setAmount(e.target.value)} inputMode="numeric" placeholder={t('topupAmount')} />
-        <p className="hint" style={{ marginTop: 0 }}>{t('minAmount')}: {fmt(balance.min_topup)}</p>
-        <button className="btn-primary" onClick={doTopup} disabled={!amount}>
-          {t('topupVia')}
-        </button>
-        {message && <p className="hint center">{message}</p>}
-        {error && <p className="error">{error}</p>}
-      </div>
-
-      {balance.transactions.length > 0 && (
-        <>
-          <div className="section-title">{t('history')}</div>
-          <div className="list-group">
-            {balance.transactions.map((t) => (
-              <div className="list-item" key={t.id}>
-                <div>
-                  <div className="name">{t.note ?? t.type}</div>
-                  <div className="sub">{fmtDateTime(t.created_at)}</div>
-                </div>
-                <div className="amount" style={{ color: t.amount > 0 ? 'var(--green)' : 'var(--red)' }}>
-                  {t.amount > 0 ? '+' : ''}{fmt(t.amount)}
-                </div>
-              </div>
-            ))}
-          </div>
-        </>
-      )}
-      </div>
-    </>
-  );
-}
-
-function PlanView({ shop, balance, onBack, reload }: { shop: Shop; balance: BalanceInfo; onBack: () => void; reload: () => void }) {
-  const [message, setMessage] = useState('');
-  const { t } = useT();
-  const [error, setError] = useState('');
-  const [period, setPeriod] = useState<'month' | 'year'>('month');
-  const [busy, setBusy] = useState(false);
-
-  async function doSubscribe(plan: string) {
-    setError('');
-    setMessage('');
-    setBusy(true);
-    try {
-      await api.subscribe(plan, period);
-      toast.success(t('planActivated'));
-      reload();
-    } catch (e: any) {
-      setError(e.message === 'insufficient_balance' ? t('insufficientBalance') : t('error') + ': ' + e.message);
     } finally {
       setBusy(false);
     }
   }
 
-  const FEATURES: Record<string, string[]> = {
-    starter: ['planStarterF1', 'planStarterF2', 'planStarterF3'],
-    premium: ['planPremiumF1', 'planPremiumF2', 'planPremiumF3', 'planPremiumF4'],
-    business: ['planBusinessF1', 'planBusinessF2', 'planBusinessF3', 'planBusinessF4', 'planBusinessF5'],
-  };
-
-  const bonus = Math.max(0, 12 - Math.round((balance.plans.premium?.yearly ?? 0) / (balance.plans.premium?.price || 1)));
+  // Holat rangi: to'xtagan — qizil, kam qolgan — sariq, yetarli — yashil
+  const tone = !balance.active ? 'red' : balance.low ? 'yellow' : 'green';
 
   return (
     <>
-      <SubHeader title={t('navPlan')} onBack={onBack} />
+      <SubHeader title={t('navBalance')} onBack={onBack} />
       <div className="screen">
-      {/* Sinov muddati — nechta kun qolgani doim ko'rinib turadi */}
-      {shop.on_trial && (
-        <div className="trial-banner">
-          <AppIcon glyph="crown" size={34} />
-          <div>
-            <div className="t">{t('trialTitle')}</div>
-            <div className="s">{t('trialLeft').replace('{days}', String(shop.days_left ?? 0))}</div>
+        {/* Asosiy kartochka: pul va u necha kunga yetadi */}
+        <div className={`bal-hero ${tone}`}>
+          <div className="bal-cap">{t('balanceNow')}</div>
+          <div className="bal-sum">{fmt(balance.balance)}</div>
+          <div className="bal-days">
+            {balance.active
+              ? t('balanceDaysLeft').replace('{days}', String(balance.days_left))
+              : t('balanceEmpty')}
           </div>
+          {balance.active && balance.days_left > 0 && (
+            <div className="bal-until">{t('balanceUntil').replace('{date}', fmtDay(balance.runs_out_on))}</div>
+          )}
         </div>
-      )}
 
-      <div className="card center">
-        <div className="hint">{t('currentPlan')}</div>
-        <div style={{ fontSize: 22, fontWeight: 800 }}>
-          {shop.plan === 'free' ? t('planFree') : balance.plans[shop.plan]?.title ?? shop.plan}
-        </div>
-        {shop.plan_expires_at && <div className="hint">{shop.plan_expires_at} {t('untilDate')}</div>}
-      </div>
-
-      {/* Oylik / yillik */}
-      <div className="segmented sm" style={{ marginBottom: 12 }}>
-        <button className={period === 'month' ? 'on' : ''} onClick={() => setPeriod('month')}>
-          {t('periodMonth')}
-        </button>
-        <button className={period === 'year' ? 'on' : ''} onClick={() => setPeriod('year')}>
-          {t('periodYear')} {bonus > 0 && <span className="tag">+{bonus} {t('monthsShort')}</span>}
-        </button>
-      </div>
-
-      <div className="plan-cols">
-      {Object.entries(balance.plans).map(([id, p]) => {
-        const price = period === 'year' ? p.yearly : p.price;
-        const current = shop.plan === id;
-        return (
-        <div className={`card plan-card ${current ? 'on' : ''}`} key={id}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-            <div style={{ fontSize: 17, fontWeight: 700 }}>{p.title}</div>
-            <div style={{ fontWeight: 700 }}>
-              {group(price)} {t('currency')}/{period === 'year' ? t('yearly') : t('monthly')}
+        {/* Kunlik narx — qanday hisoblanayotgani ochiq turadi */}
+        <div className="list-group">
+          <div className="list-item">
+            <div className="lead">
+              <AppIcon glyph="calendar" size={29} />
+              <div>
+                <div className="name">{t('dailyPrice')}</div>
+                <div className="sub">{t('dailyPriceHint')}</div>
+              </div>
             </div>
+            <div className="amount">{fmt(balance.daily_price)}</div>
           </div>
-          {period === 'year' && (
-            <div className="hint" style={{ marginTop: 2 }}>
-              {t('perMonth').replace('{sum}', group(Math.round(price / 12)))}
+          {balance.on_trial && (
+            <div className="list-item">
+              <div className="lead">
+                <AppIcon glyph="gift" size={29} color="green" />
+                <div>
+                  <div className="name">{t('trialTitle')}</div>
+                  <div className="sub">{t('trialFreeHint')}</div>
+                </div>
+              </div>
+              <div className="amount" style={{ color: 'var(--green)' }}>
+                {t('freeWord')}
+              </div>
             </div>
           )}
-          <ul style={{ margin: '8px 0 4px', paddingLeft: 4, listStyle: 'none' }}>
-            {FEATURES[id]?.map((f) => (
-              <li key={f} style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '3px 0', fontSize: 14 }}>
-                <Glyph name="check" size={15} color="var(--green)" strokeWidth={2.6} /> {t(f)}
-              </li>
-            ))}
-          </ul>
-          <button className={current ? 'btn-ghost' : 'btn-primary'} disabled={busy} onClick={() => doSubscribe(id)}>
-            {current ? t('planExtend') : t('planActivate')}
-          </button>
         </div>
-        );
-      })}
-      </div>
-      {message && <p className="hint center">{message}</p>}
-      {error && <p className="error">{error}</p>}
+
+        {/* Tez to'ldirish: har bir tugma "necha kunga yetadi" deb yozilgan —
+            do'konchi so'mni emas, kunni tanlaydi */}
+        <div className="section-title">{t('topup')}</div>
+        <div className="topup-grid">
+          {balance.presets.map((p) => (
+            <button key={p.days} className="topup-card" disabled={busy} onClick={() => doTopup(p.amount)}>
+              <b>{fmt(p.amount)}</b>
+              <span>{t('forDays').replace('{days}', String(p.days))}</span>
+            </button>
+          ))}
+        </div>
+
+        {/* Karta — pulni qayerga o'tkazish kerakligi. Bosilsa nusxa
+            olinadi: uzun raqamni qo'lda ko'chirish xatoga olib keladi. */}
+        {balance.card && (
+          <div
+            className="pay-card"
+            onClick={() => {
+              navigator.clipboard?.writeText(balance.card.replace(/\s/g, ''));
+              toast.success(t('copied'));
+            }}
+          >
+            <div>
+              <div className="pc-cap">{t('topupCardTitle')}</div>
+              <div className="pc-num">{formatCard(balance.card)}</div>
+              {balance.card_holder && <div className="pc-holder">{balance.card_holder}</div>}
+            </div>
+            <Glyph name="copy" size={19} color="var(--accent)" />
+          </div>
+        )}
+
+        <div className="card">
+          <label>{t('topupOther')}</label>
+          <input
+            value={formatAmount(amount)}
+            onChange={(e) => setAmount(e.target.value)}
+            inputMode="numeric"
+            placeholder={t('topupAmount')}
+          />
+          <p className="hint" style={{ marginTop: 0 }}>
+            {t('minAmount')}: {fmt(balance.min_topup)}
+            {amountValue(amount) >= balance.daily_price && balance.daily_price > 0 && (
+              <>
+                {' · '}
+                {t('forDays').replace('{days}', String(Math.floor(amountValue(amount) / balance.daily_price)))}
+              </>
+            )}
+          </p>
+          <button className="btn-primary" onClick={() => doTopup(amountValue(amount))} disabled={!amount || busy}>
+            {t('topupVia')}
+          </button>
+          {error && <p className="error">{error}</p>}
+        </div>
+
+        {balance.transactions.length > 0 && (
+          <>
+            <div className="section-title">{t('history')}</div>
+            <div className="list-group">
+              {balance.transactions.map((tx) => (
+                <div className="list-item" key={tx.id}>
+                  <div>
+                    <div className="name">{tx.note ?? tx.type}</div>
+                    <div className="sub">{fmtDateTime(tx.created_at)}</div>
+                  </div>
+                  <div
+                    className="amount"
+                    style={{ color: tx.amount > 0 ? 'var(--green)' : tx.amount < 0 ? 'var(--red)' : 'var(--muted)' }}
+                  >
+                    {tx.amount > 0 ? '+' : ''}
+                    {tx.amount === 0 ? '—' : fmt(tx.amount)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
       </div>
     </>
   );

@@ -39,7 +39,6 @@ const LAUNCHER_ITEMS: { key: string; glyph: string; color?: string; target: NavT
   { key: 'navExpenses', glyph: 'wallet', target: { sub: 'expenses' } },
   { key: 'navInventory', glyph: 'boxes', target: { sub: 'inventory' } },
   { key: 'navBalance', glyph: 'banknote', target: { tab: 'profile', profileView: 'balance' } },
-  { key: 'navPlan', glyph: 'crown', target: { tab: 'profile', profileView: 'plan' } },
   { key: 'navEmployees', glyph: 'employee', target: { tab: 'profile', profileView: 'employees' } },
   { key: 'navReferral', glyph: 'gift', target: { tab: 'profile', profileView: 'referral' } },
   { key: 'navShop', glyph: 'card', target: { tab: 'profile', profileView: 'shop' } },
@@ -67,8 +66,7 @@ const SIDE_GROUPS: { key: string; glyph: string; color?: string; target: NavTarg
   ],
   [
     { key: 'navBalance', glyph: 'banknote', target: { tab: 'profile', profileView: 'balance' } },
-    { key: 'navPlan', glyph: 'crown', target: { tab: 'profile', profileView: 'plan' } },
-    { key: 'navEmployees', glyph: 'employee', target: { tab: 'profile', profileView: 'employees' } },
+      { key: 'navEmployees', glyph: 'employee', target: { tab: 'profile', profileView: 'employees' } },
     { key: 'navSettings', glyph: 'gear', target: { tab: 'profile' } },
   ],
 ];

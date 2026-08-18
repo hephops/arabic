@@ -4,7 +4,7 @@ import { mkdirSync, writeFileSync, existsSync, readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { db, markOverdueDebts } from './db.js';
-import { signToken, requireAuth, requireOwner } from './auth.js';
+import { signToken, requireAuth, requireOwner, verifyToken } from './auth.js';
 import { hit, reset } from './ratelimit.js';
 import { parseDebtText, parseCartText } from './voice.js';
 import { runReminders, startReminderScheduler } from './reminders.js';
@@ -13,6 +13,7 @@ import { registerAdminRoutes, seedAdmin } from './admin.js';
 import { normalizeBarcode, barcodeVariants, checkGtin, makeInStoreEan13, parseScaleBarcode, makeScaleBarcode, scaleQty } from './barcodes.js';
 import { normalizePhone } from './phone.js';
 import { normalizeUnit, normalizePriceQty } from './units.js';
+import { chargeShop, chargeAllShops, serviceState, getSetting, dailyPrice, trialThrough } from './billing.js';
 import { dailyFigures, reportText, sendDailyReport, startDailyReportScheduler } from './dailyReport.js';
 import { customerCode, receiptText } from './customerLink.js';
 import { uzToday, uzDayShift, uzDayStartUtc, uzPeriodStartUtc, uzMonthStartUtc } from './tz.js';
@@ -38,6 +39,29 @@ app.addHook('onSend', async (_req, reply) => {
   reply.header('Access-Control-Allow-Methods', 'GET, POST, PATCH, DELETE, OPTIONS');
 });
 app.options('*', async (_req, reply) => reply.code(204).send());
+
+// Balans tugaganda xizmatni to'xtatish.
+//
+// Odatda O'CHIQ: balansi tugagan do'kon ogohlantirish ko'radi, lekin
+// ishlashda davom etadi — savdo o'rtasida do'konni yopib qo'yish
+// do'konchi uchun ham, biz uchun ham yomon. Admin panelda yoqilsa,
+// yozuv amallari to'xtaydi, o'qish va balans to'ldirish esa ochiq
+// qoladi (aks holda do'konchi to'lay ham olmasdi).
+const OPEN_PATHS = /^\/(auth|public|balance|me|telegram|health)/;
+app.addHook('preHandler', async (req, reply) => {
+  if (req.method === 'GET' || req.method === 'OPTIONS') return;
+  if (OPEN_PATHS.test(req.url)) return;
+  if (getSetting('block_on_empty', '0') !== '1') return;
+  const header = req.headers.authorization;
+  const session = header?.startsWith('Bearer ') ? verifyToken(header.slice(7)) : null;
+  if (!session) return; // avtorizatsiyani o'z joyidagi tekshiruv hal qiladi
+  const shop = db.prepare('SELECT balance, charged_through, trial_ends_at FROM shops WHERE id = ?').get(session.shopId) as any;
+  if (!shop) return;
+  if (!serviceState(shop).active) {
+    reply.code(402).send({ error: 'balance_empty' });
+    return reply;
+  }
+});
 
 // ---------- AUTH ----------
 // SMS kod 5 daqiqa amal qiladi — eskisi bilan kirib bo'lmaydi
@@ -77,22 +101,15 @@ app.post<{ Body: { phone: string; code: string; shop_name?: string; ref?: string
   reset(`otp:${phone}`);
   let shop = db.prepare('SELECT * FROM shops WHERE phone = ?').get(phone) as any;
   if (!shop) {
-    // Yangi do'kon sinov muddatida Premium bilan boshlaydi — do'konchi
-    // hamma imkoniyatni ko'rib, keyin qaror qiladi
-    const trialDays = Math.max(0, Number(getSetting('trial_days', '14')));
+    // Yangi do'kon bepul kunlar bilan boshlaydi: shu muddatda balansdan
+    // hech narsa yechilmaydi, do'konchi hammasini ko'rib chiqadi
+    const start = trialThrough();
     const info = db
       .prepare(
-        `INSERT INTO shops (phone, name, referred_by, plan, plan_expires_at, trial_ends_at)
-         VALUES (?, ?, ?, ?, ?, ?)`
+        `INSERT INTO shops (phone, name, referred_by, charged_through, trial_ends_at)
+         VALUES (?, ?, ?, ?, ?)`
       )
-      .run(
-        phone,
-        shop_name ?? 'Mening do‘konim',
-        ref ?? null,
-        trialDays > 0 ? 'premium' : 'free',
-        trialDays > 0 ? uzDayShift(trialDays) : null,
-        trialDays > 0 ? uzDayShift(trialDays) : null
-      );
+      .run(phone, shop_name ?? 'Mening do‘konim', ref ?? null, start.charged_through, start.trial_ends_at);
     shop = db.prepare('SELECT * FROM shops WHERE id = ?').get(info.lastInsertRowid);
   }
   // Telegram ichidan kirilgan bo'lsa — hisobni bog'lab qo'yamiz
@@ -175,13 +192,12 @@ app.get('/me', { preHandler: requireAuth }, async (req) => {
   const employee = req.employeeId
     ? db.prepare('SELECT id, name, role FROM employees WHERE id = ?').get(req.employeeId)
     : null;
-  // Sinov muddati holati — ilova "N kun qoldi" deb ko'rsatadi
-  const today = uzToday();
-  const onTrial = !!shop.trial_ends_at && shop.trial_ends_at >= today && shop.plan_expires_at === shop.trial_ends_at;
-  const daysLeft = shop.plan_expires_at
-    ? Math.ceil((new Date(shop.plan_expires_at).getTime() - new Date(today).getTime()) / 86_400_000)
-    : 0;
-  return { ...shop, employee, plan_active: activePlan(shop), on_trial: onTrial, days_left: Math.max(0, daysLeft) };
+  // Xizmat holati — ilova "yana N kun yetadi" deb ko'rsatadi.
+  // Yechim shu yerda ham qilinadi: do'konchi ilovani ochishi bilan
+  // hisob bugungi kunga keltiriladi.
+  chargeShop(req.shopId!);
+  const fresh = db.prepare('SELECT * FROM shops WHERE id = ?').get(req.shopId) as any;
+  return { ...fresh, employee, service: serviceState(fresh) };
 });
 
 app.patch<{ Body: Record<string, unknown> }>('/me', { preHandler: requireOwner }, async (req) => {
@@ -194,27 +210,7 @@ app.patch<{ Body: Record<string, unknown> }>('/me', { preHandler: requireOwner }
   return db.prepare('SELECT * FROM shops WHERE id = ?').get(req.shopId);
 });
 
-// ---------- BALANS VA OBUNA ----------
-function getSetting(key: string, fallback: string): string {
-  const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(key) as any;
-  return row?.value ?? fallback;
-}
-
-// Tarif narxlari admin panelning sozlamalaridan olinadi — kodda qotib qolmagan.
-function getPlans(): Record<string, { price: number; title: string; yearly: number }> {
-  // Yillik to'lovda bir necha oy sovg'a qilinadi (masalan 12 oy narxiga 10 oy)
-  const bonus = Math.max(0, Math.min(Number(getSetting('yearly_bonus_months', '2')), 11));
-  const months = 12 - bonus;
-  const mk = (key: string, def: string, title: string) => {
-    const price = Number(getSetting(key, def));
-    return { price, title, yearly: price * months };
-  };
-  return {
-    starter: mk('price_starter', '39000', "Boshlang'ich"),
-    premium: mk('price_premium', '99000', 'Premium'),
-    business: mk('price_business', '199000', 'Biznes'),
-  };
-}
+// ---------- BALANS ----------
 
 /**
  * Mijozga yangi qarz yozish mumkinmi?
@@ -246,20 +242,37 @@ function checkCreditAllowed(
   return { ok: true };
 }
 
-/** Obuna muddati o'tgan bo'lsa amalda "bepul" hisoblanadi */
-function activePlan(shop: any): string {
-  if (!shop?.plan || shop.plan === 'free') return 'free';
-  if (shop.plan_expires_at && shop.plan_expires_at < uzToday()) return 'free';
-  return shop.plan;
-}
-
 app.get('/balance', { preHandler: requireOwner }, async (req) => {
-  const shop = db.prepare('SELECT balance, plan, plan_expires_at FROM shops WHERE id = ?').get(req.shopId) as any;
+  // Ko'rsatishdan oldin yechim: do'konchi ekranda har doim bugungi
+  // haqiqiy holatni ko'radi, jarayon qachon ishga tushganidan qat'i nazar
+  chargeShop(req.shopId!);
+  const shop = db.prepare('SELECT * FROM shops WHERE id = ?').get(req.shopId) as any;
   const transactions = db
-    .prepare('SELECT * FROM balance_transactions WHERE shop_id = ? ORDER BY created_at DESC LIMIT 50')
+    .prepare('SELECT * FROM balance_transactions WHERE shop_id = ? ORDER BY created_at DESC, id DESC LIMIT 50')
     .all(req.shopId);
-  return { ...shop, transactions, plans: getPlans(), min_topup: Number(getSetting('min_topup_amount', '10000')) };
+  return {
+    ...serviceState(shop),
+    transactions,
+    min_topup: Number(getSetting('min_topup_amount', '10000')),
+    // Tez to'ldirish tugmalari: do'konchi summani terib o'tirmasin
+    presets: topupPresets(),
+    // To'lov kartasi — do'konchi shu yerga pul o'tkazadi
+    card: getSetting('topup_card', ''),
+    card_holder: getSetting('topup_card_holder', ''),
+  };
 });
+
+/** Tez to'ldirish summalari — kunlik narxdan kelib chiqadi, shunda
+ *  har biri "necha kunga yetadi" degan tushunarli ma'noga ega bo'ladi */
+function topupPresets(): { amount: number; days: number }[] {
+  const price = dailyPrice();
+  if (price <= 0) return [];
+  return [30, 60, 90, 180, 365].map((days) => ({
+    // 1000 so'mgacha yaxlitlanadi — "99 000" ko'rinishi "98 700" dan yaxshi
+    amount: Math.round((days * price) / 1000) * 1000,
+    days,
+  }));
+}
 
 // DEV: to'ldirish darhol o'tadi. PROD: Payme/Click/Uzum to'lov oqimi orqali.
 app.post<{ Body: { amount: number } }>('/balance/topup', { preHandler: requireOwner }, async (req, reply) => {
@@ -273,38 +286,12 @@ app.post<{ Body: { amount: number } }>('/balance/topup', { preHandler: requireOw
     amount,
     "Balans to'ldirildi"
   );
-  return db.prepare('SELECT balance FROM shops WHERE id = ?').get(req.shopId);
+  // To'ldirishdan keyin darhol yechib qo'yamiz: xizmat to'xtab turgan
+  // bo'lsa do'konchi kutmasdan ishlashda davom etadi
+  chargeShop(req.shopId!);
+  const shop = db.prepare('SELECT * FROM shops WHERE id = ?').get(req.shopId) as any;
+  return serviceState(shop);
 });
-
-// Obunani balansdan yechib faollashtirish (1 oy)
-app.post<{ Body: { plan: string; period?: 'month' | 'year' } }>(
-  '/balance/subscribe',
-  { preHandler: requireOwner },
-  async (req, reply) => {
-    const plan = getPlans()[req.body.plan];
-    if (!plan) return reply.code(400).send({ error: 'invalid_plan' });
-    const year = req.body.period === 'year';
-    const cost = year ? plan.yearly : plan.price;
-    const days = year ? 365 : 30;
-
-    const shop = db.prepare('SELECT balance, plan_expires_at FROM shops WHERE id = ?').get(req.shopId) as any;
-    if (shop.balance < cost) return reply.code(400).send({ error: 'insufficient_balance' });
-    // Muddati tugamagan bo'lsa — ustiga qo'shiladi, kunlar yo'qolmaydi
-    db.prepare(
-      `UPDATE shops SET balance = balance - ?, plan = ?,
-         plan_expires_at = date(
-           CASE WHEN plan_expires_at > date('now', '+5 hours') THEN plan_expires_at ELSE date('now', '+5 hours') END,
-           '+' || ? || ' days')
-       WHERE id = ?`
-    ).run(cost, req.body.plan, days, req.shopId);
-    db.prepare("INSERT INTO balance_transactions (shop_id, type, amount, note) VALUES (?, 'subscription', ?, ?)").run(
-      req.shopId,
-      -cost,
-      `${plan.title} obuna — ${days} kun`
-    );
-    return db.prepare('SELECT balance, plan, plan_expires_at FROM shops WHERE id = ?').get(req.shopId);
-  }
-);
 
 // ---------- DASHBOARD ----------
 app.get('/dashboard', { preHandler: requireAuth }, async (req) => {
@@ -2420,6 +2407,20 @@ app.listen({ port, host: '0.0.0.0' }).then(() => {
       console.error('[qarz]', e);
     }
   }, 60 * 60 * 1000).unref?.();
+
+  // Kunlik to'lov. Soatiga bir marta yuriladi, lekin kuniga faqat bir
+  // marta ma'no beradi: to'langan kun ikkinchi marta yechilmaydi.
+  // Jarayon o'chib qolgan kunlar keyingi ishga tushishda hisoblanadi.
+  const runBilling = () => {
+    try {
+      const n = chargeAllShops();
+      if (n > 0) console.log(`[balans] ${n} ta do'kon bo'yicha kunlik yechim`);
+    } catch (e) {
+      console.error('[balans]', e);
+    }
+  };
+  runBilling();
+  setInterval(runBilling, 60 * 60 * 1000).unref?.();
   runReminders();
   startReminderScheduler();
   startDailyReportScheduler();

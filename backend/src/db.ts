@@ -116,12 +116,52 @@ for (const sql of [
   // "100 grammiga" bo'lishi mumkin — 0.1 shuni bildiradi. Narxning
   // o'zi bazada har doim 1 ombor birligi uchun turadi.
   'ALTER TABLE products ADD COLUMN price_qty REAL NOT NULL DEFAULT 1',
+  // Kunlik to'lov: xizmat qaysi kungacha to'langan
+  'ALTER TABLE shops ADD COLUMN charged_through TEXT',
 ]) {
   try {
     db.exec(sql);
   } catch {
     /* ustun allaqachon bor */
   }
+}
+
+// Kunlik to'lovga o'tish (bir martalik).
+//
+// Ilgari tarif va "obuna qachongacha" bor edi. Endi xizmat kunlik
+// yechiladi, lekin do'kon to'lab qo'ygan kunlar yo'qolmasligi kerak —
+// shuning uchun eski plan_expires_at shu yerda charged_through ga
+// ko'chiriladi. Muddati bo'lmaganlar bugundan boshlab hisoblanadi.
+try {
+  const cols = db.prepare('PRAGMA table_info(shops)').all() as any[];
+  const hadPlan = cols.some((c) => c.name === 'plan_expires_at');
+  db.exec(
+    `UPDATE shops SET charged_through = ${hadPlan ? "COALESCE(plan_expires_at, date('now', '+5 hours'))" : "date('now', '+5 hours')"}
+     WHERE charged_through IS NULL`
+  );
+} catch (e) {
+  console.warn("[db] kunlik to'lovga o'tish bajarilmadi:", e);
+}
+
+// Eski tarif ustunlari olib tashlanadi. Qiymati yuqorida charged_through
+// ga ko'chirilgan, o'zida esa yangi modelda ma'no yo'q — qolib ketsa
+// kod ularni bexosdan o'qib, eski holatni ko'rsatishi mumkin edi.
+for (const sql of ['ALTER TABLE shops DROP COLUMN plan', 'ALTER TABLE shops DROP COLUMN plan_expires_at']) {
+  try {
+    db.exec(sql);
+  } catch {
+    /* ustun allaqachon yo'q */
+  }
+}
+
+// Tarif sozlamalari endi ishlatilmaydi — sozlamalar ro'yxati toza tursin
+try {
+  db.exec(
+    `DELETE FROM settings WHERE key IN
+     ('price_starter', 'price_premium', 'price_business', 'yearly_bonus_months')`
+  );
+} catch {
+  /* sozlamalar jadvali hali yo'q */
 }
 
 // Ustunga tayanadigan indekslar migratsiyadan KEYIN yaratiladi.
