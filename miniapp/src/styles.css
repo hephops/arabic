@@ -424,8 +424,8 @@ button.link { background: none; color: var(--accent); font-size: 15px; font-weig
    Fokusda ramka aksent rangga o'tadi — qaysi maydonda turgani aniq. */
 .phone-field {
   display: flex; align-items: center; gap: 10px;
-  background: var(--bg); border-radius: 14px; padding: 0 14px; height: 54px;
-  box-shadow: inset 0 0 0 1px rgba(16, 32, 64, 0.06);
+  background: #f4f6f9; border-radius: 14px; padding: 0 14px; height: 54px;
+  box-shadow: inset 0 0 0 1px rgba(60, 60, 67, 0.1);
   transition: box-shadow 0.15s ease, background 0.15s ease;
   transition: box-shadow 0.15s ease;
 }
@@ -1061,9 +1061,28 @@ button.link { background: none; color: var(--accent); font-size: 15px; font-weig
     padding-left: 260px; height: 100vh; overflow-y: auto;
     transition: padding-left 0.22s cubic-bezier(0.32, 0.72, 0, 1);
   }
-  /* Kirish sahifasi keng ekranda o'rtada tursin */
-  .auth { height: 100vh; overflow-y: auto; }
-  .auth-body { padding-top: 0; min-height: 100vh; display: flex; flex-direction: column; justify-content: center; }
+  /* Kirish sahifasi keng ekranda: hammasi bitta oq kartochka ichida.
+     Telefonda bo'laklar alohida turgani chiroyli — u yerda ekran tor va
+     ular kenglikni to'ldiradi. Keng ekranda esa ular bo'sh maydonda
+     suzib yurgandek ko'rinardi, shuning uchun bir joyga yig'iladi. */
+  .auth { height: 100vh; overflow-y: auto; display: flex; align-items: center; justify-content: center; padding: 28px 20px; }
+  .auth-body {
+    padding: 30px 26px 20px; margin: auto; width: 100%; max-width: 384px;
+    background: #fff; border-radius: 24px;
+    box-shadow:
+      0 32px 64px -28px rgba(16, 27, 51, 0.4),
+      0 4px 14px -6px rgba(16, 27, 51, 0.12),
+      0 0 0 0.5px rgba(60, 60, 67, 0.08);
+  }
+  /* Ichkaridagi kartochka o'z soyasini tashlamaydi — u endi shu
+     kartochkaning bir qismi */
+  .auth-body .auth-card { background: none; box-shadow: none; padding: 0; }
+  .auth-body .btn-soft {
+    background: #f4f6f9; backdrop-filter: none; -webkit-backdrop-filter: none;
+    box-shadow: inset 0 0 0 1px rgba(60, 60, 67, 0.1);
+  }
+  .auth-body .btn-soft:active { background: #eaeef4; }
+  .auth-body .auth-brand { margin-bottom: 22px; }
   .screen { padding: 20px 28px 40px; max-width: 920px; margin: 0 auto; }
   /* Forma ko'rinishidagi ekranlar tor ustunda — o'qish oson bo'lsin */
   .screen.narrow { max-width: 620px; }
