@@ -89,6 +89,27 @@ xabar keladi.
 
 ---
 
+## Havolalar (start parametri)
+
+Bot bir nechta havolani tushunadi. Hammasi imzolangan — begona odam
+o'zi yasab, boshqa raqamni ulay olmaydi.
+
+| Havola | Kim bosadi | Nima bo'ladi |
+|---|---|---|
+| `?start=otp<raqam><imzo>` | do'konchi | raqami ulanadi, kirish kodi keladi |
+| `?start=sup<raqam><imzo>` | ta'minotchi | raqami ulanadi, buyurtmalar shu chatga keladi |
+| `?start=c<mijoz kodi>` | mijoz | cheklar va xarid tarixi shu chatga keladi |
+
+Ta'minotchi havolasini do'konchi **Buyurtma** ekranidan oladi:
+"Telegram" tugmasini bossa, ta'minotchi hali ulanmagan bo'lsa oyna
+chiqadi va havolani SMS bilan yuborishni taklif qiladi. Ta'minotchi bir
+marta bossa — bundan keyin buyurtma bir bosishda o'ziga boradi.
+
+Ta'minotchi — boshqa odam, shuning uchun unga **o'zining** Telegram
+tilida yoziladi (do'konchining tili emas).
+
+---
+
 ## Sozlash (server tomonida)
 
 `backend/.env` fayliga:

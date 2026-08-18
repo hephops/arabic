@@ -122,35 +122,70 @@ export function langForPhone(phone: string, fallbackCode?: string | null): BotLa
  * Shuning uchun "otp" + 12 raqam + 16 belgili imzo = 31 belgi.
  */
 const OTP_PREFIX = 'otp';
+// Ta'minotchini ulash havolasi — xuddi shunday tuzilgan, faqat boshqa
+// imzo bilan: kirish havolasini buyurtma havolasi sifatida ishlatib
+// bo'lmasin (va aksincha).
+const SUP_PREFIX = 'sup';
 
-function signPhone(phone: string): string {
+function signPhone(phone: string, ctx: string = 'otp'): string {
   return createHmac('sha256', process.env.AUTH_SECRET ?? 'dev-secret-change-in-prod')
-    .update(`otp:${phone}`)
+    .update(`${ctx}:${phone}`)
     .digest('hex')
     .slice(0, 16);
 }
 
-export function otpDeepLink(phone: string): string | null {
+function deepLink(prefix: string, phone: string, ctx: string): string | null {
   const bot = botUsername();
   const digits = phone.replace(/\D/g, '');
   if (!bot || digits.length !== 12) return null;
-  return `https://t.me/${bot}?start=${OTP_PREFIX}${digits}${signPhone(phone)}`;
+  return `https://t.me/${bot}?start=${prefix}${digits}${signPhone(`+${digits}`, ctx)}`;
+}
+
+export function otpDeepLink(phone: string): string | null {
+  return deepLink(OTP_PREFIX, phone, 'otp');
+}
+
+/** Ta'minotchiga beriladigan havola: bosgan zahoti raqami botga ulanadi */
+export function supplierDeepLink(phone: string): string | null {
+  return deepLink(SUP_PREFIX, phone, 'sup');
 }
 
 /** Havoladagi raqamni tekshirib qaytaradi (imzo to'g'ri bo'lsa) */
-function phoneFromPayload(payload: string): string | null {
-  if (!payload.startsWith(OTP_PREFIX)) return null;
-  const body = payload.slice(OTP_PREFIX.length);
+function phoneFrom(payload: string, prefix: string, ctx: string): string | null {
+  if (!payload.startsWith(prefix)) return null;
+  const body = payload.slice(prefix.length);
   if (body.length !== 28) return null;
   const digits = body.slice(0, 12);
   const sig = body.slice(12);
   if (!/^\d{12}$/.test(digits)) return null;
   const phone = `+${digits}`;
-  const expected = signPhone(phone);
+  const expected = signPhone(phone, ctx);
   const a = Buffer.from(sig);
   const b = Buffer.from(expected);
   if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
   return phone;
+}
+
+function phoneFromPayload(payload: string): string | null {
+  return phoneFrom(payload, OTP_PREFIX, 'otp');
+}
+
+function phoneFromSupplierPayload(payload: string): string | null {
+  return phoneFrom(payload, SUP_PREFIX, 'sup');
+}
+
+/** Raqamni Telegram chatiga bog'lash (bitta joyda — takrorlanmasin) */
+function linkPhone(phone: string, tgId: number, chatId: number, lang: BotLang, firstName: string | null) {
+  db.prepare(
+    `INSERT INTO telegram_links (phone, telegram_user_id, chat_id, language, first_name)
+     VALUES (?, ?, ?, ?, ?)
+     ON CONFLICT(phone) DO UPDATE SET
+       telegram_user_id = excluded.telegram_user_id,
+       chat_id = excluded.chat_id,
+       first_name = excluded.first_name`
+  ).run(phone, tgId, chatId, lang, firstName);
+  // Shu raqamli do'kon bo'lsa — unga ham bog'laymiz
+  db.prepare('UPDATE shops SET telegram_user_id = ? WHERE phone = ?').run(tgId, phone);
 }
 
 /** Telefon raqami bo'yicha ulangan Telegram chatini topish */
@@ -167,6 +202,26 @@ export async function sendLoginCode(phone: string, code: string): Promise<boolea
   const chatId = chatForPhone(phone);
   if (!chatId) return false;
   const res: any = await sendMessage(chatId, codeMessage(langForPhone(phone), code));
+  return !!res?.ok;
+}
+
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+/**
+ * Buyurtma matnini ta'minotchining Telegramiga yuborish.
+ *
+ * Do'konchi ilgari matnni qo'lda nusxalab, Telegramda ta'minotchini
+ * qidirib topib, qo'yib yuborardi. Ta'minotchi bir marta havolani bossa —
+ * shundan keyin buyurtma bir bosishda o'zi boradi.
+ */
+export async function sendOrderToSupplier(phone: string, shopName: string, text: string): Promise<boolean> {
+  const chatId = chatForPhone(phone);
+  if (!chatId) return false;
+  const lang = langForPhone(phone);
+  const head = bt(lang, 'supOrder', { shop: escapeHtml(shopName) });
+  const res: any = await sendMessage(chatId, `${head}\n\n${escapeHtml(text)}`);
   return !!res?.ok;
 }
 
@@ -267,17 +322,7 @@ export async function handleUpdate(update: any) {
       await sendMessage(chatId, bt(lang, 'sharePrompt'), { reply_markup: shareKeyboard(lang) });
       return;
     }
-    db.prepare(
-      `INSERT INTO telegram_links (phone, telegram_user_id, chat_id, language, first_name)
-       VALUES (?, ?, ?, ?, ?)
-       ON CONFLICT(phone) DO UPDATE SET
-         telegram_user_id = excluded.telegram_user_id,
-         chat_id = excluded.chat_id,
-         first_name = excluded.first_name`
-    ).run(phone, tgId, chatId, lang, msg.contact.first_name ?? null);
-    // Shu raqamli do'kon bo'lsa — unga ham bog'laymiz, kechki hisobot
-    // va eslatmalar shu chatga borishi uchun
-    db.prepare('UPDATE shops SET telegram_user_id = ? WHERE phone = ?').run(tgId, phone);
+    linkPhone(phone, tgId, chatId, lang, msg.contact.first_name ?? null);
 
     const waiting = pendingCode(phone);
     await sendMessage(chatId, bt(lang, 'linked'), { reply_markup: { remove_keyboard: true } });
@@ -301,15 +346,7 @@ export async function handleUpdate(update: any) {
       // xato berardi: do'konchining Telegrami ruscha bo'lsa ham ilovada
       // o'zbekchani tanlagan bo'lishi mumkin.
       const otpLang = langForPhone(otpPhone, msg.from?.language_code);
-      db.prepare(
-        `INSERT INTO telegram_links (phone, telegram_user_id, chat_id, language, first_name)
-         VALUES (?, ?, ?, ?, ?)
-         ON CONFLICT(phone) DO UPDATE SET
-           telegram_user_id = excluded.telegram_user_id,
-           chat_id = excluded.chat_id,
-           first_name = excluded.first_name`
-      ).run(otpPhone, tgId, chatId, otpLang, msg.from?.first_name ?? null);
-      db.prepare('UPDATE shops SET telegram_user_id = ? WHERE phone = ?').run(tgId, otpPhone);
+      linkPhone(otpPhone, tgId, chatId, otpLang, msg.from?.first_name ?? null);
 
       const waiting = pendingCode(otpPhone);
       if (waiting) {
@@ -320,6 +357,21 @@ export async function handleUpdate(update: any) {
       }
       return;
     }
+    // Ta'minotchi havolasi: do'konchi bergan havolani bosdi.
+    // Raqamini ulaymiz — endi buyurtmalar shu chatga keladi.
+    const supPhone = phoneFromSupplierPayload(payload);
+    if (supPhone) {
+      const supLang = langForPhone(supPhone, msg.from?.language_code);
+      linkPhone(supPhone, tgId, chatId, supLang, msg.from?.first_name ?? null);
+      const shop = db
+        .prepare('SELECT s.name FROM suppliers sp JOIN shops s ON s.id = sp.shop_id WHERE sp.phone = ? ORDER BY sp.id DESC LIMIT 1')
+        .get(supPhone) as any;
+      await sendMessage(chatId, bt(supLang, 'supLinked', { shop: escapeHtml(shop?.name ?? 'BuySale') }), {
+        reply_markup: { remove_keyboard: true },
+      });
+      return;
+    }
+
     if (payload.startsWith('c')) {
       const customerId = verifyCustomerCode(payload.slice(1));
       const customer = customerId

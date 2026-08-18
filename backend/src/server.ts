@@ -8,7 +8,10 @@ import { signToken, requireAuth, requireOwner, verifyToken } from './auth.js';
 import { hit, reset } from './ratelimit.js';
 import { parseDebtText, parseCartText } from './voice.js';
 import { runReminders, startReminderScheduler } from './reminders.js';
-import { handleUpdate, verifyInitData, telegramEnabled, setWebhook, sendMessage, sendLoginCode, botUsername, otpDeepLink } from './telegram.js';
+import {
+  handleUpdate, verifyInitData, telegramEnabled, setWebhook, sendMessage, sendLoginCode,
+  botUsername, otpDeepLink, supplierDeepLink, sendOrderToSupplier,
+} from './telegram.js';
 import { registerAdminRoutes, seedAdmin } from './admin.js';
 import { normalizeBarcode, barcodeVariants, checkGtin, makeInStoreEan13, parseScaleBarcode, makeScaleBarcode, scaleQty } from './barcodes.js';
 import { normalizePhone } from './phone.js';
@@ -1046,6 +1049,47 @@ app.patch<{ Params: { id: string }; Body: { status?: string } }>(
       ).run(status, status, status, order.id);
     }
     return db.prepare('SELECT * FROM orders WHERE id = ?').get(order.id);
+  }
+);
+
+/**
+ * Buyurtmani ta'minotchining Telegramiga yuborish.
+ *
+ * Ta'minotchi bot bilan ulangan bo'lsa — matn to'g'ridan-to'g'ri boradi.
+ * Ulanmagan bo'lsa, uni bir marta ulaydigan havolani qaytaramiz;
+ * ilova o'sha havolani SMS bilan yuborishni taklif qiladi.
+ */
+app.post<{ Body: { supplier_id?: number | null; text?: string } }>(
+  '/orders/send-telegram',
+  { preHandler: requireAuth },
+  async (req, reply) => {
+    const text = String(req.body?.text ?? '').trim();
+    if (!text) return reply.code(400).send({ error: 'no_text' });
+    // Telegram bitta xabarga 4096 belgi ruxsat beradi
+    if (text.length > 3500) return reply.code(400).send({ error: 'too_long' });
+
+    const supplierId = req.body?.supplier_id;
+    const supplier = supplierId
+      ? (db.prepare('SELECT * FROM suppliers WHERE id = ? AND shop_id = ?').get(supplierId, req.shopId) as any)
+      : null;
+    if (supplierId && !supplier) return reply.code(404).send({ error: 'not_found' });
+
+    const shop = db.prepare('SELECT name FROM shops WHERE id = ?').get(req.shopId) as any;
+    const phone = normalizePhone(supplier?.phone ?? '');
+
+    if (!supplier) return { sent: false, reason: 'no_supplier' };
+    if (!phone) return { sent: false, reason: 'no_phone', name: supplier.name };
+    if (!telegramEnabled()) return { sent: false, reason: 'bot_off', name: supplier.name };
+
+    const sent = await sendOrderToSupplier(phone, shop?.name ?? 'BuySale', text);
+    if (sent) return { sent: true, name: supplier.name };
+    return {
+      sent: false,
+      reason: 'not_linked',
+      name: supplier.name,
+      phone,
+      invite: supplierDeepLink(phone) ?? undefined,
+    };
   }
 );
 

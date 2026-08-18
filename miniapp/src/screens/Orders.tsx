@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { api, fmt, Order, OrderSuggestion, Shop, Supplier } from '../api';
+import { api, fmt, Order, OrderSendResult, OrderSuggestion, Shop, Supplier } from '../api';
 import { AppIcon, Glyph } from '../icons';
 import { SubHeader, Summary, EmptyState, Segmented } from '../ui';
 import { useT } from '../i18n';
@@ -40,6 +40,9 @@ export default function Orders({ onBack }: { onBack: () => void }) {
   const [busy, setBusy] = useState(false);
   // Chop etish (PDF): qaysi satrlar va kimga
   const [printing, setPrinting] = useState<{ lines: OrderSheetLine[]; supplier: string | null; date: string } | null>(null);
+  // Telegram: to'g'ridan-to'g'ri ketmasa — nima qilishni shu oyna so'raydi
+  const [tgSheet, setTgSheet] = useState<{ text: string; res: OrderSendResult } | null>(null);
+  const [tgBusy, setTgBusy] = useState(false);
   const { t } = useT();
 
   const loadSuggest = () =>
@@ -140,11 +143,40 @@ export default function Orders({ onBack }: { onBack: () => void }) {
     }
   }
 
-  /** Telegram'da "kimga yuborish" oynasini ochadi — ta'minotchi ro'yxatdan tanlanadi */
+  /**
+   * Telegram'ning "kimga yuborish" oynasi — zaxira yo'l.
+   *
+   * Matn `url` parametrida ketadi: `url` bo'sh bo'lsa Telegram sahifasi
+   * xato beradi va hech narsa ochilmaydi (kompyuterda shu bo'layotgan edi).
+   */
   function shareTelegram(text: string) {
-    const url = `https://t.me/share/url?url=&text=${encodeURIComponent(text)}`;
+    const url = `https://t.me/share/url?url=${encodeURIComponent(text)}`;
     if (tg?.openTelegramLink) tg.openTelegramLink(url);
     else window.open(url, '_blank');
+  }
+
+  /**
+   * Buyurtmani ta'minotchiga jo'natish.
+   *
+   * Ta'minotchi bot bilan ulangan bo'lsa — matn o'zi boradi, do'konchi
+   * hech narsa nusxalamaydi. Ulanmagan bo'lsa oyna ochiladi va nima
+   * qilish kerakligini aytadi.
+   */
+  async function sendTelegram(text: string, supplierId: number | null) {
+    if (tgBusy) return;
+    setTgBusy(true);
+    try {
+      const res = await api.sendOrderTelegram({ supplier_id: supplierId, text });
+      if (res.sent) {
+        toast.success(t('orderTgSent'), t('orderTgSentSub').replace('{name}', res.name ?? ''));
+        return;
+      }
+      setTgSheet({ text, res });
+    } catch (e: any) {
+      toast.error(t('error'), e.message);
+    } finally {
+      setTgBusy(false);
+    }
   }
 
   function shareSms(text: string, phone?: string | null) {
@@ -200,11 +232,15 @@ export default function Orders({ onBack }: { onBack: () => void }) {
     </PrintSheet>
   ) : null;
 
+  // Telegram oynasi — ikkala ko'rinishda ham kerak
+  const tgSheetEl = tgSheet ? <TelegramSheet data={tgSheet} onClose={() => setTgSheet(null)} onCopy={copy} onManual={shareTelegram} t={t} /> : null;
+
   if (openOrder) {
     const text = orderTextOf(openOrder, shop, t);
     return (
       <>
         {printSheet}
+        {tgSheetEl}
         <SubHeader title={openOrder.supplier_name ?? t('navOrders')} onBack={() => setOpenOrder(null)} />
         <div className="screen">
           <Summary
@@ -230,7 +266,7 @@ export default function Orders({ onBack }: { onBack: () => void }) {
             <button className="btn-chip" onClick={() => copy(text)}>
               <Glyph name="copy" size={16} color="var(--accent)" /> {t('copy')}
             </button>
-            <button className="btn-chip" onClick={() => shareTelegram(text)}>
+            <button className="btn-chip" onClick={() => sendTelegram(text, openOrder.supplier_id)} disabled={tgBusy}>
               <Glyph name="send" size={16} color="var(--accent)" /> Telegram
             </button>
             {openOrder.supplier_phone && (
@@ -270,6 +306,7 @@ export default function Orders({ onBack }: { onBack: () => void }) {
   return (
     <>
       {printSheet}
+      {tgSheetEl}
       <SubHeader title={t('navOrders')} onBack={onBack} />
       <div className="screen wide">
         <Segmented
@@ -373,7 +410,11 @@ export default function Orders({ onBack }: { onBack: () => void }) {
                       <button className="btn-chip" onClick={() => copy(orderText)}>
                         <Glyph name="copy" size={16} color="var(--accent)" /> {t('copy')}
                       </button>
-                      <button className="btn-chip" onClick={() => shareTelegram(orderText)}>
+                      <button
+                        className="btn-chip"
+                        onClick={() => sendTelegram(orderText, group === 'all' || group === NO_SUPPLIER ? null : group)}
+                        disabled={tgBusy}
+                      >
                         <Glyph name="send" size={16} color="var(--accent)" /> Telegram
                       </button>
                       <button className="btn-chip" onClick={() => shareSms(orderText, supplierPhone(suppliers, group))}>
@@ -439,6 +480,91 @@ export default function Orders({ onBack }: { onBack: () => void }) {
         )}
       </div>
     </>
+  );
+}
+
+/* ── Telegram: to'g'ridan-to'g'ri ketmaganda ── */
+
+/**
+ * Nega alohida oyna: "yubordim" deb o'ylab qolmasin.
+ *
+ * Buyurtma ta'minotchining Telegramiga faqat u bir marta havolani
+ * bosgandan keyin o'zi boradi. Shu bo'lmaguncha oyna sababini aytadi
+ * va nima qilish kerakligini bitta tugma qilib qo'yadi.
+ */
+function TelegramSheet({
+  data,
+  onClose,
+  onCopy,
+  onManual,
+  t,
+}: {
+  data: { text: string; res: OrderSendResult };
+  onClose: () => void;
+  onCopy: (text: string) => void;
+  onManual: (text: string) => void;
+  t: (k: string) => string;
+}) {
+  const r = data.res;
+  const name = r.name ?? '';
+  const title =
+    r.reason === 'not_linked'
+      ? t('orderTgNotLinked').replace('{name}', name)
+      : r.reason === 'no_phone'
+        ? t('orderTgNoPhone').replace('{name}', name)
+        : r.reason === 'bot_off'
+          ? t('orderTgOff')
+          : t('orderTgNoSupplier');
+  const sub =
+    r.reason === 'not_linked'
+      ? t('orderTgNotLinkedSub')
+      : r.reason === 'no_phone'
+        ? t('orderTgNoPhoneSub')
+        : r.reason === 'no_supplier'
+          ? t('orderTgNoSupplierSub')
+          : '';
+  const invite = r.invite ?? '';
+  const inviteText = `${t('orderTgInviteText')}\n${invite}`;
+
+  return (
+    <div className="sheet-wrap" onClick={onClose}>
+      <div className="sheet" onClick={(e) => e.stopPropagation()}>
+        <div className="sheet-grip" />
+        <div className="sheet-title">{title}</div>
+        {sub && <div className="sheet-sub">{sub}</div>}
+
+        {invite && (
+          <>
+            <div className="order-text">{invite}</div>
+            <div className="order-actions">
+              <button className="btn-chip" onClick={() => onCopy(inviteText)}>
+                <Glyph name="copy" size={16} color="var(--accent)" /> {t('orderTgInviteCopy')}
+              </button>
+              {r.phone && (
+                <button
+                  className="btn-chip"
+                  onClick={() => {
+                    window.location.href = `sms:${r.phone}?&body=${encodeURIComponent(inviteText)}`;
+                  }}
+                >
+                  <Glyph name="call" size={16} color="var(--accent)" /> {t('orderTgInviteSms')}
+                </button>
+              )}
+            </div>
+          </>
+        )}
+
+        <button
+          className="btn-ghost"
+          onClick={() => {
+            onManual(data.text);
+            onClose();
+          }}
+        >
+          <Glyph name="send" size={16} color="var(--accent)" /> {t('orderTgManual')}
+        </button>
+      </div>
+    </div>
   );
 }
 

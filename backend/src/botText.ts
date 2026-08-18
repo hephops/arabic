@@ -49,6 +49,9 @@ const UZ: Dict = {
     'Masalan: «Karim akaga 120 ming, shanbagacha»',
   notLinked: 'Avval /start bosing va raqamingizni yuboring.',
   reportOn: '✅ Kechki hisobot yoqildi. Har kuni shu yerga keladi.',
+  supLinked:
+    '✅ Ulandi.\n\nEndi <b>{shop}</b> yuboradigan buyurtmalar shu yerga keladi.',
+  supOrder: '🧾 <b>{shop}</b> — yangi buyurtma',
 };
 
 const RU: Dict = {
@@ -76,6 +79,9 @@ const RU: Dict = {
     'Например: «Кариму 120 тысяч, до субботы»',
   notLinked: 'Сначала нажмите /start и отправьте номер.',
   reportOn: '✅ Вечерний отчёт включён. Будет приходить сюда каждый день.',
+  supLinked:
+    '✅ Подключено.\n\nТеперь заказы от <b>{shop}</b> будут приходить сюда.',
+  supOrder: '🧾 <b>{shop}</b> — новый заказ',
 };
 
 // Kirillcha — o'zbekchaning kirill yozuvi. Ma'no bir xil.
@@ -103,6 +109,9 @@ const UZ_CYRL: Dict = {
     '/help — ёрдам',
   notLinked: 'Аввал /start босинг ва рақамингизни юборинг.',
   reportOn: '✅ Кечки ҳисобот ёқилди. Ҳар куни шу ерга келади.',
+  supLinked:
+    '✅ Уланди.\n\nЭнди <b>{shop}</b> юборадиган буюртмалар шу ерга келади.',
+  supOrder: '🧾 <b>{shop}</b> — янги буюртма',
 };
 
 const DICTS: Record<BotLang, Dict> = { uz: UZ, uz_cyrl: UZ_CYRL, ru: RU };

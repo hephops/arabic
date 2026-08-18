@@ -144,6 +144,9 @@ export const api = {
   updateOrder: (id: number, data: { status: 'draft' | 'sent' | 'received' }) =>
     request<Order>(`/orders/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   deleteOrder: (id: number) => request<{ ok: boolean }>(`/orders/${id}`, { method: 'DELETE' }),
+  // Buyurtmani ta'minotchining Telegramiga yuborish
+  sendOrderTelegram: (data: { supplier_id: number | null; text: string }) =>
+    request<OrderSendResult>('/orders/send-telegram', { method: 'POST', body: JSON.stringify(data) }),
   employees: () => request<Employee[]>('/employees'),
   createEmployee: (data: { name: string; pin: string }) =>
     request<Employee>('/employees', { method: 'POST', body: JSON.stringify(data) }),
@@ -453,6 +456,16 @@ export interface Order {
   received_at: string | null;
   created_at: string;
   items: OrderItem[];
+}
+
+/** /orders/send-telegram javobi */
+export interface OrderSendResult {
+  sent: boolean;
+  name?: string;
+  phone?: string;
+  /** ta'minotchini botga ulaydigan bir martalik havola */
+  invite?: string;
+  reason?: 'no_supplier' | 'no_phone' | 'bot_off' | 'not_linked';
 }
 
 export interface StocktakeRow {
