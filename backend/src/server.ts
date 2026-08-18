@@ -15,6 +15,7 @@ import {
 import { registerAdminRoutes, seedAdmin } from './admin.js';
 import { normalizeBarcode, barcodeVariants, checkGtin, makeInStoreEan13, parseScaleBarcode, makeScaleBarcode, scaleQty } from './barcodes.js';
 import { normalizePhone } from './phone.js';
+import { noteEmployeeLogin, notifyPinAttempts, recentLogins } from './staffAlert.js';
 import { normalizeUnit, normalizePriceQty } from './units.js';
 import { chargeShop, chargeAllShops, serviceState, getSetting, dailyPrice, trialThrough } from './billing.js';
 import { issueCode, checkCode, clearCode } from './otp.js';
@@ -161,7 +162,16 @@ app.post<{ Body: { phone: string; pin: string } }>('/auth/employee', async (req,
   const pin = (req.body?.pin ?? '').trim();
   if (!phone || !/^\d{4}$/.test(pin)) return reply.code(400).send({ error: 'phone_and_pin_required' });
   const gate = hit(`pin:${phone}`, PIN_LIMIT);
-  if (!gate.ok) return reply.code(429).send({ error: 'too_many_attempts', retry_after: gate.retryAfter });
+  if (!gate.ok) {
+    // PIN tanlab ko'rilyapti — egasi buni darhol bilishi kerak.
+    // Xabar blok BOSHLANGANDA bir marta ketadi, har rad etilgan
+    // so'rovda emas.
+    if (gate.justBlocked) {
+      const target = db.prepare('SELECT * FROM shops WHERE phone = ?').get(phone) as any;
+      if (target) notifyPinAttempts(target, gate.attempts ?? PIN_LIMIT.max).catch(() => {});
+    }
+    return reply.code(429).send({ error: 'too_many_attempts', retry_after: gate.retryAfter });
+  }
 
   const shop = db.prepare('SELECT * FROM shops WHERE phone = ?').get(phone) as any;
   if (!shop) return reply.code(404).send({ error: 'shop_not_found' });
@@ -172,6 +182,10 @@ app.post<{ Body: { phone: string; pin: string } }>('/auth/employee', async (req,
     .get(shop.id, pin) as any;
   if (!emp) return reply.code(401).send({ error: 'invalid_pin' });
   reset(`pin:${phone}`);
+
+  // Kirish yozib qo'yiladi va egasiga xabar beriladi. Telegram javobini
+  // kutmaymiz — xodim kassaga tezroq kirsin.
+  noteEmployeeLogin(shop, emp).catch(() => {});
 
   return {
     token: signToken(shop.id, emp.id),
@@ -230,7 +244,7 @@ app.get('/me', { preHandler: requireAuth }, async (req) => {
 });
 
 app.patch<{ Body: Record<string, unknown> }>('/me', { preHandler: requireOwner }, async (req) => {
-  const allowed = ['name', 'owner_name', 'address', 'language', 'card_number', 'daily_goal', 'report_enabled', 'report_hour', 'allow_negative_stock'];
+  const allowed = ['name', 'owner_name', 'address', 'language', 'card_number', 'daily_goal', 'report_enabled', 'report_hour', 'allow_negative_stock', 'staff_notify'];
   for (const key of allowed) {
     if (key in req.body) {
       db.prepare(`UPDATE shops SET ${key} = ? WHERE id = ?`).run(req.body[key], req.shopId);
@@ -1106,6 +1120,11 @@ app.get('/employees', { preHandler: requireOwner }, async (req) => {
   return db
     .prepare('SELECT id, name, role, pin, is_active, created_at FROM employees WHERE shop_id = ? ORDER BY created_at')
     .all(req.shopId);
+});
+
+// Kim, qachon kirdi — "Xodimlar" ekranidagi ro'yxat
+app.get('/employees/logins', { preHandler: requireOwner }, async (req) => {
+  return recentLogins(req.shopId!, 30);
 });
 
 app.post<{ Body: { name: string; pin: string } }>('/employees', { preHandler: requireOwner }, async (req, reply) => {

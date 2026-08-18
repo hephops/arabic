@@ -52,6 +52,13 @@ const UZ: Dict = {
   supLinked:
     '✅ Ulandi.\n\nEndi <b>{shop}</b> yuboradigan buyurtmalar shu yerga keladi.',
   supOrder: '🧾 <b>{shop}</b> — yangi buyurtma',
+  staffIn:
+    '👤 <b>{name}</b> ishga kirdi\n' +
+    '🕒 {time} · {shop}',
+  staffPinWarn:
+    '⚠️ <b>{shop}</b> — diqqat!\n\n' +
+    'PIN-kod {n} marta noto\'g\'ri terildi. Kirish vaqtincha to\'xtatildi.\n\n' +
+    'Agar bu sizning xodimingiz bo\'lmasa — PIN-kodni almashtiring.',
 };
 
 const RU: Dict = {
@@ -82,6 +89,13 @@ const RU: Dict = {
   supLinked:
     '✅ Подключено.\n\nТеперь заказы от <b>{shop}</b> будут приходить сюда.',
   supOrder: '🧾 <b>{shop}</b> — новый заказ',
+  staffIn:
+    '👤 <b>{name}</b> вышел на смену\n' +
+    '🕒 {time} · {shop}',
+  staffPinWarn:
+    '⚠️ <b>{shop}</b> — внимание!\n\n' +
+    'PIN-код ввели неверно {n} раз. Вход временно заблокирован.\n\n' +
+    'Если это не ваш сотрудник — смените PIN-код.',
 };
 
 // Kirillcha — o'zbekchaning kirill yozuvi. Ma'no bir xil.
@@ -112,6 +126,13 @@ const UZ_CYRL: Dict = {
   supLinked:
     '✅ Уланди.\n\nЭнди <b>{shop}</b> юборадиган буюртмалар шу ерга келади.',
   supOrder: '🧾 <b>{shop}</b> — янги буюртма',
+  staffIn:
+    '👤 <b>{name}</b> ишга кирди\n' +
+    '🕒 {time} · {shop}',
+  staffPinWarn:
+    '⚠️ <b>{shop}</b> — диққат!\n\n' +
+    'PIN-код {n} марта нотўғри терилди. Кириш вақтинча тўхтатилди.\n\n' +
+    'Агар бу сизнинг ходимингиз бўлмаса — PIN-кодни алмаштиринг.',
 };
 
 const DICTS: Record<BotLang, Dict> = { uz: UZ, uz_cyrl: UZ_CYRL, ru: RU };

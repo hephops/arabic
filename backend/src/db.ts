@@ -118,12 +118,45 @@ for (const sql of [
   'ALTER TABLE products ADD COLUMN price_qty REAL NOT NULL DEFAULT 1',
   // Kunlik to'lov: xizmat qaysi kungacha to'langan
   'ALTER TABLE shops ADD COLUMN charged_through TEXT',
+  // Xodim kirganda egasiga Telegram'ga xabar bersinmi
+  'ALTER TABLE shops ADD COLUMN staff_notify INTEGER NOT NULL DEFAULT 1',
 ]) {
   try {
     db.exec(sql);
   } catch {
     /* ustun allaqachon bor */
   }
+}
+
+// Xodim kirishlari jurnali: eski shaklda employee_id ga FOREIGN KEY
+// bor edi va u xodimni o'chirishga to'sqinlik qilardi. Jurnal — tarix,
+// u hech narsani ushlab turmasligi kerak. Ism ham endi shu yerda
+// saqlanadi, xodim o'chirilsa yozuv "kim" ekanini yo'qotmasin.
+try {
+  const cur = db
+    .prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'employee_logins'")
+    .get() as any;
+  if (cur?.sql && /REFERENCES\s+employees/i.test(cur.sql)) {
+    db.exec(`
+      CREATE TABLE employee_logins_new (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        shop_id INTEGER NOT NULL REFERENCES shops(id),
+        employee_id INTEGER NOT NULL,
+        employee_name TEXT,
+        notified INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      INSERT INTO employee_logins_new (id, shop_id, employee_id, employee_name, notified, created_at)
+        SELECT l.id, l.shop_id, l.employee_id, e.name, l.notified, l.created_at
+        FROM employee_logins l LEFT JOIN employees e ON e.id = l.employee_id;
+      DROP TABLE employee_logins;
+      ALTER TABLE employee_logins_new RENAME TO employee_logins;
+      CREATE INDEX IF NOT EXISTS idx_employee_logins_shop ON employee_logins(shop_id, created_at);
+    `);
+    console.log('[db] employee_logins qayta tuzildi (FOREIGN KEY olib tashlandi)');
+  }
+} catch (e) {
+  console.error('[db] employee_logins ni qayta tuzib bo\'lmadi', e);
 }
 
 // Kunlik to'lovga o'tish (bir martalik).

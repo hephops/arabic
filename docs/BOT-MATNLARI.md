@@ -82,6 +82,7 @@ foydalanuvchining tiliga qarab o'zi tanlanadi:
 | Salomlashish, raqam so'rash, kirish kodi | `backend/src/botText.ts` |
 | Qarz yozish javoblari | `backend/src/telegram.ts` |
 | Kechki hisobot | `backend/src/dailyReport.ts` |
+| Xodim kirdi, PIN ogohlantirishi | `backend/src/staffAlert.ts` |
 
 Til tartibi: do'konchi **ilovada tanlagan til** → ulanishda saqlangani →
 Telegram'ning o'z tili. Ya'ni ilovada ruschaga o'tsa, botdan ham ruscha
@@ -107,6 +108,21 @@ marta bossa — bundan keyin buyurtma bir bosishda o'ziga boradi.
 
 Ta'minotchi — boshqa odam, shuning uchun unga **o'zining** Telegram
 tilida yoziladi (do'konchining tili emas).
+
+---
+
+## Egasiga o'zi keladigan xabarlar
+
+| Xabar | Qachon |
+|---|---|
+| Kechki hisobot | har kuni, sozlangan soatda |
+| 👤 Xodim ishga kirdi | sotuvchi PIN bilan kirganda |
+| ⚠️ PIN noto'g'ri terildi | ketma-ket xato terishdan keyin kirish to'xtaganda |
+| Balans tugayapti | qolgan kun kamayganda |
+
+Xodim xabari **Sozlamalar → Xodimlar** da o'chiriladi. Bitta xodim yarim
+soat ichida qayta kirsa xabar takrorlanmaydi (ilovani yopib-ochish
+smena emas), lekin jurnalga baribir yoziladi.
 
 ---
 

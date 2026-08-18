@@ -24,6 +24,14 @@ export interface LimitResult {
   ok: boolean;
   /** blok tugashiga qolgan soniya */
   retryAfter: number;
+  /**
+   * Shu chaqiruvda bloklandimi. Blok davomida har so'rov ok=false
+   * qaytaradi, lekin ogohlantirish bir marta yuborilishi kerak —
+   * shuning uchun blok BOSHLANGAN payt alohida belgilanadi.
+   */
+  justBlocked?: boolean;
+  /** shu oynadagi urinishlar soni */
+  attempts?: number;
 }
 
 /** Urinishni hisobga oladi. ok=false bo'lsa — so'rov rad etilishi kerak. */
@@ -41,9 +49,9 @@ export function hit(key: string, opts: LimitOptions): LimitResult {
   b.count++;
   if (b.count > opts.max) {
     b.blockedUntil = now + opts.blockMs;
-    return { ok: false, retryAfter: Math.ceil(opts.blockMs / 1000) };
+    return { ok: false, retryAfter: Math.ceil(opts.blockMs / 1000), justBlocked: true, attempts: b.count };
   }
-  return { ok: true, retryAfter: 0 };
+  return { ok: true, retryAfter: 0, attempts: b.count };
 }
 
 /** Muvaffaqiyatli kirishdan keyin hisob tozalanadi */

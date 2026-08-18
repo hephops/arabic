@@ -148,6 +148,8 @@ export const api = {
   sendOrderTelegram: (data: { supplier_id: number | null; text: string }) =>
     request<OrderSendResult>('/orders/send-telegram', { method: 'POST', body: JSON.stringify(data) }),
   employees: () => request<Employee[]>('/employees'),
+  // Kim, qachon kirdi
+  employeeLogins: () => request<EmployeeLogin[]>('/employees/logins'),
   createEmployee: (data: { name: string; pin: string }) =>
     request<Employee>('/employees', { method: 'POST', body: JSON.stringify(data) }),
   updateEmployee: (id: number, data: { is_active: number }) =>
@@ -179,7 +181,7 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify({ default_reminder_mode: mode, apply_to_all: applyToAll }),
     }),
-  updateMe: (data: Partial<Pick<Shop, 'name' | 'owner_name' | 'address' | 'language' | 'card_number' | 'daily_goal' | 'report_enabled' | 'report_hour' | 'allow_negative_stock'>>) =>
+  updateMe: (data: Partial<Pick<Shop, 'name' | 'owner_name' | 'address' | 'language' | 'card_number' | 'daily_goal' | 'report_enabled' | 'report_hour' | 'allow_negative_stock' | 'staff_notify'>>) =>
     request<Shop>('/me', { method: 'PATCH', body: JSON.stringify(data) }),
   balance: () => request<BalanceInfo>('/balance'),
   topup: (amount: number) =>
@@ -225,6 +227,8 @@ export interface Shop {
   report_hour?: number;
   /** qoldiqdan ko'p sotishga ruxsat (0 — yo'q) */
   allow_negative_stock?: number;
+  /** xodim kirganda Telegram'ga xabar (1 — yoqilgan) */
+  staff_notify?: number;
 }
 
 /** Xizmat holati: tarif yo'q, balansdan har kuni bir kunlik narx yechiladi */
@@ -301,6 +305,14 @@ export interface Employee {
   is_active: number;
   /** faqat do'kon egasi ro'yxatida keladi — sotuvchiga aytish uchun */
   pin?: string;
+}
+
+/** Xodimning bitta kirishi */
+export interface EmployeeLogin {
+  id: number;
+  employee_id: number;
+  employee_name: string | null;
+  created_at: string;
 }
 
 export type ReminderMode = 'off' | 'soft' | 'medium' | 'call';

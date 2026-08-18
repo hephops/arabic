@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
-import { api, fmt, logout, Shop, BalanceInfo, Employee } from '../api';
+import { api, fmt, logout, Shop, BalanceInfo, Employee, EmployeeLogin } from '../api';
 import { AppIcon, Glyph } from '../icons';
 import { SubHeader, EmptyState } from '../ui';
 import { useT, LANG_NAMES, group, type Lang } from '../i18n';
-import { formatCard, cardDigits, formatPhone, maskCard, formatAmount, amountValue, fmtDateTime, fmtDay } from '../format';
+import { formatCard, cardDigits, formatPhone, maskCard, formatAmount, amountValue, fmtDateTime, fmtDay, fmtWhen } from '../format';
 import { toast, loadFailed } from '../toast';
 import { scanSoundOn, setScanSound, beepOk, scanVibeOn, setScanVibe, vibrate } from '../beep';
 
@@ -114,7 +114,7 @@ export default function Profile({
   if (view === 'balance') return <BalanceView balance={bal} onBack={() => setView('main')} reload={load} />;
   if (view === 'shop') return <ShopView shop={shop} onBack={() => setView('main')} reload={load} />;
   if (view === 'language') return <LanguageView shop={shop} onBack={() => setView('main')} reload={load} />;
-  if (view === 'employees') return <EmployeesView shopPhone={shop.phone} onBack={() => setView('main')} />;
+  if (view === 'employees') return <EmployeesView shop={shop} onBack={() => setView('main')} reload={load} />;
   if (view === 'referral') return <ReferralView onBack={() => setView('main')} />;
   if (view === 'report') return <ReportSettingsView shop={shop} onBack={() => setView('main')} reload={load} />;
 
@@ -513,8 +513,10 @@ function LanguageView({ shop, onBack, reload }: { shop: Shop; onBack: () => void
   );
 }
 
-function EmployeesView({ shopPhone, onBack }: { shopPhone: string; onBack: () => void }) {
+function EmployeesView({ shop, onBack, reload }: { shop: Shop; onBack: () => void; reload: () => void }) {
+  const shopPhone = shop.phone;
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [logins, setLogins] = useState<EmployeeLogin[]>([]);
   const { t } = useT();
   const [name, setName] = useState('');
   const [pin, setPin] = useState('');
@@ -522,7 +524,10 @@ function EmployeesView({ shopPhone, onBack }: { shopPhone: string; onBack: () =>
   const [opened, setOpened] = useState<Employee | null>(null);
   const [error, setError] = useState('');
 
-  const load = () => api.employees().then(setEmployees).catch(loadFailed);
+  const load = () => {
+    api.employees().then(setEmployees).catch(loadFailed);
+    api.employeeLogins().then(setLogins).catch(loadFailed);
+  };
   useEffect(() => {
     load();
   }, []);
@@ -613,6 +618,50 @@ function EmployeesView({ shopPhone, onBack }: { shopPhone: string; onBack: () =>
       )}
       {employees.length === 0 && !adding && (
         <EmptyState icon="employee" title={t('noEmployees')} sub={t('noEmployeesSub')} />
+      )}
+
+      {employees.length > 0 && (
+        <>
+          {/* Egasi do'konda doim bo'lmaydi. Smena qachon boshlangani va
+              tunda kimdir kirgan-kirmagani — u bilishi kerak bo'lgan narsa. */}
+          <div className="switch-row" style={{ marginTop: 14 }}>
+            <div style={{ minWidth: 0 }}>
+              <div className="sw-title">{t('staffNotify')}</div>
+              <div className="sw-sub">{t('staffNotifySub')}</div>
+            </div>
+            <button
+              className={`switch ${shop.staff_notify !== 0 ? 'on' : ''}`}
+              onClick={async () => {
+                try {
+                  await api.updateMe({ staff_notify: shop.staff_notify !== 0 ? 0 : 1 });
+                  reload();
+                } catch (e: any) {
+                  toast.error(t('error'), e.message);
+                }
+              }}
+              aria-label={t('staffNotify')}
+            >
+              <span />
+            </button>
+          </div>
+
+          <div className="section-title">{t('staffLogins')}</div>
+          {logins.length === 0 ? (
+            <p className="hint">{t('staffNoLogins')}</p>
+          ) : (
+            <div className="list-group">
+              {logins.map((l) => (
+                <div className="list-item" key={l.id}>
+                  <div className="lead">
+                    <AppIcon glyph="employee" color="teal" size={30} />
+                    <div className="name">{l.employee_name ?? '—'}</div>
+                  </div>
+                  <div className="amount muted">{fmtWhen(l.created_at)}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
       )}
       </div>
     </>

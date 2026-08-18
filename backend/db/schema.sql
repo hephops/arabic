@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS shops (
   referred_by TEXT,                              -- referal kodi (ARABIC<id>)
   daily_goal INTEGER NOT NULL DEFAULT 0,         -- kunlik savdo maqsadi (0 — yo'q)
   allow_negative_stock INTEGER NOT NULL DEFAULT 0, -- qoldiqdan ko'p sotishga ruxsat
+  staff_notify INTEGER NOT NULL DEFAULT 1,        -- xodim kirganda Telegram'ga xabar
   report_enabled INTEGER NOT NULL DEFAULT 1,     -- kechki avtomatik hisobot
   report_hour INTEGER NOT NULL DEFAULT 22,       -- qaysi soatda (O'zbekiston vaqti)
   last_report_date TEXT,                         -- oxirgi yuborilgan kun
@@ -336,6 +337,24 @@ CREATE INDEX IF NOT EXISTS idx_order_items ON order_items(order_id);
 -- Kirish kodi SMS o'rniga shu bog'lanish orqali botga yuboriladi.
 -- Alohida jadval kerak, chunki odam do'kon ochishdan OLDIN ham botga
 -- ulanishi mumkin (kod olish uchun) — o'shanda hali shops yozuvi yo'q.
+-- Xodimning kirishlari.
+--
+-- Egasi "kim, qachon ishga kirdi" ni ko'rishi kerak: smena qachon
+-- boshlangani va tunda kimdir kirgan-kirmagani shu yerdan bilinadi.
+-- Telegram xabari ham shu yozuvga qarab takrorlanmaydi.
+-- employee_id ga FOREIGN KEY qo'yilmagan: jurnal — tarix, u xodimni
+-- o'chirishga to'sqinlik qilmasligi kerak. Shuning uchun ism ham shu
+-- yerda saqlanadi: xodim o'chirilsa ham "kim kirgani" yozuvda qoladi.
+CREATE TABLE IF NOT EXISTS employee_logins (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  shop_id INTEGER NOT NULL REFERENCES shops(id),
+  employee_id INTEGER NOT NULL,
+  employee_name TEXT,
+  notified INTEGER NOT NULL DEFAULT 0,           -- Telegram'ga xabar ketdimi
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_employee_logins_shop ON employee_logins(shop_id, created_at);
+
 CREATE TABLE IF NOT EXISTS telegram_links (
   phone TEXT PRIMARY KEY,
   telegram_user_id INTEGER NOT NULL,
