@@ -1074,8 +1074,9 @@ button.link { background: none; color: var(--accent); font-size: 15px; font-weig
   .side {
     position: fixed; top: 0; left: 0; bottom: 0; width: 260px; z-index: 60;
     display: flex; flex-direction: column;
-    padding: 16px 14px 14px;
-    background: rgba(250, 250, 252, 0.92);
+    padding: 16px 12px 14px;
+    /* Yengil tik gradient — tekis oq fondan ko'ra tiniqroq ko'rinadi */
+    background: linear-gradient(180deg, rgba(252, 252, 254, 0.94), rgba(246, 246, 249, 0.94));
     backdrop-filter: blur(24px) saturate(180%); -webkit-backdrop-filter: blur(24px) saturate(180%);
     border-right: 0.5px solid var(--separator);
     overflow: hidden;
@@ -1088,10 +1089,13 @@ button.link { background: none; color: var(--accent); font-size: 15px; font-weig
   }
   .side-scroll::-webkit-scrollbar { display: none; }
   .side-brand {
-    display: flex; align-items: center; gap: 11px; padding: 4px 6px 8px;
+    display: flex; align-items: center; gap: 11px; padding: 4px 6px 12px;
     background: none; text-align: left; width: 100%; flex-shrink: 0;
     border-bottom: 0.5px solid var(--separator);
+    border-radius: 0;
   }
+  .side-brand:hover .side-logo { transform: scale(1.05); }
+  .side-logo { transition: transform 0.16s ease; }
   .side-brand-text { min-width: 0; overflow: hidden; }
   .side-logo {
     width: 40px; height: 40px; border-radius: 11px; flex-shrink: 0;
@@ -1103,14 +1107,29 @@ button.link { background: none; color: var(--accent); font-size: 15px; font-weig
   .side-name { font-size: 16px; font-weight: 700; letter-spacing: -0.3px; }
   .side-sub { font-size: 11.5px; color: var(--muted); }
 
-  .side-group { display: flex; flex-direction: column; gap: 2px; }
-  .side-group + .side-group { border-top: 0.5px solid var(--separator); padding-top: 14px; }
-  .side-item {
-    display: flex; align-items: center; gap: 11px;
-    padding: 9px 10px; border-radius: 11px; background: none;
-    font-size: 14.5px; font-weight: 500; color: var(--text); text-align: left; width: 100%;
+  .side-group { display: flex; flex-direction: column; gap: 1px; }
+  /* Bo'lim sarlavhasi — chiziq o'rniga nom: ro'yxat uzun bo'lsa
+     ko'z qaerga qarashni tezroq topadi */
+  .side-cap {
+    padding: 2px 12px 6px; font-size: 11px; font-weight: 700;
+    letter-spacing: 0.6px; text-transform: uppercase; color: #a1a1a8;
     white-space: nowrap;
   }
+  .side-item {
+    position: relative;
+    display: flex; align-items: center; gap: 11px;
+    padding: 8px 10px; border-radius: 10px; background: none;
+    font-size: 14.5px; font-weight: 500; color: var(--text); text-align: left; width: 100%;
+    white-space: nowrap;
+    transition: background 0.14s ease, color 0.14s ease;
+  }
+  /* Tanlangan bo'lim chap chekkasida ingichka aksent chiziq */
+  .side-item::before {
+    content: ''; position: absolute; left: -12px; top: 50%;
+    width: 3px; height: 0; border-radius: 0 3px 3px 0; background: var(--accent);
+    transform: translateY(-50%); transition: height 0.16s ease;
+  }
+  .side-item.active::before { height: 20px; }
 
   /* Menyu tagida — texnik yordam */
   .side-foot {
@@ -1127,6 +1146,11 @@ button.link { background: none; color: var(--accent); font-size: 15px; font-weig
     border-radius: 8px;
   }
   .side-foot-row:hover { color: var(--accent); background: rgba(120, 120, 128, 0.08); }
+  /* Tungi rejimda ham menyu fon bilan qo'shilib ketmasin */
+  @media (prefers-color-scheme: dark) {
+    .side { background: linear-gradient(180deg, rgba(30, 30, 33, 0.94), rgba(24, 24, 27, 0.94)); }
+    .side-cap { color: #6f6f76; }
+  }
 
   /* Menyuni yig'ish tugmasi sarlavhada */
   .side-toggle {
@@ -1140,7 +1164,12 @@ button.link { background: none; color: var(--accent); font-size: 15px; font-weig
   :root[data-side='min'] .side { width: 68px; padding-left: 10px; padding-right: 10px; }
   :root[data-side='min'] .app-shell { padding-left: 68px; }
   :root[data-side='min'] .side-label,
+  :root[data-side='min'] .side-cap,
   :root[data-side='min'] .side-brand-text { display: none; }
+  :root[data-side='min'] .side-group + .side-group {
+    border-top: 0.5px solid var(--separator); padding-top: 10px; margin-top: 4px;
+  }
+  :root[data-side='min'] .side-item::before { left: -10px; }
   :root[data-side='min'] .side-item,
   :root[data-side='min'] .side-brand,
   :root[data-side='min'] .side-foot-title,
@@ -1152,13 +1181,13 @@ button.link { background: none; color: var(--accent); font-size: 15px; font-weig
   :root[data-side='min'] .side-item { position: relative; }
   :root[data-side='min'] .scan { left: 68px; width: min(720px, calc(100vw - 128px)); }
   :root[data-side='min'] .deck { left: 68px; }
-  .side-item:hover { background: rgba(120, 120, 128, 0.1); }
+  .side-item:hover { background: rgba(120, 120, 128, 0.09); }
   .side-badge {
     margin-left: auto; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px;
     background: var(--red); color: #fff; font-size: 12px; font-weight: 700;
     display: flex; align-items: center; justify-content: center;
   }
-  .side-item.active { background: rgba(0, 122, 255, 0.11); color: var(--accent); font-weight: 600; }
+  .side-item.active { background: rgba(0, 122, 255, 0.1); color: var(--accent); font-weight: 650; }
 
   /* ── Pastdagi yashirin panel (macOS dock uslubida) ──
      Odatda faqat ingichka chiziqcha ko'rinadi; bosilsa barcha
@@ -1841,17 +1870,6 @@ button.link { background: none; color: var(--accent); font-size: 15px; font-weig
 .bal-days { font-size: 15px; font-weight: 700; }
 .bal-until { font-size: 12.5px; opacity: 0.9; margin-top: 2px; }
 
-/* Tez to'ldirish: so'm emas, kun tanlanadi */
-.topup-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(104px, 1fr)); gap: 8px; margin-bottom: 12px; }
-.topup-card {
-  display: flex; flex-direction: column; align-items: center; gap: 2px;
-  padding: 12px 8px; border-radius: 14px; border: none;
-  background: var(--card); box-shadow: var(--shadow); cursor: pointer;
-  font-family: inherit; color: var(--text);
-}
-.topup-card:active { background: var(--fill); }
-.topup-card b { font-size: 15px; font-weight: 700; letter-spacing: -0.3px; }
-.topup-card span { font-size: 12px; color: var(--muted); }
 
 /* Ogohlantirish tasmasi — har qanday ekranda tepada turadi */
 .bal-warn {

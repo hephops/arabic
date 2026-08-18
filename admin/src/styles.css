@@ -185,7 +185,7 @@ label { font-size: 12.5px; color: var(--muted); display: block; margin: 0 2px 5p
 .page-sub { font-size: 13.5px; color: var(--muted); margin: 2px 0 18px; }
 
 /* Ko'rsatkich kartochkalari */
-.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(168px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(196px, 1fr)); gap: 12px; margin-bottom: 16px; }
 .stat {
   background: var(--card); border-radius: 16px; padding: 14px 16px;
   display: flex; align-items: center; gap: 12px;
@@ -195,7 +195,12 @@ label { font-size: 12.5px; color: var(--muted); display: block; margin: 0 2px 5p
 .stat:not(:has(.txt)) { display: block; }
 .stat .txt { min-width: 0; }
 .stat .k { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.stat .v { font-size: 21px; font-weight: 750; letter-spacing: -0.6px; margin-top: 1px; white-space: nowrap; }
+/* Summa kartochkadan chiqib ketmasin: raqamning o'zi uzilmaydi
+   (ajratgich — uzilmaydigan probel), faqat "so'm" pastga tushadi */
+.stat .v {
+  font-size: 20px; font-weight: 750; letter-spacing: -0.6px; margin-top: 1px;
+  line-height: 1.2; overflow-wrap: break-word;
+}
 .stat .v.green { color: var(--green); }
 .stat .v.red { color: var(--red); }
 .stat .v.accent { color: var(--accent); }
@@ -423,3 +428,10 @@ td.num, th.num { text-align: right; white-space: nowrap; }
 .toggle.on span::after { transform: translateX(16px); }
 .toggle.on { color: var(--text); }
 .toggle b { font-weight: 600; }
+
+/* Jadvalda belgilash ustuni */
+th.pick, td.pick { width: 36px; text-align: center; padding-left: 12px; padding-right: 0; }
+th.pick input, td.pick input { width: 16px; height: 16px; cursor: pointer; accent-color: var(--accent); }
+tr.picked { background: rgba(0, 122, 255, 0.06); }
+.btn.danger { background: var(--red); color: #fff; }
+.btn.danger:hover { filter: brightness(0.94); }

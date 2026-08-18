@@ -257,31 +257,19 @@ export default function Profile({
  * Shuning uchun ekranda ikkita raqam muhim: qancha pul qolgan va u
  * necha kunga yetadi. Qolgani — tarix.
  */
-function BalanceView({ balance, onBack, reload }: { balance: BalanceInfo; onBack: () => void; reload: () => void }) {
+function BalanceView({ balance, onBack }: { balance: BalanceInfo; onBack: () => void; reload: () => void }) {
   const [amount, setAmount] = useState('');
   const { t } = useT();
-  const [error, setError] = useState('');
-  const [busy, setBusy] = useState(false);
+  const [support, setSupport] = useState<{ phone: string; telegram: string }>({ phone: '', telegram: '' });
 
-  async function doTopup(value: number) {
-    if (!value) return;
-    setError('');
-    if (value < balance.min_topup) {
-      setError(`${t('minAmount')}: ${fmt(balance.min_topup)}`);
-      return;
-    }
-    setBusy(true);
-    try {
-      await api.topup(value);
-      toast.success(t('topup'), `+${fmt(value)}`);
-      setAmount('');
-      reload();
-    } catch (e: any) {
-      setError(t('error') + ': ' + e.message);
-    } finally {
-      setBusy(false);
-    }
-  }
+  useEffect(() => {
+    api.support().then(setSupport).catch(() => {});
+  }, []);
+
+  // Kiritilgan summa necha kunga yetishi — hisoblagich, to'lov emas.
+  // Pul faqat kartaga o'tkazish orqali tushadi.
+  const typed = amountValue(amount);
+  const typedDays = balance.daily_price > 0 ? Math.floor(typed / balance.daily_price) : 0;
 
   // Holat rangi: to'xtagan — qizil, kam qolgan — sariq, yetarli — yashil
   const tone = !balance.active ? 'red' : balance.low ? 'yellow' : 'green';
@@ -332,21 +320,13 @@ function BalanceView({ balance, onBack, reload }: { balance: BalanceInfo; onBack
           )}
         </div>
 
-        {/* Tez to'ldirish: har bir tugma "necha kunga yetadi" deb yozilgan —
-            do'konchi so'mni emas, kunni tanlaydi */}
+        {/* To'ldirish: pul kartaga o'tkaziladi.
+            Ilovada "bosdim — pul tushdi" degan tugma yo'q: bu haqiqiy
+            to'lov emas edi va bir necha marta bosilganda balansga
+            yo'qdan pul qo'shib yuborardi. */}
         <div className="section-title">{t('topup')}</div>
-        <div className="topup-grid">
-          {balance.presets.map((p) => (
-            <button key={p.days} className="topup-card" disabled={busy} onClick={() => doTopup(p.amount)}>
-              <b>{fmt(p.amount)}</b>
-              <span>{t('forDays').replace('{days}', String(p.days))}</span>
-            </button>
-          ))}
-        </div>
 
-        {/* Karta — pulni qayerga o'tkazish kerakligi. Bosilsa nusxa
-            olinadi: uzun raqamni qo'lda ko'chirish xatoga olib keladi. */}
-        {balance.card && (
+        {balance.card ? (
           <div
             className="pay-card"
             onClick={() => {
@@ -361,10 +341,13 @@ function BalanceView({ balance, onBack, reload }: { balance: BalanceInfo; onBack
             </div>
             <Glyph name="copy" size={19} color="var(--accent)" />
           </div>
+        ) : (
+          <p className="hint">{t('topupNoCard')}</p>
         )}
 
+        {/* Hisoblagich: "shuncha pul shuncha kunga yetadi" */}
         <div className="card">
-          <label>{t('topupOther')}</label>
+          <label>{t('topupCalc')}</label>
           <input
             value={formatAmount(amount)}
             onChange={(e) => setAmount(e.target.value)}
@@ -372,19 +355,24 @@ function BalanceView({ balance, onBack, reload }: { balance: BalanceInfo; onBack
             placeholder={t('topupAmount')}
           />
           <p className="hint" style={{ marginTop: 0 }}>
-            {t('minAmount')}: {fmt(balance.min_topup)}
-            {amountValue(amount) >= balance.daily_price && balance.daily_price > 0 && (
-              <>
-                {' · '}
-                {t('forDays').replace('{days}', String(Math.floor(amountValue(amount) / balance.daily_price)))}
-              </>
-            )}
+            {typedDays > 0
+              ? t('topupCalcResult').replace('{days}', String(typedDays))
+              : `${t('minAmount')}: ${fmt(balance.min_topup)}`}
           </p>
-          <button className="btn-primary" onClick={() => doTopup(amountValue(amount))} disabled={!amount || busy}>
-            {t('topupVia')}
-          </button>
-          {error && <p className="error">{error}</p>}
         </div>
+
+        <p className="hint">{t('topupHowTo')}</p>
+        {support.telegram && (
+          <a
+            className="btn-ghost"
+            href={`https://t.me/${support.telegram.replace(/^@/, '')}`}
+            target="_blank"
+            rel="noreferrer"
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, textDecoration: 'none' }}
+          >
+            <Glyph name="send" size={16} color="var(--accent)" /> {t('topupWriteUs')}
+          </a>
+        )}
 
         {balance.transactions.length > 0 && (
           <>

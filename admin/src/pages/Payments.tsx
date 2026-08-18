@@ -41,6 +41,9 @@ export default function Payments() {
   const [offset, setOffset] = useState(0);
 
   const [shops, setShops] = useState<Shop[]>([]);
+  // Belgilangan yozuvlar. Xato kiritilgan to'lovlar ko'p bo'lsa
+  // bittalab o'chirish charchatadi — belgilab birdan o'chiriladi.
+  const [picked, setPicked] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     api.shops({ limit: 200 }).then((r) => setShops(r.rows)).catch(() => {});
@@ -76,6 +79,34 @@ export default function Payments() {
       load();
     } catch (e: any) {
       alert('Xatolik: ' + e.message);
+    }
+  }
+
+  function toggle(id: number) {
+    setPicked((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+
+  const pageIds = rows.map((r) => r.id);
+  const allPicked = pageIds.length > 0 && pageIds.every((id) => picked.has(id));
+
+  /** Belgilanganlarni birdan o'chirish — har biri balansni qaytaradi */
+  async function removePicked() {
+    const ids = rows.filter((r) => picked.has(r.id));
+    if (!ids.length) return;
+    const sum = ids.reduce((a, r) => a + r.amount, 0);
+    if (!confirm(`${ids.length} ta yozuv o'chirilsin va balans qaytarilsinmi? (${fmt(sum)})`)) return;
+    setBusy(true);
+    try {
+      for (const r of ids) await api.deletePayment(r.id);
+      setPicked(new Set());
+      load();
+    } catch (e: any) {
+      alert('Xatolik: ' + e.message);
+      load();
     }
   }
 
@@ -169,6 +200,11 @@ export default function Payments() {
         <button className="btn ghost" onClick={exportCsv} disabled={!rows.length}>
           <Glyph name="arrowDown" size={15} /> Export
         </button>
+        {picked.size > 0 && (
+          <button className="btn danger" onClick={removePicked} disabled={busy}>
+            <Glyph name="trash" size={15} color="#fff" /> Belgilanganni o'chirish ({picked.size})
+          </button>
+        )}
         <div className="spacer" />
         <select value={limit} onChange={(e) => setLimit(Number(e.target.value))} style={{ width: 90 }}>
           {PAGE_SIZES.map((n) => <option key={n} value={n}>{n}</option>)}
@@ -186,6 +222,21 @@ export default function Payments() {
         <table>
           <thead>
             <tr>
+              <th className="pick">
+                <input
+                  type="checkbox"
+                  checked={allPicked}
+                  onChange={() =>
+                    setPicked((prev) => {
+                      const next = new Set(prev);
+                      if (allPicked) pageIds.forEach((id) => next.delete(id));
+                      else pageIds.forEach((id) => next.add(id));
+                      return next;
+                    })
+                  }
+                  aria-label="Hammasini belgilash"
+                />
+              </th>
               <th>Sana</th>
               <th>Turi</th>
               <th>Do'kon</th>
@@ -200,7 +251,15 @@ export default function Payments() {
           </thead>
           <tbody>
             {rows.map((r) => (
-              <tr key={r.id}>
+              <tr key={r.id} className={picked.has(r.id) ? 'picked' : ''}>
+                <td className="pick">
+                  <input
+                    type="checkbox"
+                    checked={picked.has(r.id)}
+                    onChange={() => toggle(r.id)}
+                    aria-label="Belgilash"
+                  />
+                </td>
                 <td className="muted">{(r.paid_at ?? r.created_at).slice(0, 10)}</td>
                 <td>
                   {/* Summasi nol bo'lgan yozuv (masalan admin sovg'asi) kirim ham,

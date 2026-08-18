@@ -244,9 +244,11 @@ export interface AdminLog {
   created_at: string;
 }
 
-// Raqamlar do'kon ilovasidagidek probel bilan ajratiladi: 99 000 so'm
+// Raqamlar do'kon ilovasidagidek probel bilan ajratiladi: 99 000 so'm.
+// Ajratgich — uzilmaydigan probel: aks holda uzun summa kartochkada
+// "105 164" va "000" bo'lib ikki qatorga bo'linib ketardi.
 export const fmtNum = (n: number) =>
-  String(Math.round(n || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+  String(Math.round(n || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, '\u00a0');
 export const fmt = (n: number) => `${fmtNum(n)} so'm`;
 
 // Telefon do'kon ilovasidagidek ko'rinadi: +998 90 123 45 67

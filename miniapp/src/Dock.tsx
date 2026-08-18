@@ -48,14 +48,15 @@ const LAUNCHER_ITEMS: { key: string; glyph: string; color?: string; target: NavT
 
 // Kompyuterda dock o'rniga chapda doimiy menyu turadi — sichqoncha bilan
 // bir bosishda hamma bo'limga o'tish uchun. Qaysi biri ko'rinishini CSS hal qiladi.
-const SIDE_GROUPS: { key: string; glyph: string; color?: string; target: NavTarget }[][] = [
-  [
+type SideGroup = { title: string; items: { key: string; glyph: string; color?: string; target: NavTarget }[] };
+const SIDE_GROUPS: SideGroup[] = [
+  { title: 'sideMain', items: [
     { key: 'tabHome', glyph: 'house', target: { tab: 'home' } },
     { key: 'tabCustomers', glyph: 'people', target: { tab: 'customers' } },
     { key: 'tabAdd', glyph: 'note', target: { tab: 'add' } },
     { key: 'tabKassa', glyph: 'cart', target: { tab: 'kassa' } },
-  ],
-  [
+  ] },
+  { title: 'sideTrade', items: [
     { key: 'navInventory', glyph: 'boxes', target: { sub: 'inventory' } },
     { key: 'navSuppliers', glyph: 'truck', target: { sub: 'suppliers' } },
     { key: 'navOrders', glyph: 'boxes', target: { sub: 'orders' } },
@@ -63,12 +64,12 @@ const SIDE_GROUPS: { key: string; glyph: string; color?: string; target: NavTarg
     { key: 'navReminders', glyph: 'calendar', target: { sub: 'reminders' } },
     { key: 'navReports', glyph: 'chart', target: { sub: 'reports' } },
     { key: 'navExpenses', glyph: 'wallet', target: { sub: 'expenses' } },
-  ],
-  [
+  ] },
+  { title: 'sideAccount', items: [
     { key: 'navBalance', glyph: 'banknote', target: { tab: 'profile', profileView: 'balance' } },
-      { key: 'navEmployees', glyph: 'employee', target: { tab: 'profile', profileView: 'employees' } },
+    { key: 'navEmployees', glyph: 'employee', target: { tab: 'profile', profileView: 'employees' } },
     { key: 'navSettings', glyph: 'gear', target: { tab: 'profile' } },
-  ],
+  ] },
 ];
 
 /** "Barcha bo'limlar" menyusi ilgari ochilganmi.
@@ -134,9 +135,11 @@ export default function Dock({
           </div>
         </button>
         <div className="side-scroll">
-          {SIDE_GROUPS.map((group, i) => (
-            <div className="side-group" key={i}>
-              {group.map((item) => (
+          {SIDE_GROUPS.map((group) => (
+            <div className="side-group" key={group.title}>
+              {/* Bo'lim sarlavhasi — ro'yxat uzun, ko'z nimaga qarashni biladi */}
+              <div className="side-cap">{t(group.title)}</div>
+              {group.items.map((item) => (
                 <button
                   key={item.key}
                   className={`side-item ${isActive(item.target) ? 'active' : ''}`}
