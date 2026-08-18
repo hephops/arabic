@@ -92,6 +92,50 @@ export function langFor(tgId?: number | null, fallbackCode?: string | null): Bot
   return langFromTelegram(fallbackCode);
 }
 
+/**
+ * Botga to'g'ridan-to'g'ri havola: bosilishi bilan bot ochiladi va
+ * /start O'ZI bosiladi — do'konchi hech narsa yozmaydi, raqamini ham
+ * yubormaydi. Havola ichida raqam bor, shuning uchun bot kimga kod
+ * yuborishni darhol biladi.
+ *
+ * Raqam imzolanadi: aks holda birov havolani qo'lda yasab, begona
+ * raqamning kodini o'ziga oldirib olardi.
+ *
+ * Telegram start parametri: faqat A-Z a-z 0-9 _ - va 64 belgigacha.
+ * Shuning uchun "otp" + 12 raqam + 16 belgili imzo = 31 belgi.
+ */
+const OTP_PREFIX = 'otp';
+
+function signPhone(phone: string): string {
+  return createHmac('sha256', process.env.AUTH_SECRET ?? 'dev-secret-change-in-prod')
+    .update(`otp:${phone}`)
+    .digest('hex')
+    .slice(0, 16);
+}
+
+export function otpDeepLink(phone: string): string | null {
+  const bot = botUsername();
+  const digits = phone.replace(/\D/g, '');
+  if (!bot || digits.length !== 12) return null;
+  return `https://t.me/${bot}?start=${OTP_PREFIX}${digits}${signPhone(phone)}`;
+}
+
+/** Havoladagi raqamni tekshirib qaytaradi (imzo to'g'ri bo'lsa) */
+function phoneFromPayload(payload: string): string | null {
+  if (!payload.startsWith(OTP_PREFIX)) return null;
+  const body = payload.slice(OTP_PREFIX.length);
+  if (body.length !== 28) return null;
+  const digits = body.slice(0, 12);
+  const sig = body.slice(12);
+  if (!/^\d{12}$/.test(digits)) return null;
+  const phone = `+${digits}`;
+  const expected = signPhone(phone);
+  const a = Buffer.from(sig);
+  const b = Buffer.from(expected);
+  if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
+  return phone;
+}
+
 /** Telefon raqami bo'yicha ulangan Telegram chatini topish */
 export function chatForPhone(phone: string): number | null {
   const link = db.prepare('SELECT chat_id FROM telegram_links WHERE phone = ?').get(phone) as any;
@@ -106,11 +150,22 @@ export async function sendLoginCode(phone: string, code: string): Promise<boolea
   const chatId = chatForPhone(phone);
   if (!chatId) return false;
   const lang = langFor(chatId);
-  const res: any = await sendMessage(
-    chatId,
-    `${bt(lang, 'codeTitle')}\n\n${bt(lang, 'codeBody', { code, min: Math.round(OTP_TTL_MS / 60000) })}`
-  );
+  const res: any = await sendMessage(chatId, codeMessage(lang, code));
   return !!res?.ok;
+}
+
+/**
+ * Kod xabari.
+ *
+ * Kod <code> ichida yuboriladi — Telegram bunday matnni bosilganda
+ * nusxalaydi. Do'konchi raqamlarni qo'lda ko'chirmaydi: bosadi,
+ * ilovaga qaytadi va qo'yadi.
+ */
+function codeMessage(lang: BotLang, code: string): string {
+  return (
+    `${bt(lang, 'codeTitle')}\n\n<code>${code}</code>\n\n` +
+    bt(lang, 'codeHint', { min: Math.round(OTP_TTL_MS / 60000) })
+  );
 }
 
 /** Raqamni ulash tugmasi bilan klaviatura */
@@ -211,10 +266,7 @@ export async function handleUpdate(update: any) {
     const waiting = pendingCode(phone);
     await sendMessage(chatId, bt(lang, 'linked'), { reply_markup: { remove_keyboard: true } });
     if (waiting) {
-      await sendMessage(
-        chatId,
-        `${bt(lang, 'codeTitle')}\n\n${bt(lang, 'codeBody', { code: waiting, min: Math.round(OTP_TTL_MS / 60000) })}`
-      );
+      await sendMessage(chatId, codeMessage(lang, waiting));
     } else {
       await sendMessage(chatId, bt(lang, 'noPending'), { reply_markup: miniAppKeyboard() });
     }
@@ -224,6 +276,30 @@ export async function handleUpdate(update: any) {
   if (text.startsWith('/start')) {
     // Havolada mijoz kodi bo'lishi mumkin: t.me/bot?start=c<id>.<imzo>
     const payload = text.slice('/start'.length).trim();
+
+    // Kirish havolasi: ilovadagi tugma shuni ochadi va /start o'zi
+    // bosiladi. Raqam havola ichida — do'konchi hech narsa yozmaydi.
+    const otpPhone = phoneFromPayload(payload);
+    if (otpPhone) {
+      db.prepare(
+        `INSERT INTO telegram_links (phone, telegram_user_id, chat_id, language, first_name)
+         VALUES (?, ?, ?, ?, ?)
+         ON CONFLICT(phone) DO UPDATE SET
+           telegram_user_id = excluded.telegram_user_id,
+           chat_id = excluded.chat_id,
+           first_name = excluded.first_name`
+      ).run(otpPhone, tgId, chatId, lang, msg.from?.first_name ?? null);
+      db.prepare('UPDATE shops SET telegram_user_id = ? WHERE phone = ?').run(tgId, otpPhone);
+
+      const waiting = pendingCode(otpPhone);
+      if (waiting) {
+        await sendMessage(chatId, codeMessage(lang, waiting));
+      } else {
+        // Kod eskirgan — ilovada qaytadan so'ralsin
+        await sendMessage(chatId, bt(lang, 'codeExpired'), { reply_markup: miniAppKeyboard() });
+      }
+      return;
+    }
     if (payload.startsWith('c')) {
       const customerId = verifyCustomerCode(payload.slice(1));
       const customer = customerId
@@ -243,16 +319,7 @@ export async function handleUpdate(update: any) {
       );
       return;
     }
-    // Raqami ulanmagan bo'lsa — avval o'shani so'raymiz, kirish kodi
-    // shu bog'lanish orqali boradi
-    const linked = tgId
-      ? (db.prepare('SELECT phone FROM telegram_links WHERE telegram_user_id = ? LIMIT 1').get(tgId) as any)
-      : null;
-    if (!linked && !shopByTelegram(tgId ?? 0)) {
-      await sendMessage(chatId, bt(lang, 'welcome'), { reply_markup: shareKeyboard(lang) });
-      return;
-    }
-    await sendMessage(chatId, bt(lang, 'noPending'), { reply_markup: miniAppKeyboard() });
+    await sendMessage(chatId, bt(lang, 'welcome'), { reply_markup: miniAppKeyboard() });
     return;
   }
   if (text.startsWith('/help')) {
@@ -266,14 +333,9 @@ export async function handleUpdate(update: any) {
       : null;
     const waiting = link?.phone ? pendingCode(link.phone) : null;
     if (waiting) {
-      await sendMessage(
-        chatId,
-        `${bt(lang, 'codeTitle')}\n\n${bt(lang, 'codeBody', { code: waiting, min: Math.round(OTP_TTL_MS / 60000) })}`
-      );
-    } else if (link) {
-      await sendMessage(chatId, bt(lang, 'noPending'), { reply_markup: miniAppKeyboard() });
+      await sendMessage(chatId, codeMessage(lang, waiting));
     } else {
-      await sendMessage(chatId, bt(lang, 'welcome'), { reply_markup: shareKeyboard(lang) });
+      await sendMessage(chatId, bt(lang, 'noPending'), { reply_markup: miniAppKeyboard() });
     }
     return;
   }
@@ -313,14 +375,7 @@ export async function handleUpdate(update: any) {
       await sendMessage(chatId, 'Pastdagi tugmalardan foydalaning 👇', { reply_markup: CUSTOMER_KEYS });
       return;
     }
-    const link = tgId
-      ? (db.prepare('SELECT phone FROM telegram_links WHERE telegram_user_id = ? LIMIT 1').get(tgId) as any)
-      : null;
-    if (!link) {
-      await sendMessage(chatId, bt(lang, 'welcome'), { reply_markup: shareKeyboard(lang) });
-    } else {
-      await sendMessage(chatId, bt(lang, 'noPending'), { reply_markup: miniAppKeyboard() });
-    }
+    await sendMessage(chatId, bt(lang, 'noPending'), { reply_markup: miniAppKeyboard() });
     return;
   }
 

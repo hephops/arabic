@@ -8,7 +8,7 @@ import { signToken, requireAuth, requireOwner, verifyToken } from './auth.js';
 import { hit, reset } from './ratelimit.js';
 import { parseDebtText, parseCartText } from './voice.js';
 import { runReminders, startReminderScheduler } from './reminders.js';
-import { handleUpdate, verifyInitData, telegramEnabled, setWebhook, sendMessage, sendLoginCode, botUsername } from './telegram.js';
+import { handleUpdate, verifyInitData, telegramEnabled, setWebhook, sendMessage, sendLoginCode, botUsername, otpDeepLink } from './telegram.js';
 import { registerAdminRoutes, seedAdmin } from './admin.js';
 import { normalizeBarcode, barcodeVariants, checkGtin, makeInStoreEan13, parseScaleBarcode, makeScaleBarcode, scaleQty } from './barcodes.js';
 import { normalizePhone } from './phone.js';
@@ -87,11 +87,15 @@ app.post<{ Body: { phone: string } }>('/auth/request-otp', async (req, reply) =>
   const phone = normalizePhone(req.body?.phone);
   if (!phone) return reply.code(400).send({ error: 'invalid_phone' });
   const code = issueCode(phone);
+  // Ilgari ulangan bo'lsa kod darhol ketadi — do'konchi hech narsa
+  // bosmaydi. Ulanmagan bo'lsa ilova havolani ko'rsatadi: bosilishi
+  // bilan bot ochiladi, /start o'zi bosiladi va kod keladi.
   const sent = telegramEnabled() ? await sendLoginCode(phone, code) : false;
   return {
     ok: true,
     via: sent ? 'telegram' : 'none',
     bot: botUsername() || undefined,
+    deep_link: otpDeepLink(phone) ?? undefined,
     dev_hint: process.env.NODE_ENV === 'production' ? undefined : code,
   };
 });

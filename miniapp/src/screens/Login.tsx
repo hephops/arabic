@@ -9,8 +9,11 @@ import { formatPhone, phoneE164, isPhoneComplete, phoneDigits, formatCard, cardD
 // Har bir bosqich alohida ekran: bitta ish, bitta tugma.
 
 export default function Login({ onLogin }: { onLogin: () => void }) {
-  const [step, setStep] = useState<'phone' | 'code' | 'connect' | 'setup' | 'employee'>('phone');
-  const [bot, setBot] = useState('');
+  const [step, setStep] = useState<'phone' | 'code' | 'setup' | 'employee'>('phone');
+  // Botga to'g'ridan-to'g'ri havola: bosilsa /start o'zi bosiladi
+  const [link, setLink] = useState('');
+  // Kod allaqachon yuborildimi (raqam ilgari ulangan bo'lsa)
+  const [sent, setSent] = useState(false);
   const [phone, setPhone] = useState('');
   const [hint, setHint] = useState<string | undefined>();
   const [error, setError] = useState('');
@@ -37,11 +40,11 @@ export default function Login({ onLogin }: { onLogin: () => void }) {
     try {
       const res = await api.requestOtp(phoneE164(phone));
       setHint(res.dev_hint);
-      setBot(res.bot ?? '');
-      // Raqam hali botga ulanmagan — kodni yuboradigan joy yo'q.
-      // Do'konchini botga yuboramiz: u yerda raqamini bir marta ulaydi
-      // va kutayotgan kod o'sha zahoti keladi.
-      setStep(res.via === 'telegram' ? 'code' : 'connect');
+      setLink(res.deep_link ?? '');
+      // Kod ilgari ulangan bo'lsa o'zi ketadi; ulanmagan bo'lsa
+      // kod ekranidagi tugma botni ochadi va kod o'sha zahoti keladi.
+      setSent(res.via === 'telegram');
+      setStep('code');
       haptic.tap();
     } catch (e: any) {
       setError(t('error') + ': ' + e.message);
@@ -88,15 +91,6 @@ export default function Login({ onLogin }: { onLogin: () => void }) {
   }
 
   if (step === 'setup') return <Setup onDone={onLogin} />;
-  if (step === 'connect')
-    return (
-      <ConnectTelegram
-        bot={bot}
-        phone={phone}
-        onReady={() => setStep('code')}
-        onBack={() => setStep('phone')}
-      />
-    );
   if (step === 'employee') return <EmployeeLogin onDone={onLogin} onBack={() => setStep('phone')} />;
 
   return (
@@ -139,6 +133,8 @@ export default function Login({ onLogin }: { onLogin: () => void }) {
           <CodeStep
             phone={phone}
             hint={hint}
+            link={link}
+            sent={sent}
             busy={busy}
             onSubmit={verify}
             onResend={sendOtp}
@@ -150,65 +146,6 @@ export default function Login({ onLogin }: { onLogin: () => void }) {
         )}
 
         {error && <p className="error center">{error}</p>}
-      </div>
-    </div>
-  );
-}
-
-/**
- * Raqamni Telegramga ulash qadami.
- *
- * Kirish kodi SMS emas, bot orqali keladi — shuning uchun birinchi
- * kirishda do'konchi botga bir marta raqamini yuboradi. Shundan keyin
- * kod avtomatik shu yerga tushadi va bu ekran boshqa ko'rinmaydi.
- */
-function ConnectTelegram({
-  bot,
-  phone,
-  onReady,
-  onBack,
-}: {
-  bot: string;
-  phone: string;
-  onReady: () => void;
-  onBack: () => void;
-}) {
-  const { t } = useT();
-  const link = bot ? `https://t.me/${bot}` : '';
-  return (
-    <div className="auth">
-      <div className="auth-body">
-        <Brand />
-        <div className="auth-card">
-          <div className="auth-card-title">{t('tgConnectTitle')}</div>
-          <div className="auth-card-sub">{formatPhone(phone)}</div>
-
-          <ol className="tg-steps">
-            <li>{t('tgStep1')}</li>
-            <li>{t('tgStep2')}</li>
-            <li>{t('tgStep3')}</li>
-          </ol>
-
-          {link ? (
-            <a className="btn-primary btn-lg" href={link} target="_blank" rel="noreferrer"
-               style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, textDecoration: 'none' }}>
-              <Glyph name="send" size={18} color="#fff" /> {t('tgOpenBot')}
-            </a>
-          ) : (
-            <p className="error">{t('tgNoBot')}</p>
-          )}
-
-          <button className="btn-ghost" onClick={onReady}>
-            {t('tgGotCode')}
-          </button>
-        </div>
-
-        <button className="btn-soft" onClick={onBack}>
-          <span style={{ transform: 'rotate(180deg)', display: 'flex' }}>
-            <Glyph name="chevron" size={16} />
-          </span>
-          {t('back')}
-        </button>
       </div>
     </div>
   );
@@ -236,6 +173,8 @@ function Brand({ compact }: { compact?: boolean }) {
 function CodeStep({
   phone,
   hint,
+  link,
+  sent,
   busy,
   onSubmit,
   onResend,
@@ -243,12 +182,17 @@ function CodeStep({
 }: {
   phone: string;
   hint?: string;
+  /** botga to'g'ridan-to'g'ri havola */
+  link: string;
+  /** kod allaqachon Telegramga ketganmi */
+  sent: boolean;
   busy: boolean;
   onSubmit: (code: string) => void;
   onResend: () => void;
   onBack: () => void;
 }) {
   const [code, setCode] = useState('');
+  const [opened, setOpened] = useState(false);
   const [left, setLeft] = useState(60);
   const inputRef = useRef<HTMLInputElement>(null);
   const { t } = useT();
@@ -288,13 +232,35 @@ function CodeStep({
           />
         </div>
 
+        {/* Kod hali yuborilmagan bo'lsa — botni ochadigan tugma.
+            U diqqatni tortadi (asta-sekin pulsatsiya qiladi), chunki
+            do'konchi kutib qolmasligi kerak: kod o'zi kelmaydi,
+            avval shu tugma bosiladi. */}
+        {!sent && link && (
+          <a
+            className="btn-primary btn-lg tg-get"
+            href={link}
+            target="_blank"
+            rel="noreferrer"
+            onClick={() => setOpened(true)}
+          >
+            <Glyph name="send" size={18} color="#fff" /> {t('tgGetCode')}
+          </a>
+        )}
+        {sent && <p className="code-note">{t('tgCodeSent')}</p>}
+        {!sent && opened && <p className="code-note">{t('tgPasteHint')}</p>}
+
         {hint && (
           <div className="dev-hint">
             {t('loginDevHint')}: <b>{hint}</b>
           </div>
         )}
 
-        <button className="btn-primary btn-lg" onClick={() => onSubmit(code)} disabled={busy || code.length < 6}>
+        <button
+          className={`btn-primary btn-lg ${!sent && !opened ? 'quiet' : ''}`}
+          onClick={() => onSubmit(code)}
+          disabled={busy || code.length < 6}
+        >
           {t('loginEnter')}
         </button>
       </div>

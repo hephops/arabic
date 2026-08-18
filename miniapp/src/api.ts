@@ -54,7 +54,14 @@ export const api = {
     }),
   /** Kod Telegram bot orqali boradi. via='none' — raqam hali ulanmagan. */
   requestOtp: (phone: string) =>
-    request<{ ok: boolean; via: 'telegram' | 'none'; bot?: string; dev_hint?: string }>('/auth/request-otp', {
+    request<{
+      ok: boolean;
+      via: 'telegram' | 'none';
+      bot?: string;
+      /** botga to'g'ridan-to'g'ri havola: bosilsa /start o'zi bosiladi */
+      deep_link?: string;
+      dev_hint?: string;
+    }>('/auth/request-otp', {
       method: 'POST',
       body: JSON.stringify({ phone }),
     }),

@@ -65,6 +65,11 @@ qarz - Qarz yozish / Записать долг
 help - Yordam / Помощь
 ```
 
+> Kirishda do'konchi botga hech narsa yozmaydi va raqamini yubormaydi.
+> Ilovadagi «Kodni olish» tugmasi botni ochadi va `/start` o'zi bosiladi —
+> raqam havola ichida, imzolangan holda keladi. Kod esa `<code>` ichida
+> yuboriladi: Telegramda bosilsa nusxalanadi.
+
 ---
 
 ## Bot ichidagi xabarlar

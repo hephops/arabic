@@ -26,7 +26,8 @@ type Dict = Record<string, string>;
 const UZ: Dict = {
   welcome:
     '<b>BuySale</b> — savdo, ombor va qarz daftari bitta ilovada.\n\n' +
-    'Kirish uchun telefon raqamingizni yuboring — kod shu yerga keladi.',
+    'Kirish kodi shu yerga keladi. Ilovada raqamingizni kiriting va ' +
+    '«Kodni olish» tugmasini bosing.',
   shareBtn: '📱 Raqamni yuborish',
   sharePrompt:
     'Pastdagi <b>«📱 Raqamni yuborish»</b> tugmasini bosing.\n\n' +
@@ -34,7 +35,8 @@ const UZ: Dict = {
   linked:
     '✅ Raqamingiz ulandi.\n\nEndi ilovaga kirganingizda kod shu yerga keladi.',
   codeTitle: '🔐 Kirish kodi',
-  codeBody: 'Kod: <b>{code}</b>\n\nU {min} daqiqa amal qiladi. Kodni hech kimga aytmang.',
+  codeHint: '👆 Kodni bosing — nusxalanadi. {min} daqiqa amal qiladi, hech kimga aytmang.',
+  codeExpired: 'Kod muddati tugagan. Ilovada «Kodni olish» ni qaytadan bosing.',
   noPending:
     'Raqamingiz ulangan ✅\n\nIlovada telefon raqamingizni kiriting va «Kod olish» tugmasini bosing — kod shu yerga keladi.',
   openApp: '🛒 Ilovani ochish',
@@ -52,14 +54,16 @@ const UZ: Dict = {
 const RU: Dict = {
   welcome:
     '<b>BuySale</b> — торговля, склад и книга долгов в одном приложении.\n\n' +
-    'Чтобы войти, отправьте свой номер телефона — код придёт сюда.',
+    'Код входа приходит сюда. Введите номер в приложении и нажмите ' +
+    '«Получить код».',
   shareBtn: '📱 Отправить номер',
   sharePrompt:
     'Нажмите кнопку <b>«📱 Отправить номер»</b> внизу.\n\n' +
     'Номер нужен только для отправки кода входа.',
   linked: '✅ Номер подключён.\n\nТеперь код входа будет приходить сюда.',
   codeTitle: '🔐 Код входа',
-  codeBody: 'Код: <b>{code}</b>\n\nДействителен {min} мин. Никому его не сообщайте.',
+  codeHint: '👆 Нажмите на код — он скопируется. Действителен {min} мин, никому не сообщайте.',
+  codeExpired: 'Срок кода истёк. Нажмите «Получить код» в приложении ещё раз.',
   noPending:
     'Номер подключён ✅\n\nВведите номер в приложении и нажмите «Получить код» — код придёт сюда.',
   openApp: '🛒 Открыть приложение',
@@ -78,14 +82,16 @@ const RU: Dict = {
 const UZ_CYRL: Dict = {
   welcome:
     '<b>BuySale</b> — савдо, омбор ва қарз дафтари битта иловада.\n\n' +
-    'Кириш учун телефон рақамингизни юборинг — код шу ерга келади.',
+    'Кириш коди шу ерга келади. Иловада рақамингизни киритинг ва ' +
+    '«Кодни олиш» тугмасини босинг.',
   shareBtn: '📱 Рақамни юбориш',
   sharePrompt:
     'Пастдаги <b>«📱 Рақамни юбориш»</b> тугмасини босинг.\n\n' +
     'Рақамингиз фақат кириш кодини юбориш учун ишлатилади.',
   linked: '✅ Рақамингиз уланди.\n\nЭнди иловага кирганингизда код шу ерга келади.',
   codeTitle: '🔐 Кириш коди',
-  codeBody: 'Код: <b>{code}</b>\n\nУ {min} дақиқа амал қилади. Кодни ҳеч кимга айтманг.',
+  codeHint: '👆 Кодни босинг — нусхаланади. {min} дақиқа амал қилади, ҳеч кимга айтманг.',
+  codeExpired: 'Код муддати тугаган. Иловада «Кодни олиш» ни қайтадан босинг.',
   noPending:
     'Рақамингиз уланган ✅\n\nИловада телефон рақамингизни киритинг ва «Код олиш» тугмасини босинг.',
   openApp: '🛒 Иловани очиш',
