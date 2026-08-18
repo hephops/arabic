@@ -1,20 +1,19 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 296 200" role="img" aria-label="BuySale">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 306 210" role="img" aria-label="BuySale">
   <title>BuySale</title>
-  <!-- Yashil: savat (dastasi + "B" shaklidagi tanasi) -->
-  <g fill="none" stroke-width="19" stroke-linecap="round" stroke-linejoin="round">
+  <!-- VAQTINCHALIK: asl fayl kelguncha turadi (brand/README.md ga qarang).
+       Yashil: savat dastasi, u to'g'ridan-to'g'ri "B" ga aylanadi.
+       Ko'k: "S" — uning yuqori chizig'i o'ngga cho'zilib savatning
+       yuqori chekkasi bo'lib qoladi, alohida chiziq yo'q. -->
+<g fill="none" stroke-width="20" stroke-linecap="round" stroke-linejoin="round">
     <g stroke="#21A038">
-      <path d="M16 32 H46 C64 32 72 43 74 58"/>
-      <path d="M74 58 V150"/>
-      <path d="M74 58 H110 C132 58 132 98 110 98 H74"/>
-      <path d="M74 98 H120 C144 98 144 150 120 150 H74"/>
+      <path d="M14 34 H52 C74 34 86 48 86 70 V158"/>
+      <path d="M86 70 H120 C142 70 142 106 120 106 H86"/>
+      <path d="M86 106 H128 C151 106 151 158 128 158 H86"/>
     </g>
-    <!-- Ko'k: savatning o'ng chekkasi va "S" -->
     <g stroke="#1B5CE8">
-      <path d="M170 32 H252"/>
-      <path d="M234 66 H196 C176 66 176 98 196 98 H214 C236 98 236 132 214 132 H172"/>
+      <path d="M256 40 H196 C176 40 176 74 196 74 H216 C238 74 238 110 216 110 H176"/>
     </g>
   </g>
-  <!-- G'ildiraklar -->
-  <circle cx="104" cy="178" r="14" fill="#21A038"/>
-  <circle cx="212" cy="178" r="14" fill="#1B5CE8"/>
+  <circle cx="114" cy="184" r="14" fill="#21A038"/>
+  <circle cx="212" cy="184" r="14" fill="#1B5CE8"/>
 </svg>

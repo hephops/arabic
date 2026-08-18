@@ -435,39 +435,6 @@ export function AppIcon({
   );
 }
 
-/* ─────────── Brend belgisi ───────────
-   Manba: brand/buysale-mark.svg. Bu yerda inline turadi —
-   shunda rangi va o'lchami ekranga qarab moslashadi va
-   qo'shimcha so'rov ketmaydi. */
-export function Logo({ size = 32, mono }: { size?: number; mono?: boolean }) {
-  const green = mono ? 'currentColor' : '#21A038';
-  const blue = mono ? 'currentColor' : '#1B5CE8';
-  return (
-    <svg width={size} height={(size * 200) / 296} viewBox="0 0 296 200" aria-label="BuySale" role="img">
-      <g fill="none" strokeWidth="19" strokeLinecap="round" strokeLinejoin="round">
-        <g stroke={green}>
-          <path d="M16 32 H46 C64 32 72 43 74 58" />
-          <path d="M74 58 V150" />
-          <path d="M74 58 H110 C132 58 132 98 110 98 H74" />
-          <path d="M74 98 H120 C144 98 144 150 120 150 H74" />
-        </g>
-        <g stroke={blue}>
-          <path d="M170 32 H252" />
-          <path d="M234 66 H196 C176 66 176 98 196 98 H214 C236 98 236 132 214 132 H172" />
-        </g>
-      </g>
-      <circle cx="104" cy="178" r="14" fill={green} />
-      <circle cx="212" cy="178" r="14" fill={blue} />
-    </svg>
-  );
-}
-
-/** Nom: "Buy" to'q, "Sale" ko'k */
-export function Wordmark({ light }: { light?: boolean }) {
-  return (
-    <span className="wordmark">
-      <b style={light ? { color: '#fff' } : undefined}>Buy</b>
-      <i>Sale</i>
-    </span>
-  );
-}
+// Brend belgisi va nomi avtomatik yig'iladi (brand/build.mjs).
+// Eski chaqiruvlar buzilmasin deb shu yerdan ham chiqariladi.
+export { Logo, Wordmark } from './brand';

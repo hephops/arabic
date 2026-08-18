@@ -13,9 +13,23 @@ Platformaning nomi **BuySale**, shiori **Savdo · Ombor · Foyda**.
 | `buysale-wordmark.svg` | Faqat nom. Belgi allaqachon yonida turgan joylar uchun. |
 | `buysale-mark-mono.svg` | Bir rangli. Chek, yorliq, shtamp — rangli bosib bo'lmaydigan joylar. Rangi `currentColor`. |
 
-Ilova ikonkalari `miniapp/public/` ichida va shu belgidan yasalgan:
-`icon-192.png`, `icon-512.png`, `icon-maskable-512.png`, `apple-touch-icon.png`, `favicon.svg`.
-Ularni qayta yasash: `brand/make-icons.mjs`.
+## Bitta manba
+
+Hammasi `buysale-mark.svg` dan yig'iladi:
+
+```
+node brand/build.mjs
+```
+
+Bu buyruq qulflarni (`buysale-logo*.svg`), ilova ikonkalarini
+(`miniapp/public/icon-*.png`, `apple-touch-icon.png`, `favicon.svg`) va
+ilova ichidagi React komponentini (`miniapp/src/brand.tsx`,
+`admin/src/brand.tsx`) qayta yozadi. Belgi o'zgarsa faqat shu bitta
+faylni tahrirlab, buyruqni ishga tushirish kifoya — qolgani ergashadi.
+
+Ikonka PNG'lari uchun `playwright` kerak. U bo'lmasa qadam o'tkazib
+yuboriladi: SVG'lar va komponent baribir yangilanadi, tayyor PNG'lar
+esa repoda turadi.
 
 ## Ranglar
 
