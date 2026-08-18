@@ -6,32 +6,33 @@
 
 /** Brend belgisi. mono — bitta rangda (currentColor). */
 export function Logo({ size = 32, mono }: { size?: number; mono?: boolean }) {
-  const green = mono ? 'currentColor' : '#21A038';
-  const blue = mono ? 'currentColor' : '#1B5CE8';
+  const green = mono ? 'currentColor' : '#12B24A';
+  const blue = mono ? 'currentColor' : '#1546E8';
   return (
     <svg
       width={size}
-      height={(size * 210) / 306}
-      viewBox="0 0 306 210"
+      height={(size * 690) / 1180}
+      viewBox="40 275 1180 690"
       role="img"
       aria-label="BuySale"
     >
-      {/* VAQTINCHALIK: asl fayl kelguncha turadi (brand/README.md ga qarang).
-      Yashil: savat dastasi, u to'g'ridan-to'g'ri "B" ga aylanadi.
-      Ko'k: "S" — uning yuqori chizig'i o'ngga cho'zilib savatning
-      yuqori chekkasi bo'lib qoladi, alohida chiziq yo'q. */}
-      <g fill="none" strokeWidth="20" strokeLinecap="round" strokeLinejoin="round">
-      <g stroke={green}>
-      <path d="M14 34 H52 C74 34 86 48 86 70 V158"/>
-      <path d="M86 70 H120 C142 70 142 106 120 106 H86"/>
-      <path d="M86 106 H128 C151 106 151 158 128 158 H86"/>
+      {/* Yashil: savat dastasi va qiya tushgan devori, u "B" ga aylanadi.
+      Ko'k: "S" — yuqori chizig'i o'ngga cho'zilgan, ikkala uchi qiya
+      kesilgan (yuqori o'ng va pastki chap). */}
+      <g fill="none" strokeWidth="88" strokeLinejoin="round">
+      <g stroke={green} strokeLinecap="round">
+      <path d="M96 333 H228 C272 333 292 366 300 416 L378 762"/>
+      <path d="M305 437 H600 C682 437 682 600 600 600 H341"/>
+      <path d="M341 600 H620 C702 600 702 762 620 762 H378"/>
       </g>
-      <g stroke={blue}>
-      <path d="M256 40 H196 C176 40 176 74 196 74 H216 C238 74 238 110 216 110 H176"/>
+      <g stroke={blue} strokeLinecap="butt">
+      <path d="M1150 440 H800 C750 440 750 600 800 600 H1042 C1094 600 1094 757 1042 757 H748"/>
       </g>
       </g>
-      <circle cx="114" cy="184" r="14" fill={green}/>
-      <circle cx="212" cy="184" r="14" fill={blue}/>
+      <path d="M1150 396 H1198 L1150 484 Z" fill={blue}/>
+      <path d="M748 713 V801 L700 801 Z" fill={blue}/>
+      <circle cx="452" cy="886" r="68" fill={green}/>
+      <circle cx="940" cy="886" r="68" fill={blue}/>
     </svg>
   );
 }

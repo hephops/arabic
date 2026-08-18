@@ -13,8 +13,8 @@ import { fileURLToPath } from 'node:url';
 const BRAND = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(BRAND, '..');
 const FONT = "system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
-const GREEN = '#21A038';
-const BLUE = '#1B5CE8';
+const GREEN = '#12B24A';
+const BLUE = '#1546E8';
 const NAVY = '#0E1B33';
 
 const markFile = readFileSync(join(BRAND, 'buysale-mark.svg'), 'utf-8');
