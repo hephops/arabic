@@ -9,7 +9,8 @@ import { formatPhone, phoneE164, isPhoneComplete, phoneDigits, formatCard, cardD
 // Har bir bosqich alohida ekran: bitta ish, bitta tugma.
 
 export default function Login({ onLogin }: { onLogin: () => void }) {
-  const [step, setStep] = useState<'phone' | 'code' | 'setup' | 'employee'>('phone');
+  const [step, setStep] = useState<'phone' | 'code' | 'connect' | 'setup' | 'employee'>('phone');
+  const [bot, setBot] = useState('');
   const [phone, setPhone] = useState('');
   const [hint, setHint] = useState<string | undefined>();
   const [error, setError] = useState('');
@@ -36,7 +37,11 @@ export default function Login({ onLogin }: { onLogin: () => void }) {
     try {
       const res = await api.requestOtp(phoneE164(phone));
       setHint(res.dev_hint);
-      setStep('code');
+      setBot(res.bot ?? '');
+      // Raqam hali botga ulanmagan — kodni yuboradigan joy yo'q.
+      // Do'konchini botga yuboramiz: u yerda raqamini bir marta ulaydi
+      // va kutayotgan kod o'sha zahoti keladi.
+      setStep(res.via === 'telegram' ? 'code' : 'connect');
       haptic.tap();
     } catch (e: any) {
       setError(t('error') + ': ' + e.message);
@@ -83,6 +88,15 @@ export default function Login({ onLogin }: { onLogin: () => void }) {
   }
 
   if (step === 'setup') return <Setup onDone={onLogin} />;
+  if (step === 'connect')
+    return (
+      <ConnectTelegram
+        bot={bot}
+        phone={phone}
+        onReady={() => setStep('code')}
+        onBack={() => setStep('phone')}
+      />
+    );
   if (step === 'employee') return <EmployeeLogin onDone={onLogin} onBack={() => setStep('phone')} />;
 
   return (
@@ -136,6 +150,65 @@ export default function Login({ onLogin }: { onLogin: () => void }) {
         )}
 
         {error && <p className="error center">{error}</p>}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Raqamni Telegramga ulash qadami.
+ *
+ * Kirish kodi SMS emas, bot orqali keladi — shuning uchun birinchi
+ * kirishda do'konchi botga bir marta raqamini yuboradi. Shundan keyin
+ * kod avtomatik shu yerga tushadi va bu ekran boshqa ko'rinmaydi.
+ */
+function ConnectTelegram({
+  bot,
+  phone,
+  onReady,
+  onBack,
+}: {
+  bot: string;
+  phone: string;
+  onReady: () => void;
+  onBack: () => void;
+}) {
+  const { t } = useT();
+  const link = bot ? `https://t.me/${bot}` : '';
+  return (
+    <div className="auth">
+      <div className="auth-body">
+        <Brand />
+        <div className="auth-card">
+          <div className="auth-card-title">{t('tgConnectTitle')}</div>
+          <div className="auth-card-sub">{formatPhone(phone)}</div>
+
+          <ol className="tg-steps">
+            <li>{t('tgStep1')}</li>
+            <li>{t('tgStep2')}</li>
+            <li>{t('tgStep3')}</li>
+          </ol>
+
+          {link ? (
+            <a className="btn-primary btn-lg" href={link} target="_blank" rel="noreferrer"
+               style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, textDecoration: 'none' }}>
+              <Glyph name="send" size={18} color="#fff" /> {t('tgOpenBot')}
+            </a>
+          ) : (
+            <p className="error">{t('tgNoBot')}</p>
+          )}
+
+          <button className="btn-ghost" onClick={onReady}>
+            {t('tgGotCode')}
+          </button>
+        </div>
+
+        <button className="btn-soft" onClick={onBack}>
+          <span style={{ transform: 'rotate(180deg)', display: 'flex' }}>
+            <Glyph name="chevron" size={16} />
+          </span>
+          {t('back')}
+        </button>
       </div>
     </div>
   );

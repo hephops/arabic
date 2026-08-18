@@ -745,7 +745,7 @@ function ReportSettingsView({ shop, onBack, reload }: { shop: Shop; onBack: () =
   const { t } = useT();
   const [enabled, setEnabled] = useState(shop.report_enabled !== 0);
   const [hour, setHour] = useState(shop.report_hour ?? 22);
-  const [preview, setPreview] = useState<{ text: string; telegram_linked: boolean } | null>(null);
+  const [preview, setPreview] = useState<{ text: string; telegram_linked: boolean; bot?: string } | null>(null);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -818,12 +818,24 @@ function ReportSettingsView({ shop, onBack, reload }: { shop: Shop; onBack: () =
           </>
         )}
 
+        {/* Telegram ulanmagan bo'lsa — ogohlantirish emas, ochiladigan
+            tugma: do'konchi bot nomini qidirib yurmasin */}
         {preview && !preview.telegram_linked && (
           <div className="trust-warn">
             <Glyph name="warning" size={17} color="var(--yellow)" />
-            <div>
+            <div style={{ flex: 1, minWidth: 0 }}>
               <b>{t('reportNoTelegram')}</b>
               <div className="tw-sub">{t('reportLinkHint')}</div>
+              {preview.bot && (
+                <a
+                  className="tw-link"
+                  href={`https://t.me/${preview.bot}`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <Glyph name="send" size={15} color="var(--accent)" /> {t('tgOpenBot')}
+                </a>
+              )}
             </div>
           </div>
         )}

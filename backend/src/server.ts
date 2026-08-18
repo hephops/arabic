@@ -8,12 +8,13 @@ import { signToken, requireAuth, requireOwner, verifyToken } from './auth.js';
 import { hit, reset } from './ratelimit.js';
 import { parseDebtText, parseCartText } from './voice.js';
 import { runReminders, startReminderScheduler } from './reminders.js';
-import { handleUpdate, verifyInitData, telegramEnabled, setWebhook, sendMessage } from './telegram.js';
+import { handleUpdate, verifyInitData, telegramEnabled, setWebhook, sendMessage, sendLoginCode, botUsername } from './telegram.js';
 import { registerAdminRoutes, seedAdmin } from './admin.js';
 import { normalizeBarcode, barcodeVariants, checkGtin, makeInStoreEan13, parseScaleBarcode, makeScaleBarcode, scaleQty } from './barcodes.js';
 import { normalizePhone } from './phone.js';
 import { normalizeUnit, normalizePriceQty } from './units.js';
 import { chargeShop, chargeAllShops, serviceState, getSetting, dailyPrice, trialThrough } from './billing.js';
+import { issueCode, checkCode, clearCode } from './otp.js';
 import { dailyFigures, reportText, sendDailyReport, startDailyReportScheduler } from './dailyReport.js';
 import { customerCode, receiptText } from './customerLink.js';
 import { uzToday, uzDayShift, uzDayStartUtc, uzPeriodStartUtc, uzMonthStartUtc } from './tz.js';
@@ -65,22 +66,34 @@ app.addHook('preHandler', async (req, reply) => {
 
 // ---------- AUTH ----------
 // SMS kod 5 daqiqa amal qiladi — eskisi bilan kirib bo'lmaydi
-const OTP_TTL = 5 * 60 * 1000;
-const otpStore = new Map<string, { code: string; expires: number }>();
 
 // Kirish urinishlari cheklovi (PIN/SMS kodni terib topishning oldini oladi)
 const OTP_LIMIT = { max: 5, windowMs: 10 * 60_000, blockMs: 15 * 60_000 };
 const PIN_LIMIT = { max: 7, windowMs: 10 * 60_000, blockMs: 15 * 60_000 };
 
+/**
+ * Kirish kodini so'rash.
+ *
+ * Kod SMS emas, Telegram bot orqali boradi: pul ketmaydi, darhol yetadi
+ * va raqam allaqachon Telegram tomonidan tasdiqlangan bo'ladi.
+ *
+ * Raqam hali botga ulanmagan bo'lsa — kod baribir yasab qo'yiladi va
+ * javobda botga havola qaytadi. Do'konchi botda raqamini yuborishi
+ * bilan o'sha kutayotgan kod darhol jo'natiladi (telegram.ts).
+ */
 app.post<{ Body: { phone: string } }>('/auth/request-otp', async (req, reply) => {
   // Raqam har doim +998XXXXXXXXX ko'rinishida saqlanadi — aks holda
   // "939228889" va "+998939228889" ikki xil do'kon bo'lib ketardi
   const phone = normalizePhone(req.body?.phone);
   if (!phone) return reply.code(400).send({ error: 'invalid_phone' });
-  // DEV: kod doim 123456. PROD: Eskiz.uz orqali SMS yuboriladi.
-  const code = process.env.NODE_ENV === 'production' ? String(Math.floor(100000 + Math.random() * 900000)) : '123456';
-  otpStore.set(phone, { code, expires: Date.now() + OTP_TTL });
-  return { ok: true, dev_hint: process.env.NODE_ENV === 'production' ? undefined : code };
+  const code = issueCode(phone);
+  const sent = telegramEnabled() ? await sendLoginCode(phone, code) : false;
+  return {
+    ok: true,
+    via: sent ? 'telegram' : 'none',
+    bot: botUsername() || undefined,
+    dev_hint: process.env.NODE_ENV === 'production' ? undefined : code,
+  };
 });
 
 app.post<{ Body: { phone: string; code: string; shop_name?: string; ref?: string; init_data?: string } }>(
@@ -91,13 +104,10 @@ app.post<{ Body: { phone: string; code: string; shop_name?: string; ref?: string
   if (!phone) return reply.code(400).send({ error: 'invalid_phone' });
   const gate = hit(`otp:${phone}`, OTP_LIMIT);
   if (!gate.ok) return reply.code(429).send({ error: 'too_many_attempts', retry_after: gate.retryAfter });
-  const saved = otpStore.get(phone);
-  if (!saved || saved.code !== code) return reply.code(400).send({ error: 'invalid_code' });
-  if (saved.expires < Date.now()) {
-    otpStore.delete(phone);
-    return reply.code(400).send({ error: 'code_expired' });
-  }
-  otpStore.delete(phone);
+  const verdict = checkCode(phone, code);
+  if (verdict === 'invalid') return reply.code(400).send({ error: 'invalid_code' });
+  if (verdict === 'expired') return reply.code(400).send({ error: 'code_expired' });
+  clearCode(phone);
   reset(`otp:${phone}`);
   let shop = db.prepare('SELECT * FROM shops WHERE phone = ?').get(phone) as any;
   if (!shop) {
@@ -111,6 +121,14 @@ app.post<{ Body: { phone: string; code: string; shop_name?: string; ref?: string
       )
       .run(phone, shop_name ?? 'Mening do‘konim', ref ?? null, start.charged_through, start.trial_ends_at);
     shop = db.prepare('SELECT * FROM shops WHERE id = ?').get(info.lastInsertRowid);
+    // Botga allaqachon ulangan bo'lsa — yangi do'konga ham bog'laymiz,
+    // shunda kechki hisobot va eslatmalar shu chatga boradi
+    const link = db.prepare('SELECT telegram_user_id, language FROM telegram_links WHERE phone = ?').get(phone) as any;
+    if (link?.telegram_user_id) {
+      db.prepare('UPDATE shops SET telegram_user_id = ?, language = COALESCE(?, language) WHERE id = ?')
+        .run(link.telegram_user_id, link.language ?? null, shop.id);
+      shop = db.prepare('SELECT * FROM shops WHERE id = ?').get(shop.id);
+    }
   }
   // Telegram ichidan kirilgan bo'lsa — hisobni bog'lab qo'yamiz
   if (init_data) {
@@ -205,6 +223,14 @@ app.patch<{ Body: Record<string, unknown> }>('/me', { preHandler: requireOwner }
   for (const key of allowed) {
     if (key in req.body) {
       db.prepare(`UPDATE shops SET ${key} = ? WHERE id = ?`).run(req.body[key], req.shopId);
+    }
+  }
+  // Til o'zgarsa botdagi xabarlar ham o'sha tilga o'tsin — do'konchi
+  // ilovada ruschani tanlab, botdan o'zbekcha xabar olmasin
+  if ('language' in req.body) {
+    const shop = db.prepare('SELECT phone FROM shops WHERE id = ?').get(req.shopId) as any;
+    if (shop?.phone) {
+      db.prepare('UPDATE telegram_links SET language = ? WHERE phone = ?').run(req.body.language, shop.phone);
     }
   }
   return db.prepare('SELECT * FROM shops WHERE id = ?').get(req.shopId);
@@ -2365,6 +2391,8 @@ app.get('/reports/daily/preview', { preHandler: requireOwner }, async (req) => {
     figures,
     telegram_linked: !!(db.prepare('SELECT telegram_user_id FROM shops WHERE id = ?').get(req.shopId) as any)
       ?.telegram_user_id,
+    // Ulanmagan bo'lsa ilova to'g'ridan-to'g'ri botga havola beradi
+    bot: botUsername() || undefined,
   };
 });
 

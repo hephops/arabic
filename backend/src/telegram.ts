@@ -3,6 +3,8 @@ import { db } from './db.js';
 import { parseDebtText } from './voice.js';
 import { normalizePhone } from './phone.js';
 import { verifyCustomerCode, purchasesText, customerBalance } from './customerLink.js';
+import { bt, langFromTelegram, normalizeLang, type BotLang } from './botText.js';
+import { pendingCode, OTP_TTL_MS } from './otp.js';
 
 // Telegram Bot API va Mini App integratsiyasi.
 // Token .env faylida (TELEGRAM_BOT_TOKEN) — kodga yozilmaydi.
@@ -68,6 +70,58 @@ export function verifyInitData(initData: string): { id: number; first_name?: str
   }
 }
 
+/* ─────────── Til va raqam ulash ─────────── */
+
+const BOT_USERNAME = process.env.TELEGRAM_BOT_USERNAME ?? '';
+export const botUsername = () => BOT_USERNAME.replace(/^@/, '');
+
+/**
+ * Foydalanuvchi qaysi tilda gaplashadi.
+ *
+ * Tartib muhim: do'konchi ilovada tanlagan til birinchi o'rinda turadi —
+ * u ataylab tanlangan. Undan keyin ulanishda saqlangani, oxirida
+ * Telegram'ning o'z tili (faqat taxmin).
+ */
+export function langFor(tgId?: number | null, fallbackCode?: string | null): BotLang {
+  if (tgId) {
+    const shop = db.prepare('SELECT language FROM shops WHERE telegram_user_id = ?').get(tgId) as any;
+    if (shop?.language) return normalizeLang(shop.language);
+    const link = db.prepare('SELECT language FROM telegram_links WHERE telegram_user_id = ? LIMIT 1').get(tgId) as any;
+    if (link?.language) return normalizeLang(link.language);
+  }
+  return langFromTelegram(fallbackCode);
+}
+
+/** Telefon raqami bo'yicha ulangan Telegram chatini topish */
+export function chatForPhone(phone: string): number | null {
+  const link = db.prepare('SELECT chat_id FROM telegram_links WHERE phone = ?').get(phone) as any;
+  if (link?.chat_id) return Number(link.chat_id);
+  // Ilgari ro'yxatdan o'tgan do'konda bog'lanish bo'lishi mumkin
+  const shop = db.prepare('SELECT telegram_user_id FROM shops WHERE phone = ? AND telegram_user_id IS NOT NULL').get(phone) as any;
+  return shop?.telegram_user_id ? Number(shop.telegram_user_id) : null;
+}
+
+/** Kirish kodini botga yuborish. Ulanmagan bo'lsa false qaytadi. */
+export async function sendLoginCode(phone: string, code: string): Promise<boolean> {
+  const chatId = chatForPhone(phone);
+  if (!chatId) return false;
+  const lang = langFor(chatId);
+  const res: any = await sendMessage(
+    chatId,
+    `${bt(lang, 'codeTitle')}\n\n${bt(lang, 'codeBody', { code, min: Math.round(OTP_TTL_MS / 60000) })}`
+  );
+  return !!res?.ok;
+}
+
+/** Raqamni ulash tugmasi bilan klaviatura */
+function shareKeyboard(lang: BotLang) {
+  return {
+    keyboard: [[{ text: bt(lang, 'shareBtn'), request_contact: true }]],
+    resize_keyboard: true,
+    one_time_keyboard: true,
+  };
+}
+
 /* ─────────── Bot webhook ─────────── */
 
 const WELCOME = `<b>BuySale — Savdo, ombor, foyda</b>
@@ -125,6 +179,47 @@ export async function handleUpdate(update: any) {
   const chatId = msg.chat.id;
   const tgId = msg.from?.id;
   const text: string = msg.text ?? '';
+  const lang = langFor(tgId, msg.from?.language_code);
+
+  // Raqam yuborildi — ulaymiz va kutayotgan kod bo'lsa darhol jo'natamiz.
+  //
+  // Faqat O'ZINING raqamini qabul qilamiz: Telegram boshqa odamning
+  // kontaktini ham yuborishga ruxsat beradi, u bilan begona hisobga
+  // kirish kodini olib bo'lardi.
+  if (msg.contact) {
+    if (msg.contact.user_id && msg.contact.user_id !== tgId) {
+      await sendMessage(chatId, bt(lang, 'sharePrompt'), { reply_markup: shareKeyboard(lang) });
+      return;
+    }
+    const phone = normalizePhone(msg.contact.phone_number);
+    if (!phone) {
+      await sendMessage(chatId, bt(lang, 'sharePrompt'), { reply_markup: shareKeyboard(lang) });
+      return;
+    }
+    db.prepare(
+      `INSERT INTO telegram_links (phone, telegram_user_id, chat_id, language, first_name)
+       VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT(phone) DO UPDATE SET
+         telegram_user_id = excluded.telegram_user_id,
+         chat_id = excluded.chat_id,
+         first_name = excluded.first_name`
+    ).run(phone, tgId, chatId, lang, msg.contact.first_name ?? null);
+    // Shu raqamli do'kon bo'lsa — unga ham bog'laymiz, kechki hisobot
+    // va eslatmalar shu chatga borishi uchun
+    db.prepare('UPDATE shops SET telegram_user_id = ? WHERE phone = ?').run(tgId, phone);
+
+    const waiting = pendingCode(phone);
+    await sendMessage(chatId, bt(lang, 'linked'), { reply_markup: { remove_keyboard: true } });
+    if (waiting) {
+      await sendMessage(
+        chatId,
+        `${bt(lang, 'codeTitle')}\n\n${bt(lang, 'codeBody', { code: waiting, min: Math.round(OTP_TTL_MS / 60000) })}`
+      );
+    } else {
+      await sendMessage(chatId, bt(lang, 'noPending'), { reply_markup: miniAppKeyboard() });
+    }
+    return;
+  }
 
   if (text.startsWith('/start')) {
     // Havolada mijoz kodi bo'lishi mumkin: t.me/bot?start=c<id>.<imzo>
@@ -148,11 +243,38 @@ export async function handleUpdate(update: any) {
       );
       return;
     }
-    await sendMessage(chatId, WELCOME, { reply_markup: miniAppKeyboard() });
+    // Raqami ulanmagan bo'lsa — avval o'shani so'raymiz, kirish kodi
+    // shu bog'lanish orqali boradi
+    const linked = tgId
+      ? (db.prepare('SELECT phone FROM telegram_links WHERE telegram_user_id = ? LIMIT 1').get(tgId) as any)
+      : null;
+    if (!linked && !shopByTelegram(tgId ?? 0)) {
+      await sendMessage(chatId, bt(lang, 'welcome'), { reply_markup: shareKeyboard(lang) });
+      return;
+    }
+    await sendMessage(chatId, bt(lang, 'noPending'), { reply_markup: miniAppKeyboard() });
     return;
   }
   if (text.startsWith('/help')) {
-    await sendMessage(chatId, HELP, { reply_markup: miniAppKeyboard() });
+    await sendMessage(chatId, bt(lang, 'help'), { reply_markup: miniAppKeyboard() });
+    return;
+  }
+  // Kodni qayta yuborish
+  if (/^\/(kod|code|код)\b/i.test(text)) {
+    const link = tgId
+      ? (db.prepare('SELECT phone FROM telegram_links WHERE telegram_user_id = ? LIMIT 1').get(tgId) as any)
+      : null;
+    const waiting = link?.phone ? pendingCode(link.phone) : null;
+    if (waiting) {
+      await sendMessage(
+        chatId,
+        `${bt(lang, 'codeTitle')}\n\n${bt(lang, 'codeBody', { code: waiting, min: Math.round(OTP_TTL_MS / 60000) })}`
+      );
+    } else if (link) {
+      await sendMessage(chatId, bt(lang, 'noPending'), { reply_markup: miniAppKeyboard() });
+    } else {
+      await sendMessage(chatId, bt(lang, 'welcome'), { reply_markup: shareKeyboard(lang) });
+    }
     return;
   }
 
@@ -191,9 +313,14 @@ export async function handleUpdate(update: any) {
       await sendMessage(chatId, 'Pastdagi tugmalardan foydalaning 👇', { reply_markup: CUSTOMER_KEYS });
       return;
     }
-    await sendMessage(chatId, "Avval ilovaga kiring va telefon raqamingizni tasdiqlang 👇", {
-      reply_markup: miniAppKeyboard(),
-    });
+    const link = tgId
+      ? (db.prepare('SELECT phone FROM telegram_links WHERE telegram_user_id = ? LIMIT 1').get(tgId) as any)
+      : null;
+    if (!link) {
+      await sendMessage(chatId, bt(lang, 'welcome'), { reply_markup: shareKeyboard(lang) });
+    } else {
+      await sendMessage(chatId, bt(lang, 'noPending'), { reply_markup: miniAppKeyboard() });
+    }
     return;
   }
 
@@ -284,6 +411,7 @@ export async function setWebhook(publicUrl: string) {
   return callTelegram('setWebhook', {
     url: `${publicUrl.replace(/\/$/, '')}/telegram/webhook`,
     secret_token: process.env.TELEGRAM_WEBHOOK_SECRET,
+    // contact xabari ham 'message' ichida keladi
     allowed_updates: ['message', 'edited_message'],
   });
 }

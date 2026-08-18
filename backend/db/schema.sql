@@ -330,3 +330,18 @@ CREATE TABLE IF NOT EXISTS order_items (
 
 CREATE INDEX IF NOT EXISTS idx_orders_shop ON orders(shop_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_order_items ON order_items(order_id);
+
+-- Telegram ulanishlari: telefon raqami <-> Telegram foydalanuvchisi.
+--
+-- Kirish kodi SMS o'rniga shu bog'lanish orqali botga yuboriladi.
+-- Alohida jadval kerak, chunki odam do'kon ochishdan OLDIN ham botga
+-- ulanishi mumkin (kod olish uchun) — o'shanda hali shops yozuvi yo'q.
+CREATE TABLE IF NOT EXISTS telegram_links (
+  phone TEXT PRIMARY KEY,
+  telegram_user_id INTEGER NOT NULL,
+  chat_id INTEGER NOT NULL,
+  language TEXT,                                 -- uz | uz_cyrl | ru
+  first_name TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_tg_links_user ON telegram_links(telegram_user_id);

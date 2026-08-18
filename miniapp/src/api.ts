@@ -52,8 +52,9 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ phone, pin }),
     }),
+  /** Kod Telegram bot orqali boradi. via='none' — raqam hali ulanmagan. */
   requestOtp: (phone: string) =>
-    request<{ ok: boolean; dev_hint?: string }>('/auth/request-otp', {
+    request<{ ok: boolean; via: 'telegram' | 'none'; bot?: string; dev_hint?: string }>('/auth/request-otp', {
       method: 'POST',
       body: JSON.stringify({ phone }),
     }),
@@ -113,7 +114,9 @@ export const api = {
       { method: 'POST', body: JSON.stringify({ text }) }
     ),
   dailyReportPreview: () =>
-    request<{ text: string; telegram_linked: boolean; figures: Record<string, number> }>('/reports/daily/preview'),
+    request<{ text: string; telegram_linked: boolean; bot?: string; figures: Record<string, number> }>(
+      '/reports/daily/preview'
+    ),
   sendDailyReport: () => request<{ ok: boolean }>('/reports/daily/send', { method: 'POST' }),
   setPlu: (productId: number, plu?: string) =>
     request<Product & { sample_barcode: string }>(`/products/${productId}/plu`, {

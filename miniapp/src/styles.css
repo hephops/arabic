@@ -1922,3 +1922,27 @@ button.link { background: none; color: var(--accent); font-size: 15px; font-weig
 }
 /* Kartochka ichidagi telefon maydonida bu kerak emas — u yerda o'z ramkasi bor */
 .phone-field.inline:focus-within { box-shadow: inset 0 0 0 1.5px var(--accent); }
+
+/* Telegram orqali tasdiqlash — qadamlar ro'yxati */
+.tg-steps { margin: 4px 0 16px; padding: 0; list-style: none; counter-reset: tg; }
+.tg-steps li {
+  position: relative; counter-increment: tg;
+  padding: 7px 0 7px 34px; font-size: 14.5px; line-height: 1.4;
+}
+.tg-steps li::before {
+  content: counter(tg);
+  position: absolute; left: 0; top: 7px;
+  width: 23px; height: 23px; border-radius: 50%;
+  background: var(--accent); color: #fff;
+  font-size: 12.5px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+}
+.auth-card .btn-ghost { width: 100%; margin-top: 10px; }
+
+/* Ogohlantirish ichidagi havola-tugma */
+.tw-link {
+  display: inline-flex; align-items: center; gap: 6px; margin-top: 8px;
+  padding: 7px 12px; border-radius: 10px; background: rgba(0, 122, 255, 0.1);
+  color: var(--accent); font-size: 13.5px; font-weight: 600; text-decoration: none;
+}
+.tw-link:active { background: rgba(0, 122, 255, 0.18); }
