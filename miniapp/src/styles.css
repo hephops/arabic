@@ -1146,11 +1146,6 @@ button.link { background: none; color: var(--accent); font-size: 15px; font-weig
     border-radius: 8px;
   }
   .side-foot-row:hover { color: var(--accent); background: rgba(120, 120, 128, 0.08); }
-  /* Tungi rejimda ham menyu fon bilan qo'shilib ketmasin */
-  @media (prefers-color-scheme: dark) {
-    .side { background: linear-gradient(180deg, rgba(30, 30, 33, 0.94), rgba(24, 24, 27, 0.94)); }
-    .side-cap { color: #6f6f76; }
-  }
 
   /* Menyuni yig'ish tugmasi sarlavhada */
   .side-toggle {
