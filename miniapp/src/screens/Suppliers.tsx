@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
-import { api, fmt, Supplier, SupplierDetail } from '../api';
+import { api, fmt, Supplier, SupplierDetail, SupplierTelegram } from '../api';
 import { AppIcon, Glyph } from '../icons';
 import { SubHeader, Summary, EmptyState, DateField } from '../ui';
 import { useT } from '../i18n';
 import { formatAmount, formatPhoneSoft } from '../format';
 import { toast, loadFailed } from '../toast';
+import { copyText } from '../clipboard';
 
 // "Men qarzdorman" — postavshiklar (ta'minotchilar) daftari
 
@@ -85,6 +86,8 @@ export default function Suppliers({ onBack }: { onBack: () => void }) {
           value={fmt(selected.balance)}
           color={selected.balance > 0 ? 'var(--red)' : 'var(--green)'}
         />
+        <SupplierBot supplierId={selected.id} />
+
         <div className="section-title">{t('debtHistory')}</div>
         <div className="list-group">
           {selected.debts.map((d) => (
@@ -191,6 +194,81 @@ export default function Suppliers({ onBack }: { onBack: () => void }) {
         <EmptyState icon="truck" title={t('noSuppliers')} sub={t('noSuppliersSub')} />
       )}
     </div>
+    </>
+  );
+}
+
+/* ───────── Ta'minotchini botga ulash ───────── */
+
+/**
+ * Buyurtma ta'minotchiga bot orqali ketadi. Lekin bot faqat o'zini
+ * "Start" qilgan odamga yoza oladi — Telegram qoidasi shunday.
+ * Shuning uchun bir martalik havola shu yerda turadi: buyurtma
+ * yuborishga urinib ko'rmasdan oldin ham ulab qo'yish mumkin.
+ */
+function SupplierBot({ supplierId }: { supplierId: number }) {
+  const [info, setInfo] = useState<SupplierTelegram | null>(null);
+  const { t } = useT();
+
+  useEffect(() => {
+    api.supplierTelegram(supplierId).then(setInfo).catch(loadFailed);
+  }, [supplierId]);
+
+  if (!info) return null;
+
+  if (info.linked) {
+    return (
+      <div className="trust-card" style={{ borderLeftColor: 'var(--green)' }}>
+        <div className="tc-head">
+          <span className="trust-dot" style={{ background: 'var(--green)' }} />
+          <span className="tc-title" style={{ color: 'var(--green)' }}>{t('supBotLinked')}</span>
+        </div>
+        <div className="tc-body">{t('supBotLinkedSub')}</div>
+      </div>
+    );
+  }
+
+  // Raqami yo'q yoki bot nomi sozlanmagan — havola tuzib bo'lmaydi
+  if (!info.invite) {
+    return (
+      <div className="trust-warn">
+        <Glyph name="warning" size={17} color="var(--yellow)" />
+        <div>
+          <b>{t('supBotNoPhone')}</b>
+          <div className="tw-sub">{t('supBotNoPhoneSub')}</div>
+        </div>
+      </div>
+    );
+  }
+
+  const inviteText = `${t('orderTgInviteText')}\n${info.invite}`;
+
+  return (
+    <>
+      <div className="section-title">{t('supBotTitle')}</div>
+      <p className="hint">{t('supBotHint')}</p>
+      <div className="order-text">{info.invite}</div>
+      {info.phone && (
+        <button
+          className="btn-primary"
+          onClick={() => {
+            window.location.href = `sms:${info.phone}?&body=${encodeURIComponent(inviteText)}`;
+          }}
+        >
+          <Glyph name="call" size={18} color="#fff" /> {t('orderTgInviteSms')}
+        </button>
+      )}
+      <div className="order-actions">
+        <button
+          className="btn-chip"
+          onClick={async () => {
+            if (await copyText(inviteText)) toast.success(t('copied'));
+            else toast.error(t('copyFailed'), t('copyFailedSub'));
+          }}
+        >
+          <Glyph name="copy" size={16} color="var(--accent)" /> {t('orderTgInviteCopy')}
+        </button>
+      </div>
     </>
   );
 }

@@ -10,7 +10,7 @@ import { parseDebtText, parseCartText } from './voice.js';
 import { runReminders, startReminderScheduler } from './reminders.js';
 import {
   handleUpdate, verifyInitData, telegramEnabled, setWebhook, sendMessage, sendLoginCode,
-  botUsername, otpDeepLink, supplierDeepLink, sendOrderToSupplier,
+  botUsername, otpDeepLink, supplierDeepLink, sendOrderToSupplier, chatForPhone,
 } from './telegram.js';
 import { registerAdminRoutes, seedAdmin } from './admin.js';
 import { normalizeBarcode, barcodeVariants, checkGtin, makeInStoreEan13, parseScaleBarcode, makeScaleBarcode, scaleQty } from './barcodes.js';
@@ -910,6 +910,27 @@ app.post<{ Body: { supplier_id?: number; supplier_name?: string; amount: number;
     return db.prepare('SELECT * FROM supplier_debts WHERE id = ?').get(info.lastInsertRowid);
   }
 );
+
+/**
+ * Ta'minotchini botga ulash holati va bir martalik havola.
+ *
+ * "Postavshiklar" ekranida turadi: buyurtma yuborishga urinib
+ * ko'rmasdan oldin ham ta'minotchini ulab qo'yish mumkin bo'lsin.
+ */
+app.get<{ Params: { id: string } }>('/suppliers/:id/telegram', { preHandler: requireAuth }, async (req, reply) => {
+  const sup = db
+    .prepare('SELECT id, name, phone FROM suppliers WHERE id = ? AND shop_id = ?')
+    .get(req.params.id, req.shopId) as any;
+  if (!sup) return reply.code(404).send({ error: 'not_found' });
+  const phone = normalizePhone(sup.phone ?? '');
+  return {
+    name: sup.name,
+    phone: phone || null,
+    linked: phone ? chatForPhone(phone) !== null : false,
+    // Bot nomi sozlanmagan yoki raqam yo'q bo'lsa havola tuzib bo'lmaydi
+    invite: phone ? supplierDeepLink(phone) : null,
+  };
+});
 
 app.get<{ Params: { id: string } }>('/suppliers/:id', { preHandler: requireAuth }, async (req, reply) => {
   const supplier = db

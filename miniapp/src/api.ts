@@ -104,6 +104,8 @@ export const api = {
   reports: (period: 'day' | 'week' | 'month') => request<Report>(`/reports/summary?period=${period}`),
   suppliers: () => request<Supplier[]>('/suppliers'),
   supplier: (id: number) => request<SupplierDetail>(`/suppliers/${id}`),
+  // Ta'minotchi botga ulanganmi va ulash havolasi
+  supplierTelegram: (id: number) => request<SupplierTelegram>(`/suppliers/${id}/telegram`),
   createSupplierDebt: (data: { supplier_id?: number; supplier_name?: string; amount: number; note?: string; due_date?: string }) =>
     request<SupplierDebt>('/supplier-debts', { method: 'POST', body: JSON.stringify(data) }),
   paySupplierDebt: (id: number, amount: number) =>
@@ -468,6 +470,15 @@ export interface Order {
   received_at: string | null;
   created_at: string;
   items: OrderItem[];
+}
+
+/** Ta'minotchining bot bilan bog'lanishi */
+export interface SupplierTelegram {
+  name: string;
+  phone: string | null;
+  linked: boolean;
+  /** bir martalik ulash havolasi (raqam yoki bot nomi yo'q bo'lsa — null) */
+  invite: string | null;
 }
 
 /** /orders/send-telegram javobi */

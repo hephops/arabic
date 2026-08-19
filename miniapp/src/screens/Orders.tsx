@@ -4,7 +4,7 @@ import { AppIcon, Glyph } from '../icons';
 import { SubHeader, Summary, EmptyState, Segmented } from '../ui';
 import { useT } from '../i18n';
 import { toast, loadFailed } from '../toast';
-import { tg } from '../telegram';
+import { copyText } from '../clipboard';
 import { PrintSheet, OrderPrint, type OrderSheetLine } from '../print';
 import { fmtDateTime, fmtWhen, fmtDay } from '../format';
 
@@ -122,37 +122,8 @@ export default function Orders({ onBack }: { onBack: () => void }) {
   }
 
   async function copy(text: string) {
-    try {
-      await navigator.clipboard.writeText(text);
-      toast.success(t('copied'));
-    } catch {
-      // HTTPS bo'lmagan yoki eski brauzerlar uchun zaxira yo'l
-      const ta = document.createElement('textarea');
-      ta.value = text;
-      ta.style.position = 'fixed';
-      ta.style.opacity = '0';
-      document.body.appendChild(ta);
-      ta.select();
-      try {
-        document.execCommand('copy');
-        toast.success(t('copied'));
-      } catch {
-        toast.error(t('copyFailed'), t('copyFailedSub'));
-      }
-      ta.remove();
-    }
-  }
-
-  /**
-   * Telegram'ning "kimga yuborish" oynasi — zaxira yo'l.
-   *
-   * Matn `url` parametrida ketadi: `url` bo'sh bo'lsa Telegram sahifasi
-   * xato beradi va hech narsa ochilmaydi (kompyuterda shu bo'layotgan edi).
-   */
-  function shareTelegram(text: string) {
-    const url = `https://t.me/share/url?url=${encodeURIComponent(text)}`;
-    if (tg?.openTelegramLink) tg.openTelegramLink(url);
-    else window.open(url, '_blank');
+    if (await copyText(text)) toast.success(t('copied'));
+    else toast.error(t('copyFailed'), t('copyFailedSub'));
   }
 
   /**
@@ -233,7 +204,7 @@ export default function Orders({ onBack }: { onBack: () => void }) {
   ) : null;
 
   // Telegram oynasi — ikkala ko'rinishda ham kerak
-  const tgSheetEl = tgSheet ? <TelegramSheet data={tgSheet} onClose={() => setTgSheet(null)} onCopy={copy} onManual={shareTelegram} t={t} /> : null;
+  const tgSheetEl = tgSheet ? <TelegramSheet data={tgSheet} onClose={() => setTgSheet(null)} onCopy={copy} t={t} /> : null;
 
   if (openOrder) {
     const text = orderTextOf(openOrder, shop, t);
@@ -496,13 +467,11 @@ function TelegramSheet({
   data,
   onClose,
   onCopy,
-  onManual,
   t,
 }: {
   data: { text: string; res: OrderSendResult };
   onClose: () => void;
   onCopy: (text: string) => void;
-  onManual: (text: string) => void;
   t: (k: string) => string;
 }) {
   const r = data.res;
@@ -536,32 +505,26 @@ function TelegramSheet({
         {invite && (
           <>
             <div className="order-text">{invite}</div>
+            {r.phone && (
+              <button
+                className="btn-primary btn-lg"
+                onClick={() => {
+                  window.location.href = `sms:${r.phone}?&body=${encodeURIComponent(inviteText)}`;
+                }}
+              >
+                <Glyph name="call" size={18} color="#fff" /> {t('orderTgInviteSms')}
+              </button>
+            )}
             <div className="order-actions">
               <button className="btn-chip" onClick={() => onCopy(inviteText)}>
                 <Glyph name="copy" size={16} color="var(--accent)" /> {t('orderTgInviteCopy')}
               </button>
-              {r.phone && (
-                <button
-                  className="btn-chip"
-                  onClick={() => {
-                    window.location.href = `sms:${r.phone}?&body=${encodeURIComponent(inviteText)}`;
-                  }}
-                >
-                  <Glyph name="call" size={16} color="var(--accent)" /> {t('orderTgInviteSms')}
-                </button>
-              )}
             </div>
           </>
         )}
 
-        <button
-          className="btn-ghost"
-          onClick={() => {
-            onManual(data.text);
-            onClose();
-          }}
-        >
-          <Glyph name="send" size={16} color="var(--accent)" /> {t('orderTgManual')}
+        <button className="btn-ghost" onClick={onClose}>
+          {t('close')}
         </button>
       </div>
     </div>

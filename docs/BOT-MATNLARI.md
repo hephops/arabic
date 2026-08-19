@@ -101,10 +101,15 @@ o'zi yasab, boshqa raqamni ulay olmaydi.
 | `?start=sup<raqam><imzo>` | ta'minotchi | raqami ulanadi, buyurtmalar shu chatga keladi |
 | `?start=c<mijoz kodi>` | mijoz | cheklar va xarid tarixi shu chatga keladi |
 
-Ta'minotchi havolasini do'konchi **Buyurtma** ekranidan oladi:
-"Telegram" tugmasini bossa, ta'minotchi hali ulanmagan bo'lsa oyna
-chiqadi va havolani SMS bilan yuborishni taklif qiladi. Ta'minotchi bir
+Ta'minotchi havolasi ikki joyda turadi: **Postavshiklar -> ta'minotchi**
+kartochkasida va **Buyurtma** ekranida "Telegram" bosilganda (agar u hali
+ulanmagan bo'lsa). Havolani SMS bilan yuborish mumkin. Ta'minotchi bir
 marta bossa — bundan keyin buyurtma bir bosishda o'ziga boradi.
+
+Buyurtma FAQAT bot orqali ketadi. Telegram'ning "kimga yuborish" oynasi
+ishlatilmaydi: u matnni do'konchining o'z "Saqlangan xabarlar"iga tashlab
+qo'yardi. Bot esa faqat o'zini "Start" qilgan odamga yoza oladi — bu
+Telegram qoidasi, shuning uchun ulanish havolasi kerak.
 
 Ta'minotchi — boshqa odam, shuning uchun unga **o'zining** Telegram
 tilida yoziladi (do'konchining tili emas).
