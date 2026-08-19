@@ -571,3 +571,13 @@ tr.picked { background: rgba(0, 122, 255, 0.06); }
 }
 .cat-pick-item.on { box-shadow: 0 0 0 2px var(--accent); }
 .modal.narrow { max-width: 460px; }
+
+/* Rasm olish tugmalari — oynadagi rasm qatorida */
+.cat-img-tools {
+  display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap;
+}
+.cat-img-tools input {
+  flex: 1; min-width: 180px;
+  font-size: 13px; padding: 7px 10px;
+}
+.cat-img-tools .btn { padding: 7px 12px; font-size: 13px; white-space: nowrap; }

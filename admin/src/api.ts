@@ -107,6 +107,19 @@ export const api = {
     request<CatalogProduct>(`/admin/catalog/products/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   catDeleteProduct: (id: number) =>
     request<{ ok: boolean }>(`/admin/catalog/products/${id}`, { method: 'DELETE' }),
+  // Rasmni serverning o'zi olib keladi — admin brauzeri emas
+  catImageFromUrl: (id: number, url: string) =>
+    request<CatalogProduct>(`/admin/catalog/products/${id}/image-url`, { method: 'POST', body: JSON.stringify({ url }) }),
+  catFromBarcode: (id: number, apply_name = false) =>
+    request<{ found: OffFound; changed: string[]; product: CatalogProduct }>(
+      `/admin/catalog/products/${id}/from-barcode`,
+      { method: 'POST', body: JSON.stringify({ apply_name }) }
+    ),
+  catBulkImages: (limit = 25) =>
+    request<{ checked: number; done: number; missing: number; left: number }>('/admin/catalog/fetch-images', {
+      method: 'POST',
+      body: JSON.stringify({ limit }),
+    }),
 };
 
 export interface Admin {
@@ -301,6 +314,16 @@ export interface CatalogStats {
   with_image: number;
   with_barcode: number;
   used_by_shops: number;
+  /** kodi bor, lekin rasmi yo'q — ommaviy izlash shularni oladi */
+  image_pending: number;
+}
+
+/** Ochiq bazadan topilgan ma'lumot */
+export interface OffFound {
+  name: string | null;
+  brand: string | null;
+  quantity: string | null;
+  image: string | null;
 }
 
 export interface CatalogCategory {
@@ -326,6 +349,7 @@ export interface CatalogProduct {
   unit: string;
   barcode: string | null;
   image_url: string | null;
+  image_source?: string | null;
   status: string;
   category_uz?: string;
 }

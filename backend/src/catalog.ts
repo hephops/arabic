@@ -16,6 +16,7 @@ import { requireAdmin, log } from './admin.js';
 import { normalizeSearch, productSearchKey, searchTerms } from './search.js';
 import { normalizeBarcode, barcodeVariants } from './barcodes.js';
 import { normalizeUnit } from './units.js';
+import { fetchImage, saveFetched, offLookup, parseQuantity } from './imageFetch.js';
 
 const VOLUME_UNITS = ['ml', 'l', 'g', 'kg', 'dona'];
 
@@ -331,6 +332,141 @@ export function registerCatalogRoutes(
     }
   );
 
+  /* ── Rasm olib kelish ── */
+
+  /** Xato sababini foydalanuvchi tushunadigan qilib qaytaramiz */
+  const IMAGE_ERRORS: Record<string, string> = {
+    bad_protocol: 'Havola http yoki https bilan boshlanishi kerak',
+    private_host: 'Bu manzilga ruxsat yo\'q',
+    not_an_image: 'Havolada rasm yo\'q (jpg, png yoki webp bo\'lishi kerak)',
+    too_big: 'Rasm juda katta (4 MB dan oshmasin)',
+    too_many_redirects: 'Havola aylanib qolgan',
+  };
+
+  function imageError(e: any): string {
+    const key = String(e?.message ?? '');
+    return IMAGE_ERRORS[key] ?? (key.startsWith('http_') ? `Sayt javob bermadi (${key.slice(5)})` : 'Rasmni olib bo\'lmadi');
+  }
+
+  /**
+   * Havoladan rasm olish.
+   *
+   * Serverdan yuklab olinadi, admin brauzeridan emas — shunda
+   * do'kon rasmni o'z serveridan oladi va tashqi saytga bog'lanib
+   * qolmaydi (u sayt ertaga o'chib ketishi mumkin).
+   */
+  app.post<{ Params: { id: string }; Body: { url?: string } }>(
+    '/admin/catalog/products/:id/image-url',
+    { preHandler: requireAdmin },
+    async (req, reply) => {
+      const p = db.prepare('SELECT id, name_uz FROM catalog_products WHERE id = ?').get(req.params.id) as any;
+      if (!p) return reply.code(404).send({ error: 'not_found' });
+      const url = (req.body?.url ?? '').trim();
+      if (!url) return reply.code(400).send({ error: 'url_required', message: 'Havola kerak' });
+      try {
+        const img = await fetchImage(url);
+        const saved = saveFetched(img, p.id, uploadsDir);
+        db.prepare('UPDATE catalog_products SET image_url = ?, image_source = ? WHERE id = ?').run(saved, url, p.id);
+        log(req.admin!.id, 'catalog_image_url', String(p.id), p.name_uz);
+        return db.prepare('SELECT * FROM catalog_products WHERE id = ?').get(p.id);
+      } catch (e: any) {
+        return reply.code(400).send({ error: 'fetch_failed', message: imageError(e) });
+      }
+    }
+  );
+
+  /**
+   * Shtrix-kod bo'yicha zavod ma'lumotini olish (Open Food Facts).
+   * Rasm, to'liq nom, brend va hajm bir so'rovda keladi.
+   */
+  app.post<{ Params: { id: string }; Body: { apply_name?: boolean } }>(
+    '/admin/catalog/products/:id/from-barcode',
+    { preHandler: requireAdmin },
+    async (req, reply) => {
+      const p = db.prepare('SELECT * FROM catalog_products WHERE id = ?').get(req.params.id) as any;
+      if (!p) return reply.code(404).send({ error: 'not_found' });
+      if (!p.barcode) {
+        return reply.code(400).send({ error: 'no_barcode', message: 'Avval shtrix-kodni yozing' });
+      }
+      const off = await offLookup(p.barcode);
+      if (!off) {
+        return reply.code(404).send({ error: 'not_found_in_base', message: 'Bu kod ochiq bazada topilmadi' });
+      }
+
+      const changed: string[] = [];
+      if (off.image) {
+        try {
+          const img = await fetchImage(off.image);
+          const saved = saveFetched(img, p.id, uploadsDir);
+          db.prepare('UPDATE catalog_products SET image_url = ?, image_source = ? WHERE id = ?').run(saved, off.image, p.id);
+          changed.push('rasm');
+        } catch {
+          /* rasm bo'lmasa ham qolgan ma'lumot foydali */
+        }
+      }
+      // Nom faqat so'ralganda almashadi — admin yozgan o'zbekcha nom
+      // ochiq bazadagi ruscha nomdan ko'ra to'g'riroq bo'lishi mumkin
+      if (req.body?.apply_name && off.name) {
+        db.prepare('UPDATE catalog_products SET name_ru = ? WHERE id = ?').run(off.name, p.id);
+        changed.push('nomi');
+      }
+      if (off.brand && !p.brand) {
+        db.prepare('UPDATE catalog_products SET brand = ? WHERE id = ?').run(off.brand, p.id);
+        changed.push('brend');
+      }
+      const q = parseQuantity(off.quantity);
+      if (q && p.volume_value == null) {
+        db.prepare('UPDATE catalog_products SET volume_value = ?, volume_unit = ? WHERE id = ?').run(q.value, q.unit, p.id);
+        changed.push('hajmi');
+      }
+      refreshKey(p.id);
+      log(req.admin!.id, 'catalog_from_barcode', String(p.id), p.name_uz);
+      return { found: off, changed, product: db.prepare('SELECT * FROM catalog_products WHERE id = ?').get(p.id) };
+    }
+  );
+
+  /**
+   * Ommaviy: shtrix-kodi bor, lekin rasmi yo'q tovarlarga rasm izlash.
+   * Ketma-ket yuriladi — ochiq bazani so'rovga ko'mib tashlamaslik uchun.
+   */
+  app.post<{ Body: { limit?: number } }>(
+    '/admin/catalog/fetch-images',
+    { preHandler: requireAdmin },
+    async (req) => {
+      const limit = Math.min(200, Math.max(1, Number(req.body?.limit) || 25));
+      const rows = db
+        .prepare(
+          `SELECT id, barcode FROM catalog_products
+           WHERE barcode IS NOT NULL AND image_url IS NULL AND status != 'hidden'
+           ORDER BY id LIMIT ?`
+        )
+        .all(limit) as any[];
+
+      let done = 0;
+      let missing = 0;
+      for (const row of rows) {
+        const off = await offLookup(row.barcode);
+        if (!off?.image) {
+          missing++;
+          continue;
+        }
+        try {
+          const img = await fetchImage(off.image);
+          const saved = saveFetched(img, row.id, uploadsDir);
+          db.prepare('UPDATE catalog_products SET image_url = ?, image_source = ? WHERE id = ?').run(saved, off.image, row.id);
+          done++;
+        } catch {
+          missing++;
+        }
+      }
+      const left = db
+        .prepare(`SELECT COUNT(*) AS c FROM catalog_products WHERE barcode IS NOT NULL AND image_url IS NULL AND status != 'hidden'`)
+        .get() as any;
+      log(req.admin!.id, 'catalog_bulk_images', undefined, `${done} ta rasm`);
+      return { checked: rows.length, done, missing, left: left.c };
+    }
+  );
+
   /** Katalogning umumiy holati — admin panelidagi sarlavha uchun */
   app.get('/admin/catalog/stats', { preHandler: requireAdmin }, async () => {
     const products = db.prepare('SELECT COUNT(*) AS c FROM catalog_products').get() as any;
@@ -338,12 +474,16 @@ export function registerCatalogRoutes(
     const withBarcode = db.prepare('SELECT COUNT(*) AS c FROM catalog_products WHERE barcode IS NOT NULL').get() as any;
     const cats = db.prepare('SELECT COUNT(*) AS c FROM catalog_categories').get() as any;
     const used = db.prepare('SELECT COUNT(DISTINCT catalog_id) AS c FROM products WHERE catalog_id IS NOT NULL').get() as any;
+    const pending = db
+      .prepare(`SELECT COUNT(*) AS c FROM catalog_products WHERE barcode IS NOT NULL AND image_url IS NULL AND status != 'hidden'`)
+      .get() as any;
     return {
       products: products.c,
       categories: cats.c,
       with_image: withImage.c,
       with_barcode: withBarcode.c,
       used_by_shops: used.c,
+      image_pending: pending.c,
     };
   });
 }

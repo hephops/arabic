@@ -122,6 +122,8 @@ for (const sql of [
   'ALTER TABLE shops ADD COLUMN staff_notify INTEGER NOT NULL DEFAULT 1',
   // Tovar markaziy katalogdan olingan bo'lsa — qaysi yozuvdan
   'ALTER TABLE products ADD COLUMN catalog_id INTEGER',
+  // Katalog rasmi qayerdan olingani (litsenziya uchun manba)
+  'ALTER TABLE catalog_products ADD COLUMN image_source TEXT',
 ]) {
   try {
     db.exec(sql);

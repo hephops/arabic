@@ -224,6 +224,9 @@ CREATE TABLE IF NOT EXISTS catalog_products (
   unit TEXT NOT NULL DEFAULT 'dona',             -- ombor birligi
   barcode TEXT,                                  -- bo'lishi shart emas
   image_url TEXT,
+  -- Rasm qayerdan olingani. Open Food Facts rasmlari CC BY-SA
+  -- litsenziyasida — manba ko'rsatilishi shart.
+  image_source TEXT,
   status TEXT NOT NULL DEFAULT 'verified',       -- draft | verified | hidden
   -- Normallashtirilgan qidiruv matni: "Кока-Кола 1,5 л" ham,
   -- "coca cola 1.5l" ham shu satrga aylanadi (search.ts)

@@ -42,6 +42,9 @@ export default function Catalog() {
   const [catDraft, setCatDraft] = useState<any | null>(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [imgUrl, setImgUrl] = useState('');
+  const [imgMsg, setImgMsg] = useState('');
+  const [bulk, setBulk] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
 
   const loadCats = () => api.catCategories().then(setCats).catch(() => {});
@@ -160,6 +163,63 @@ export default function Catalog() {
     }
   }
 
+  /** Havoladan rasm — serverning o'zi yuklab oladi */
+  async function loadFromUrl() {
+    if (!draft?.id) {
+      setImgMsg('Avval tovarni saqlang');
+      return;
+    }
+    if (!imgUrl.trim()) return;
+    setBusy(true);
+    setImgMsg('');
+    try {
+      const p = await api.catImageFromUrl(draft.id, imgUrl.trim());
+      setDraft({ ...draft, image_url: p.image_url, image: undefined });
+      setImgUrl('');
+      setImgMsg('Rasm qo\'yildi');
+      loadItems();
+      loadStats();
+    } catch (e: any) {
+      setImgMsg(e.details?.message ?? 'Rasmni olib bo\'lmadi');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /** Shtrix-kod bo'yicha ochiq bazadan rasm va ma'lumot */
+  async function loadFromBarcode() {
+    if (!draft?.id) {
+      setImgMsg('Avval tovarni saqlang');
+      return;
+    }
+    setBusy(true);
+    setImgMsg('');
+    try {
+      const r = await api.catFromBarcode(draft.id);
+      setDraft({ ...r.product, image: undefined });
+      setImgMsg(r.changed.length ? `Olindi: ${r.changed.join(', ')}` : 'Yangi ma\'lumot topilmadi');
+      loadItems();
+      loadStats();
+    } catch (e: any) {
+      setImgMsg(e.details?.message ?? 'Topilmadi');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /** Kodli tovarlarga ommaviy rasm izlash */
+  async function bulkImages() {
+    setBulk('Izlanyapti...');
+    try {
+      const r = await api.catBulkImages(25);
+      setBulk(`${r.done} ta rasm topildi, ${r.missing} tasi yo'q. Qolgani: ${r.left}`);
+      loadItems();
+      loadStats();
+    } catch (e: any) {
+      setBulk(e.message);
+    }
+  }
+
   function pickImage(file: File | undefined) {
     if (!file || !draft) return;
     const img = new Image();
@@ -184,10 +244,17 @@ export default function Catalog() {
           </div>
         </div>
         <div className="topbar-right">
+          {!!stats?.image_pending && (
+            <button className="btn" onClick={bulkImages} title="Shtrix-kodi bor tovarlarga ochiq bazadan rasm izlaydi">
+              <Glyph name="camera" size={16} /> Rasm izlash ({stats.image_pending})
+            </button>
+          )}
           <button
             className="btn primary"
             onClick={() => {
               setError('');
+              setImgUrl('');
+              setImgMsg('');
               setDraft(emptyProduct(picked?.id ?? flat.find((c) => c.parent_id != null)?.id ?? 0));
             }}
           >
@@ -195,6 +262,8 @@ export default function Catalog() {
           </button>
         </div>
       </div>
+
+      {bulk && <p className="hint" style={{ marginBottom: 10 }}>{bulk}</p>}
 
       {stats && (
         <div className="cards">
@@ -335,7 +404,16 @@ export default function Catalog() {
               </thead>
               <tbody>
                 {items.map((p) => (
-                  <tr key={p.id} onClick={() => { setError(''); setDraft({ ...p, image: undefined }); }} style={{ cursor: 'pointer' }}>
+                  <tr
+                    key={p.id}
+                    onClick={() => {
+                      setError('');
+                      setImgUrl('');
+                      setImgMsg('');
+                      setDraft({ ...p, image: undefined });
+                    }}
+                    style={{ cursor: 'pointer' }}
+                  >
                     <td>
                       {p.image_url ? (
                         <img className="cat-mini" src={`${BASE}${p.image_url}`} alt="" />
@@ -388,9 +466,37 @@ export default function Catalog() {
                   <Glyph name="camera" size={22} />
                 )}
               </button>
-              <div>
+              <div style={{ flex: 1, minWidth: 0 }}>
                 <div className="cell-main">Rasm</div>
-                <div className="cell-sub">Ixtiyoriy. Bo'lmasa nomdan belgi yasaladi.</div>
+                <div className="cell-sub">
+                  Kompyuterdan yuklang, havola qo'ying yoki shtrix-kod bo'yicha izlating.
+                  Rasm bo'lmasa ilovada tovarning shakli chiziladi.
+                </div>
+                <div className="cat-img-tools">
+                  <input
+                    value={imgUrl}
+                    onChange={(e) => setImgUrl(e.target.value)}
+                    placeholder="https://... rasm havolasi"
+                    onKeyDown={(e) => e.key === 'Enter' && loadFromUrl()}
+                  />
+                  <button className="btn" onClick={loadFromUrl} disabled={busy || !imgUrl.trim()}>
+                    Yuklab olish
+                  </button>
+                  <button
+                    className="btn"
+                    onClick={loadFromBarcode}
+                    disabled={busy || !draft.barcode}
+                    title={draft.barcode ? 'Ochiq bazadan izlash' : 'Avval shtrix-kodni yozing'}
+                  >
+                    Koddan olish
+                  </button>
+                </div>
+                {imgMsg && <div className="cell-sub" style={{ marginTop: 6 }}>{imgMsg}</div>}
+                {draft.image_source && (
+                  <div className="cell-sub" style={{ marginTop: 4 }}>
+                    Manba: <span className="mono">{String(draft.image_source).slice(0, 60)}</span>
+                  </div>
+                )}
               </div>
               <input
                 ref={fileRef}
