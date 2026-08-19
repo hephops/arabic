@@ -80,6 +80,120 @@ const INK_SOFT = 'rgba(0,0,0,0.16)';
 
 // Har bir ikonkaning tasviri 100×100 maydonda chizilgan
 const ART: Record<string, (bg: string) => ReactNode> = {
+  // ═══ Katalog bo'limlari ═══
+  // Shisha — ichimliklar
+  bottle: () => (
+    <>
+      <path d="M43 12h14v13c0 4 1.5 6 4.5 9.5C65.5 39.5 68 44 68 51v30a7 7 0 0 1-7 7H39a7 7 0 0 1-7-7V51c0-7 2.5-11.5 6.5-16.5C41.5 31 43 29 43 25Z" fill="#fff"/>
+      <path d="M32 58h36v23a7 7 0 0 1-7 7H39a7 7 0 0 1-7-7Z" fill={INK_SOFT}/>
+      <rect x="41" y="8" width="18" height="7" rx="3" fill="#fff"/>
+    </>
+  ),
+  // Stakan — sut mahsulotlari
+  milk: () => (
+    <>
+      <path d="M30 30h40l-4 52a8 8 0 0 1-8 7.5H42a8 8 0 0 1-8-7.5Z" fill="#fff"/>
+      <path d="M28.5 52h43l-2.3 30a8 8 0 0 1-8 7.5H38.8a8 8 0 0 1-8-7.5Z" fill={INK_SOFT}/>
+      <path d="M36 11h28l6 15H30Z" fill="#fff"/>
+    </>
+  ),
+  // Non
+  bread: () => (
+    <>
+      <path d="M18 46c0-13 12-22 32-22s32 9 32 22v24a8 8 0 0 1-8 8H26a8 8 0 0 1-8-8Z" fill="#fff"/>
+      <g fill={INK_SOFT}>
+        <rect x="30" y="36" width="7" height="16" rx="3.5" transform="rotate(-16 33 44)"/>
+        <rect x="46" y="33" width="7" height="16" rx="3.5"/>
+        <rect x="62" y="36" width="7" height="16" rx="3.5" transform="rotate(16 65 44)"/>
+      </g>
+    </>
+  ),
+  // Go'sht bo'lagi — suyagi bilan
+  meat: () => (
+    <>
+      <path d="M30 26c14-12 36-10 45 2 8 11 5 27-7 36-9 7-12 10-14 17-1.6 6-6 9-12 9-9 0-15-6-15-14 0-6-2-9-6-13-11-11-6-27 9-37Z" fill="#fff"/>
+      <path d="M39 40c9-8 22-7 27 1" fill="none" stroke={INK_SOFT} strokeWidth="6" strokeLinecap="round"/>
+      <g fill="#fff">
+        <circle cx="20" cy="76" r="7.5"/><circle cx="27" cy="86" r="7.5"/>
+        <path d="M23 74l30 12-6 10-30-12Z"/>
+      </g>
+    </>
+  ),
+  // Barg — meva-sabzavot
+  leaf: () => (
+    <>
+      <path d="M84 16C50 14 24 28 21 55c-1.6 15 6 27 6 27s13-3 24-11c18-13 30-31 33-55Z" fill="#fff"/>
+      <path d="M84 16C64 34 44 56 25 88" fill="none" stroke={INK} strokeWidth="6" strokeLinecap="round"/>
+    </>
+  ),
+  // Tomchi — gigiena
+  drop: () => (
+    <>
+      <path d="M50 10c14 20 24 32 24 46a24 24 0 0 1-48 0c0-14 10-26 24-46Z" fill="#fff"/>
+      <path d="M38 58a12 12 0 0 0 12 12" fill="none" stroke={INK_SOFT} strokeWidth="6" strokeLinecap="round"/>
+    </>
+  ),
+  // Yulduzcha — parfumeriya, kosmetika
+  sparkle: () => (
+    <>
+      <path d="M50 12l7.5 21.5L79 41l-21.5 7.5L50 70l-7.5-21.5L21 41l21.5-7.5Z" fill="#fff"/>
+      <path d="M76 62l3.4 9.6L89 75l-9.6 3.4L76 88l-3.4-9.6L63 75l9.6-3.4Z" fill="#fff" opacity="0.72"/>
+    </>
+  ),
+  // Purkagich — uy-ro'zg'or kimyosi
+  spray: () => (
+    <>
+      <rect x="33" y="34" width="34" height="56" rx="9" fill="#fff"/>
+      <rect x="33" y="58" width="34" height="32" rx="8" fill={INK_SOFT}/>
+      <path d="M42 34V20a6 6 0 0 1 6-6h10v9H50v11Z" fill="#fff"/>
+      <g fill="#fff" opacity="0.8">
+        <circle cx="76" cy="18" r="4"/><circle cx="87" cy="27" r="3.2"/><circle cx="74" cy="34" r="2.8"/>
+      </g>
+    </>
+  ),
+  // Vilka — elektronika
+  plug: () => (
+    <>
+      <path d="M33 12v22M67 12v22" stroke="#fff" strokeWidth="9" strokeLinecap="round"/>
+      <path d="M24 36h52v14a26 26 0 0 1-19 25v13a5 5 0 0 1-5 5h-4a5 5 0 0 1-5-5V75A26 26 0 0 1 24 50Z" fill="#fff"/>
+      <path d="M24 50a26 26 0 0 0 19 25h14a26 26 0 0 0 19-25Z" fill={INK_SOFT}/>
+    </>
+  ),
+  // Futbolka — kiyim
+  shirt: () => (
+    <>
+      <path d="M37 14h26c0 7 4 11 10 13l17 7-8 20-11-4v34a6 6 0 0 1-6 6H35a6 6 0 0 1-6-6V50l-11 4-8-20 17-7c6-2 10-6 10-13Z" fill="#fff"/>
+      <path d="M37 14c0 8 6 13 13 13s13-5 13-13Z" fill={INK_SOFT}/>
+    </>
+  ),
+  // Panja — hayvonlar
+  paw: () => (
+    <>
+      <ellipse cx="50" cy="66" rx="21" ry="17" fill="#fff"/>
+      <ellipse cx="26" cy="45" rx="10" ry="12" fill="#fff"/>
+      <ellipse cx="41" cy="30" rx="9.5" ry="12" fill="#fff"/>
+      <ellipse cx="59" cy="30" rx="9.5" ry="12" fill="#fff"/>
+      <ellipse cx="74" cy="45" rx="10" ry="12" fill="#fff"/>
+    </>
+  ),
+  // Kalit — asboblar
+  tool: () => (
+    <>
+      <path d="M63 12a24 24 0 0 0-19 38.5L18 76.5a8 8 0 0 0 0 11.3l0 0a8 8 0 0 0 11.3 0L55.3 62A24 24 0 0 0 87 39l-14 14-12-12 14-14a24 24 0 0 0-12-15Z" fill="#fff"/>
+      <circle cx="24" cy="82" r="4.5" fill={INK}/>
+    </>
+  ),
+  // Yurak — sog'liq
+  heart: () => (
+    <path d="M50 85C26 68 14 56 14 41a19 19 0 0 1 36-8 19 19 0 0 1 36 8c0 15-12 27-36 44Z" fill="#fff"/>
+  ),
+  // Qorbo'ron — muzlatilgan
+  snow: () => (
+    <g stroke="#fff" strokeWidth="7" strokeLinecap="round">
+      <path d="M50 13v74M20 31l60 38M80 31L20 69"/>
+      <path d="M39 20l11 8 11-8M39 80l11-8 11 8" strokeWidth="6" fill="none"/>
+    </g>
+  ),
   // Uy — bosh sahifa
   house: () => (
     <path
@@ -371,6 +485,9 @@ const DEFAULT_COLOR: Record<string, IconColor> = {
   card: 'indigo', globe: 'teal', logout: 'red', arrowDown: 'green', arrowUp: 'red',
   star: 'yellow', book: 'amber', search: 'teal', warning: 'orange', clock: 'orange',
   calendar: 'red', plus: 'green', wallet: 'pink',
+  bottle: 'blue', milk: 'teal', bread: 'orange', meat: 'red', leaf: 'green',
+  drop: 'mint', sparkle: 'pink', spray: 'indigo', plug: 'gray', shirt: 'purple',
+  paw: 'amber', tool: 'gray', heart: 'red', snow: 'teal',
 };
 
 // Eski nomlar bilan moslik

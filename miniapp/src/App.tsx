@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { api, getToken, type Shop } from './api';
+import { api, getToken, type CatalogProduct, type Shop } from './api';
 import Dock, { NavTarget } from './Dock';
 import { NavBar } from './ui';
 import Login from './screens/Login';
@@ -15,6 +15,7 @@ import Reminders from './screens/Reminders';
 import Expenses from './screens/Expenses';
 import Orders from './screens/Orders';
 import Returns from './screens/Returns';
+import Catalog from './screens/Catalog';
 import QuickActions from './QuickActions';
 import InstallPrompt from './InstallPrompt';
 import { ToastHost } from './toast';
@@ -24,7 +25,7 @@ import { useT } from './i18n';
 import { setBackButton, haptic } from './telegram';
 
 export type Tab = 'home' | 'customers' | 'add' | 'kassa' | 'profile';
-export type SubScreen = 'suppliers' | 'reports' | 'inventory' | 'reminders' | 'expenses' | 'orders' | 'returns' | null;
+export type SubScreen = 'suppliers' | 'reports' | 'inventory' | 'reminders' | 'expenses' | 'orders' | 'returns' | 'catalog' | null;
 
 export default function App() {
   const [authed, setAuthed] = useState(!!getToken());
@@ -43,6 +44,8 @@ export default function App() {
   // Qaytarish ekraniga "+" dan kelindimi (skaner o'zi ochiladi) yoki
   // menyudan (oddiy ochiladi)
   const [returnsAutoScan, setReturnsAutoScan] = useState(false);
+  // Katalogdan tanlangan tovar — kirim ekrani shu bilan ochiladi
+  const [catalogPick, setCatalogPick] = useState<CatalogProduct | null>(null);
   const { t, lang, setLang } = useT();
 
   // Telegram'ning o'z "orqaga" tugmasi ichki ekranlarda ko'rinadi
@@ -116,6 +119,18 @@ export default function App() {
       {sub === 'expenses' && <Expenses onBack={() => setSub(null)} />}
       {sub === 'orders' && <Orders onBack={() => setSub(null)} />}
       {sub === 'returns' && <Returns onBack={() => setSub(null)} autoScan={returnsAutoScan} />}
+      {sub === 'catalog' && (
+        <Catalog
+          onBack={() => setSub(null)}
+          onPick={(p) => {
+            // Katalogdan tanlangan tovar kirim ekranini to'ldiradi
+            setCatalogPick(p);
+            setKassaMode('intake');
+            setSub(null);
+            setTab('kassa');
+          }}
+        />
+      )}
 
       {!sub && tab === 'home' && (
         <Dashboard key={refreshKey} onNavigate={setSub} isEmployee={isEmployee} employeeName={shop?.employee?.name} />
@@ -130,7 +145,14 @@ export default function App() {
         />
       )}
       {!sub && tab === 'kassa' && (
-        <Kassa onDone={refresh} isEmployee={isEmployee} initialMode={kassaMode} autoScan={scanNonce} />
+        <Kassa
+          onDone={refresh}
+          isEmployee={isEmployee}
+          initialMode={kassaMode}
+          autoScan={scanNonce}
+          fromCatalog={catalogPick}
+          onCatalogUsed={() => setCatalogPick(null)}
+        />
       )}
       {!sub && tab === 'profile' && (
         <Profile

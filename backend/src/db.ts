@@ -120,6 +120,8 @@ for (const sql of [
   'ALTER TABLE shops ADD COLUMN charged_through TEXT',
   // Xodim kirganda egasiga Telegram'ga xabar bersinmi
   'ALTER TABLE shops ADD COLUMN staff_notify INTEGER NOT NULL DEFAULT 1',
+  // Tovar markaziy katalogdan olingan bo'lsa — qaysi yozuvdan
+  'ALTER TABLE products ADD COLUMN catalog_id INTEGER',
 ]) {
   try {
     db.exec(sql);

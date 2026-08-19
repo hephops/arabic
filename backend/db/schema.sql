@@ -191,6 +191,50 @@ CREATE TABLE IF NOT EXISTS product_barcodes (
 CREATE INDEX IF NOT EXISTS idx_product_barcodes ON product_barcodes (shop_id, barcode);
 
 -- Kirim/chiqim harakatlari
+-- ═══════════ MARKAZIY KATALOG ═══════════
+--
+-- Butun mamlakat uchun bitta tovarlar bazasi. Do'konchi tovarni noldan
+-- yozmaydi — katalogdan tanlab, faqat o'z narxi va miqdorini qo'yadi.
+--
+-- Katalog admin panelda to'ldiriladi. Do'konning narxi, qoldig'i va
+-- tannarxi bu yerga HECH QACHON yozilmaydi — u do'konning tijorat siri.
+
+-- Bo'limlar daraxti: "Ichimliklar" -> "Gazli ichimliklar"
+CREATE TABLE IF NOT EXISTS catalog_categories (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  parent_id INTEGER,                             -- NULL — ildiz bo'lim
+  name_uz TEXT NOT NULL,
+  name_ru TEXT NOT NULL,
+  glyph TEXT,                                    -- ilovadagi ikonka nomi
+  color TEXT,                                    -- ikonka rangi
+  sort_order INTEGER NOT NULL DEFAULT 100,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_catcat_parent ON catalog_categories(parent_id, sort_order);
+
+-- Katalog tovarlari
+CREATE TABLE IF NOT EXISTS catalog_products (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  category_id INTEGER NOT NULL,
+  name_uz TEXT NOT NULL,
+  name_ru TEXT,
+  brand TEXT,
+  volume_value REAL,                             -- 1.5
+  volume_unit TEXT,                              -- ml | l | g | kg | dona
+  unit TEXT NOT NULL DEFAULT 'dona',             -- ombor birligi
+  barcode TEXT,                                  -- bo'lishi shart emas
+  image_url TEXT,
+  status TEXT NOT NULL DEFAULT 'verified',       -- draft | verified | hidden
+  -- Normallashtirilgan qidiruv matni: "Кока-Кола 1,5 л" ham,
+  -- "coca cola 1.5l" ham shu satrga aylanadi (search.ts)
+  search_key TEXT,
+  created_by_admin INTEGER,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_catprod_cat ON catalog_products(category_id, name_uz);
+CREATE INDEX IF NOT EXISTS idx_catprod_barcode ON catalog_products(barcode);
+CREATE INDEX IF NOT EXISTS idx_catprod_search ON catalog_products(search_key);
+
 -- Partiyalar: tovarning har safar kelgan to'plami.
 --
 -- Bitta Coca-Cola ikki marta kelishi mumkin — birinchisining srogi

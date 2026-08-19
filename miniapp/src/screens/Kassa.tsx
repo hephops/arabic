@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { api, fmt, Customer, Product, SaleRow, SaleDetail, ReturnsInfo, BASE } from '../api';
+import { api, fmt, CatalogProduct, Customer, Product, SaleRow, SaleDetail, ReturnsInfo, BASE } from '../api';
 import { AppIcon, Glyph } from '../icons';
 import Scanner from '../Scanner';
 import { useHardwareScanner } from '../hardwareScanner';
@@ -30,12 +30,17 @@ export default function Kassa({
   isEmployee = false,
   initialMode = 'sale',
   autoScan = 0,
+  fromCatalog = null,
+  onCatalogUsed,
 }: {
   onDone: () => void;
   isEmployee?: boolean;
   initialMode?: KassaMode;
   /** "+" dan "Sotuv" tanlanganda o'sadi — skaner o'zi ochiladi */
   autoScan?: number;
+  /** Markaziy katalogdan tanlangan tovar — kirim maydonlarini to'ldiradi */
+  fromCatalog?: CatalogProduct | null;
+  onCatalogUsed?: () => void;
 }) {
   const [mode, setMode] = useState<KassaMode>(initialMode);
   const { t } = useT();
@@ -61,7 +66,7 @@ export default function Kassa({
         </button>
       </div>
       {mode === 'sale' && <SaleMode onDone={onDone} autoScan={autoScan} />}
-      {mode === 'intake' && <IntakeMode onDone={onDone} />}
+      {mode === 'intake' && <IntakeMode onDone={onDone} fromCatalog={fromCatalog} onCatalogUsed={onCatalogUsed} />}
       {mode === 'history' && <HistoryMode />}
     </div>
   );
@@ -806,7 +811,15 @@ function SaleMode({ onDone, autoScan = 0 }: { onDone: () => void; autoScan?: num
   );
 }
 
-function IntakeMode({ onDone }: { onDone: () => void }) {
+function IntakeMode({
+  onDone,
+  fromCatalog = null,
+  onCatalogUsed,
+}: {
+  onDone: () => void;
+  fromCatalog?: CatalogProduct | null;
+  onCatalogUsed?: () => void;
+}) {
   const [barcode, setBarcode] = useState('');
   const [name, setName] = useState('');
   const [costPrice, setCostPrice] = useState('');
@@ -840,12 +853,36 @@ function IntakeMode({ onDone }: { onDone: () => void }) {
   // qoldiq ikkiga bo'linib ketardi.
   const [matches, setMatches] = useState<Product[]>([]);
   const [picked, setPicked] = useState<Product | null>(null);
+  // Markaziy katalogdan tanlangan yozuv — nomi va o'lchami tayyor keladi
+  const [fromCat, setFromCat] = useState<CatalogProduct | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const { t } = useT();
 
   useEffect(() => {
     api.categories().then(setCats).catch(() => {});
   }, []);
+
+  // Katalogdan tovar tanlangan bo'lsa — maydonlar to'ldiriladi.
+  // Narx va miqdor to'ldirilmaydi: ular har do'konda o'ziniki.
+  useEffect(() => {
+    if (!fromCat) return;
+    setName(fromCat.name_uz);
+    setUnit(fromCat.unit || 'dona');
+    setBasis(priceBases(fromCat.unit || 'dona')[0]);
+    if (fromCat.barcode) setBarcode(fromCat.barcode);
+    if (fromCat.category_uz) setCategory(fromCat.category_uz);
+    setCostPrice('');
+    setSellPrice('');
+    setTotalDraft(null);
+    setPicked(null);
+    setMatches([]);
+  }, [fromCat]);
+
+  useEffect(() => {
+    if (!fromCatalog) return;
+    setFromCat(fromCatalog);
+    onCatalogUsed?.();
+  }, [fromCatalog]);
 
   // Yozilayotgan nom bo'yicha qidiramiz. Do'konchi tez yozadi —
   // har harfda so'rov yubormaslik uchun kutib turamiz.
@@ -946,6 +983,7 @@ function IntakeMode({ onDone }: { onDone: () => void }) {
         expiry_date: expiry || undefined,
         category: category.trim() || undefined,
         image: image ?? undefined,
+        catalog_id: fromCat?.id,
       });
       toast.success(
         t('toastIntakeSaved'),
@@ -955,7 +993,7 @@ function IntakeMode({ onDone }: { onDone: () => void }) {
       // Birlik va narx asosi saqlanib qoladi: do'konchi odatda bir
       // turdagi tovarni ketma-ket kiritadi (bir necha xil sabzavot,
       // keyin ichimliklar)
-      setBarcode(''); setName(''); setCostPrice(''); setSellPrice(''); setTotalDraft(null); setQty(''); setExpiry(''); setImage(null);
+      setBarcode(''); setName(''); setCostPrice(''); setSellPrice(''); setTotalDraft(null); setQty(''); setExpiry(''); setImage(null); setFromCat(null);
       api.categories().then(setCats).catch(() => {});
       onDone();
     } catch (e: any) {
@@ -1035,6 +1073,7 @@ function IntakeMode({ onDone }: { onDone: () => void }) {
                 onChange={(e) => {
                   setName(e.target.value);
                   setPicked(null);
+                  if (fromCat && e.target.value !== fromCat.name_uz) setFromCat(null);
                 }}
                 placeholder="Coca-Cola 1.5L"
               />
@@ -1051,9 +1090,15 @@ function IntakeMode({ onDone }: { onDone: () => void }) {
                   ))}
                 </div>
               )}
-              {picked && (
+              {picked && !fromCat && (
                 <div className="nm-picked">
                   <Glyph name="check" size={14} color="var(--green)" /> {t('intakeAddsTo')}
+                </div>
+              )}
+              {fromCat && (
+                <div className="nm-picked cat">
+                  <Glyph name="star" size={14} color="var(--accent)" /> {t('intakeFromCatalog')}
+                  <button className="nm-drop" onClick={() => setFromCat(null)}>{t('cancel')}</button>
                 </div>
               )}
             </div>

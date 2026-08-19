@@ -13,6 +13,8 @@ import {
   botUsername, otpDeepLink, supplierDeepLink, sendOrderToSupplier, chatForPhone,
 } from './telegram.js';
 import { registerAdminRoutes, seedAdmin } from './admin.js';
+import { registerCatalogRoutes } from './catalog.js';
+import { seedCatalog } from './catalogSeed.js';
 import { normalizeBarcode, barcodeVariants, checkGtin, makeInStoreEan13, parseScaleBarcode, makeScaleBarcode, scaleQty } from './barcodes.js';
 import { normalizePhone } from './phone.js';
 import { noteEmployeeLogin, notifyPinAttempts, recentLogins } from './staffAlert.js';
@@ -197,6 +199,9 @@ app.post<{ Body: { phone: string; pin: string } }>('/auth/employee', async (req,
 
 // ---------- ADMIN PANEL ----------
 registerAdminRoutes(app);
+
+// ---------- MARKAZIY KATALOG ----------
+registerCatalogRoutes(app, { requireAuth, uploadsDir: UPLOADS_DIR });
 
 // ---------- TELEGRAM ----------
 // Mini App Telegram ichida ochilganda initData orqali kirish
@@ -1308,11 +1313,14 @@ app.get<{ Querystring: { code?: string } }>('/barcodes/lookup', { preHandler: re
   return { code, valid: checkGtin(code), product, catalog };
 });
 
-app.post<{ Body: { barcode?: string; name: string; unit?: string; price_qty?: number; cost_price?: number; sell_price?: number; qty?: number; expiry_date?: string; image?: string } }>(
+app.post<{ Body: { barcode?: string; name: string; unit?: string; price_qty?: number; cost_price?: number; sell_price?: number; qty?: number; expiry_date?: string; image?: string; category?: string; catalog_id?: number } }>(
   '/products/intake',
   { preHandler: requireOwner },
   async (req, reply) => {
     const { name, cost_price, sell_price, qty, expiry_date, image, category } = req.body as any;
+    // Katalogdan olingan bo'lsa — qaysi yozuvdan. Bu tovarning rasmi va
+    // to'liq nomi keyin ham katalogdan yangilanib turishi uchun kerak.
+    const catalogId = Number(req.body?.catalog_id) || null;
     // Birlik qat'iy ro'yxatdan — erkin matn kirib qolsa hisobot buzilardi
     const unit = normalizeUnit(req.body.unit);
     // Narx qaysi miqdorga aytilgani. Narxning o'zi ilovada 1 birlikka
@@ -1330,14 +1338,23 @@ app.post<{ Body: { barcode?: string; name: string; unit?: string; price_qty?: nu
         .get(req.shopId, name.trim()) as any;
     }
 
+    // Katalogdan kelgan bo'lsa — o'sha yozuvga bog'langan tovarni ham
+    // qidiramiz: do'konchi nomini o'zgartirgan bo'lsa ham topilsin
+    if (!product && catalogId) {
+      product = db
+        .prepare('SELECT * FROM products WHERE shop_id = ? AND catalog_id = ?')
+        .get(req.shopId, catalogId) as any;
+    }
+
     if (!product) {
       const info = db
         .prepare(
-          'INSERT INTO products (shop_id, barcode, name, unit, price_qty, cost_price, sell_price, stock, expiry_date, category) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?)'
+          'INSERT INTO products (shop_id, barcode, name, unit, price_qty, cost_price, sell_price, stock, expiry_date, category, catalog_id) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)'
         )
         .run(
           req.shopId, barcode || null, name.trim(), unit, priceQty,
-          cost_price ?? 0, sell_price ?? 0, expiry_date ?? null, category?.trim() || null
+          cost_price ?? 0, sell_price ?? 0, expiry_date ?? null, category?.trim() || null,
+          catalogId
         );
       product = db.prepare('SELECT * FROM products WHERE id = ?').get(info.lastInsertRowid);
     } else if (category?.trim() && !product.category) {
@@ -1348,6 +1365,16 @@ app.post<{ Body: { barcode?: string; name: string; unit?: string; price_qty?: nu
       // ilgari kodsiz yozilgan tovarga endi kod berildi
       db.prepare('UPDATE products SET barcode = ? WHERE id = ?').run(barcode, product.id);
       product.barcode = barcode;
+    }
+
+    // Kodsiz katalog yozuviga do'konchi kod biriktirsa — markazga ham
+    // yozamiz. Keyingi do'kon o'sha kodni skanerlaganda tayyor topadi.
+    if (barcode && catalogId) {
+      const cat = db.prepare('SELECT id, barcode FROM catalog_products WHERE id = ?').get(catalogId) as any;
+      if (cat && !cat.barcode) {
+        const taken = db.prepare('SELECT id FROM catalog_products WHERE barcode = ?').get(barcode);
+        if (!taken) db.prepare('UPDATE catalog_products SET barcode = ? WHERE id = ?').run(barcode, catalogId);
+      }
     }
 
     if (barcode) {
@@ -2576,6 +2603,13 @@ app.get<{ Querystring: { period?: string } }>('/reports/export', { preHandler: r
 const port = Number(process.env.PORT ?? 3000);
 app.listen({ port, host: '0.0.0.0' }).then(() => {
   seedAdmin();
+  // Katalog bo'sh bo'lsa boshlang'ich bo'limlar va tovarlar yoziladi.
+  // Admin qo'shgan ma'lumot ustidan hech qachon yozilmaydi.
+  try {
+    seedCatalog();
+  } catch (e) {
+    console.error('[katalog]', e);
+  }
   markOverdueDebts();
   // Muddati o'tgan qarzlar kuniga bir marta ma'noli o'zgaradi —
   // soatiga bir tekshiruv yetarli va so'rovlar yo'lidan chiqadi

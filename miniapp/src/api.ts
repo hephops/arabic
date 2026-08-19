@@ -129,7 +129,7 @@ export const api = {
     const qs = new URLSearchParams(params as Record<string, string>).toString();
     return request<Product[]>(`/products${qs ? `?${qs}` : ''}`);
   },
-  intake: (data: { barcode?: string; name: string; unit?: string; price_qty?: number; cost_price?: number; sell_price?: number; qty?: number; expiry_date?: string; image?: string; category?: string }) =>
+  intake: (data: { barcode?: string; name: string; unit?: string; price_qty?: number; cost_price?: number; sell_price?: number; qty?: number; expiry_date?: string; image?: string; category?: string; catalog_id?: number }) =>
     request<Product>('/products/intake', { method: 'POST', body: JSON.stringify(data) }),
   createSale: (data: { items: { product_id: number; qty: number }[]; payment_type: 'cash' | 'card' | 'debt'; customer_id?: number; customer_name?: string; customer_phone?: string; due_date?: string; allow_negative?: boolean }) =>
     request<Sale>('/sales', { method: 'POST', body: JSON.stringify(data) }),
@@ -171,6 +171,14 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ ids, percent }),
     }),
+  // ── Markaziy katalog ──
+  catalogCategories: () => request<CatalogCategory[]>('/catalog/categories'),
+  catalogProducts: (params: { q?: string; category?: number; barcode?: string; limit?: number; offset?: number }) => {
+    const qs = new URLSearchParams(
+      Object.entries(params).filter(([, v]) => v !== undefined && v !== '').map(([k, v]) => [k, String(v)])
+    ).toString();
+    return request<CatalogProduct[]>(`/catalog/products${qs ? `?${qs}` : ''}`);
+  },
   orderSuggest: () => request<OrderSuggestion[]>('/orders/suggest'),
   orders: () => request<Order[]>('/orders'),
   createOrder: (data: { supplier_id?: number | null; note?: string; items: { product_id?: number; name: string; unit?: string; qty: number }[] }) =>
@@ -502,6 +510,36 @@ export interface Order {
   received_at: string | null;
   created_at: string;
   items: OrderItem[];
+}
+
+/** Katalog bo'limi (ildiz bo'lsa ichida `children` bo'ladi) */
+export interface CatalogCategory {
+  id: number;
+  parent_id: number | null;
+  name_uz: string;
+  name_ru: string;
+  glyph: string | null;
+  color: string | null;
+  product_count: number;
+  children?: CatalogCategory[];
+}
+
+/** Markaziy katalogdagi tovar */
+export interface CatalogProduct {
+  id: number;
+  category_id: number;
+  name_uz: string;
+  name_ru: string | null;
+  brand: string | null;
+  volume_value: number | null;
+  volume_unit: string | null;
+  unit: string;
+  barcode: string | null;
+  image_url: string | null;
+  category_uz?: string;
+  category_ru?: string;
+  category_glyph?: string | null;
+  category_color?: string | null;
 }
 
 /** Tovarning bitta partiyasi — bir marta kelgan to'plam */

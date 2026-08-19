@@ -11,9 +11,10 @@ import Referrals from './pages/Referrals';
 import Settings from './pages/Settings';
 import Admins from './pages/Admins';
 import Logs from './pages/Logs';
+import Catalog from './pages/Catalog';
 
 export type Page =
-  | 'dashboard' | 'shops' | 'payments' | 'reminders'
+  | 'dashboard' | 'shops' | 'payments' | 'catalog' | 'reminders'
   | 'referrals' | 'settings' | 'admins' | 'logs';
 
 interface NavItem {
@@ -32,6 +33,7 @@ const GROUPS: NavItem[][] = [
     { id: 'payments', label: 'Balans', glyph: 'banknote', sub: "To'lovlar, kirim va chiqim" },
   ],
   [
+    { id: 'catalog', label: 'Katalog', glyph: 'boxes', sub: "Markaziy tovarlar bazasi" },
     { id: 'reminders', label: 'Eslatmalar', glyph: 'calendar', sub: "SMS va qo'ng'iroqlar jurnali" },
     { id: 'referrals', label: 'Referallar', glyph: 'gift', sub: 'Taklif qilish natijalari' },
   ],
@@ -156,6 +158,7 @@ export default function App() {
           {page === 'dashboard' && <Dashboard onOpenShops={() => setPage('shops')} />}
           {page === 'shops' && <Shops />}
           {page === 'payments' && <Payments />}
+          {page === 'catalog' && <Catalog />}
           {page === 'reminders' && <Reminders />}
           {page === 'referrals' && <Referrals />}
           {page === 'settings' && <Settings />}

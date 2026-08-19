@@ -14,6 +14,8 @@
   --red: #ff3b30;
   --yellow: #ff9500;
   --indigo: #5856d6;
+  /* Tanlangan qatorning yumshoq foni */
+  --accent-soft: rgba(0, 122, 255, 0.1);
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -481,3 +483,91 @@ tr.picked { background: rgba(0, 122, 255, 0.06); }
 .wordmark { font-weight: 800; letter-spacing: -0.5px; white-space: nowrap; }
 .wordmark b { font-weight: 800; color: #0E1B33; }
 .wordmark i { font-style: normal; font-weight: 800; color: #1546E8; }
+
+/* ═══════════ Markaziy katalog ═══════════ */
+
+/* Chapda bo'limlar daraxti, o'ngda tovarlar. Tor ekranda ustma-ust. */
+.cat-layout {
+  display: grid;
+  grid-template-columns: 262px minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+@media (max-width: 900px) {
+  .cat-layout { grid-template-columns: minmax(0, 1fr); }
+}
+
+.cat-tree { max-height: calc(100vh - 220px); overflow-y: auto; }
+
+.ctree-row {
+  display: flex; align-items: center; gap: 2px;
+  width: 100%; border-radius: 9px;
+  background: transparent; text-align: left;
+  color: var(--text); font-size: 14px;
+}
+.ctree-row.on { background: var(--accent-soft); }
+.ctree-row:hover { background: var(--fill); }
+.ctree-row.on:hover { background: var(--accent-soft); }
+.ctree-row.kid { padding-left: 26px; font-size: 13.5px; }
+.ctree-row.add { color: var(--accent); font-weight: 600; padding: 7px 10px; gap: 6px; }
+
+.ctree-main {
+  flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px;
+  padding: 7px 8px; background: transparent; color: inherit; text-align: left;
+}
+.ctree-name {
+  flex: 1; min-width: 0; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap;
+  font-weight: 500;
+}
+.ctree-row.on .ctree-name { color: var(--accent); font-weight: 600; }
+.ctree-count {
+  font-size: 12px; color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.ctree-toggle, .ctree-edit {
+  width: 22px; height: 26px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: transparent; color: var(--muted); border-radius: 6px;
+}
+.ctree-toggle:hover, .ctree-edit:hover { background: var(--fill); color: var(--text); }
+
+.cat-crumb {
+  display: flex; align-items: center; gap: 8px;
+  margin-bottom: 10px; font-size: 14px;
+}
+.cat-crumb .btn.sm { padding: 5px 10px; font-size: 12.5px; }
+
+/* Jadvaldagi kichik rasm */
+.cat-mini {
+  width: 34px; height: 34px; border-radius: 8px;
+  object-fit: cover; display: block; background: var(--fill);
+}
+.cat-mini.ph {
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 700; color: var(--muted);
+}
+
+/* Oynadagi rasm tanlash */
+.cat-photo-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 0; border-bottom: 1px solid var(--separator);
+  margin-bottom: 12px;
+}
+.cat-photo {
+  width: 60px; height: 60px; border-radius: 12px; flex-shrink: 0;
+  background: var(--fill); color: var(--muted);
+  display: flex; align-items: center; justify-content: center;
+  overflow: hidden;
+}
+.cat-photo img { width: 100%; height: 100%; object-fit: cover; }
+
+/* Ikonka va rang tanlash */
+.cat-pick { display: flex; flex-wrap: wrap; gap: 6px; }
+.cat-pick-item {
+  width: 40px; height: 40px; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--fill);
+}
+.cat-pick-item.on { box-shadow: 0 0 0 2px var(--accent); }
+.modal.narrow { max-width: 460px; }

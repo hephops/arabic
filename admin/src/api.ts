@@ -85,6 +85,28 @@ export const api = {
   updateAdmin: (id: number, data: { is_active?: boolean; password?: string }) =>
     request<Admin>(`/admin/admins/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   logs: () => request<AdminLog[]>('/admin/logs'),
+
+  // ── Markaziy katalog ──
+  catStats: () => request<CatalogStats>('/admin/catalog/stats'),
+  catCategories: () => request<CatalogCategory[]>('/admin/catalog/categories'),
+  catCreateCategory: (data: { parent_id?: number | null; name_uz: string; name_ru?: string; glyph?: string; color?: string }) =>
+    request<CatalogCategory>('/admin/catalog/categories', { method: 'POST', body: JSON.stringify(data) }),
+  catUpdateCategory: (id: number, data: Record<string, unknown>) =>
+    request<CatalogCategory>(`/admin/catalog/categories/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  catDeleteCategory: (id: number) =>
+    request<{ ok: boolean }>(`/admin/catalog/categories/${id}`, { method: 'DELETE' }),
+  catProducts: (params: { q?: string; category?: number; limit?: number; offset?: number } = {}) => {
+    const qs = new URLSearchParams(
+      Object.entries(params).filter(([, v]) => v !== undefined && v !== '').map(([k, v]) => [k, String(v)])
+    ).toString();
+    return request<{ items: CatalogProduct[]; total: number }>(`/admin/catalog/products${qs ? `?${qs}` : ''}`);
+  },
+  catCreateProduct: (data: Record<string, unknown>) =>
+    request<CatalogProduct>('/admin/catalog/products', { method: 'POST', body: JSON.stringify(data) }),
+  catUpdateProduct: (id: number, data: Record<string, unknown>) =>
+    request<CatalogProduct>(`/admin/catalog/products/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  catDeleteProduct: (id: number) =>
+    request<{ ok: boolean }>(`/admin/catalog/products/${id}`, { method: 'DELETE' }),
 };
 
 export interface Admin {
@@ -269,4 +291,41 @@ export function fmtPhone(v: string | null | undefined): string {
   const d = String(v ?? '').replace(/\D/g, '').replace(/^998/, '');
   if (d.length !== 9) return v ?? '';
   return `+998 ${d.slice(0, 2)} ${d.slice(2, 5)} ${d.slice(5, 7)} ${d.slice(7)}`;
+}
+
+/* ───────── Markaziy katalog ───────── */
+
+export interface CatalogStats {
+  products: number;
+  categories: number;
+  with_image: number;
+  with_barcode: number;
+  used_by_shops: number;
+}
+
+export interface CatalogCategory {
+  id: number;
+  parent_id: number | null;
+  name_uz: string;
+  name_ru: string;
+  glyph: string | null;
+  color: string | null;
+  sort_order: number;
+  product_count: number;
+  children?: CatalogCategory[];
+}
+
+export interface CatalogProduct {
+  id: number;
+  category_id: number;
+  name_uz: string;
+  name_ru: string | null;
+  brand: string | null;
+  volume_value: number | null;
+  volume_unit: string | null;
+  unit: string;
+  barcode: string | null;
+  image_url: string | null;
+  status: string;
+  category_uz?: string;
 }

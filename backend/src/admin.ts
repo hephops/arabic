@@ -51,7 +51,7 @@ declare module 'fastify' {
   }
 }
 
-async function requireAdmin(req: FastifyRequest, reply: FastifyReply) {
+export async function requireAdmin(req: FastifyRequest, reply: FastifyReply) {
   const header = req.headers.authorization;
   const token = header?.startsWith('Bearer ') ? header.slice(7) : null;
   const admin = token ? verifyAdminToken(token) : null;
@@ -76,7 +76,7 @@ async function requireSuper(req: FastifyRequest, reply: FastifyReply) {
   }
 }
 
-function log(adminId: number, action: string, target?: string, details?: string) {
+export function log(adminId: number, action: string, target?: string, details?: string) {
   db.prepare('INSERT INTO admin_logs (admin_id, action, target, details) VALUES (?, ?, ?, ?)').run(
     adminId,
     action,
