@@ -1,4 +1,19 @@
-export const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
+import { translate } from './i18n';
+
+// Backend manzili.
+//
+// Bo'sh bo'lsa so'rovlar SHU SAYTNING o'ziga ketadi (`/auth/...`) va
+// Vite proksi ularni backendga uzatadi. Shu sababli ilova qaysi
+// domenda ochilsa ham ishlaydi.
+//
+// Ilgari bu yerda `http://localhost:3000` turardi. U faqat backend
+// turgan kompyuterda ishlardi: boshqa telefondan yoki boshqa domendan
+// kirgan do'konchi "Failed to fetch" ni ko'rardi, chunki uning
+// brauzeri o'z mashinasidagi 3000-portni qidirardi.
+//
+// VITE_API_URL faqat backend chindan ham boshqa domenda tursa qo'yiladi
+// (u holda serverda CORS ham ochilishi kerak).
+export const BASE = import.meta.env.VITE_API_URL ?? '';
 
 export function getToken(): string | null {
   return localStorage.getItem('token');
@@ -15,16 +30,26 @@ export function logout() {
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
-    ...options,
-    headers: {
-      // Content-Type faqat tana bo'lganda qo'yiladi — aks holda server
-      // "bo'sh tana" deb rad etadi (masalan: chek yuborish, eslatmani tekshirish)
-      ...(options.body ? { 'Content-Type': 'application/json' } : {}),
-      ...(getToken() ? { Authorization: `Bearer ${getToken()}` } : {}),
-      ...options.headers,
-    },
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${BASE}${path}`, {
+      ...options,
+      headers: {
+        // Content-Type faqat tana bo'lganda qo'yiladi — aks holda server
+        // "bo'sh tana" deb rad etadi (masalan: chek yuborish, eslatmani tekshirish)
+        ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+        ...(getToken() ? { Authorization: `Bearer ${getToken()}` } : {}),
+        ...options.headers,
+      },
+    });
+  } catch {
+    // Brauzer "Failed to fetch" deydi — do'konchi uchun bu hech narsa
+    // anglatmaydi. Sababi doim bitta: server yoki internet yo'q.
+    const err: any = new Error(translate('netError'));
+    err.sub = translate('netErrorSub');
+    err.offline = true;
+    throw err;
+  }
   if (!res.ok) {
     const body: any = await res.json().catch(() => ({}));
     const err: any = new Error(body.error ?? `HTTP ${res.status}`);

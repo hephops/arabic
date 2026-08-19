@@ -1,4 +1,17 @@
-export const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
+// Backend manzili.
+//
+// Bo'sh bo'lsa so'rovlar SHU SAYTNING o'ziga ketadi (`/auth/...`) va
+// Vite proksi ularni backendga uzatadi. Shu sababli ilova qaysi
+// domenda ochilsa ham ishlaydi.
+//
+// Ilgari bu yerda `http://localhost:3000` turardi. U faqat backend
+// turgan kompyuterda ishlardi: boshqa telefondan yoki boshqa domendan
+// kirgan do'konchi "Failed to fetch" ni ko'rardi, chunki uning
+// brauzeri o'z mashinasidagi 3000-portni qidirardi.
+//
+// VITE_API_URL faqat backend chindan ham boshqa domenda tursa qo'yiladi
+// (u holda serverda CORS ham ochilishi kerak).
+export const BASE = import.meta.env.VITE_API_URL ?? '';
 
 export const getToken = () => localStorage.getItem('admin_token');
 export const setToken = (t: string) => localStorage.setItem('admin_token', t);

@@ -27,7 +27,23 @@ npm install
 npm run dev
 ```
 
-Brauzerda `http://localhost:5173` ochiladi. DEV rejimda SMS kod doim `123456`.
+Brauzerda `http://localhost:5173` ochiladi. Kirish kodi Telegram bot orqali
+keladi; sinov uchun `backend/.env` da `OTP_DEV_CODE=123456` qo'ysangiz kod
+qotib turadi (**ishlab chiqarishda bo'sh qoldiring**).
+
+### Backend manzili
+
+Ilova so'rovlarni **o'zi ochilgan domenga** yuboradi (`/auth/...`), Vite esa
+ularni backendga uzatadi (`vite.config.ts` dagi `API_PREFIXES`). Shu sababli
+ilova qaysi domenda tursa ham ishlaydi — do'konchining telefonida ham.
+
+Backendni chindan ham boshqa domenga qo'ysangiz `VITE_API_URL` beriladi; u
+holda serverda CORS ham ochilishi kerak.
+
+> Yangi marshrut qo'shsangiz (`app.get('/yangi-nom'...)`), uning birinchi
+> bo'g'inini `API_PREFIXES` ga ham qo'shing — aks holda brauzer JSON o'rniga
+> `index.html` oladi va ekran jimgina ishlamay qoladi. `test-proxy.mjs` shuni
+> tekshiradi.
 
 ## API qisqacha
 
