@@ -45,6 +45,7 @@ export default function Catalog() {
   const [imgUrl, setImgUrl] = useState('');
   const [imgMsg, setImgMsg] = useState('');
   const [bulk, setBulk] = useState('');
+  const [running, setRunning] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const loadCats = () => api.catCategories().then(setCats).catch(() => {});
@@ -186,7 +187,7 @@ export default function Catalog() {
     }
   }
 
-  /** Shtrix-kod bo'yicha ochiq bazadan rasm va ma'lumot */
+  /** Ochiq bazadan rasm va ma'lumot — kod bo'yicha yoki nom bo'yicha */
   async function loadFromBarcode() {
     if (!draft?.id) {
       setImgMsg('Avval tovarni saqlang');
@@ -195,7 +196,7 @@ export default function Catalog() {
     setBusy(true);
     setImgMsg('');
     try {
-      const r = await api.catFromBarcode(draft.id);
+      const r = await api.catFindImage(draft.id);
       setDraft({ ...r.product, image: undefined });
       setImgMsg(r.changed.length ? `Olindi: ${r.changed.join(', ')}` : 'Yangi ma\'lumot topilmadi');
       loadItems();
@@ -207,16 +208,47 @@ export default function Catalog() {
     }
   }
 
-  /** Kodli tovarlarga ommaviy rasm izlash */
+  /**
+   * Ommaviy rasm izlash.
+   *
+   * 448 ta tovar uchun tugmani 30 marta bosib o'tirmasin: bir marta
+   * bosiladi, qolgani tugaguncha o'zi aylanadi. To'xtatish tugmasi bor —
+   * ochiq baza sekin javob bersa uzoq davom etishi mumkin.
+   */
+  const stopRef = useRef(false);
+
   async function bulkImages() {
-    setBulk('Izlanyapti...');
+    if (running) {
+      stopRef.current = true;
+      return;
+    }
+    stopRef.current = false;
+    setRunning(true);
+    let total = 0;
+    let none = 0;
     try {
-      const r = await api.catBulkImages(25);
-      setBulk(`${r.done} ta rasm topildi, ${r.missing} tasi yo'q. Qolgani: ${r.left}`);
-      loadItems();
-      loadStats();
+      for (;;) {
+        const r = await api.catBulkImages(15);
+        total += r.done;
+        none += r.missing;
+        setBulk(`${total} ta rasm topildi · ${none} tasiga topilmadi · qolgani: ${r.left}`);
+        loadItems();
+        loadStats();
+        if (stopRef.current) {
+          setBulk(`To'xtatildi. ${total} ta rasm topildi, qolgani: ${r.left}`);
+          break;
+        }
+        if (r.left === 0 || r.checked === 0) {
+          // Ochiq baza asosan zavod mahsulotlarini biladi. Mahalliy non,
+          // suzma, kaziga rasm topilmaydi — ularga chizma qoladi.
+          setBulk(`Tugadi. ${total} ta rasm topildi, ${none} tasiga ochiq bazada rasm yo'q (ularda chizma qoladi).`);
+          break;
+        }
+      }
     } catch (e: any) {
-      setBulk(e.message);
+      setBulk(`Xato: ${e.message}`);
+    } finally {
+      setRunning(false);
     }
   }
 
@@ -244,9 +276,14 @@ export default function Catalog() {
           </div>
         </div>
         <div className="topbar-right">
-          {!!stats?.image_pending && (
-            <button className="btn" onClick={bulkImages} title="Shtrix-kodi bor tovarlarga ochiq bazadan rasm izlaydi">
-              <Glyph name="camera" size={16} /> Rasm izlash ({stats.image_pending})
+          {(!!stats?.image_pending || running) && (
+            <button
+              className={`btn ${running ? 'danger' : ''}`}
+              onClick={bulkImages}
+              title="Rasmi yo'q tovarlarga ochiq bazadan rasm izlaydi (nom va hajm bo'yicha)"
+            >
+              <Glyph name="camera" size={16} />
+              {running ? "To'xtatish" : `Rasm izlash (${stats?.image_pending ?? 0})`}
             </button>
           )}
           <button
@@ -485,10 +522,10 @@ export default function Catalog() {
                   <button
                     className="btn"
                     onClick={loadFromBarcode}
-                    disabled={busy || !draft.barcode}
-                    title={draft.barcode ? 'Ochiq bazadan izlash' : 'Avval shtrix-kodni yozing'}
+                    disabled={busy || !draft.id}
+                    title="Ochiq bazadan izlash: kod bo'lsa kod bo'yicha, bo'lmasa nom va hajm bo'yicha"
                   >
-                    Koddan olish
+                    Rasm izlash
                   </button>
                 </div>
                 {imgMsg && <div className="cell-sub" style={{ marginTop: 6 }}>{imgMsg}</div>}

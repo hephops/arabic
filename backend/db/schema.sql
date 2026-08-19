@@ -227,6 +227,7 @@ CREATE TABLE IF NOT EXISTS catalog_products (
   -- Rasm qayerdan olingani. Open Food Facts rasmlari CC BY-SA
   -- litsenziyasida — manba ko'rsatilishi shart.
   image_source TEXT,
+  image_tried TEXT,                              -- rasm izlab ko'rilgan sana
   status TEXT NOT NULL DEFAULT 'verified',       -- draft | verified | hidden
   -- Normallashtirilgan qidiruv matni: "Кока-Кола 1,5 л" ham,
   -- "coca cola 1.5l" ham shu satrga aylanadi (search.ts)

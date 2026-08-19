@@ -16,7 +16,7 @@ import { requireAdmin, log } from './admin.js';
 import { normalizeSearch, productSearchKey, searchTerms } from './search.js';
 import { normalizeBarcode, barcodeVariants } from './barcodes.js';
 import { normalizeUnit } from './units.js';
-import { fetchImage, saveFetched, offLookup, parseQuantity } from './imageFetch.js';
+import { fetchImage, saveFetched, offLookup, offSearch, parseQuantity } from './imageFetch.js';
 
 const VOLUME_UNITS = ['ml', 'l', 'g', 'kg', 'dona'];
 
@@ -311,6 +311,13 @@ export function registerCatalogRoutes(
         const url = saveCatalogImage(req.body.image as string, p.id, uploadsDir);
         if (url) db.prepare('UPDATE catalog_products SET image_url = ? WHERE id = ?').run(url, p.id);
       }
+      // Nomi, brendi, hajmi yoki kodi o'zgargan bo'lsa — "izlab ko'rilgan"
+      // belgisi olib tashlanadi. Aks holda admin nomni to'g'rilagandan
+      // keyin ham ommaviy izlash bu tovarni boshqa hech qachon
+      // ko'rmasdi va u abadiy rasmsiz qolardi.
+      if (['name_uz', 'name_ru', 'brand', 'volume_value', 'volume_unit', 'barcode'].some((k) => k in req.body)) {
+        db.prepare('UPDATE catalog_products SET image_tried = NULL WHERE id = ?').run(p.id);
+      }
       refreshKey(p.id);
       log(req.admin!.id, 'catalog_product_update', String(p.id), p.name_uz);
       return db.prepare('SELECT * FROM catalog_products WHERE id = ?').get(p.id);
@@ -379,18 +386,30 @@ export function registerCatalogRoutes(
    * Shtrix-kod bo'yicha zavod ma'lumotini olish (Open Food Facts).
    * Rasm, to'liq nom, brend va hajm bir so'rovda keladi.
    */
+  /**
+   * Bitta tovarga rasm izlash.
+   *
+   * Kod bo'lsa kod bo'yicha (aniq), bo'lmasa nom va HAJM bo'yicha.
+   * Hajm qat'iy tekshiriladi: 0.5 litrlik yozuvga 1.5 litrlikning
+   * rasmi tushib qolmasligi kerak.
+   */
   app.post<{ Params: { id: string }; Body: { apply_name?: boolean } }>(
-    '/admin/catalog/products/:id/from-barcode',
+    '/admin/catalog/products/:id/find-image',
     { preHandler: requireAdmin },
     async (req, reply) => {
       const p = db.prepare('SELECT * FROM catalog_products WHERE id = ?').get(req.params.id) as any;
       if (!p) return reply.code(404).send({ error: 'not_found' });
-      if (!p.barcode) {
-        return reply.code(400).send({ error: 'no_barcode', message: 'Avval shtrix-kodni yozing' });
-      }
-      const off = await offLookup(p.barcode);
+      const off = p.barcode ? await offLookup(p.barcode) : await offSearch(p);
       if (!off) {
-        return reply.code(404).send({ error: 'not_found_in_base', message: 'Bu kod ochiq bazada topilmadi' });
+        return reply.code(404).send({
+          error: 'not_found_in_base',
+          message: p.barcode ? 'Bu kod ochiq bazada topilmadi' : 'Bu nom bo\'yicha mos rasm topilmadi',
+        });
+      }
+      // Izlashda kod topilsa — yozib qo'yamiz, keyingi safar aniq bo'ladi
+      if (!p.barcode && off.code) {
+        const taken = db.prepare('SELECT id FROM catalog_products WHERE barcode = ?').get(off.code);
+        if (!taken) db.prepare('UPDATE catalog_products SET barcode = ? WHERE id = ?').run(off.code, p.id);
       }
 
       const changed: string[] = [];
@@ -420,7 +439,7 @@ export function registerCatalogRoutes(
         changed.push('hajmi');
       }
       refreshKey(p.id);
-      log(req.admin!.id, 'catalog_from_barcode', String(p.id), p.name_uz);
+      log(req.admin!.id, 'catalog_find_image', String(p.id), p.name_uz);
       return { found: off, changed, product: db.prepare('SELECT * FROM catalog_products WHERE id = ?').get(p.id) };
     }
   );
@@ -433,20 +452,24 @@ export function registerCatalogRoutes(
     '/admin/catalog/fetch-images',
     { preHandler: requireAdmin },
     async (req) => {
-      const limit = Math.min(200, Math.max(1, Number(req.body?.limit) || 25));
+      const limit = Math.min(50, Math.max(1, Number(req.body?.limit) || 15));
+      // Rasmi yo'q HAMMA tovar: kodi bor bo'lsa kod bo'yicha, aks holda
+      // nom va hajm bo'yicha izlanadi
       const rows = db
         .prepare(
-          `SELECT id, barcode FROM catalog_products
-           WHERE barcode IS NOT NULL AND image_url IS NULL AND status != 'hidden'
+          `SELECT * FROM catalog_products
+           WHERE image_url IS NULL AND image_tried IS NULL AND status != 'hidden'
            ORDER BY id LIMIT ?`
         )
         .all(limit) as any[];
 
       let done = 0;
       let missing = 0;
+      const markTried = db.prepare("UPDATE catalog_products SET image_tried = datetime('now') WHERE id = ?");
       for (const row of rows) {
-        const off = await offLookup(row.barcode);
+        const off = row.barcode ? await offLookup(row.barcode) : await offSearch(row);
         if (!off?.image) {
+          markTried.run(row.id);
           missing++;
           continue;
         }
@@ -454,13 +477,18 @@ export function registerCatalogRoutes(
           const img = await fetchImage(off.image);
           const saved = saveFetched(img, row.id, uploadsDir);
           db.prepare('UPDATE catalog_products SET image_url = ?, image_source = ? WHERE id = ?').run(saved, off.image, row.id);
+          if (!row.barcode && off.code) {
+            const taken = db.prepare('SELECT id FROM catalog_products WHERE barcode = ?').get(off.code);
+            if (!taken) db.prepare('UPDATE catalog_products SET barcode = ? WHERE id = ?').run(off.code, row.id);
+          }
           done++;
         } catch {
+          markTried.run(row.id);
           missing++;
         }
       }
       const left = db
-        .prepare(`SELECT COUNT(*) AS c FROM catalog_products WHERE barcode IS NOT NULL AND image_url IS NULL AND status != 'hidden'`)
+        .prepare(`SELECT COUNT(*) AS c FROM catalog_products WHERE image_url IS NULL AND image_tried IS NULL AND status != 'hidden'`)
         .get() as any;
       log(req.admin!.id, 'catalog_bulk_images', undefined, `${done} ta rasm`);
       return { checked: rows.length, done, missing, left: left.c };
@@ -475,7 +503,7 @@ export function registerCatalogRoutes(
     const cats = db.prepare('SELECT COUNT(*) AS c FROM catalog_categories').get() as any;
     const used = db.prepare('SELECT COUNT(DISTINCT catalog_id) AS c FROM products WHERE catalog_id IS NOT NULL').get() as any;
     const pending = db
-      .prepare(`SELECT COUNT(*) AS c FROM catalog_products WHERE barcode IS NOT NULL AND image_url IS NULL AND status != 'hidden'`)
+      .prepare(`SELECT COUNT(*) AS c FROM catalog_products WHERE image_url IS NULL AND image_tried IS NULL AND status != 'hidden'`)
       .get() as any;
     return {
       products: products.c,

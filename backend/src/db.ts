@@ -124,6 +124,9 @@ for (const sql of [
   'ALTER TABLE products ADD COLUMN catalog_id INTEGER',
   // Katalog rasmi qayerdan olingani (litsenziya uchun manba)
   'ALTER TABLE catalog_products ADD COLUMN image_source TEXT',
+  // Rasm izlab ko'rilgan sana. Topilmagan tovar har safar qaytadan
+  // so'ralavermasin — ochiq bazani bekorga urib turmaymiz.
+  'ALTER TABLE catalog_products ADD COLUMN image_tried TEXT',
 ]) {
   try {
     db.exec(sql);

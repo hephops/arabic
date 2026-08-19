@@ -110,12 +110,12 @@ export const api = {
   // Rasmni serverning o'zi olib keladi — admin brauzeri emas
   catImageFromUrl: (id: number, url: string) =>
     request<CatalogProduct>(`/admin/catalog/products/${id}/image-url`, { method: 'POST', body: JSON.stringify({ url }) }),
-  catFromBarcode: (id: number, apply_name = false) =>
+  catFindImage: (id: number, apply_name = false) =>
     request<{ found: OffFound; changed: string[]; product: CatalogProduct }>(
-      `/admin/catalog/products/${id}/from-barcode`,
+      `/admin/catalog/products/${id}/find-image`,
       { method: 'POST', body: JSON.stringify({ apply_name }) }
     ),
-  catBulkImages: (limit = 25) =>
+  catBulkImages: (limit = 15) =>
     request<{ checked: number; done: number; missing: number; left: number }>('/admin/catalog/fetch-images', {
       method: 'POST',
       body: JSON.stringify({ limit }),
