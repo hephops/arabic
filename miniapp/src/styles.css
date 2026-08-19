@@ -926,16 +926,36 @@ button.link { background: none; color: var(--accent); font-size: 15px; font-weig
 }
 .cat-tile {
   display: flex; flex-direction: column; align-items: center; gap: 7px;
-  background: var(--card); border-radius: 15px;
+  border-radius: 15px;
   padding: 15px 9px 12px; text-align: center;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  /* Har bo'lim o'z rangida — ro'yxat jonli ko'rinsin. Rang JS'dan
+     kelmaydi, CSS o'zgaruvchisi orqali beriladi (--tint). */
+  background: linear-gradient(165deg, var(--tint-a, #fff), var(--tint-b, #fff));
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), inset 0 0 0 0.5px rgba(255, 255, 255, 0.6);
 }
 .cat-tile:active { transform: scale(0.97); }
 .ct-name {
-  font-size: 13px; font-weight: 600; line-height: 1.22;
-  color: var(--text);
+  font-size: 13px; font-weight: 700; line-height: 1.22;
+  color: var(--tint-ink, var(--text));
 }
-.ct-count { font-size: 11.5px; color: var(--muted); }
+.ct-count { font-size: 11.5px; color: var(--tint-ink, var(--muted)); opacity: 0.62; }
+
+/* Bo'lim ranglari — ikonka palitrasi bilan bir xil oila */
+.tint-blue   { --tint-a: #e8f2ff; --tint-b: #d3e6ff; --tint-ink: #0a4fa8; }
+.tint-teal   { --tint-a: #e4f7fd; --tint-b: #cdeffa; --tint-ink: #0a6f95; }
+.tint-green  { --tint-a: #e7faea; --tint-b: #d2f3d9; --tint-ink: #17762f; }
+.tint-mint   { --tint-a: #e3faf5; --tint-b: #cdf3ea; --tint-ink: #0b7562; }
+.tint-orange { --tint-a: #fff2df; --tint-b: #ffe4c2; --tint-ink: #a35c05; }
+.tint-amber  { --tint-a: #fbf0e5; --tint-b: #f4e0cb; --tint-ink: #8a5219; }
+.tint-yellow { --tint-a: #fff8dd; --tint-b: #ffefb8; --tint-ink: #8a6404; }
+.tint-purple { --tint-a: #f5ecfe; --tint-b: #ead8fc; --tint-ink: #6a24b0; }
+.tint-indigo { --tint-a: #eceefd; --tint-b: #dadefb; --tint-ink: #303aa8; }
+.tint-pink   { --tint-a: #ffecf0; --tint-b: #ffd9e1; --tint-ink: #b32444; }
+.tint-red    { --tint-a: #ffece9; --tint-b: #ffd8d3; --tint-ink: #b52a1e; }
+.tint-gray   { --tint-a: #f0f1f3; --tint-b: #e2e4e8; --tint-ink: #4b5058; }
+
+/* Chizilgan tovar tasviri */
+.cat-art { flex-shrink: 0; border-radius: 11px; }
 
 /* Tovar plitkasi: rasm yoki nomdan yasalgan belgi */
 .cat-thumb {

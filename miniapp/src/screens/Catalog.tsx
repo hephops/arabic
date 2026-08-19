@@ -5,6 +5,7 @@ import { SubHeader, EmptyState } from '../ui';
 import { useT } from '../i18n';
 import { loadFailed } from '../toast';
 import { unitName } from '../units';
+import { ProductArt } from '../productArt';
 
 // Markaziy katalog — do'konchi tovarni noldan yozmaydi.
 //
@@ -12,32 +13,10 @@ import { unitName } from '../units';
 // qo'shish" ochiladi: nomi, birligi va o'lchami tayyor, do'konchi faqat
 // o'z narxi va miqdorini yozadi.
 
-/** Rasmi yo'q tovar uchun bir xil ko'rinadigan plitka */
-const TILE_COLORS = ['blue', 'teal', 'green', 'mint', 'orange', 'amber', 'yellow', 'purple', 'indigo', 'pink'];
-
 /**
- * Rang brendga (yoki nomning birinchi so'ziga) qarab tanlanadi —
- * shunda Coca-Cola'ning 0.5, 1, 1.5 va 2 litrligi bir xil rangda
- * turadi va ro'yxatda bitta oila bo'lib ko'rinadi.
+ * Tovar ko'rinishi. Zavod rasmi yuklangan bo'lsa u ustun turadi,
+ * bo'lmasa tovarning shakli chiziladi (productArt.tsx).
  */
-function tileColor(p: CatalogProduct): string {
-  const key = (p.brand || p.name_uz.split(/[\s-]/)[0]).toLowerCase();
-  let h = 0;
-  for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) >>> 0;
-  return TILE_COLORS[h % TILE_COLORS.length];
-}
-
-/** Nomdan qisqa belgi: "Coca-Cola 1.5 l" -> "CC" */
-function initials(p: CatalogProduct): string {
-  const source = p.brand || p.name_uz;
-  const words = source
-    .replace(/[0-9].*$/, '')
-    .split(/[\s-]+/)
-    .filter((w) => w.length > 1);
-  const letters = words.slice(0, 2).map((w) => w[0]);
-  return (letters.join('') || source.slice(0, 2)).toUpperCase();
-}
-
 function ProductThumb({ p, size = 52 }: { p: CatalogProduct; size?: number }) {
   if (p.image_url) {
     return (
@@ -49,11 +28,7 @@ function ProductThumb({ p, size = 52 }: { p: CatalogProduct; size?: number }) {
       />
     );
   }
-  return (
-    <div className={`cat-thumb ph c-${tileColor(p)}`} style={{ width: size, height: size, fontSize: size * 0.34 }}>
-      {initials(p)}
-    </div>
-  );
+  return <ProductArt p={p} size={size} />;
 }
 
 /** Tovarning o'lchami: "1.5 l" yoki "500 g" */
@@ -191,7 +166,7 @@ export default function Catalog({
                 {cats
                   .filter((c) => c.product_count > 0)
                   .map((c) => (
-                    <button key={c.id} className="cat-tile" onClick={() => setOpenCat(c)}>
+                    <button key={c.id} className={`cat-tile tint-${c.color ?? 'blue'}`} onClick={() => setOpenCat(c)}>
                       <AppIcon glyph={c.glyph ?? 'boxes'} color={c.color ?? undefined} size={42} />
                       <div className="ct-name">{name(c)}</div>
                       <div className="ct-count">{c.product_count}</div>

@@ -491,6 +491,289 @@ export const SEED_PRODUCTS: SeedProduct[] = [
   ['Bogʻ va qurilish/Elektr mollari', 'Vklyuchatel', 'Выключатель', null, 1, 'dona', 'dona'],
 ];
 
+
+/**
+ * Ikkinchi to'plam — bo'limlarni to'ldirish uchun.
+ * Alohida ro'yxat: birinchisi qaysi tovarlardan boshlanganini
+ * ko'rsatib turadi, yangilari esa oxiriga qo'shilaveradi.
+ */
+export const SEED_PRODUCTS_2: SeedProduct[] = [
+  // ── Ichimliklar ──
+  ['Ichimliklar/Gazli ichimliklar', 'Fanta 2 l', 'Фанта 2 л', 'Fanta', 2, 'l', 'dona'],
+  ['Ichimliklar/Gazli ichimliklar', 'Sprite 1 l', 'Спрайт 1 л', 'Sprite', 1, 'l', 'dona'],
+  ['Ichimliklar/Gazli ichimliklar', 'Sprite 2 l', 'Спрайт 2 л', 'Sprite', 2, 'l', 'dona'],
+  ['Ichimliklar/Gazli ichimliklar', 'Mirinda 0.5 l', 'Миринда 0.5 л', 'Mirinda', 0.5, 'l', 'dona'],
+  ['Ichimliklar/Gazli ichimliklar', '7UP 0.5 l', '7UP 0.5 л', '7UP', 0.5, 'l', 'dona'],
+  ['Ichimliklar/Gazli ichimliklar', 'Coca-Cola 0.25 l (banka)', 'Кока-Кола 0.25 л', 'Coca-Cola', 0.25, 'l', 'dona'],
+  ['Ichimliklar/Gazli ichimliklar', 'Pepsi 0.25 l (banka)', 'Пепси 0.25 л', 'Pepsi', 0.25, 'l', 'dona'],
+  ['Ichimliklar/Suvlar', 'Nestle Pure Life 10 l', 'Нестле 10 л', 'Nestle', 10, 'l', 'dona'],
+  ['Ichimliklar/Suvlar', 'Hydrolife 5 l', 'Гидролайф 5 л', 'Hydrolife', 5, 'l', 'dona'],
+  ['Ichimliklar/Suvlar', 'Chortoq mineral suv 5 l', 'Чартак 5 л', 'Chortoq', 5, 'l', 'dona'],
+  ['Ichimliklar/Suvlar', 'Zam Zam suv 1.5 l', 'Зам Зам 1.5 л', 'Zam Zam', 1.5, 'l', 'dona'],
+  ['Ichimliklar/Sharbatlar', 'Sharbat uzum 1 l', 'Сок виноградный 1 л', null, 1, 'l', 'dona'],
+  ['Ichimliklar/Sharbatlar', 'Sharbat anor 1 l', 'Сок гранатовый 1 л', null, 1, 'l', 'dona'],
+  ['Ichimliklar/Sharbatlar', 'Sharbat multifrukt 1 l', 'Сок мультифрукт 1 л', null, 1, 'l', 'dona'],
+  ['Ichimliklar/Sharbatlar', 'Sharbat olma 0.2 l', 'Сок яблочный 0.2 л', null, 0.2, 'l', 'dona'],
+  ['Ichimliklar/Energetik ichimliklar', 'Red Bull 355 ml', 'Ред Булл 355 мл', 'Red Bull', 355, 'ml', 'dona'],
+  ['Ichimliklar/Energetik ichimliklar', 'Flash Up 0.45 l', 'Флэш Ап 0.45 л', 'Flash', 0.45, 'l', 'dona'],
+  ['Ichimliklar/Choy va kofe', 'Choy koʻk 250 g', 'Чай зелёный 250 г', null, 250, 'g', 'dona'],
+  ['Ichimliklar/Choy va kofe', 'Choy qora 250 g', 'Чай чёрный 250 г', null, 250, 'g', 'dona'],
+  ['Ichimliklar/Choy va kofe', 'Choy paketli (25 dona)', 'Чай в пакетиках (25 шт)', null, 25, 'dona', 'dona'],
+  ['Ichimliklar/Choy va kofe', 'Nescafe Gold 95 g', 'Нескафе Голд 95 г', 'Nescafe', 95, 'g', 'dona'],
+  ['Ichimliklar/Pivo va alkogol', 'Pivo 0.5 l (shisha)', 'Пиво 0.5 л', null, 0.5, 'l', 'dona'],
+  ['Ichimliklar/Pivo va alkogol', 'Pivo 1 l', 'Пиво 1 л', null, 1, 'l', 'dona'],
+
+  // ── Sut mahsulotlari ──
+  ['Sut mahsulotlari/Sut va qaymoq', 'Sut 1.5 l', 'Молоко 1.5 л', null, 1.5, 'l', 'dona'],
+  ['Sut mahsulotlari/Sut va qaymoq', 'Sut (quyuqlashtirilgan) 380 g', 'Сгущённое молоко 380 г', null, 380, 'g', 'dona'],
+  ['Sut mahsulotlari/Sut va qaymoq', 'Smetana 200 g', 'Сметана 200 г', null, 200, 'g', 'dona'],
+  ['Sut mahsulotlari/Sut va qaymoq', 'Smetana 400 g', 'Сметана 400 г', null, 400, 'g', 'dona'],
+  ['Sut mahsulotlari/Yogurt va tvorog', 'Yogurt 500 g', 'Йогурт 500 г', null, 500, 'g', 'dona'],
+  ['Sut mahsulotlari/Yogurt va tvorog', 'Yogurt ichimlik 300 ml', 'Питьевой йогурт 300 мл', null, 300, 'ml', 'dona'],
+  ['Sut mahsulotlari/Yogurt va tvorog', 'Tvorog 500 g', 'Творог 500 г', null, 500, 'g', 'dona'],
+  ['Sut mahsulotlari/Pishloq', 'Pishloq (plavlenniy) 100 g', 'Плавленый сыр 100 г', null, 100, 'g', 'dona'],
+  ['Sut mahsulotlari/Pishloq', 'Brinza', 'Брынза', null, null, null, 'kg'],
+  ['Sut mahsulotlari/Sariyog va margarin', 'Sariyog 500 g', 'Масло сливочное 500 г', null, 500, 'g', 'dona'],
+  ['Sut mahsulotlari/Sariyog va margarin', 'Margarin 200 g', 'Маргарин 200 г', null, 200, 'g', 'dona'],
+  ['Sut mahsulotlari/Qatiq va ayron', 'Qatiq 1 l', 'Кефир 1 л', null, 1, 'l', 'dona'],
+  ['Sut mahsulotlari/Qatiq va ayron', 'Ayron 1 l', 'Айран 1 л', null, 1, 'l', 'dona'],
+  ['Sut mahsulotlari/Qatiq va ayron', 'Suzma 400 g', 'Сузьма 400 г', null, 400, 'g', 'dona'],
+
+  // ── Non va shirinliklar ──
+  ['Non va shirinliklar/Non va bulochka', 'Lavash', 'Лаваш', null, null, null, 'dona'],
+  ['Non va shirinliklar/Non va bulochka', 'Baton', 'Батон', null, null, null, 'dona'],
+  ['Non va shirinliklar/Non va bulochka', 'Suxari 200 g', 'Сухари 200 г', null, 200, 'g', 'dona'],
+  ['Non va shirinliklar/Pechenye va vafli', 'Pechenye 300 g', 'Печенье 300 г', null, 300, 'g', 'dona'],
+  ['Non va shirinliklar/Pechenye va vafli', 'Vafli 200 g', 'Вафли 200 г', null, 200, 'g', 'dona'],
+  ['Non va shirinliklar/Pechenye va vafli', 'Krekker 150 g', 'Крекер 150 г', null, 150, 'g', 'dona'],
+  ['Non va shirinliklar/Shokolad va konfet', 'Bounty 55 g', 'Баунти 55 г', 'Bounty', 55, 'g', 'dona'],
+  ['Non va shirinliklar/Shokolad va konfet', 'KitKat 40 g', 'КитКат 40 г', 'KitKat', 40, 'g', 'dona'],
+  ['Non va shirinliklar/Shokolad va konfet', 'Milka 90 g', 'Милка 90 г', 'Milka', 90, 'g', 'dona'],
+  ['Non va shirinliklar/Shokolad va konfet', 'Nutella 350 g', 'Нутелла 350 г', 'Nutella', 350, 'g', 'dona'],
+  ['Non va shirinliklar/Shokolad va konfet', 'Halva', 'Халва', null, null, null, 'kg'],
+  ['Non va shirinliklar/Tort va pirojniy', 'Tort (kichik)', 'Торт (маленький)', null, null, null, 'dona'],
+  ['Non va shirinliklar/Tort va pirojniy', 'Keks', 'Кекс', null, null, null, 'dona'],
+  ['Non va shirinliklar/Saqich va karamel', 'Karamel', 'Карамель', null, null, null, 'kg'],
+  ['Non va shirinliklar/Saqich va karamel', 'Chupa Chups', 'Чупа Чупс', 'Chupa Chups', 1, 'dona', 'dona'],
+
+  // ── Go'sht ──
+  ['Goʻsht va kolbasa/Kolbasa va sosiska', 'Sosiska 1 kg', 'Сосиски 1 кг', null, 1, 'kg', 'dona'],
+  ['Goʻsht va kolbasa/Kolbasa va sosiska', 'Vetchina', 'Ветчина', null, null, null, 'kg'],
+  ['Goʻsht va kolbasa/Kolbasa va sosiska', 'Kazi', 'Казы', null, null, null, 'kg'],
+  ['Goʻsht va kolbasa/Muzlatilgan goʻsht', 'Tovuq (butun)', 'Курица (тушка)', null, null, null, 'kg'],
+  ['Goʻsht va kolbasa/Muzlatilgan goʻsht', 'Tovuq filesi', 'Куриное филе', null, null, null, 'kg'],
+  ['Goʻsht va kolbasa/Muzlatilgan goʻsht', 'Mol goʻshti', 'Говядина', null, null, null, 'kg'],
+  ['Goʻsht va kolbasa/Muzlatilgan goʻsht', 'Qoʻy goʻshti', 'Баранина', null, null, null, 'kg'],
+  ['Goʻsht va kolbasa/Baliq va dengiz mahsulotlari', 'Seld (tuzlangan)', 'Селёдка', null, null, null, 'kg'],
+  ['Goʻsht va kolbasa/Baliq va dengiz mahsulotlari', 'Baliq (muzlatilgan)', 'Рыба замороженная', null, null, null, 'kg'],
+
+  // ── Baqqollik ──
+  ['Baqqollik/Yogʻ va sirka', 'Zaytun yogʻi 500 ml', 'Оливковое масло 500 мл', null, 500, 'ml', 'dona'],
+  ['Baqqollik/Yogʻ va sirka', 'Sirka 500 ml', 'Уксус 500 мл', null, 500, 'ml', 'dona'],
+  ['Baqqollik/Un va yorma', 'Un 5 kg', 'Мука 5 кг', null, 5, 'kg', 'dona'],
+  ['Baqqollik/Un va yorma', 'Un 25 kg', 'Мука 25 кг', null, 25, 'kg', 'dona'],
+  ['Baqqollik/Un va yorma', 'Mosh', 'Маш', null, null, null, 'kg'],
+  ['Baqqollik/Un va yorma', 'Loviya', 'Фасоль', null, null, null, 'kg'],
+  ['Baqqollik/Un va yorma', 'Noʻxat', 'Горох', null, null, null, 'kg'],
+  ['Baqqollik/Un va yorma', 'Yasmiq', 'Чечевица', null, null, null, 'kg'],
+  ['Baqqollik/Un va yorma', 'Manniy yormasi', 'Манная крупа', null, null, null, 'kg'],
+  ['Baqqollik/Shakar va tuz', 'Shakar 5 kg', 'Сахар 5 кг', null, 5, 'kg', 'dona'],
+  ['Baqqollik/Shakar va tuz', 'Shakar 50 kg', 'Сахар 50 кг', null, 50, 'kg', 'dona'],
+  ['Baqqollik/Shakar va tuz', 'Tuz 500 g', 'Соль 500 г', null, 500, 'g', 'dona'],
+  ['Baqqollik/Makaron va tugmacha', 'Makaron 1 kg', 'Макароны 1 кг', null, 1, 'kg', 'dona'],
+  ['Baqqollik/Makaron va tugmacha', 'Vermishel 400 g', 'Вермишель 400 г', null, 400, 'g', 'dona'],
+  ['Baqqollik/Makaron va tugmacha', 'Doshirak', 'Доширак', 'Doshirak', 1, 'dona', 'dona'],
+  ['Baqqollik/Ziravor va souslar', 'Ketchup 1 kg', 'Кетчуп 1 кг', null, 1, 'kg', 'dona'],
+  ['Baqqollik/Ziravor va souslar', 'Mayonez 800 g', 'Майонез 800 г', null, 800, 'g', 'dona'],
+  ['Baqqollik/Ziravor va souslar', 'Soya sousi 200 ml', 'Соевый соус 200 мл', null, 200, 'ml', 'dona'],
+  ['Baqqollik/Ziravor va souslar', 'Qora murch 50 g', 'Чёрный перец 50 г', null, 50, 'g', 'dona'],
+  ['Baqqollik/Ziravor va souslar', 'Zira 50 g', 'Зира 50 г', null, 50, 'g', 'dona'],
+  ['Baqqollik/Ziravor va souslar', 'Lavr bargi 10 g', 'Лавровый лист 10 г', null, 10, 'g', 'dona'],
+  ['Baqqollik/Konserva va murabbo', 'Asal 500 g', 'Мёд 500 г', null, 500, 'g', 'dona'],
+  ['Baqqollik/Konserva va murabbo', 'Nohut konservasi 400 g', 'Консервы нут 400 г', null, 400, 'g', 'dona'],
+  ['Baqqollik/Konserva va murabbo', 'Pomidor pastasi 500 g', 'Томатная паста 500 г', null, 500, 'g', 'dona'],
+  ['Baqqollik/Konserva va murabbo', 'Tuxum (10 dona)', 'Яйца (10 шт)', null, 10, 'dona', 'dona'],
+
+  // ── Meva-sabzavot ──
+  ['Meva va sabzavot/Mevalar', 'Uzum', 'Виноград', null, null, null, 'kg'],
+  ['Meva va sabzavot/Mevalar', 'Anor', 'Гранат', null, null, null, 'kg'],
+  ['Meva va sabzavot/Mevalar', 'Nok', 'Груша', null, null, null, 'kg'],
+  ['Meva va sabzavot/Mevalar', 'Shaftoli', 'Персики', null, null, null, 'kg'],
+  ['Meva va sabzavot/Mevalar', 'Limon', 'Лимон', null, null, null, 'kg'],
+  ['Meva va sabzavot/Mevalar', 'Tarvuz', 'Арбуз', null, null, null, 'kg'],
+  ['Meva va sabzavot/Mevalar', 'Qovun', 'Дыня', null, null, null, 'kg'],
+  ['Meva va sabzavot/Sabzavotlar', 'Bodring', 'Огурцы', null, null, null, 'kg'],
+  ['Meva va sabzavot/Sabzavotlar', 'Karam', 'Капуста', null, null, null, 'kg'],
+  ['Meva va sabzavot/Sabzavotlar', 'Sarimsoq', 'Чеснок', null, null, null, 'kg'],
+  ['Meva va sabzavot/Sabzavotlar', 'Qalampir', 'Перец', null, null, null, 'kg'],
+  ['Meva va sabzavot/Sabzavotlar', 'Baqlajon', 'Баклажан', null, null, null, 'kg'],
+  ['Meva va sabzavot/Koʻkatlar', 'Koʻkat (dastasi)', 'Зелень (пучок)', null, null, null, 'dona'],
+  ['Meva va sabzavot/Quruq mevalar va yongʻoq', 'Turshak', 'Курага', null, null, null, 'kg'],
+  ['Meva va sabzavot/Quruq mevalar va yongʻoq', 'Bodom', 'Миндаль', null, null, null, 'kg'],
+  ['Meva va sabzavot/Quruq mevalar va yongʻoq', 'Yerongʻoq', 'Арахис', null, null, null, 'kg'],
+  ['Meva va sabzavot/Quruq mevalar va yongʻoq', 'Pista', 'Фисташки', null, null, null, 'kg'],
+
+  // ── Muzlatilgan ──
+  ['Muzlatilgan mahsulotlar/Muzqaymoq', 'Muzqaymoq (rojok)', 'Мороженое (рожок)', null, null, null, 'dona'],
+  ['Muzlatilgan mahsulotlar/Muzqaymoq', 'Muzqaymoq (eskimo)', 'Мороженое (эскимо)', null, null, null, 'dona'],
+  ['Muzlatilgan mahsulotlar/Yarim tayyor mahsulotlar', 'Chuchvara (muzlatilgan)', 'Чучвара замороженная', null, null, null, 'kg'],
+  ['Muzlatilgan mahsulotlar/Yarim tayyor mahsulotlar', 'Kotlet (muzlatilgan)', 'Котлеты замороженные', null, null, null, 'kg'],
+  ['Muzlatilgan mahsulotlar/Yarim tayyor mahsulotlar', 'Naggets 300 g', 'Наггетсы 300 г', null, 300, 'g', 'dona'],
+  ['Muzlatilgan mahsulotlar/Muzlatilgan sabzavot', 'Muzlatilgan aralashma 400 g', 'Овощная смесь 400 г', null, 400, 'g', 'dona'],
+
+  // ── Gigiena ──
+  ['Gigiena va parvarish/Shampun va sovun', 'Shampun 200 ml', 'Шампунь 200 мл', null, 200, 'ml', 'dona'],
+  ['Gigiena va parvarish/Shampun va sovun', 'Dush geli 250 ml', 'Гель для душа 250 мл', null, 250, 'ml', 'dona'],
+  ['Gigiena va parvarish/Shampun va sovun', 'Xoʻjalik sovuni', 'Хозяйственное мыло', null, 1, 'dona', 'dona'],
+  ['Gigiena va parvarish/Tish pastasi va choʻtka', 'Tish pastasi 100 ml', 'Зубная паста 100 мл', null, 100, 'ml', 'dona'],
+  ['Gigiena va parvarish/Tish pastasi va choʻtka', 'Blend-a-med 100 ml', 'Бленд-а-мед 100 мл', 'Blend-a-med', 100, 'ml', 'dona'],
+  ['Gigiena va parvarish/Bir martalik buyumlar', 'Tualet qogʻozi (4 dona)', 'Туалетная бумага (4 шт)', null, 4, 'dona', 'dona'],
+  ['Gigiena va parvarish/Bir martalik buyumlar', 'Nam salfetka (100 dona)', 'Влажные салфетки (100 шт)', null, 100, 'dona', 'dona'],
+  ['Gigiena va parvarish/Bir martalik buyumlar', 'Qogʻoz sochiq', 'Бумажные полотенца', null, 1, 'dona', 'dona'],
+  ['Gigiena va parvarish/Ustara va soqol vositalari', 'Soqol koʻpigi 200 ml', 'Пена для бритья 200 мл', null, 200, 'ml', 'dona'],
+  ['Gigiena va parvarish/Ayollar gigienasi', 'Prokladka (10 dona)', 'Прокладки (10 шт)', null, 10, 'dona', 'dona'],
+
+  // ── Parfumeriya ──
+  ['Parfumeriya va kosmetika/Erkaklar atri', 'Erkaklar atri 30 ml', 'Мужской парфюм 30 мл', null, 30, 'ml', 'dona'],
+  ['Parfumeriya va kosmetika/Erkaklar atri', 'Odekolon 100 ml', 'Одеколон 100 мл', null, 100, 'ml', 'dona'],
+  ['Parfumeriya va kosmetika/Ayollar atri', 'Ayollar atri 30 ml', 'Женский парфюм 30 мл', null, 30, 'ml', 'dona'],
+  ['Parfumeriya va kosmetika/Ayollar atri', 'Tualet suvi 50 ml', 'Туалетная вода 50 мл', null, 50, 'ml', 'dona'],
+  ['Parfumeriya va kosmetika/Yuz parvarishi', 'Yuz yuvish geli 150 ml', 'Гель для умывания 150 мл', null, 150, 'ml', 'dona'],
+  ['Parfumeriya va kosmetika/Yuz parvarishi', 'Skrab 100 ml', 'Скраб 100 мл', null, 100, 'ml', 'dona'],
+  ['Parfumeriya va kosmetika/Krem va loson', 'Bolalar kremi 40 ml', 'Детский крем 40 мл', null, 40, 'ml', 'dona'],
+  ['Parfumeriya va kosmetika/Krem va loson', 'Oyoq kremi 75 ml', 'Крем для ног 75 мл', null, 75, 'ml', 'dona'],
+  ['Parfumeriya va kosmetika/Dekorativ kosmetika', 'Koʻz qalami', 'Карандаш для глаз', null, 1, 'dona', 'dona'],
+  ['Parfumeriya va kosmetika/Dekorativ kosmetika', 'Tonal krem', 'Тональный крем', null, 1, 'dona', 'dona'],
+  ['Parfumeriya va kosmetika/Dekorativ kosmetika', 'Rumyana', 'Румяна', null, 1, 'dona', 'dona'],
+  ['Parfumeriya va kosmetika/Soch parvarishi', 'Soch maskasi 200 ml', 'Маска для волос 200 мл', null, 200, 'ml', 'dona'],
+  ['Parfumeriya va kosmetika/Soch parvarishi', 'Soch laki 250 ml', 'Лак для волос 250 мл', null, 250, 'ml', 'dona'],
+  ['Parfumeriya va kosmetika/Tirnoq va lak', 'Tirnoq qaychisi', 'Ножницы для ногтей', null, 1, 'dona', 'dona'],
+
+  // ── Uy-ro'zg'or kimyosi ──
+  ['Uy-roʻzgʻor kimyosi/Kir yuvish vositalari', 'Kir yuvish kukuni 6 kg', 'Стиральный порошок 6 кг', null, 6, 'kg', 'dona'],
+  ['Uy-roʻzgʻor kimyosi/Kir yuvish vositalari', 'Kir yuvish geli 1.3 l', 'Гель для стирки 1.3 л', null, 1.3, 'l', 'dona'],
+  ['Uy-roʻzgʻor kimyosi/Kir yuvish vositalari', 'Dogʻ ketkazgich 500 g', 'Пятновыводитель 500 г', null, 500, 'g', 'dona'],
+  ['Uy-roʻzgʻor kimyosi/Idish yuvish', 'Idish yuvish vositasi 1 l', 'Средство для посуды 1 л', null, 1, 'l', 'dona'],
+  ['Uy-roʻzgʻor kimyosi/Idish yuvish', 'Idish yuvish gubkasi (5 dona)', 'Губки для посуды (5 шт)', null, 5, 'dona', 'dona'],
+  ['Uy-roʻzgʻor kimyosi/Tozalash vositalari', 'Domestos 1 l', 'Доместос 1 л', 'Domestos', 1, 'l', 'dona'],
+  ['Uy-roʻzgʻor kimyosi/Tozalash vositalari', 'Pol yuvish vositasi 1 l', 'Средство для пола 1 л', null, 1, 'l', 'dona'],
+  ['Uy-roʻzgʻor kimyosi/Hasharotlarga qarshi', 'Chivin plastinkasi', 'Пластины от комаров', null, 1, 'dona', 'dona'],
+  ['Uy-roʻzgʻor kimyosi/Xushboʻy vositalar', 'Xona xushboʻylagich (avtomat)', 'Автоматический освежитель', null, 1, 'dona', 'dona'],
+
+  // ── Elektronika ──
+  ['Elektronika/Telefon aksessuarlari', 'Telefon ushlagich (avto)', 'Автодержатель для телефона', null, 1, 'dona', 'dona'],
+  ['Elektronika/Telefon aksessuarlari', 'Selfi tayoq', 'Селфи-палка', null, 1, 'dona', 'dona'],
+  ['Elektronika/Quloqchin va kolonka', 'TWS quloqchin', 'TWS наушники', null, 1, 'dona', 'dona'],
+  ['Elektronika/Batareyka va zaryadlagich', 'Batareyka Krona 9V', 'Батарейка Крона 9В', null, 1, 'dona', 'dona'],
+  ['Elektronika/Batareyka va zaryadlagich', 'Quvvat banki 20000 mAh', 'Повербанк 20000 мАч', null, 1, 'dona', 'dona'],
+  ['Elektronika/Batareyka va zaryadlagich', 'Avto zaryadlagich', 'Автозарядка', null, 1, 'dona', 'dona'],
+  ['Elektronika/Kabel va adapter', 'HDMI kabel 1.5 m', 'HDMI кабель 1.5 м', null, 1.5, 'dona', 'dona'],
+  ['Elektronika/Kabel va adapter', 'Uzaytirgich (3 rozetka)', 'Удлинитель (3 розетки)', null, 1, 'dona', 'dona'],
+  ['Elektronika/Lampochka va yoritish', 'LED lampochka 15 W', 'LED лампа 15 Вт', null, 15, 'dona', 'dona'],
+  ['Elektronika/Lampochka va yoritish', 'LED lenta 5 m', 'LED лента 5 м', null, 5, 'dona', 'dona'],
+  ['Elektronika/Lampochka va yoritish', 'Stol chirogʻi', 'Настольная лампа', null, 1, 'dona', 'dona'],
+  ['Elektronika/Xotira kartalari va flesh', 'Flesh xotira 64 GB', 'Флешка 64 ГБ', null, 64, 'dona', 'dona'],
+  ['Elektronika/Xotira kartalari va flesh', 'MicroSD 128 GB', 'MicroSD 128 ГБ', null, 128, 'dona', 'dona'],
+  ['Elektronika/Maishiy texnika', 'Fen', 'Фен', null, 1, 'dona', 'dona'],
+  ['Elektronika/Maishiy texnika', 'Mikser', 'Миксер', null, 1, 'dona', 'dona'],
+  ['Elektronika/Maishiy texnika', 'Blender', 'Блендер', null, 1, 'dona', 'dona'],
+  ['Elektronika/Maishiy texnika', 'Ventilyator', 'Вентилятор', null, 1, 'dona', 'dona'],
+
+  // ── Kiyim ──
+  ['Kiyim va oyoq kiyim/Erkaklar kiyimi', 'Erkaklar sportivka', 'Мужской спортивный костюм', null, 1, 'dona', 'dona'],
+  ['Kiyim va oyoq kiyim/Erkaklar kiyimi', 'Erkaklar kurtkasi', 'Мужская куртка', null, 1, 'dona', 'dona'],
+  ['Kiyim va oyoq kiyim/Ayollar kiyimi', 'Ayollar yubkasi', 'Женская юбка', null, 1, 'dona', 'dona'],
+  ['Kiyim va oyoq kiyim/Ayollar kiyimi', 'Ayollar kurtkasi', 'Женская куртка', null, 1, 'dona', 'dona'],
+  ['Kiyim va oyoq kiyim/Bolalar kiyimi', 'Bolalar shimi', 'Детские брюки', null, 1, 'dona', 'dona'],
+  ['Kiyim va oyoq kiyim/Bolalar kiyimi', 'Bolalar kurtkasi', 'Детская куртка', null, 1, 'dona', 'dona'],
+  ['Kiyim va oyoq kiyim/Oyoq kiyim', 'Botinka', 'Ботинки', null, 1, 'dona', 'dona'],
+  ['Kiyim va oyoq kiyim/Oyoq kiyim', 'Sandal', 'Сандалии', null, 1, 'dona', 'dona'],
+  ['Kiyim va oyoq kiyim/Oyoq kiyim', 'Kalish', 'Галоши', null, 1, 'dona', 'dona'],
+  ['Kiyim va oyoq kiyim/Paypoq va ichki kiyim', 'Kolgotki', 'Колготки', null, 1, 'dona', 'dona'],
+  ['Kiyim va oyoq kiyim/Paypoq va ichki kiyim', 'Mayka', 'Майка', null, 1, 'dona', 'dona'],
+  ['Kiyim va oyoq kiyim/Bosh kiyim va aksessuar', 'Doʻppi', 'Тюбетейка', null, 1, 'dona', 'dona'],
+  ['Kiyim va oyoq kiyim/Bosh kiyim va aksessuar', 'Qoʻlqop', 'Перчатки', null, 1, 'dona', 'dona'],
+  ['Kiyim va oyoq kiyim/Bosh kiyim va aksessuar', 'Kamar', 'Ремень', null, 1, 'dona', 'dona'],
+  ['Kiyim va oyoq kiyim/Sumka va hamyon', 'Maktab sumkasi', 'Школьный рюкзак', null, 1, 'dona', 'dona'],
+
+  // ── Bolalar ──
+  ['Bolalar uchun/Bolalar ovqati', 'Bolalar pyuresi 200 g', 'Детское пюре 200 г', null, 200, 'g', 'dona'],
+  ['Bolalar uchun/Bolalar ovqati', 'Bolalar shirasi 200 ml', 'Детский сок 200 мл', null, 200, 'ml', 'dona'],
+  ['Bolalar uchun/Bolalar ovqati', 'Bolalar bo\'tqasi 200 g', 'Детская каша 200 г', null, 200, 'g', 'dona'],
+  ['Bolalar uchun/Podguznik va salfetka', 'Podguznik (kichik)', 'Подгузники (малые)', null, 1, 'dona', 'dona'],
+  ['Bolalar uchun/Podguznik va salfetka', 'Podguznik (katta)', 'Подгузники (большие)', null, 1, 'dona', 'dona'],
+  ['Bolalar uchun/Oʻyinchoqlar', 'Yumshoq oʻyinchoq', 'Мягкая игрушка', null, 1, 'dona', 'dona'],
+  ['Bolalar uchun/Oʻyinchoqlar', 'Puzzle', 'Пазлы', null, 1, 'dona', 'dona'],
+  ['Bolalar uchun/Oʻyinchoqlar', 'Koptok', 'Мяч', null, 1, 'dona', 'dona'],
+  ['Bolalar uchun/Bolalar gigienasi', 'Bolalar shampuni 250 ml', 'Детский шампунь 250 мл', null, 250, 'ml', 'dona'],
+  ['Bolalar uchun/Bolalar gigienasi', 'Soʻrgʻich', 'Соска', null, 1, 'dona', 'dona'],
+
+  // ── Uy anjomlari ──
+  ['Uy anjomlari/Idish-tovoq', 'Kosa', 'Миска', null, 1, 'dona', 'dona'],
+  ['Uy anjomlari/Idish-tovoq', 'Stakan', 'Стакан', null, 1, 'dona', 'dona'],
+  ['Uy anjomlari/Idish-tovoq', 'Kastryulka', 'Кастрюля', null, 1, 'dona', 'dona'],
+  ['Uy anjomlari/Idish-tovoq', 'Tova', 'Сковорода', null, 1, 'dona', 'dona'],
+  ['Uy anjomlari/Oshxona jihozlari', 'Kesish taxtasi', 'Разделочная доска', null, 1, 'dona', 'dona'],
+  ['Uy anjomlari/Oshxona jihozlari', 'Terka', 'Тёрка', null, 1, 'dona', 'dona'],
+  ['Uy anjomlari/Oshxona jihozlari', 'Ochgich (konserva uchun)', 'Консервный нож', null, 1, 'dona', 'dona'],
+  ['Uy anjomlari/Toʻshak va matolar', 'Yostiq', 'Подушка', null, 1, 'dona', 'dona'],
+  ['Uy anjomlari/Toʻshak va matolar', 'Adyol', 'Одеяло', null, 1, 'dona', 'dona'],
+  ['Uy anjomlari/Tozalash anjomlari', 'Chelak', 'Ведро', null, 1, 'dona', 'dona'],
+  ['Uy anjomlari/Tozalash anjomlari', 'Shvabra', 'Швабра', null, 1, 'dona', 'dona'],
+  ['Uy anjomlari/Tozalash anjomlari', 'Axlat xaltasi (30 dona)', 'Мусорные пакеты (30 шт)', null, 30, 'dona', 'dona'],
+  ['Uy anjomlari/Shamlar va bezaklar', 'Ramka (surat uchun)', 'Фоторамка', null, 1, 'dona', 'dona'],
+
+  // ── Kanselyariya ──
+  ['Kanselyariya/Daftar va qogʻoz', 'Daftar 96 varaq', 'Тетрадь 96 листов', null, 96, 'dona', 'dona'],
+  ['Kanselyariya/Daftar va qogʻoz', 'Albom (rasm uchun)', 'Альбом для рисования', null, 1, 'dona', 'dona'],
+  ['Kanselyariya/Yozuv qurollari', 'Ruchka (koʻk, 10 dona)', 'Ручки синие (10 шт)', null, 10, 'dona', 'dona'],
+  ['Kanselyariya/Yozuv qurollari', 'Rangli qalam (12 rang)', 'Цветные карандаши (12 цветов)', null, 12, 'dona', 'dona'],
+  ['Kanselyariya/Yozuv qurollari', 'Flomaster (12 rang)', 'Фломастеры (12 цветов)', null, 12, 'dona', 'dona'],
+  ['Kanselyariya/Maktab buyumlari', 'Penal', 'Пенал', null, 1, 'dona', 'dona'],
+  ['Kanselyariya/Maktab buyumlari', 'Sirkul', 'Циркуль', null, 1, 'dona', 'dona'],
+  ['Kanselyariya/Maktab buyumlari', 'Yelim (PVA)', 'Клей ПВА', null, 1, 'dona', 'dona'],
+  ['Kanselyariya/Ofis buyumlari', 'Papka', 'Папка', null, 1, 'dona', 'dona'],
+  ['Kanselyariya/Ofis buyumlari', 'Kalkulyator', 'Калькулятор', null, 1, 'dona', 'dona'],
+
+  // ── Sog'liq ──
+  ['Sogʻliq/Vitaminlar va BFQ', 'Vitamin D', 'Витамин D', null, 1, 'dona', 'dona'],
+  ['Sogʻliq/Vitaminlar va BFQ', 'Baliq yogʻi', 'Рыбий жир', null, 1, 'dona', 'dona'],
+  ['Sogʻliq/Tibbiy buyumlar', 'Vata 100 g', 'Вата 100 г', null, 100, 'g', 'dona'],
+  ['Sogʻliq/Tibbiy buyumlar', 'Shprits (5 ml)', 'Шприц 5 мл', null, 1, 'dona', 'dona'],
+  ['Sogʻliq/Tibbiy buyumlar', 'Bosim oʻlchagich', 'Тонометр', null, 1, 'dona', 'dona'],
+  ['Sogʻliq/Niqob va antiseptik', 'Tibbiy qoʻlqop (10 juft)', 'Медицинские перчатки (10 пар)', null, 10, 'dona', 'dona'],
+
+  // ── Tamaki ──
+  ['Tamaki mahsulotlari/Sigaretalar', 'Sigareta (paket)', 'Сигареты (пачка)', null, 1, 'dona', 'dona'],
+  ['Tamaki mahsulotlari/Sigaretalar', 'Sigareta (blok)', 'Сигареты (блок)', null, 10, 'dona', 'dona'],
+  ['Tamaki mahsulotlari/Zajigalka va gugurt', 'Kul solgich', 'Пепельница', null, 1, 'dona', 'dona'],
+
+  // ── Hayvonlar ──
+  ['Hayvonlar uchun/Mushuk va it ovqati', 'Mushuk ovqati 1.5 kg', 'Корм для кошек 1.5 кг', null, 1.5, 'kg', 'dona'],
+  ['Hayvonlar uchun/Mushuk va it ovqati', 'It ovqati 3 kg', 'Корм для собак 3 кг', null, 3, 'kg', 'dona'],
+  ['Hayvonlar uchun/Mushuk va it ovqati', 'Tovuq ozuqasi', 'Корм для кур', null, null, null, 'kg'],
+  ['Hayvonlar uchun/Hayvon aksessuarlari', 'Mushuk toldirgichi 5 l', 'Наполнитель для кошек 5 л', null, 5, 'l', 'dona'],
+
+  // ── Avto ──
+  ['Avto tovarlar/Moy va suyuqliklar', 'Motor moyi 1 l', 'Моторное масло 1 л', null, 1, 'l', 'dona'],
+  ['Avto tovarlar/Moy va suyuqliklar', 'Tormoz suyuqligi 1 l', 'Тормозная жидкость 1 л', null, 1, 'l', 'dona'],
+  ['Avto tovarlar/Avto aksessuarlar', 'Avto chexol', 'Чехлы для авто', null, 1, 'dona', 'dona'],
+  ['Avto tovarlar/Avto aksessuarlar', 'Domkrat', 'Домкрат', null, 1, 'dona', 'dona'],
+  ['Avto tovarlar/Avto kimyosi', 'Avto shampuni 1 l', 'Автошампунь 1 л', null, 1, 'l', 'dona'],
+  ['Avto tovarlar/Avto kimyosi', 'Antigel 250 ml', 'Антигель 250 мл', null, 250, 'ml', 'dona'],
+
+  // ── Bog' va qurilish ──
+  ['Bogʻ va qurilish/Asboblar', 'Ombur', 'Плоскогубцы', null, 1, 'dona', 'dona'],
+  ['Bogʻ va qurilish/Asboblar', 'Arra', 'Пила', null, 1, 'dona', 'dona'],
+  ['Bogʻ va qurilish/Asboblar', 'Mix (1 kg)', 'Гвозди 1 кг', null, 1, 'kg', 'dona'],
+  ['Bogʻ va qurilish/Asboblar', 'Shurup (100 dona)', 'Саморезы (100 шт)', null, 100, 'dona', 'dona'],
+  ['Bogʻ va qurilish/Boʻyoq va lak', 'Emal boʻyoq 2.5 kg', 'Эмаль 2.5 кг', null, 2.5, 'kg', 'dona'],
+  ['Bogʻ va qurilish/Boʻyoq va lak', 'Cho\'tka (boʻyoq uchun)', 'Кисть малярная', null, 1, 'dona', 'dona'],
+  ['Bogʻ va qurilish/Urugʻ va oʻgʻit', 'Oʻgʻit 1 kg', 'Удобрение 1 кг', null, 1, 'kg', 'dona'],
+  ['Bogʻ va qurilish/Elektr mollari', 'Sim (1 m)', 'Провод (1 м)', null, 1, 'dona', 'metr'],
+  ['Bogʻ va qurilish/Elektr mollari', 'Izolenta', 'Изолента', null, 1, 'dona', 'dona'],
+];
+
 /**
  * Katalogni birinchi marta to'ldirish.
  *
@@ -530,7 +813,7 @@ export function seedCatalog(): { categories: number; products: number } {
       });
     });
 
-    for (const [path, name, ru, brand, vol, vunit, unit] of SEED_PRODUCTS) {
+    for (const [path, name, ru, brand, vol, vunit, unit] of [...SEED_PRODUCTS, ...SEED_PRODUCTS_2]) {
       const catId = byPath.get(pathKey(path));
       if (!catId) {
         console.warn(`[katalog] bo'lim topilmadi: ${path}`);
