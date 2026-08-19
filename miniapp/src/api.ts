@@ -68,6 +68,13 @@ export const api = {
     request<BarcodeLookup>(`/barcodes/lookup?code=${encodeURIComponent(code)}`),
   attachBarcode: (productId: number, barcode: string) =>
     request<Product>(`/products/${productId}/barcodes`, { method: 'POST', body: JSON.stringify({ barcode }) }),
+  // Tovarning ochiq partiyalari
+  productBatches: (productId: number) => request<Batch[]>(`/products/${productId}/batches`),
+  setBatchExpiry: (productId: number, batchId: number, expiry_date: string | null) =>
+    request<Batch[]>(`/products/${productId}/batches/${batchId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ expiry_date }),
+    }),
   productBarcodes: (productId: number) =>
     request<{ id: number; barcode: string; created_at: string }[]>(`/products/${productId}/barcodes`),
   removeBarcode: (productId: number, barcode: string) =>
@@ -495,6 +502,17 @@ export interface Order {
   received_at: string | null;
   created_at: string;
   items: OrderItem[];
+}
+
+/** Tovarning bitta partiyasi — bir marta kelgan to'plam */
+export interface Batch {
+  id: number;
+  product_id: number;
+  qty: number;
+  qty_left: number;
+  cost_price: number;
+  expiry_date: string | null;
+  created_at: string;
 }
 
 /** Ta'minotchining bot bilan bog'lanishi */

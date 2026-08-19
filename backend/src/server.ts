@@ -16,6 +16,7 @@ import { registerAdminRoutes, seedAdmin } from './admin.js';
 import { normalizeBarcode, barcodeVariants, checkGtin, makeInStoreEan13, parseScaleBarcode, makeScaleBarcode, scaleQty } from './barcodes.js';
 import { normalizePhone } from './phone.js';
 import { noteEmployeeLogin, notifyPinAttempts, recentLogins } from './staffAlert.js';
+import { addBatch, consume, restore, setTotal, batchesOf, syncProduct } from './batches.js';
 import { normalizeUnit, normalizePriceQty } from './units.js';
 import { chargeShop, chargeAllShops, serviceState, getSetting, dailyPrice, trialThrough } from './billing.js';
 import { issueCode, checkCode, clearCode } from './otp.js';
@@ -1365,13 +1366,23 @@ app.post<{ Body: { barcode?: string; name: string; unit?: string; price_qty?: nu
     if (addQty > 0) {
       // Narx birligi tovarning o'z birligiga qarab tekshiriladi: eski
       // tovarga kirim qilinsa uning ombor birligi o'zgarmaydi
-      db.prepare('UPDATE products SET stock = stock + ?, cost_price = ?, sell_price = ?, price_qty = ?, expiry_date = COALESCE(?, expiry_date) WHERE id = ?').run(
+      // Tovarning expiry_date ustuni endi partiyalardan hisoblanadi
+      // (eng erta tugaydigani), shuning uchun bu yerda tegilmaydi.
+      db.prepare('UPDATE products SET stock = stock + ?, cost_price = ?, sell_price = ?, price_qty = ? WHERE id = ?').run(
         addQty,
         cost_price ?? product.cost_price,
         sell_price ?? product.sell_price,
         normalizePriceQty(req.body.price_qty ?? product.price_qty ?? 1, product.unit ?? unit),
-        expiry_date ?? null,
         product.id
+      );
+      // Har kirim — alohida partiya: o'z sanasi va o'z srogi bilan
+      addBatch(
+        req.shopId!,
+        product.id,
+        addQty,
+        cost_price ?? product.cost_price ?? 0,
+        expiry_date ?? null,
+        req.employeeId ?? null
       );
       db.prepare('INSERT INTO stock_movements (shop_id, product_id, type, qty, expiry_date) VALUES (?, ?, ?, ?, ?)').run(
         req.shopId,
@@ -1415,6 +1426,34 @@ app.post<{ Params: { id: string }; Body: { image: string } }>(
 );
 
 // Mahsulotning shtrix-kodlari
+/**
+ * Tovarning ochiq partiyalari — qachon kelgani, qanchasi qolgani,
+ * har birining o'z srogi. Ombordagi kartochkada ko'rinadi.
+ */
+app.get<{ Params: { id: string } }>('/products/:id/batches', { preHandler: requireAuth }, async (req, reply) => {
+  const p = db.prepare('SELECT id FROM products WHERE id = ? AND shop_id = ?').get(req.params.id, req.shopId);
+  if (!p) return reply.code(404).send({ error: 'not_found' });
+  return batchesOf(req.shopId!, Number(req.params.id));
+});
+
+/** Bitta partiyaning srogini to'g'rilash */
+app.patch<{ Params: { id: string; batchId: string }; Body: { expiry_date?: string | null } }>(
+  '/products/:id/batches/:batchId',
+  { preHandler: requireOwner },
+  async (req, reply) => {
+    const batch = db
+      .prepare('SELECT id FROM product_batches WHERE id = ? AND product_id = ? AND shop_id = ?')
+      .get(req.params.batchId, req.params.id, req.shopId);
+    if (!batch) return reply.code(404).send({ error: 'not_found' });
+    db.prepare('UPDATE product_batches SET expiry_date = ? WHERE id = ?').run(
+      req.body?.expiry_date || null,
+      req.params.batchId
+    );
+    syncProduct(Number(req.params.id));
+    return batchesOf(req.shopId!, Number(req.params.id));
+  }
+);
+
 app.get<{ Params: { id: string } }>('/products/:id/barcodes', { preHandler: requireAuth }, async (req) => {
   return db
     .prepare('SELECT id, barcode, created_at FROM product_barcodes WHERE shop_id = ? AND product_id = ? ORDER BY id')
@@ -1572,7 +1611,7 @@ app.patch<{ Params: { id: string }; Body: Record<string, unknown> }>(
       .prepare('SELECT * FROM products WHERE id = ? AND shop_id = ?')
       .get(req.params.id, req.shopId) as any;
     if (!product) return reply.code(404).send({ error: 'not_found' });
-    for (const key of ['name', 'barcode', 'unit', 'price_qty', 'cost_price', 'sell_price', 'low_stock_threshold', 'expiry_date', 'stock', 'category', 'supplier_id', 'discount_percent']) {
+    for (const key of ['name', 'barcode', 'unit', 'price_qty', 'cost_price', 'sell_price', 'low_stock_threshold', 'stock', 'category', 'supplier_id', 'discount_percent']) {
       if (key in req.body) {
         let value = key === 'barcode' ? normalizeBarcode(req.body[key] as string) || null : (req.body[key] as any);
         if (key === 'unit') value = normalizeUnit(value);
@@ -1593,6 +1632,21 @@ app.patch<{ Params: { id: string }; Body: Record<string, unknown> }>(
         }
         db.prepare(`UPDATE products SET ${key} = ? WHERE id = ?`).run(value, product.id);
       }
+    }
+    // Qoldiq qo'lda o'zgartirilsa partiyalar ham ergashadi
+    if ('stock' in req.body) setTotal(req.shopId!, product.id, Number(req.body.stock) || 0);
+    // Srok endi partiyaga tegishli: eng erta tugaydigan ochiq partiyaga
+    // yoziladi (kartochkadagi maydon o'sha partiyani ko'rsatadi).
+    if ('expiry_date' in req.body) {
+      const value = (req.body.expiry_date as string) || null;
+      const open = batchesOf(req.shopId!, product.id)[0];
+      if (open) {
+        db.prepare('UPDATE product_batches SET expiry_date = ? WHERE id = ?').run(value, open.id);
+      } else if (value) {
+        // Partiyasiz tovar (qoldig'i 0) — srok saqlanib qolsin
+        db.prepare('UPDATE products SET expiry_date = ? WHERE id = ?').run(value, product.id);
+      }
+      if (open) syncProduct(product.id);
     }
     // Birlik o'zgarib, narx birligi yangisiga to'g'ri kelmay qolgan bo'lsa
     // (kg -> dona bo'lganda "100 g uchun" ma'nosini yo'qotadi) — 1 ga qaytadi
@@ -1620,6 +1674,7 @@ app.delete<{ Params: { id: string } }>('/products/:id', { preHandler: requireOwn
   const sold = db.prepare('SELECT COUNT(*) AS c FROM sale_items WHERE product_id = ?').get(req.params.id) as any;
   if (sold.c > 0) return reply.code(400).send({ error: 'has_sales' });
   db.prepare('DELETE FROM stock_movements WHERE product_id = ?').run(req.params.id);
+  db.prepare('DELETE FROM product_batches WHERE product_id = ?').run(req.params.id);
   db.prepare('DELETE FROM products WHERE id = ?').run(req.params.id);
   return { ok: true };
 });
@@ -1641,6 +1696,7 @@ app.post<{ Body: { items: { product_id: number; actual: number }[] } }>(
         const diff = item.actual - p.stock;
         if (diff !== 0) {
           db.prepare('UPDATE products SET stock = ? WHERE id = ?').run(item.actual, p.id);
+          setTotal(req.shopId!, p.id, item.actual);
           db.prepare("INSERT INTO stock_movements (shop_id, product_id, type, qty) VALUES (?, ?, 'adjust', ?)").run(
             req.shopId,
             p.id,
@@ -1750,6 +1806,8 @@ app.post<{ Body: { items: { product_id: number; qty: number }[]; payment_type: '
           price
         );
         db.prepare('UPDATE products SET stock = stock - ? WHERE id = ?').run(qty, product.id);
+        // Eng erta tugaydigan partiyadan yechiladi
+        consume(product.id, qty);
         db.prepare('INSERT INTO stock_movements (shop_id, product_id, type, qty) VALUES (?, ?, ?, ?)').run(
           req.shopId,
           product.id,
@@ -2002,6 +2060,7 @@ app.post<{
       db.prepare('UPDATE sale_items SET returned_qty = returned_qty + ? WHERE id = ?').run(qty, row.id);
       // Tovar javonga qaytdi
       db.prepare('UPDATE products SET stock = stock + ? WHERE id = ?').run(qty, row.product_id);
+      restore(row.product_id, qty);
       db.prepare(
         'INSERT INTO stock_movements (shop_id, product_id, type, qty, created_by) VALUES (?, ?, ?, ?, ?)'
       ).run(req.shopId, row.product_id, 'return', qty, req.employeeId);

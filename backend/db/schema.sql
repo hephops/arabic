@@ -191,6 +191,30 @@ CREATE TABLE IF NOT EXISTS product_barcodes (
 CREATE INDEX IF NOT EXISTS idx_product_barcodes ON product_barcodes (shop_id, barcode);
 
 -- Kirim/chiqim harakatlari
+-- Partiyalar: tovarning har safar kelgan to'plami.
+--
+-- Bitta Coca-Cola ikki marta kelishi mumkin — birinchisining srogi
+-- dekabrda, ikkinchisiniki martda tugaydi. Tovarda bitta sana saqlansa
+-- yangi kirim eskisini o'chirib yuborardi va eski partiya sezilmay
+-- muddati o'tib ketardi.
+--
+-- Sotuvda eng erta tugaydigan partiyadan yechiladi.
+CREATE TABLE IF NOT EXISTS product_batches (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  shop_id INTEGER NOT NULL REFERENCES shops(id),
+  -- products(id) ga FOREIGN KEY qo'yilmagan: tovar o'chirilganda
+  -- partiyalar ham o'chiriladi, lekin bog'lanish o'chirishning o'zini
+  -- to'sib qo'ymasligi kerak.
+  product_id INTEGER NOT NULL,
+  qty REAL NOT NULL,                             -- kelgan miqdor
+  qty_left REAL NOT NULL,                        -- shundan qolgani
+  cost_price INTEGER NOT NULL DEFAULT 0,         -- shu partiyaning kirim narxi
+  expiry_date TEXT,                              -- shu partiyaning srogi
+  created_by INTEGER,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_batches_product ON product_batches(product_id, qty_left);
+
 CREATE TABLE IF NOT EXISTS stock_movements (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   shop_id INTEGER NOT NULL REFERENCES shops(id),

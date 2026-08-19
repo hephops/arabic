@@ -128,6 +128,66 @@ for (const sql of [
   }
 }
 
+// Partiyalar jadvalining eski shakli: product_id ga FOREIGN KEY bor edi
+// va u tovarni o'chirishni to'sib qo'yardi. Partiya — tovarning tarixi,
+// u tovarni ushlab turmasligi kerak.
+try {
+  const cur = db
+    .prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'product_batches'")
+    .get() as any;
+  if (cur?.sql && /product_id\s+INTEGER\s+NOT NULL\s+REFERENCES\s+products/i.test(cur.sql)) {
+    db.exec(`
+      CREATE TABLE product_batches_new (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        shop_id INTEGER NOT NULL REFERENCES shops(id),
+        product_id INTEGER NOT NULL,
+        qty REAL NOT NULL,
+        qty_left REAL NOT NULL,
+        cost_price INTEGER NOT NULL DEFAULT 0,
+        expiry_date TEXT,
+        created_by INTEGER,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      INSERT INTO product_batches_new SELECT id, shop_id, product_id, qty, qty_left, cost_price, expiry_date, created_by, created_at FROM product_batches;
+      DROP TABLE product_batches;
+      ALTER TABLE product_batches_new RENAME TO product_batches;
+      CREATE INDEX IF NOT EXISTS idx_batches_product ON product_batches(product_id, qty_left);
+    `);
+    console.log('[db] product_batches qayta tuzildi (FOREIGN KEY olib tashlandi)');
+  }
+} catch (e) {
+  console.error('[db] product_batches ni qayta tuzib bo\'lmadi', e);
+}
+
+// Partiyalarga o'tish (bir martalik).
+//
+// Ilgari qoldiq bitta raqam edi va sroк tovarning o'zida turardi.
+// Mavjud qoldiqni "ochilish partiyasi" qilib yozamiz — aks holda
+// birinchi sotuvda yechadigan partiya topilmasdi.
+try {
+  const done = db.prepare("SELECT value FROM settings WHERE key = 'batches_migrated'").get() as any;
+  if (!done) {
+    const rows = db
+      .prepare(
+        `SELECT p.id, p.shop_id, p.stock, p.cost_price, p.expiry_date FROM products p
+         WHERE p.stock > 0 AND NOT EXISTS (SELECT 1 FROM product_batches b WHERE b.product_id = p.id)`
+      )
+      .all() as any[];
+    const ins = db.prepare(
+      `INSERT INTO product_batches (shop_id, product_id, qty, qty_left, cost_price, expiry_date)
+       VALUES (?, ?, ?, ?, ?, ?)`
+    );
+    const tx = db.transaction(() => {
+      for (const p of rows) ins.run(p.shop_id, p.id, p.stock, p.stock, p.cost_price ?? 0, p.expiry_date ?? null);
+      db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('batches_migrated', '1')").run();
+    });
+    tx();
+    if (rows.length) console.log(`[db] ${rows.length} ta tovarga ochilish partiyasi yozildi`);
+  }
+} catch (e) {
+  console.error('[db] partiyalarga o\'tib bo\'lmadi', e);
+}
+
 // Xodim kirishlari jurnali: eski shaklda employee_id ga FOREIGN KEY
 // bor edi va u xodimni o'chirishga to'sqinlik qilardi. Jurnal — tarix,
 // u hech narsani ushlab turmasligi kerak. Ism ham endi shu yerda

@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { api, fmt, Product, StocktakeRow, Supplier, BASE } from '../api';
+import { api, fmt, Batch, Product, StocktakeRow, Supplier, BASE } from '../api';
 import { AppIcon, Glyph } from '../icons';
 import { NavBar, Summary, EmptyState, Segmented, DateField } from '../ui';
 import { useT } from '../i18n';
 import Scanner from '../Scanner';
-import { formatAmount } from '../format';
+import { formatAmount, fmtDay } from '../format';
 import { toast, loadFailed } from '../toast';
 import { DiscountSheet, priceAfter } from '../discount';
 import { PrintSheet, Labels } from '../print';
@@ -219,7 +219,6 @@ function ProductEdit({ product, onBack, onSaved }: { product: Product; onBack: (
     sell_price: String(priceForBasis(product.sell_price, basisOf(product.unit, product.price_qty).qty)),
     stock: String(product.stock),
     low_stock_threshold: String(product.low_stock_threshold ?? 5),
-    expiry_date: product.expiry_date ?? '',
     // Birlikni keyin ham o'zgartirish mumkin: do'konchi "dona" deb
     // kiritib qo'yib, keyin bu tovar kilogrammda ekanini eslashi mumkin
     unit: normalizeUnit(product.unit),
@@ -351,7 +350,6 @@ function ProductEdit({ product, onBack, onSaved }: { product: Product; onBack: (
       price_qty: basis.qty,
       stock: parseQty(form.stock, form.unit),
       low_stock_threshold: parseQty(form.low_stock_threshold, form.unit) || 5,
-      expiry_date: form.expiry_date || null,
       supplier_id: supplierId ? Number(supplierId) : null,
       discount_percent: discount,
       image: image ?? undefined,
@@ -615,10 +613,10 @@ function ProductEdit({ product, onBack, onSaved }: { product: Product; onBack: (
           </p>
         )}
 
-        <label>
-          {t('expiry')} ({t('optional')})
-        </label>
-        <DateField value={form.expiry_date} onChange={(v) => setForm({ ...form, expiry_date: v })} ariaLabel={t('expiry')} />
+        {/* Srok endi partiyaga tegishli: bir tovar ikki marta kelsa
+            har birining o'z muddati bo'ladi. Ilgari yangi kirim
+            eskisining srogini o'chirib yuborardi. */}
+        <Batches product={product} />
 
         {/* Ta'minotchi — "Buyurtma" bo'limi shu bo'yicha guruhlaydi,
             shunda har bir ta'minotchiga alohida ro'yxat tayyorlanadi */}
@@ -767,6 +765,73 @@ function Stocktake({ products, onBack }: { products: Product[]; onBack: () => vo
           <Glyph name="check" size={18} color="#fff" /> {t('applyStocktake')}
         </button>
       </div>
+    </>
+  );
+}
+
+/* ───────── Partiyalar ───────── */
+
+/**
+ * Bitta tovar bir necha marta keladi va har safar o'z srogi bilan
+ * keladi. Do'konchi javonda qaysi partiya turganini va qaysi biri
+ * birinchi tugashini shu yerdan ko'radi.
+ *
+ * Sotuvda srogi eng erta tugaydigani birinchi ketadi — pastdagi
+ * ro'yxat ham o'sha tartibda.
+ */
+function Batches({ product }: { product: Product }) {
+  const [rows, setRows] = useState<Batch[] | null>(null);
+  const [editing, setEditing] = useState<number | null>(null);
+  const { t } = useT();
+
+  const load = () => api.productBatches(product.id!).then(setRows).catch(() => setRows([]));
+  useEffect(() => {
+    load();
+  }, [product.id]);
+
+  if (!rows) return null;
+
+  return (
+    <>
+      <label>{t('batchesTitle')}</label>
+      {rows.length === 0 ? (
+        <p className="hint">{t('batchesNone')}</p>
+      ) : (
+        <>
+          <div className="card" style={{ padding: 0 }}>
+            {rows.map((b) => {
+              const days = b.expiry_date ? daysTo(b.expiry_date) : null;
+              const color = days === null ? 'var(--muted)' : days < 0 ? 'var(--red)' : days <= 7 ? 'var(--yellow)' : 'var(--green)';
+              return (
+                <div key={b.id}>
+                  <div className="batch-row" onClick={() => setEditing(editing === b.id ? null : b.id)}>
+                    <div style={{ minWidth: 0 }}>
+                      <div className="batch-qty">{qtyWithUnit(b.qty_left, product.unit)}</div>
+                      <div className="batch-when">{fmtDay(b.created_at)} {t('batchCame')}</div>
+                    </div>
+                    <div className="batch-exp" style={{ color }}>
+                      {b.expiry_date ? fmtDay(b.expiry_date) : t('batchNoExpiry')}
+                    </div>
+                  </div>
+                  {editing === b.id && (
+                    <div style={{ padding: '0 13px 11px' }}>
+                      <DateField
+                        value={b.expiry_date ?? ''}
+                        onChange={async (v) => {
+                          setRows(await api.setBatchExpiry(product.id!, b.id, v || null));
+                          setEditing(null);
+                        }}
+                        ariaLabel={t('expiry')}
+                      />
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          <p className="hint">{t('batchesHint')}</p>
+        </>
+      )}
     </>
   );
 }

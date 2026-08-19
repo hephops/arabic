@@ -835,12 +835,50 @@ function IntakeMode({ onDone }: { onDone: () => void }) {
 
   const [voice, setVoice] = useState(false);
   const [codeWarning, setCodeWarning] = useState('');
+  // Nom bo'yicha topilgan tovarlar. Kod bo'lmasa ham eski tovarga
+  // kirim qilish kerak: aks holda "Coca-Cola" ikkinchi marta yozilib,
+  // qoldiq ikkiga bo'linib ketardi.
+  const [matches, setMatches] = useState<Product[]>([]);
+  const [picked, setPicked] = useState<Product | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const { t } = useT();
 
   useEffect(() => {
     api.categories().then(setCats).catch(() => {});
   }, []);
+
+  // Yozilayotgan nom bo'yicha qidiramiz. Do'konchi tez yozadi —
+  // har harfda so'rov yubormaslik uchun kutib turamiz.
+  useEffect(() => {
+    const q = name.trim();
+    if (picked?.name === q || q.length < 2) {
+      setMatches([]);
+      return;
+    }
+    const id = setTimeout(() => {
+      api
+        .products({ q })
+        .then((rows) => setMatches(rows.slice(0, 6)))
+        .catch(() => setMatches([]));
+    }, 250);
+    return () => clearTimeout(id);
+  }, [name, picked]);
+
+  /** Ro'yxatdan tanlandi — tovarning o'z birligi va narxlari bilan ochiladi */
+  function pickProduct(p: Product) {
+    setPicked(p);
+    setMatches([]);
+    setName(p.name);
+    if (p.barcode) setBarcode(p.barcode);
+    if (p.category) setCategory(p.category);
+    const u = p.unit || 'dona';
+    const b = basisOf(u, p.price_qty);
+    setUnit(u);
+    setBasis(b);
+    setCostPrice(p.cost_price ? String(priceForBasis(p.cost_price, b.qty)) : '');
+    setSellPrice(p.sell_price ? String(priceForBasis(p.sell_price, b.qty)) : '');
+    setTotalDraft(null);
+  }
 
   async function lookupBarcode(code: string) {
     setBarcode(code);
@@ -992,7 +1030,32 @@ function IntakeMode({ onDone }: { onDone: () => void }) {
           <div className="intake-head-fields">
             <div className="form-row">
               <label>{t('productName')}</label>
-              <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Coca-Cola 1.5L" />
+              <input
+                value={name}
+                onChange={(e) => {
+                  setName(e.target.value);
+                  setPicked(null);
+                }}
+                placeholder="Coca-Cola 1.5L"
+              />
+              {matches.length > 0 && (
+                <div className="name-matches">
+                  <div className="nm-head">{t('intakeExisting')}</div>
+                  {matches.map((p) => (
+                    <button key={p.id} className="nm-item" onClick={() => pickProduct(p)}>
+                      <span className="nm-name">{p.name}</span>
+                      <span className="nm-sub">
+                        {t('leftShort')}: {qtyWithUnit(p.stock, p.unit)}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+              {picked && (
+                <div className="nm-picked">
+                  <Glyph name="check" size={14} color="var(--green)" /> {t('intakeAddsTo')}
+                </div>
+              )}
             </div>
             <div className="form-row">
               <label>
