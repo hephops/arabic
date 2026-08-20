@@ -4,6 +4,7 @@ import { AppIcon, Glyph } from '../icons';
 import { ProductThumb } from '../ui';
 import type { SubScreen } from '../App';
 import { useT } from '../i18n';
+import { can, type PermKey } from '../perms';
 import { GoalBar, GoalSheet } from '../goal';
 import { DiscountSheet } from '../discount';
 import { uzToday, fmtWhen } from '../format';
@@ -52,8 +53,8 @@ export default function Dashboard({
       {/* Bugungi savdo — asosiy karta */}
       <div
         className="hero"
-        onClick={() => !isEmployee && onNavigate('reports')}
-        style={{ cursor: isEmployee ? 'default' : 'pointer' }}
+        onClick={() => can('reports') && onNavigate('reports')}
+        style={{ cursor: can('reports') ? 'pointer' : 'default' }}
       >
         <div className="hero-top">
           <div>
@@ -63,7 +64,7 @@ export default function Dashboard({
           <Glyph name="chart" size={22} color="rgba(255,255,255,0.75)" />
         </div>
         <div className="hero-stats">
-          {!isEmployee && (
+          {can('reports') && (
             // Xarajat bo'lsa — "sof foyda", bo'lmasa oddiy foyda ko'rsatiladi.
             // Do'konchi bosh sahifada allaqachon haqiqiy raqamni ko'radi.
             <div className="hero-stat">
@@ -75,7 +76,7 @@ export default function Dashboard({
             <div className="k">{t('salesCount')}</div>
             <div className="v">{data.today.count}</div>
           </div>
-          {!isEmployee && data.today.expenses > 0 ? (
+          {can('reports') && data.today.expenses > 0 ? (
             <div className="hero-stat">
               <div className="k">{t('expenses')}</div>
               <div className="v">−{fmtShort(data.today.expenses)}</div>
@@ -113,7 +114,7 @@ export default function Dashboard({
       <GoalBar
         revenue={data.today.revenue}
         goal={data.daily_goal}
-        onSet={isEmployee ? undefined : () => setGoalSheet(true)}
+        onSet={can('settings') ? () => setGoalSheet(true) : undefined}
       />
 
       {/* Uchta asosiy ko'rsatkich */}
@@ -155,12 +156,15 @@ export default function Dashboard({
       <div className="tile-row">
         {(
           [
-            ['reminders', 'calendar', 'tileReminder'],
-            ['suppliers', 'truck', 'tileSupplier'],
-            ...(isEmployee ? [] : ([['reports', 'chart', 'tileReport'], ['expenses', 'wallet', 'tileExpenses']] as [SubScreen, string, string][])),
-            ['inventory', 'boxes', 'tileInventory'],
-          ] as [SubScreen, string, string][]
-        ).map(([id, glyph, key]) => (
+            ['reminders', 'calendar', 'tileReminder', 'reminders'],
+            ['suppliers', 'truck', 'tileSupplier', 'suppliers'],
+            ['reports', 'chart', 'tileReport', 'reports'],
+            ['expenses', 'wallet', 'tileExpenses', 'expenses'],
+            ['inventory', 'boxes', 'tileInventory', 'inventory'],
+          ] as [SubScreen, string, string, PermKey][]
+        )
+          .filter(([, , , perm]) => can(perm))
+          .map(([id, glyph, key]) => (
           <div key={key} className="tile" onClick={() => onNavigate(id)}>
             <AppIcon glyph={glyph} size={32} />
             <div className="label">{t(key)}</div>
@@ -291,7 +295,7 @@ export default function Dashboard({
               );
             })}
           </div>
-          {!isEmployee && (
+          {can('price_edit') && (
             <button className="btn-ghost" onClick={() => setDiscountSheet(true)}>
               <Glyph name="flash" size={16} color="var(--accent)" /> {t('discountAction')}
             </button>

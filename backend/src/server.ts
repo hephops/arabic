@@ -1,10 +1,12 @@
 import 'dotenv/config';
 import Fastify from 'fastify';
+import type { FastifyRequest } from 'fastify';
 import { mkdirSync, writeFileSync, existsSync, readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { db, markOverdueDebts } from './db.js';
-import { signToken, requireAuth, requireOwner, verifyToken } from './auth.js';
+import { signToken, requireAuth, requireOwner, requirePerm, can, verifyToken } from './auth.js';
+import { PERM_GROUPS, ALL_PERMS, PRESETS, parsePerms, cleanPerms } from './perms.js';
 import { hit, reset } from './ratelimit.js';
 import { parseDebtText, parseCartText } from './voice.js';
 import { runReminders, startReminderScheduler } from './reminders.js';
@@ -239,7 +241,8 @@ app.get('/me', { preHandler: requireAuth }, async (req) => {
   const shop = db.prepare('SELECT * FROM shops WHERE id = ?').get(req.shopId) as any;
   // Xodim sessiyasida ilova cheklangan ko'rinishga o'tadi
   const employee = req.employeeId
-    ? db.prepare('SELECT id, name, role FROM employees WHERE id = ?').get(req.employeeId)
+    ? { ...(db.prepare('SELECT id, name, role FROM employees WHERE id = ?').get(req.employeeId) as any),
+        permissions: req.perms ?? [] }
     : null;
   // Xizmat holati — ilova "yana N kun yetadi" deb ko'rsatadi.
   // Yechim shu yerda ham qilinadi: do'konchi ilovani ochishi bilan
@@ -249,9 +252,14 @@ app.get('/me', { preHandler: requireAuth }, async (req) => {
   return { ...fresh, employee, service: serviceState(fresh) };
 });
 
-app.patch<{ Body: Record<string, unknown> }>('/me', { preHandler: requireOwner }, async (req) => {
+app.patch<{ Body: Record<string, unknown> }>('/me', { preHandler: requirePerm('settings') }, async (req) => {
   const allowed = ['name', 'owner_name', 'address', 'language', 'card_number', 'daily_goal', 'report_enabled', 'report_hour', 'allow_negative_stock', 'staff_notify'];
+  // Karta raqami — do'konga pul tushadigan joy. Sozlamalar ruxsati
+  // berilgan xodim ham unga tegmaydi: bitta raqam almashtirilsa
+  // to'lovlar begona kartaga ketib qolardi.
+  const forbidden = req.employeeId ? ['card_number'] : [];
   for (const key of allowed) {
+    if (forbidden.includes(key)) continue;
     if (key in req.body) {
       db.prepare(`UPDATE shops SET ${key} = ? WHERE id = ?`).run(req.body[key], req.shopId);
     }
@@ -454,21 +462,31 @@ app.get('/dashboard', { preHandler: requireAuth }, async (req) => {
     const key = uzDayShift(-i);
     week.push({ day: key, revenue: byDay.get(key) ?? 0 });
   }
+  // Foyda va xarajat — do'kon egasining raqami. Ruxsati yo'q xodimga
+  // umuman yuborilmaydi: ilovada yashirish yetarli emas, so'rovni
+  // brauzerdan ham ko'rish mumkin.
+  const seeMoney = can(req, 'reports');
+  const today = {
+    ...todayStats,
+    revenue: todayStats.revenue - todayReturns.total,
+    returns: todayReturns.total,
+    ...(seeMoney
+      ? {
+          profit: todayProfit.profit - (todayReturns.total - todayReturns.cost),
+          expenses: todayExpenses,
+          net_profit: todayProfit.profit - (todayReturns.total - todayReturns.cost) - todayExpenses,
+        }
+      : {}),
+  };
+
   return {
     owed_to_me: owedToMe.s,
     i_owe: iOwe.s,
     net: owedToMe.s - iOwe.s,
-    today: {
-      ...todayStats,
-      revenue: todayStats.revenue - todayReturns.total,
-      returns: todayReturns.total,
-      profit: todayProfit.profit - (todayReturns.total - todayReturns.cost),
-      expenses: todayExpenses,
-      net_profit: todayProfit.profit - (todayReturns.total - todayReturns.cost) - todayExpenses,
-    },
+    today,
     // Kunlik maqsad — bosh sahifada va kassada progress bo'lib ko'rinadi
     daily_goal: (db.prepare('SELECT daily_goal FROM shops WHERE id = ?').get(req.shopId) as any)?.daily_goal ?? 0,
-    month_expenses: monthExpenses,
+    ...(seeMoney ? { month_expenses: monthExpenses } : {}),
     week,
     due_today: dueToday,
     overdue,
@@ -550,7 +568,7 @@ function trustMap(shopId: number): Map<number, Trust> {
   return map;
 }
 
-app.get('/customers', { preHandler: requireAuth }, async (req) => {
+app.get('/customers', { preHandler: requirePerm('customers') }, async (req) => {
   const rows = db
     .prepare(
       `SELECT c.*, COALESCE(SUM(CASE WHEN d.status != 'paid' THEN d.amount - d.paid_amount END), 0) AS balance,
@@ -565,7 +583,7 @@ app.get('/customers', { preHandler: requireAuth }, async (req) => {
 
 app.post<{ Body: { name: string; phone?: string; language?: string; note?: string } }>(
   '/customers',
-  { preHandler: requireAuth },
+  { preHandler: requirePerm('customer_add') },
   async (req, reply) => {
     const { name, language, note } = req.body;
     if (!name?.trim()) return reply.code(400).send({ error: 'name_required' });
@@ -589,7 +607,7 @@ app.post<{ Body: { name: string; phone?: string; language?: string; note?: strin
 /** Raqam bo'yicha mijozni tanish — kassada qarzga sotayotganda kerak.
  *  Do'konchi ismini qaytadan yozmaydi, tizim esa uning to'lov odatini
  *  darhol ko'rsatadi. */
-app.get<{ Querystring: { phone?: string } }>('/customers/lookup', { preHandler: requireAuth }, async (req) => {
+app.get<{ Querystring: { phone?: string } }>('/customers/lookup', { preHandler: requirePerm('customers') }, async (req) => {
   const phone = normalizePhone(req.query.phone);
   if (!phone) return { customer: null };
   const customer = db
@@ -610,7 +628,7 @@ app.get<{ Querystring: { phone?: string } }>('/customers/lookup', { preHandler: 
  *  Do'konchi shu havolani mijozga yuboradi. Mijoz bosgach, bot uni shu
  *  yozuvga bog'laydi va chek o'ziga kela boshlaydi. Kod imzolangan —
  *  raqamni o'zgartirib boshqa odamning xaridlarini ko'rib bo'lmaydi. */
-app.get<{ Params: { id: string } }>('/customers/:id/telegram', { preHandler: requireAuth }, async (req, reply) => {
+app.get<{ Params: { id: string } }>('/customers/:id/telegram', { preHandler: requirePerm('customers') }, async (req, reply) => {
   const customer = db
     .prepare('SELECT id, name, telegram_user_id FROM customers WHERE id = ? AND shop_id = ?')
     .get(req.params.id, req.shopId) as any;
@@ -627,7 +645,7 @@ app.get<{ Params: { id: string } }>('/customers/:id/telegram', { preHandler: req
 });
 
 /** Ulanishni uzish — mijoz so'rasa yoki raqam boshqa odamga o'tsa */
-app.delete<{ Params: { id: string } }>('/customers/:id/telegram', { preHandler: requireAuth }, async (req, reply) => {
+app.delete<{ Params: { id: string } }>('/customers/:id/telegram', { preHandler: requirePerm('customer_edit') }, async (req, reply) => {
   const customer = db
     .prepare('SELECT id FROM customers WHERE id = ? AND shop_id = ?')
     .get(req.params.id, req.shopId) as any;
@@ -636,7 +654,7 @@ app.delete<{ Params: { id: string } }>('/customers/:id/telegram', { preHandler: 
   return { ok: true };
 });
 
-app.get<{ Params: { id: string } }>('/customers/:id', { preHandler: requireAuth }, async (req, reply) => {
+app.get<{ Params: { id: string } }>('/customers/:id', { preHandler: requirePerm('customers') }, async (req, reply) => {
   const customer = db
     .prepare('SELECT * FROM customers WHERE id = ? AND shop_id = ?')
     .get(req.params.id, req.shopId);
@@ -653,7 +671,7 @@ app.get<{ Params: { id: string } }>('/customers/:id', { preHandler: requireAuth 
 
 app.patch<{ Params: { id: string }; Body: Record<string, unknown> }>(
   '/customers/:id',
-  { preHandler: requireAuth },
+  { preHandler: requirePerm('customer_edit') },
   async (req, reply) => {
     const customer = db
       .prepare('SELECT * FROM customers WHERE id = ? AND shop_id = ?')
@@ -691,7 +709,7 @@ app.patch<{ Params: { id: string }; Body: Record<string, unknown> }>(
 );
 
 // Mijozni o'chirish — faqat ochiq qarzi bo'lmasa
-app.delete<{ Params: { id: string } }>('/customers/:id', { preHandler: requireOwner }, async (req, reply) => {
+app.delete<{ Params: { id: string } }>('/customers/:id', { preHandler: requirePerm('customer_del') }, async (req, reply) => {
   const customer = db
     .prepare('SELECT * FROM customers WHERE id = ? AND shop_id = ?')
     .get(req.params.id, req.shopId);
@@ -707,7 +725,7 @@ app.delete<{ Params: { id: string } }>('/customers/:id', { preHandler: requireOw
 });
 
 // ---------- ESLATMALAR ----------
-app.get<{ Querystring: { limit?: string } }>('/reminders', { preHandler: requireAuth }, async (req) => {
+app.get<{ Querystring: { limit?: string } }>('/reminders', { preHandler: requirePerm('reminders') }, async (req) => {
   const limit = Math.min(Number(req.query.limit ?? 100), 300);
   const logs = db
     .prepare(
@@ -752,14 +770,14 @@ app.get<{ Querystring: { limit?: string } }>('/reminders', { preHandler: require
 });
 
 // Eslatmalarni hozir hisoblab chiqish (dev/qo'lda tekshirish uchun)
-app.post('/reminders/run', { preHandler: requireAuth }, async (req) => {
+app.post('/reminders/run', { preHandler: requirePerm('reminders') }, async (req) => {
   return runReminders(req.shopId);
 });
 
 // Do'kon bo'yicha standart rejim — yangi mijozlarga qo'llanadi
 app.patch<{ Body: { default_reminder_mode: string; apply_to_all?: boolean } }>(
   '/reminders/settings',
-  { preHandler: requireOwner },
+  { preHandler: requirePerm('reminders') },
   async (req, reply) => {
     const mode = req.body.default_reminder_mode;
     if (!['off', 'soft', 'medium', 'call'].includes(mode)) {
@@ -776,7 +794,7 @@ app.patch<{ Body: { default_reminder_mode: string; apply_to_all?: boolean } }>(
 // ---------- QARZLAR ----------
 app.post<{ Body: { customer_id?: number; customer_name?: string; customer_phone?: string; amount: number; note?: string; due_date?: string; source?: string } }>(
   '/debts',
-  { preHandler: requireAuth },
+  { preHandler: requirePerm('debt_add') },
   async (req, reply) => {
     const { customer_id, customer_name, amount, note, due_date, source } = req.body;
     if (!amount || amount <= 0) return reply.code(400).send({ error: 'amount_required' });
@@ -836,7 +854,7 @@ app.post<{ Body: { customer_id?: number; customer_name?: string; customer_phone?
 
 app.post<{ Params: { id: string }; Body: { amount: number } }>(
   '/debts/:id/payments',
-  { preHandler: requireAuth },
+  { preHandler: requirePerm('debt_pay') },
   async (req, reply) => {
     const debt = db.prepare('SELECT * FROM debts WHERE id = ? AND shop_id = ?').get(req.params.id, req.shopId) as any;
     if (!debt) return reply.code(404).send({ error: 'not_found' });
@@ -863,7 +881,7 @@ app.post<{ Body: { text: string } }>('/voice/parse', { preHandler: requireAuth }
  *
  *  Tovarlar do'konning o'z ro'yxatidan qidiriladi — shuning uchun
  *  tahlil serverda, mahsulot bazasiga yaqin joyda turadi. */
-app.post<{ Body: { text: string } }>('/voice/cart', { preHandler: requireAuth }, async (req, reply) => {
+app.post<{ Body: { text: string } }>('/voice/cart', { preHandler: requirePerm('pos') }, async (req, reply) => {
   const text = (req.body?.text ?? '').trim();
   if (!text) return reply.code(400).send({ error: 'text_required' });
   const products = db
@@ -881,7 +899,7 @@ app.post<{ Body: { text: string } }>('/voice/cart', { preHandler: requireAuth },
 });
 
 // ---------- POSTAVSHIKLAR ----------
-app.get('/suppliers', { preHandler: requireAuth }, async (req) => {
+app.get('/suppliers', { preHandler: requirePerm('suppliers') }, async (req) => {
   return db
     .prepare(
       `SELECT s.*, COALESCE(SUM(CASE WHEN d.status != 'paid' THEN d.amount - d.paid_amount END), 0) AS balance
@@ -893,7 +911,7 @@ app.get('/suppliers', { preHandler: requireAuth }, async (req) => {
 
 app.post<{ Body: { supplier_id?: number; supplier_name?: string; amount: number; note?: string; due_date?: string } }>(
   '/supplier-debts',
-  { preHandler: requireAuth },
+  { preHandler: requirePerm('suppliers') },
   async (req, reply) => {
     const { supplier_id, supplier_name, amount, note, due_date } = req.body;
     if (!amount || amount <= 0) return reply.code(400).send({ error: 'amount_required' });
@@ -923,7 +941,7 @@ app.post<{ Body: { supplier_id?: number; supplier_name?: string; amount: number;
  * "Postavshiklar" ekranida turadi: buyurtma yuborishga urinib
  * ko'rmasdan oldin ham ta'minotchini ulab qo'yish mumkin bo'lsin.
  */
-app.get<{ Params: { id: string } }>('/suppliers/:id/telegram', { preHandler: requireAuth }, async (req, reply) => {
+app.get<{ Params: { id: string } }>('/suppliers/:id/telegram', { preHandler: requirePerm('suppliers') }, async (req, reply) => {
   const sup = db
     .prepare('SELECT id, name, phone FROM suppliers WHERE id = ? AND shop_id = ?')
     .get(req.params.id, req.shopId) as any;
@@ -938,7 +956,7 @@ app.get<{ Params: { id: string } }>('/suppliers/:id/telegram', { preHandler: req
   };
 });
 
-app.get<{ Params: { id: string } }>('/suppliers/:id', { preHandler: requireAuth }, async (req, reply) => {
+app.get<{ Params: { id: string } }>('/suppliers/:id', { preHandler: requirePerm('suppliers') }, async (req, reply) => {
   const supplier = db
     .prepare('SELECT * FROM suppliers WHERE id = ? AND shop_id = ?')
     .get(req.params.id, req.shopId);
@@ -954,7 +972,7 @@ app.get<{ Params: { id: string } }>('/suppliers/:id', { preHandler: requireAuth 
 
 app.post<{ Params: { id: string }; Body: { amount: number } }>(
   '/supplier-debts/:id/payments',
-  { preHandler: requireAuth },
+  { preHandler: requirePerm('suppliers') },
   async (req, reply) => {
     const debt = db
       .prepare('SELECT * FROM supplier_debts WHERE id = ? AND shop_id = ?')
@@ -975,7 +993,7 @@ app.post<{ Params: { id: string }; Body: { amount: number } }>(
  *  bir bosishda qo'yiladi — bittalab kirib chiqish do'konchini charchatadi. */
 app.post<{ Body: { ids: number[]; percent: number } }>(
   '/products/discount',
-  { preHandler: requireOwner },
+  { preHandler: requirePerm('price_edit') },
   async (req, reply) => {
     const ids = (req.body?.ids ?? []).map(Number).filter((n) => Number.isInteger(n) && n > 0);
     if (!ids.length) return reply.code(400).send({ error: 'ids_required' });
@@ -1009,7 +1027,7 @@ function suggestQty(row: { stock: number; low_stock_threshold: number; sold30: n
 }
 
 /** Buyurtma taklifi: kam qolgan tovarlar + tavsiya etilgan miqdor */
-app.get('/orders/suggest', { preHandler: requireAuth }, async (req) => {
+app.get('/orders/suggest', { preHandler: requirePerm('orders') }, async (req) => {
   const rows = db
     .prepare(
       `SELECT p.id, p.name, p.unit, p.stock, p.low_stock_threshold, p.cost_price,
@@ -1027,7 +1045,7 @@ app.get('/orders/suggest', { preHandler: requireAuth }, async (req) => {
 });
 
 /** Saqlangan buyurtmalar — do'konchi o'tgan safargisini takrorlaydi */
-app.get('/orders', { preHandler: requireAuth }, async (req) => {
+app.get('/orders', { preHandler: requirePerm('orders') }, async (req) => {
   const orders = db
     .prepare(
       `SELECT o.*, s.name AS supplier_name, s.phone AS supplier_phone
@@ -1046,7 +1064,7 @@ app.get('/orders', { preHandler: requireAuth }, async (req) => {
 
 app.post<{ Body: { supplier_id?: number | null; note?: string; items: { product_id?: number; name: string; unit?: string; qty: number }[] } }>(
   '/orders',
-  { preHandler: requireAuth },
+  { preHandler: requirePerm('orders') },
   async (req, reply) => {
     const { supplier_id, note, items } = req.body ?? ({} as any);
     if (!Array.isArray(items) || items.length === 0) return reply.code(400).send({ error: 'items_required' });
@@ -1073,7 +1091,7 @@ app.post<{ Body: { supplier_id?: number | null; note?: string; items: { product_
 
 app.patch<{ Params: { id: string }; Body: { status?: string } }>(
   '/orders/:id',
-  { preHandler: requireAuth },
+  { preHandler: requirePerm('orders') },
   async (req, reply) => {
     const order = db.prepare('SELECT * FROM orders WHERE id = ? AND shop_id = ?').get(req.params.id, req.shopId) as any;
     if (!order) return reply.code(404).send({ error: 'not_found' });
@@ -1102,7 +1120,7 @@ app.patch<{ Params: { id: string }; Body: { status?: string } }>(
  */
 app.post<{ Body: { supplier_id?: number | null; text?: string } }>(
   '/orders/send-telegram',
-  { preHandler: requireAuth },
+  { preHandler: requirePerm('orders') },
   async (req, reply) => {
     const text = String(req.body?.text ?? '').trim();
     if (!text) return reply.code(400).send({ error: 'no_text' });
@@ -1134,7 +1152,7 @@ app.post<{ Body: { supplier_id?: number | null; text?: string } }>(
   }
 );
 
-app.delete<{ Params: { id: string } }>('/orders/:id', { preHandler: requireAuth }, async (req, reply) => {
+app.delete<{ Params: { id: string } }>('/orders/:id', { preHandler: requirePerm('orders') }, async (req, reply) => {
   const order = db.prepare('SELECT id FROM orders WHERE id = ? AND shop_id = ?').get(req.params.id, req.shopId);
   if (!order) return reply.code(404).send({ error: 'not_found' });
   db.prepare('DELETE FROM order_items WHERE order_id = ?').run(req.params.id);
@@ -1144,26 +1162,37 @@ app.delete<{ Params: { id: string } }>('/orders/:id', { preHandler: requireAuth 
 
 // ---------- XODIMLAR ----------
 app.get('/employees', { preHandler: requireOwner }, async (req) => {
-  return db
-    .prepare('SELECT id, name, role, pin, is_active, created_at FROM employees WHERE shop_id = ? ORDER BY created_at')
-    .all(req.shopId);
+  const rows = db
+    .prepare('SELECT id, name, role, pin, permissions, is_active, created_at FROM employees WHERE shop_id = ? ORDER BY created_at')
+    .all(req.shopId) as any[];
+  return rows.map((e) => ({ ...e, permissions: parsePerms(e.permissions) }));
 });
+
+/** Ilova ruxsat ro'yxatini o'zi yozib o'tirmasin — serverdan oladi */
+app.get('/employees/permissions', { preHandler: requireOwner }, async () => ({
+  groups: PERM_GROUPS,
+  all: ALL_PERMS,
+  presets: PRESETS,
+}));
 
 // Kim, qachon kirdi — "Xodimlar" ekranidagi ro'yxat
 app.get('/employees/logins', { preHandler: requireOwner }, async (req) => {
   return recentLogins(req.shopId!, 30);
 });
 
-app.post<{ Body: { name: string; pin: string } }>('/employees', { preHandler: requireOwner }, async (req, reply) => {
+app.post<{ Body: { name: string; pin: string; permissions?: string[] } }>('/employees', { preHandler: requireOwner }, async (req, reply) => {
   const { name, pin } = req.body;
   if (!name?.trim() || !/^\d{4}$/.test(pin ?? '')) return reply.code(400).send({ error: 'name_and_4digit_pin_required' });
+  // Ruxsat berilmasa — oddiy sotuvchi to'plami
+  const perms = req.body.permissions ? cleanPerms(req.body.permissions) : PRESETS.seller;
   const info = db
-    .prepare("INSERT INTO employees (shop_id, name, pin, role) VALUES (?, ?, ?, 'seller')")
-    .run(req.shopId, name.trim(), pin);
-  return db.prepare('SELECT id, name, role, is_active FROM employees WHERE id = ?').get(info.lastInsertRowid);
+    .prepare("INSERT INTO employees (shop_id, name, pin, role, permissions) VALUES (?, ?, ?, 'seller', ?)")
+    .run(req.shopId, name.trim(), pin, JSON.stringify(perms));
+  const row = db.prepare('SELECT id, name, role, permissions, is_active FROM employees WHERE id = ?').get(info.lastInsertRowid) as any;
+  return { ...row, permissions: parsePerms(row.permissions) };
 });
 
-app.patch<{ Params: { id: string }; Body: { is_active?: number } }>(
+app.patch<{ Params: { id: string }; Body: { is_active?: number; name?: string; pin?: string; permissions?: string[] } }>(
   '/employees/:id',
   { preHandler: requireOwner },
   async (req, reply) => {
@@ -1172,9 +1201,36 @@ app.patch<{ Params: { id: string }; Body: { is_active?: number } }>(
     if (req.body.is_active !== undefined) {
       db.prepare('UPDATE employees SET is_active = ? WHERE id = ?').run(req.body.is_active ? 1 : 0, req.params.id);
     }
-    return db.prepare('SELECT id, name, role, is_active FROM employees WHERE id = ?').get(req.params.id);
+    if (req.body.name?.trim()) {
+      db.prepare('UPDATE employees SET name = ? WHERE id = ?').run(req.body.name.trim(), req.params.id);
+    }
+    if (req.body.pin !== undefined) {
+      if (!/^\d{4}$/.test(req.body.pin)) return reply.code(400).send({ error: 'bad_pin' });
+      db.prepare('UPDATE employees SET pin = ? WHERE id = ?').run(req.body.pin, req.params.id);
+    }
+    // Ruxsat o'zgarishi darhol kuchga kiradi: xodim keyingi bosishdayoq
+    // to'xtaydi, tokeni eskirishini kutib o'tirilmaydi (auth.ts).
+    if (req.body.permissions !== undefined) {
+      db.prepare('UPDATE employees SET permissions = ? WHERE id = ?')
+        .run(JSON.stringify(cleanPerms(req.body.permissions)), req.params.id);
+    }
+    const row = db.prepare('SELECT id, name, role, permissions, is_active FROM employees WHERE id = ?').get(req.params.id) as any;
+    return { ...row, permissions: parsePerms(row.permissions) };
   }
 );
+
+/** Xodimni butunlay o'chirish — ishdan bo'shagan odam ro'yxatda qolmasin */
+app.delete<{ Params: { id: string } }>('/employees/:id', { preHandler: requireOwner }, async (req, reply) => {
+  const emp = db.prepare('SELECT * FROM employees WHERE id = ? AND shop_id = ?').get(req.params.id, req.shopId) as any;
+  if (!emp) return reply.code(404).send({ error: 'not_found' });
+  // Uning sotuvlari va yozuvlari o'chmaydi — faqat bog'lanish uziladi,
+  // aks holda kunlik hisobot va tarix buzilardi
+  for (const table of ['debts', 'debt_payments', 'stock_movements', 'sales', 'returns', 'expenses', 'orders']) {
+    db.prepare(`UPDATE ${table} SET created_by = NULL WHERE created_by = ?`).run(emp.id);
+  }
+  db.prepare('DELETE FROM employees WHERE id = ?').run(emp.id);
+  return { ok: true };
+});
 
 // ---------- REFERAL ----------
 app.get('/referral', { preHandler: requireOwner }, async (req) => {
@@ -1188,6 +1244,27 @@ app.get('/referral', { preHandler: requireOwner }, async (req) => {
 });
 
 // ---------- OMBOR ----------
+
+/**
+ * Kirim (zakupka) narxini yashirish.
+ *
+ * Do'konchi uchun bu eng maxfiy raqam: xodim tovar qanchaga
+ * olinganini bilsa, foyda ham, ta'minotchi ham oshkor bo'ladi.
+ * Shuning uchun ruxsati bo'lmagan xodimga umuman yuborilmaydi —
+ * ilovada yashirish yetarli emas, so'rovni qo'lda ham ko'rish mumkin.
+ */
+function hideCost<T>(req: FastifyRequest, row: T): T;
+function hideCost<T>(req: FastifyRequest, row: T[]): T[];
+function hideCost(req: FastifyRequest, row: any): any {
+  if (can(req, 'cost_view')) return row;
+  const strip = (r: any) => {
+    if (!r || typeof r !== 'object') return r;
+    const { cost_price, profit, ...rest } = r;
+    return rest;
+  };
+  return Array.isArray(row) ? row.map(strip) : strip(row);
+}
+
 
 // Shtrix-kod bo'yicha qidirish: kodning barcha teng ko'rinishlari bo'yicha,
 // ham products.barcode, ham qo'shimcha kodlar jadvalidan.
@@ -1232,12 +1309,12 @@ export function priceWithDiscount(product: { sell_price: number; discount_percen
 
 app.get<{ Querystring: { q?: string; barcode?: string; category?: string } }>(
   '/products',
-  { preHandler: requireAuth },
+  { preHandler: requirePerm('stock') },
   async (req) => {
   const { q, barcode, category } = req.query;
   if (barcode) {
     const product = findByBarcode(req.shopId, barcode);
-    if (product) return [product];
+    if (product) return [hideCost(req, product)];
     // markaziy katalogdan nom taklif qilamiz (kodning har qanday ko'rinishi bo'yicha)
     const variants = barcodeVariants(barcode);
     const marks = variants.map(() => '?').join(',');
@@ -1258,13 +1335,16 @@ app.get<{ Querystring: { q?: string; barcode?: string; category?: string } }>(
     where.push('p.category = ?');
     params.push(category);
   }
-  return db
-    .prepare(
-      `SELECT p.*, s.name AS supplier_name FROM products p
-       LEFT JOIN suppliers s ON s.id = p.supplier_id
-       WHERE ${where.join(' AND ')} ORDER BY p.name${q ? ' LIMIT 50' : ''}`
-    )
-    .all(...params);
+  return hideCost(
+    req,
+    db
+      .prepare(
+        `SELECT p.*, s.name AS supplier_name FROM products p
+         LEFT JOIN suppliers s ON s.id = p.supplier_id
+         WHERE ${where.join(' AND ')} ORDER BY p.name${q ? ' LIMIT 50' : ''}`
+      )
+      .all(...params) as any[]
+  );
 });
 
 // Do'kondagi kategoriyalar ro'yxati (tanlash uchun)
@@ -1295,7 +1375,7 @@ app.get<{ Querystring: { code?: string } }>('/barcodes/lookup', { preHandler: re
       return {
         code,
         valid: true,
-        product: byPlu,
+        product: hideCost(req, byPlu),
         catalog: null,
         scale: { ...scale, qty: scaleQty(scale, priceWithDiscount(byPlu)) },
       };
@@ -1304,7 +1384,7 @@ app.get<{ Querystring: { code?: string } }>('/barcodes/lookup', { preHandler: re
     return { code, valid: true, product: null, catalog: null, scale: { ...scale, qty: 0 } };
   }
 
-  const product = findByBarcode(req.shopId, code) ?? null;
+  const product = hideCost(req, findByBarcode(req.shopId, code) ?? null);
   const variants = barcodeVariants(code);
   const marks = variants.map(() => '?').join(',');
   const catalog = product
@@ -1315,7 +1395,7 @@ app.get<{ Querystring: { code?: string } }>('/barcodes/lookup', { preHandler: re
 
 app.post<{ Body: { barcode?: string; name: string; unit?: string; price_qty?: number; cost_price?: number; sell_price?: number; qty?: number; expiry_date?: string; image?: string; category?: string; catalog_id?: number } }>(
   '/products/intake',
-  { preHandler: requireOwner },
+  { preHandler: requirePerm('intake') },
   async (req, reply) => {
     const { name, cost_price, sell_price, qty, expiry_date, image, category } = req.body as any;
     // Katalogdan olingan bo'lsa — qaysi yozuvdan. Bu tovarning rasmi va
@@ -1347,6 +1427,12 @@ app.post<{ Body: { barcode?: string; name: string; unit?: string; price_qty?: nu
     }
 
     if (!product) {
+      // Kirim huquqi bor xodim tanish tovarni qabul qila oladi, lekin
+      // omborga YANGI tovar kartochkasini ochish alohida ruxsat: aks
+      // holda har xato yozilgan nom yangi tovar bo'lib qolaverardi.
+      if (!can(req, 'product_add')) {
+        return reply.code(403).send({ error: 'no_permission', permission: 'product_add' });
+      }
       const info = db
         .prepare(
           'INSERT INTO products (shop_id, barcode, name, unit, price_qty, cost_price, sell_price, stock, expiry_date, category, catalog_id) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)'
@@ -1439,7 +1525,7 @@ function saveImage(dataUrl: string, productId: number): string | null {
 
 app.post<{ Params: { id: string }; Body: { image: string } }>(
   '/products/:id/image',
-  { preHandler: requireAuth },
+  { preHandler: requirePerm('product_edit') },
   async (req, reply) => {
     const product = db
       .prepare('SELECT * FROM products WHERE id = ? AND shop_id = ?')
@@ -1457,16 +1543,16 @@ app.post<{ Params: { id: string }; Body: { image: string } }>(
  * Tovarning ochiq partiyalari — qachon kelgani, qanchasi qolgani,
  * har birining o'z srogi. Ombordagi kartochkada ko'rinadi.
  */
-app.get<{ Params: { id: string } }>('/products/:id/batches', { preHandler: requireAuth }, async (req, reply) => {
+app.get<{ Params: { id: string } }>('/products/:id/batches', { preHandler: requirePerm('stock') }, async (req, reply) => {
   const p = db.prepare('SELECT id FROM products WHERE id = ? AND shop_id = ?').get(req.params.id, req.shopId);
   if (!p) return reply.code(404).send({ error: 'not_found' });
-  return batchesOf(req.shopId!, Number(req.params.id));
+  return hideCost(req, batchesOf(req.shopId!, Number(req.params.id)) as any[]);
 });
 
 /** Bitta partiyaning srogini to'g'rilash */
 app.patch<{ Params: { id: string; batchId: string }; Body: { expiry_date?: string | null } }>(
   '/products/:id/batches/:batchId',
-  { preHandler: requireOwner },
+  { preHandler: requirePerm('product_edit') },
   async (req, reply) => {
     const batch = db
       .prepare('SELECT id FROM product_batches WHERE id = ? AND product_id = ? AND shop_id = ?')
@@ -1481,7 +1567,7 @@ app.patch<{ Params: { id: string; batchId: string }; Body: { expiry_date?: strin
   }
 );
 
-app.get<{ Params: { id: string } }>('/products/:id/barcodes', { preHandler: requireAuth }, async (req) => {
+app.get<{ Params: { id: string } }>('/products/:id/barcodes', { preHandler: requirePerm('stock') }, async (req) => {
   return db
     .prepare('SELECT id, barcode, created_at FROM product_barcodes WHERE shop_id = ? AND product_id = ? ORDER BY id')
     .all(req.shopId, req.params.id);
@@ -1494,7 +1580,7 @@ app.get<{ Params: { id: string } }>('/products/:id/barcodes', { preHandler: requ
  * mahsuloti — zavod kodi yo'q narsalar). Kod "20" bilan boshlanadi, bu
  * oraliq korxona ichida erkin ishlatish uchun ajratilgan.
  */
-app.post<{ Params: { id: string } }>('/products/:id/barcode', { preHandler: requireOwner }, async (req, reply) => {
+app.post<{ Params: { id: string } }>('/products/:id/barcode', { preHandler: requirePerm('product_edit') }, async (req, reply) => {
   const product = db
     .prepare('SELECT * FROM products WHERE id = ? AND shop_id = ?')
     .get(req.params.id, req.shopId) as any;
@@ -1518,7 +1604,7 @@ app.post<{ Params: { id: string } }>('/products/:id/barcode', { preHandler: requ
 
 app.post<{ Params: { id: string }; Body: { barcode: string } }>(
   '/products/:id/barcodes',
-  { preHandler: requireAuth },
+  { preHandler: requirePerm('product_edit') },
   async (req, reply) => {
     const product = db
       .prepare('SELECT * FROM products WHERE id = ? AND shop_id = ?')
@@ -1550,7 +1636,7 @@ app.post<{ Params: { id: string }; Body: { barcode: string } }>(
 
 app.delete<{ Params: { id: string; code: string } }>(
   '/products/:id/barcodes/:code',
-  { preHandler: requireOwner },
+  { preHandler: requirePerm('product_edit') },
   async (req, reply) => {
     const code = normalizeBarcode(req.params.code);
     const info = db
@@ -1586,7 +1672,7 @@ app.get<{ Params: { file: string } }>('/uploads/:file', async (req, reply) => {
  *  yorliqlar kassada o'zi tanilib, og'irligi bilan savatga tushadi. */
 app.post<{ Params: { id: string }; Body: { plu?: string } }>(
   '/products/:id/plu',
-  { preHandler: requireOwner },
+  { preHandler: requirePerm('product_edit') },
   async (req, reply) => {
     const product = db
       .prepare('SELECT * FROM products WHERE id = ? AND shop_id = ?')
@@ -1622,7 +1708,7 @@ app.post<{ Params: { id: string }; Body: { plu?: string } }>(
   }
 );
 
-app.delete<{ Params: { id: string } }>('/products/:id/plu', { preHandler: requireOwner }, async (req, reply) => {
+app.delete<{ Params: { id: string } }>('/products/:id/plu', { preHandler: requirePerm('product_edit') }, async (req, reply) => {
   const product = db.prepare('SELECT id FROM products WHERE id = ? AND shop_id = ?').get(req.params.id, req.shopId);
   if (!product) return reply.code(404).send({ error: 'not_found' });
   db.prepare('UPDATE products SET plu = NULL WHERE id = ?').run(req.params.id);
@@ -1632,12 +1718,18 @@ app.delete<{ Params: { id: string } }>('/products/:id/plu', { preHandler: requir
 // Mahsulotni tahrirlash va o'chirish
 app.patch<{ Params: { id: string }; Body: Record<string, unknown> }>(
   '/products/:id',
-  { preHandler: requireOwner },
+  { preHandler: requirePerm('product_edit') },
   async (req, reply) => {
     const product = db
       .prepare('SELECT * FROM products WHERE id = ? AND shop_id = ?')
       .get(req.params.id, req.shopId) as any;
     if (!product) return reply.code(404).send({ error: 'not_found' });
+    // Narx alohida ruxsat. Xodim tovar nomini to'g'rilashi mumkin, lekin
+    // sotuv narxini o'zgartirish — do'kon foydasiga tegish demak.
+    const priceKeys = ['cost_price', 'sell_price', 'discount_percent'];
+    if (priceKeys.some((k) => k in req.body) && !can(req, 'price_edit')) {
+      return reply.code(403).send({ error: 'no_permission', permission: 'price_edit' });
+    }
     for (const key of ['name', 'barcode', 'unit', 'price_qty', 'cost_price', 'sell_price', 'low_stock_threshold', 'stock', 'category', 'supplier_id', 'discount_percent']) {
       if (key in req.body) {
         let value = key === 'barcode' ? normalizeBarcode(req.body[key] as string) || null : (req.body[key] as any);
@@ -1693,7 +1785,7 @@ app.patch<{ Params: { id: string }; Body: Record<string, unknown> }>(
   }
 );
 
-app.delete<{ Params: { id: string } }>('/products/:id', { preHandler: requireOwner }, async (req, reply) => {
+app.delete<{ Params: { id: string } }>('/products/:id', { preHandler: requirePerm('product_del') }, async (req, reply) => {
   const product = db
     .prepare('SELECT * FROM products WHERE id = ? AND shop_id = ?')
     .get(req.params.id, req.shopId);
@@ -1709,7 +1801,7 @@ app.delete<{ Params: { id: string } }>('/products/:id', { preHandler: requireOwn
 // Inventarizatsiya — haqiqiy qoldiqni kiritish, farqni yozib qo'yish
 app.post<{ Body: { items: { product_id: number; actual: number }[] } }>(
   '/inventory/count',
-  { preHandler: requireAuth },
+  { preHandler: requirePerm('inventory') },
   async (req, reply) => {
     const items = req.body.items ?? [];
     if (!items.length) return reply.code(400).send({ error: 'items_required' });
@@ -1741,7 +1833,7 @@ app.post<{ Body: { items: { product_id: number; actual: number }[] } }>(
 // ---------- KASSA ----------
 app.post<{ Body: { items: { product_id: number; qty: number }[]; payment_type: 'cash' | 'card' | 'debt'; customer_id?: number; customer_name?: string; customer_phone?: string; due_date?: string; allow_negative?: boolean } }>(
   '/sales',
-  { preHandler: requireAuth },
+  { preHandler: requirePerm('pos') },
   async (req, reply) => {
     const { items, payment_type, customer_id, customer_name, due_date } = req.body;
     if (!items?.length) return reply.code(400).send({ error: 'items_required' });
@@ -1915,7 +2007,7 @@ app.post<{ Body: { items: { product_id: number; qty: number }[]; payment_type: '
 );
 
 // Sotuvlar tarixi
-app.get<{ Querystring: { limit?: string; q?: string } }>('/sales', { preHandler: requireAuth }, async (req) => {
+app.get<{ Querystring: { limit?: string; q?: string } }>('/sales', { preHandler: requirePerm('pos') }, async (req) => {
   const limit = Math.min(Number(req.query.limit ?? 50), 200);
   const q = (req.query.q ?? '').trim();
 
@@ -1965,7 +2057,7 @@ app.get<{ Querystring: { limit?: string; q?: string } }>('/sales', { preHandler:
     .all(...(args as any[]));
 });
 
-app.get<{ Params: { id: string } }>('/sales/:id', { preHandler: requireAuth }, async (req, reply) => {
+app.get<{ Params: { id: string } }>('/sales/:id', { preHandler: requirePerm('pos') }, async (req, reply) => {
   const sale = db.prepare('SELECT * FROM sales WHERE id = ? AND shop_id = ?').get(req.params.id, req.shopId) as any;
   if (!sale) return reply.code(404).send({ error: 'not_found' });
   const items = db
@@ -1996,7 +2088,7 @@ app.get<{ Params: { id: string } }>('/sales/:id', { preHandler: requireAuth }, a
  *  Mijoz Telegram'ga ulangan bo'lsa — chek chindan ham yetib boradi.
  *  Ulanmagan bo'lsa matn qaytadi va SMS navbatiga yoziladi (SMS xizmati
  *  ulanganda o'sha yerdan ketadi). */
-app.post<{ Params: { id: string } }>('/sales/:id/receipt', { preHandler: requireAuth }, async (req, reply) => {
+app.post<{ Params: { id: string } }>('/sales/:id/receipt', { preHandler: requirePerm('pos') }, async (req, reply) => {
   const sale = db.prepare('SELECT * FROM sales WHERE id = ? AND shop_id = ?').get(req.params.id, req.shopId) as any;
   if (!sale) return reply.code(404).send({ error: 'not_found' });
   if (!sale.customer_id) return reply.code(400).send({ error: 'no_customer' });
@@ -2020,7 +2112,7 @@ app.post<{ Params: { id: string } }>('/sales/:id/receipt', { preHandler: require
 // Mijoz tovarni qaytarib keldi: qoldiq ortga qaytadi, tushum va foyda
 // kamayadi, qarzga olingan bo'lsa qarz ham shuncha qisqaradi.
 
-app.get<{ Params: { id: string } }>('/sales/:id/returns', { preHandler: requireAuth }, async (req, reply) => {
+app.get<{ Params: { id: string } }>('/sales/:id/returns', { preHandler: requirePerm('pos') }, async (req, reply) => {
   const sale = db.prepare('SELECT id FROM sales WHERE id = ? AND shop_id = ?').get(req.params.id, req.shopId) as any;
   if (!sale) return reply.code(404).send({ error: 'not_found' });
   return db
@@ -2036,7 +2128,7 @@ app.get<{ Params: { id: string } }>('/sales/:id/returns', { preHandler: requireA
 app.post<{
   Params: { id: string };
   Body: { items?: { sale_item_id: number; qty: number }[]; reason?: string; refund_type?: string };
-}>('/sales/:id/returns', { preHandler: requireAuth }, async (req, reply) => {
+}>('/sales/:id/returns', { preHandler: requirePerm('pos_return') }, async (req, reply) => {
   const sale = db.prepare('SELECT * FROM sales WHERE id = ? AND shop_id = ?').get(req.params.id, req.shopId) as any;
   if (!sale) return reply.code(404).send({ error: 'not_found' });
   const wanted = (req.body?.items ?? []).filter((i) => Number(i.qty) > 0);
@@ -2123,7 +2215,7 @@ app.post<{
  * boshlab beriladi. Birinchisi deyarli har doim to'g'ri chiqadi: mijoz
  * odatda yaqinda olgan tovarini qaytaradi.
  */
-app.get<{ Querystring: { code?: string } }>('/returns/lookup', { preHandler: requireAuth }, async (req) => {
+app.get<{ Querystring: { code?: string } }>('/returns/lookup', { preHandler: requirePerm('pos_return') }, async (req) => {
   const code = normalizeBarcode(req.query.code);
   if (!code) return { code: '', product: null, scale: null, candidates: [] };
 
@@ -2161,7 +2253,7 @@ app.get<{ Querystring: { code?: string } }>('/returns/lookup', { preHandler: req
 
 app.get<{ Querystring: { period?: string; limit?: string } }>(
   '/returns',
-  { preHandler: requireAuth },
+  { preHandler: requirePerm('pos_return') },
   async (req) => {
     const since = expensePeriodSql(req.query.period);
     const limit = Math.min(Number(req.query.limit ?? 100), 300);
@@ -2240,7 +2332,7 @@ function expensesTotal(shopId: number, sinceDays: string): number {
 
 app.get<{ Querystring: { period?: string; category?: string; from?: string; to?: string } }>(
   '/expenses',
-  { preHandler: requireOwner },
+  { preHandler: requirePerm('expenses') },
   async (req) => {
     // Ustunlar "e." bilan yoziladi — xodim jadvali qo'shilganda
     // shop_id ikkala tomonda bo'lgani uchun ikkilanish chiqmasin
@@ -2312,7 +2404,7 @@ app.get<{ Querystring: { period?: string; category?: string; from?: string; to?:
 
 app.post<{ Body: { category?: string; amount?: number; note?: string; spent_at?: string; is_recurring?: boolean } }>(
   '/expenses',
-  { preHandler: requireOwner },
+  { preHandler: requirePerm('expenses') },
   async (req, reply) => {
     const amount = Math.round(Number(req.body?.amount) || 0);
     const category = (req.body?.category ?? '').trim();
@@ -2342,7 +2434,7 @@ app.post<{ Body: { category?: string; amount?: number; note?: string; spent_at?:
 
 app.patch<{ Params: { id: string }; Body: Record<string, unknown> }>(
   '/expenses/:id',
-  { preHandler: requireOwner },
+  { preHandler: requirePerm('expenses') },
   async (req, reply) => {
     const row = db.prepare('SELECT * FROM expenses WHERE id = ? AND shop_id = ?').get(req.params.id, req.shopId);
     if (!row) return reply.code(404).send({ error: 'not_found' });
@@ -2371,14 +2463,14 @@ app.patch<{ Params: { id: string }; Body: Record<string, unknown> }>(
   }
 );
 
-app.delete<{ Params: { id: string } }>('/expenses/:id', { preHandler: requireOwner }, async (req, reply) => {
+app.delete<{ Params: { id: string } }>('/expenses/:id', { preHandler: requirePerm('expenses') }, async (req, reply) => {
   const info = db.prepare('DELETE FROM expenses WHERE id = ? AND shop_id = ?').run(req.params.id, req.shopId);
   if (!info.changes) return reply.code(404).send({ error: 'not_found' });
   return { ok: true };
 });
 
 // Xarajatlarni CSV qilib yuklab olish (buxgalter yoki soliq uchun)
-app.get<{ Querystring: { period?: string } }>('/expenses/export', { preHandler: requireOwner }, async (req, reply) => {
+app.get<{ Querystring: { period?: string } }>('/expenses/export', { preHandler: requirePerm('expenses') }, async (req, reply) => {
   const since = expensePeriodSql(req.query.period);
   const rows = db
     .prepare(
@@ -2398,7 +2490,7 @@ app.get<{ Querystring: { period?: string } }>('/expenses/export', { preHandler: 
 });
 
 // ---------- HISOBOTLAR ----------
-app.get<{ Querystring: { period?: string } }>('/reports/summary', { preHandler: requireOwner }, async (req) => {
+app.get<{ Querystring: { period?: string } }>('/reports/summary', { preHandler: requirePerm('reports') }, async (req) => {
   const period = reportPeriodSql(req.query.period);
   // Davr boshlanishi UTC'da — indeks ishlashi uchun (tz.ts izohi)
   const periodFrom = uzPeriodStartUtc(period);
@@ -2457,7 +2549,7 @@ app.get<{ Querystring: { period?: string } }>('/reports/summary', { preHandler: 
 // savolga javob. Faqat tushum emas, foyda ham ko'rsatiladi — sotuvchi
 // chegirma berib ko'p sotgan bo'lishi mumkin, lekin do'konga foydasi kam.
 // Do'kon egasi o'zi sotgan bo'lsa (created_by bo'sh) — alohida satr.
-app.get<{ Querystring: { period?: string } }>('/reports/employees', { preHandler: requireOwner }, async (req) => {
+app.get<{ Querystring: { period?: string } }>('/reports/employees', { preHandler: requirePerm('reports') }, async (req) => {
   const period = reportPeriodSql(req.query.period);
   // Davr boshlanishi UTC'da — indeks ishlashi uchun (tz.ts izohi)
   const periodFrom = uzPeriodStartUtc(period);
@@ -2550,7 +2642,7 @@ app.get<{ Querystring: { period?: string } }>('/reports/employees', { preHandler
 //
 // Do'konchi "qanaqa xabar keladi" ni oldindan ko'rishi kerak — aks holda
 // sozlamada yoqib qo'yadi-yu, kechqurun nima kelishini bilmaydi.
-app.post('/reports/daily/send', { preHandler: requireOwner }, async (req, reply) => {
+app.post('/reports/daily/send', { preHandler: requirePerm('reports') }, async (req, reply) => {
   const res = await sendDailyReport(req.shopId!);
   if (!res.ok) {
     // Sababi aniq aytiladi: bot ulanmagan bo'lsa boshqa, egasi botni
@@ -2561,7 +2653,7 @@ app.post('/reports/daily/send', { preHandler: requireOwner }, async (req, reply)
 });
 
 /** Xabar qanday ko'rinishini ilovada ko'rsatish uchun (yuborilmaydi) */
-app.get('/reports/daily/preview', { preHandler: requireOwner }, async (req) => {
+app.get('/reports/daily/preview', { preHandler: requirePerm('reports') }, async (req) => {
   const shop = db.prepare('SELECT name FROM shops WHERE id = ?').get(req.shopId) as any;
   const figures = dailyFigures(req.shopId!);
   return {
@@ -2575,7 +2667,7 @@ app.get('/reports/daily/preview', { preHandler: requireOwner }, async (req) => {
 });
 
 // Hisobotni CSV (Excel ochadi) qilib yuklab olish
-app.get<{ Querystring: { period?: string } }>('/reports/export', { preHandler: requireOwner }, async (req, reply) => {
+app.get<{ Querystring: { period?: string } }>('/reports/export', { preHandler: requirePerm('reports') }, async (req, reply) => {
   const period = reportPeriodSql(req.query.period);
   // Davr boshlanishi UTC'da — indeks ishlashi uchun (tz.ts izohi)
   const periodFrom = uzPeriodStartUtc(period);

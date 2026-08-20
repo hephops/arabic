@@ -5,6 +5,7 @@ import Scanner from '../Scanner';
 import { useHardwareScanner } from '../hardwareScanner';
 import { haptic } from '../telegram';
 import { useT } from '../i18n';
+import { can } from '../perms';
 import { formatAmount, amountValue, formatPhone, formatPhoneSoft, phoneDigits, phoneE164, isPhoneComplete, fmtDateTime, fmtWhen } from '../format';
 import { toast, loadFailed } from '../toast';
 import {
@@ -45,10 +46,12 @@ export default function Kassa({
   const [mode, setMode] = useState<KassaMode>(initialMode);
   const { t } = useT();
 
-  // Tezkor amallardan "Tovar kirimi" tanlansa — o'sha bo'lim ochiladi
+  // Tezkor amallardan "Tovar kirimi" tanlansa — o'sha bo'lim ochiladi.
+  // Ruxsati bo'lmasa oddiy sotuvga qaytariladi.
+  const mayIntake = can('intake');
   useEffect(() => {
-    setMode(isEmployee && initialMode === 'intake' ? 'sale' : initialMode);
-  }, [initialMode, isEmployee]);
+    setMode(!mayIntake && initialMode === 'intake' ? 'sale' : initialMode);
+  }, [initialMode, mayIntake]);
 
   return (
     <div className="screen">
@@ -56,7 +59,7 @@ export default function Kassa({
         <button className={mode === 'sale' ? 'on' : ''} onClick={() => { setMode('sale'); haptic.select(); }}>
           <Glyph name="cart" size={16} /> {t('modeSale')}
         </button>
-        {!isEmployee && (
+        {mayIntake && (
           <button className={mode === 'intake' ? 'on' : ''} onClick={() => { setMode('intake'); haptic.select(); }}>
             <Glyph name="box" size={16} /> {t('modeIntake')}
           </button>
@@ -770,7 +773,11 @@ function SaleMode({ onDone, autoScan = 0 }: { onDone: () => void; autoScan?: num
                 ['card', 'card', 'payCard'],
                 ['debt', 'book', 'payDebt'],
               ] as const
-            ).map(([id, glyph, key]) => (
+            )
+              // Qarzga sotish alohida ruxsat: ruxsati yo'q xodim faqat
+              // naqd va karta bilan sotadi
+              .filter(([id]) => id !== 'debt' || can('pos_debt'))
+              .map(([id, glyph, key]) => (
               <button key={id} className={payment === id ? 'on' : ''} onClick={() => { setPayment(id); haptic.select(); }}>
                 <Glyph name={glyph} size={15} /> {t(key)}
               </button>

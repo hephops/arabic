@@ -140,6 +140,13 @@ body {
   display: flex; align-items: center; gap: 6px;
 }
 
+/* Ruxsat guruhchasi — asosiy sarlavhadan pastroq turadi */
+.section-title.sm { margin-top: 12px; margin-bottom: 4px; text-transform: none; letter-spacing: 0; font-size: 12px; }
+
+/* Ruxsat qatori: butun qator bosiladi, o'ngida tugmacha */
+.perm-row { cursor: pointer; user-select: none; }
+.perm-row .name { font-weight: 400; }
+
 /* iOS guruhlangan ro'yxat */
 .list-group {
   background: var(--card); border-radius: 12px; overflow: hidden; margin-bottom: 10px;

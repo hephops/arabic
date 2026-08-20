@@ -7,6 +7,7 @@ import { onCartsChanged, openCartCount } from './carts';
 import { toggleSide } from './sidebar';
 import { api } from './api';
 import { formatPhoneSoft } from './format';
+import { navAllowed } from './perms';
 
 // Suzuvchi dock + to'liq ekran menyu (launcher).
 // Dock'dagi chiziqcha bosilsa — barcha bo'limlar grid bo'lib ochiladi.
@@ -17,12 +18,12 @@ export interface NavTarget {
   profileView?: string;
 }
 
-const DOCK_ITEMS: { id: Tab; glyph: string }[] = [
-  { id: 'home', glyph: 'house' },
-  { id: 'customers', glyph: 'people' },
-  { id: 'add', glyph: 'note' },
-  { id: 'kassa', glyph: 'cart' },
-  { id: 'profile', glyph: 'gear' },
+const DOCK_ITEMS: { id: Tab; glyph: string; perm: string }[] = [
+  { id: 'home', glyph: 'house', perm: 'tabHome' },
+  { id: 'customers', glyph: 'people', perm: 'tabCustomers' },
+  { id: 'add', glyph: 'note', perm: 'tabAdd' },
+  { id: 'kassa', glyph: 'cart', perm: 'tabKassa' },
+  { id: 'profile', glyph: 'gear', perm: 'tabProfile' },
 ];
 
 const LAUNCHER_ITEMS: { key: string; glyph: string; color?: string; target: NavTarget }[] = [
@@ -137,11 +138,11 @@ export default function Dock({
           </div>
         </button>
         <div className="side-scroll">
-          {SIDE_GROUPS.map((group) => (
+          {SIDE_GROUPS.filter((g) => g.items.some((i) => navAllowed(i.key))).map((group) => (
             <div className="side-group" key={group.title}>
               {/* Bo'lim sarlavhasi — ro'yxat uzun, ko'z nimaga qarashni biladi */}
               <div className="side-cap">{t(group.title)}</div>
-              {group.items.map((item) => (
+              {group.items.filter((i) => navAllowed(i.key)).map((item) => (
                 <button
                   key={item.key}
                   className={`side-item ${isActive(item.target) ? 'active' : ''}`}
@@ -191,7 +192,7 @@ export default function Dock({
       {deck && <div className="deck-backdrop" onClick={() => setDeck(false)} />}
       <div className={`deck ${deck ? 'open' : ''}`}>
         <div className="deck-items">
-          {LAUNCHER_ITEMS.map((item) => (
+          {LAUNCHER_ITEMS.filter((i) => navAllowed(i.key)).map((item) => (
             <button
               key={item.key}
               className="deck-item"
@@ -236,7 +237,7 @@ export default function Dock({
             <Glyph name="chevron" size={13} color="var(--accent)" strokeWidth={2.4} />
           </span>
         </button>
-        {DOCK_ITEMS.map((item) => (
+        {DOCK_ITEMS.filter((i) => navAllowed(i.perm)).map((item) => (
           <button
             key={item.id}
             className={`dock-item ${tab === item.id && active ? 'active' : ''}`}
@@ -255,7 +256,7 @@ export default function Dock({
             <Glyph name="close" size={20} color="#fff" />
           </button>
           <div className="launcher-grid">
-            {LAUNCHER_ITEMS.map((item) => (
+            {LAUNCHER_ITEMS.filter((i) => navAllowed(i.key)).map((item) => (
               <button
                 key={item.key}
                 className="launcher-item"

@@ -89,6 +89,10 @@ CREATE TABLE IF NOT EXISTS employees (
   name TEXT NOT NULL,
   pin TEXT NOT NULL,                             -- 4 xonali PIN (hash prod'da)
   role TEXT NOT NULL DEFAULT 'seller',           -- owner | seller
+  -- Ruxsatlar ro'yxati (JSON). Bo'sh bo'lsa — oddiy sotuvchi to'plami.
+  -- Har bir xodimga alohida beriladi: kim sotadi, kim tovar qo'shadi,
+  -- kim o'chira oladi, kim kirim narxini ko'radi (perms.ts).
+  permissions TEXT,
   is_active INTEGER NOT NULL DEFAULT 1,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );

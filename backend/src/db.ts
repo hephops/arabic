@@ -127,6 +127,9 @@ for (const sql of [
   // Rasm izlab ko'rilgan sana. Topilmagan tovar har safar qaytadan
   // so'ralavermasin — ochiq bazani bekorga urib turmaymiz.
   'ALTER TABLE catalog_products ADD COLUMN image_tried TEXT',
+  // Xodimning shaxsiy ruxsatlari. Eski xodimlarda NULL qoladi va
+  // "sotuvchi" to'plami sifatida o'qiladi — ishlari buzilmaydi.
+  'ALTER TABLE employees ADD COLUMN permissions TEXT',
 ]) {
   try {
     db.exec(sql);

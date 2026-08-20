@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { api, fmt, logout, Shop, BalanceInfo, Employee, EmployeeLogin } from '../api';
+import { api, fmt, logout, Shop, BalanceInfo, Employee, EmployeeLogin, PermCatalog } from '../api';
+import { can, isOwner, type PermKey } from '../perms';
 import { AppIcon, Glyph } from '../icons';
 import { SubHeader, EmptyState } from '../ui';
 import { useT, LANG_NAMES, group, type Lang } from '../i18n';
@@ -78,10 +79,14 @@ export default function Profile({
   }, []);
 
   if (!shop || (!isEmployee && !balance)) return <div className="screen empty">{t('loading')}</div>;
+  // Xodimda balans yuklanmaydi — quyida faqat ega ko'radigan joylarda ishlatiladi
   const bal = balance!;
 
-  // ── Sotuvchi ko'rinishi: faqat o'zi, til va chiqish ──
-  if (isEmployee) {
+  // ── Xodim ko'rinishi ──
+  // Sozlamalar ruxsati berilgan xodim to'liq ekranni ko'radi, qolgani
+  // faqat o'zini, tilni va chiqishni. Balans, xodimlar va taklif kodi
+  // hech qanday ruxsat bilan ochilmaydi — ular faqat egada.
+  if (isEmployee && !can('settings')) {
     if (view === 'language') return <LanguageView shop={shop} onBack={() => setView('main')} reload={load} />;
     return (
       <div className="screen">
@@ -140,24 +145,29 @@ export default function Profile({
       </div>
 
       {/* Balans — bitta qator yetadi: pul va u necha kunga yetishi.
-          Tarif tanlash degan narsa yo'q, shuning uchun ikkinchi qator ham yo'q. */}
-      <div className="list-group" style={{ marginTop: 14 }}>
-        <Row
-          icon="banknote"
-          label={t('navBalance')}
-          value={
-            shop.service
-              ? `${fmt(shop.service.balance)} · ${shop.service.days_left} ${t('daysShort')}`
-              : fmt(shop.balance)
-          }
-          onClick={() => setView('balance')}
-        />
-      </div>
+          Tarif tanlash degan narsa yo'q, shuning uchun ikkinchi qator ham yo'q.
+          Xodimga ko'rsatilmaydi: do'kon puli uning ishi emas. */}
+      {isOwner() && (
+        <div className="list-group" style={{ marginTop: 14 }}>
+          <Row
+            icon="banknote"
+            label={t('navBalance')}
+            value={
+              shop.service
+                ? `${fmt(shop.service.balance)} · ${shop.service.days_left} ${t('daysShort')}`
+                : fmt(shop.balance)
+            }
+            onClick={() => setView('balance')}
+          />
+        </div>
+      )}
 
       <div className="list-group">
         <Row icon="house" label={t('shopInfo')} onClick={() => setView('shop')} />
         <Row icon="globe" label={t('navLanguage')} value={LANG_NAMES[shop.language as Lang] ?? shop.language} onClick={() => setView('language')} />
-        <Row icon="card" label={t('cardNumber')} value={maskCard(shop.card_number) || t('notSet')} onClick={() => setView('shop')} />
+        {isOwner() && (
+          <Row icon="card" label={t('cardNumber')} value={maskCard(shop.card_number) || t('notSet')} onClick={() => setView('shop')} />
+        )}
       </div>
 
       {/* Skaner ovozi — qurilmaga bog'liq sozlama (do'konga emas):
@@ -237,10 +247,12 @@ export default function Profile({
         />
       </div>
 
-      <div className="list-group">
-        <Row icon="employee" label={t('employees')} onClick={() => setView('employees')} />
-        <Row icon="gift" label={t('inviteFriend')} onClick={() => setView('referral')} />
-      </div>
+      {isOwner() && (
+        <div className="list-group">
+          <Row icon="employee" label={t('employees')} onClick={() => setView('employees')} />
+          <Row icon="gift" label={t('inviteFriend')} onClick={() => setView('referral')} />
+        </div>
+      )}
 
       <div className="list-group">
         <Row icon="logout" label={t('logoutBtn')} danger onClick={() => { logout(); onLogout(); }} />
@@ -523,10 +535,15 @@ function EmployeesView({ shop, onBack, reload }: { shop: Shop; onBack: () => voi
   const [adding, setAdding] = useState(false);
   const [opened, setOpened] = useState<Employee | null>(null);
   const [error, setError] = useState('');
+  // Yangi xodimga darhol to'plam tanlanadi — keyin kartochkasida
+  // bitta-bitta to'g'rilash mumkin
+  const [preset, setPreset] = useState('seller');
+  const [presets, setPresets] = useState<Record<string, PermKey[]>>({});
 
   const load = () => {
     api.employees().then(setEmployees).catch(loadFailed);
     api.employeeLogins().then(setLogins).catch(loadFailed);
+    api.permCatalog().then((c) => setPresets(c.presets)).catch(loadFailed);
   };
   useEffect(() => {
     load();
@@ -538,7 +555,7 @@ function EmployeesView({ shop, onBack, reload }: { shop: Shop; onBack: () => voi
       setError(t('pinRequired'));
       return;
     }
-    await api.createEmployee({ name: name.trim(), pin });
+    await api.createEmployee({ name: name.trim(), pin, permissions: presets[preset] });
     toast.success(t('toastEmployeeAdded'), name.trim());
     setName('');
     setPin('');
@@ -591,6 +608,22 @@ function EmployeesView({ shop, onBack, reload }: { shop: Shop; onBack: () => voi
               />
             </div>
           </div>
+          <div className="section-title sm">{t('permPreset')}</div>
+          <div className="chip-row">
+            {(
+              [
+                ['cashier', t('presetCashier')],
+                ['seller', t('presetSeller')],
+                ['senior', t('presetSenior')],
+                ['manager', t('presetManager')],
+              ] as [string, string][]
+            ).map(([id, label]) => (
+              <button key={id} className={`chip ${preset === id ? 'on' : ''}`} onClick={() => setPreset(id)}>
+                {label}
+              </button>
+            ))}
+          </div>
+          <p className="hint">{t('permHint')}</p>
           <button className="btn-primary btn-lg" onClick={add}>
             <Glyph name="check" size={19} color="#fff" /> {t('save')}
           </button>
@@ -694,7 +727,8 @@ function EmployeeCard({
         <AppIcon glyph="employee" color={employee.is_active ? 'teal' : 'gray'} size={54} />
         <div style={{ fontSize: 19, fontWeight: 700, marginTop: 10 }}>{employee.name}</div>
         <div className="sub">
-          {t('roleSeller')} · {employee.is_active ? t('employeeActive') : t('employeeBlocked')}
+          {(employee.permissions?.length ?? 0)} {t('permSelected')} ·{' '}
+          {employee.is_active ? t('employeeActive') : t('employeeBlocked')}
         </div>
       </div>
 
@@ -729,13 +763,129 @@ function EmployeeCard({
         </p>
       </div>
 
+      <PermissionEditor employee={employee} onSaved={onChanged} />
+
       <button
         className={`btn-primary btn-lg ${employee.is_active ? 'danger' : ''}`}
         onClick={() => api.updateEmployee(employee.id, { is_active: employee.is_active ? 0 : 1 }).then(onChanged)}
       >
         {employee.is_active ? t('block') : t('unblock')}
       </button>
+      <button
+        className="btn-ghost danger"
+        onClick={async () => {
+          if (!confirm(t('employeeDeleteAsk'))) return;
+          await api.deleteEmployee(employee.id);
+          toast.success(t('employeeDelete'), employee.name);
+          onChanged();
+        }}
+      >
+        {t('employeeDelete')}
+      </button>
       </div>
+    </>
+  );
+}
+
+/* ───────── Ruxsatlar: har bir xodimga alohida ───────── */
+
+// Do'konda ikki xil odam bo'lmaydi. Biri faqat kassada turadi, biri
+// tovar ham qabul qiladi, biri do'konni butunlay yuritadi. Shuning
+// uchun ro'yxat katakcha bo'lib beriladi — ega o'zi belgilaydi.
+//
+// Tayyor to'plamlar yuqorida turadi: ko'pchilik uchun bitta bosish
+// yetadi, kerak bo'lsa keyin bitta-bitta to'g'rilanadi.
+
+function PermissionEditor({ employee, onSaved }: { employee: Employee; onSaved: () => void }) {
+  const { t } = useT();
+  const [cat, setCat] = useState<PermCatalog | null>(null);
+  const [sel, setSel] = useState<PermKey[]>(employee.permissions ?? []);
+  const [saving, setSaving] = useState(false);
+  const [dirty, setDirty] = useState(false);
+
+  useEffect(() => {
+    api.permCatalog().then(setCat).catch(loadFailed);
+  }, []);
+
+  if (!cat) return null;
+
+  const has = (k: PermKey) => sel.includes(k);
+  const toggle = (k: PermKey) => {
+    setDirty(true);
+    setSel((prev) => (prev.includes(k) ? prev.filter((x) => x !== k) : [...prev, k]));
+  };
+  const applyPreset = (name: string) => {
+    setDirty(true);
+    setSel(cat.presets[name] ?? []);
+  };
+
+  async function save() {
+    setSaving(true);
+    try {
+      await api.updateEmployee(employee.id, { permissions: sel });
+      toast.success(t('permSaved'), employee.name);
+      setDirty(false);
+      onSaved();
+    } catch (e: any) {
+      toast.error(t('error'), e.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const PRESET_LABEL: Record<string, string> = {
+    cashier: t('presetCashier'),
+    seller: t('presetSeller'),
+    senior: t('presetSenior'),
+    manager: t('presetManager'),
+  };
+
+  return (
+    <>
+      <div className="section-title">
+        {t('permTitle')} · {sel.length} {t('permSelected')}
+      </div>
+      <p className="hint">{t('permHint')}</p>
+
+      <div className="chip-row">
+        {['cashier', 'seller', 'senior', 'manager'].map((name) => (
+          <button key={name} className="chip" onClick={() => applyPreset(name)}>
+            {PRESET_LABEL[name]}
+          </button>
+        ))}
+      </div>
+
+      {cat.groups.map((g) => (
+        <div key={g.group}>
+          <div className="section-title sm">{t('permGroup' + g.group.charAt(0).toUpperCase() + g.group.slice(1))}</div>
+          <div className="list-group">
+            {g.keys.map((k) => (
+              <label className="list-item perm-row" key={k}>
+                <div className="name">{t('perm_' + k)}</div>
+                <button
+                  className={`switch ${has(k) ? 'on' : ''}`}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    toggle(k);
+                  }}
+                  aria-label={t('perm_' + k)}
+                  aria-pressed={has(k)}
+                >
+                  <span />
+                </button>
+              </label>
+            ))}
+          </div>
+        </div>
+      ))}
+
+      <p className="hint">{t('permOwnerOnly')}</p>
+
+      {dirty && (
+        <button className="btn-primary btn-lg" onClick={save} disabled={saving}>
+          <Glyph name="check" size={19} color="#fff" /> {t('save')}
+        </button>
+      )}
     </>
   );
 }

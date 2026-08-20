@@ -1,4 +1,5 @@
 import { translate } from './i18n';
+import type { PermKey } from './perms';
 
 // Backend manzili.
 //
@@ -190,11 +191,13 @@ export const api = {
   sendOrderTelegram: (data: { supplier_id: number | null; text: string }) =>
     request<OrderSendResult>('/orders/send-telegram', { method: 'POST', body: JSON.stringify(data) }),
   employees: () => request<Employee[]>('/employees'),
+  permCatalog: () => request<PermCatalog>('/employees/permissions'),
+  deleteEmployee: (id: number) => request<{ ok: true }>(`/employees/${id}`, { method: 'DELETE' }),
   // Kim, qachon kirdi
   employeeLogins: () => request<EmployeeLogin[]>('/employees/logins'),
-  createEmployee: (data: { name: string; pin: string }) =>
+  createEmployee: (data: { name: string; pin: string; permissions?: PermKey[] }) =>
     request<Employee>('/employees', { method: 'POST', body: JSON.stringify(data) }),
-  updateEmployee: (id: number, data: { is_active: number }) =>
+  updateEmployee: (id: number, data: { is_active?: number; name?: string; pin?: string; permissions?: PermKey[] }) =>
     request<Employee>(`/employees/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   referral: () => request<{ code: string; invited_count: number; reward_text: string }>('/referral'),
   updateCustomer: (
@@ -347,6 +350,15 @@ export interface Employee {
   is_active: number;
   /** faqat do'kon egasi ro'yxatida keladi — sotuvchiga aytish uchun */
   pin?: string;
+  /** Nima qila olishi. Ega har bir xodimga alohida belgilaydi. */
+  permissions?: PermKey[];
+}
+
+/** Ruxsatlar ro'yxati — serverdan keladi, ilova o'zi yozib o'tirmaydi */
+export interface PermCatalog {
+  groups: { group: string; keys: PermKey[] }[];
+  all: PermKey[];
+  presets: Record<string, PermKey[]>;
 }
 
 /** Xodimning bitta kirishi */
