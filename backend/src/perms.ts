@@ -26,7 +26,7 @@ export type PermKey =
   // Ta'minotchi
   | 'suppliers' | 'orders'
   // Qolgani
-  | 'reminders' | 'reports' | 'expenses' | 'settings';
+  | 'reminders' | 'reports' | 'expenses' | 'settings' | 'ai';
 
 /** Ro'yxat tartibi ilovadagi ko'rinish tartibi bilan bir xil */
 export const PERM_GROUPS: { group: string; keys: PermKey[] }[] = [
@@ -35,7 +35,7 @@ export const PERM_GROUPS: { group: string; keys: PermKey[] }[] = [
   { group: 'customers', keys: ['customers', 'customer_add', 'customer_edit', 'customer_del'] },
   { group: 'stock', keys: ['stock', 'product_add', 'product_edit', 'product_del', 'price_edit', 'cost_view', 'intake', 'inventory'] },
   { group: 'suppliers', keys: ['suppliers', 'orders'] },
-  { group: 'other', keys: ['reminders', 'reports', 'expenses', 'settings'] },
+  { group: 'other', keys: ['reminders', 'reports', 'expenses', 'settings', 'ai'] },
 ];
 
 export const ALL_PERMS: PermKey[] = PERM_GROUPS.flatMap((g) => g.keys);

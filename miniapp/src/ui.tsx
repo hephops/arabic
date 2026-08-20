@@ -43,8 +43,17 @@ export function NavBar({
 }
 
 // Eski nom bilan moslik
-export function SubHeader({ title, onBack }: { title: string; onBack: () => void }) {
-  return <NavBar title={title} onBack={onBack} />;
+export function SubHeader({
+  title,
+  onBack,
+  right,
+}: {
+  title: string;
+  onBack: () => void;
+  /** o'ng tomondagi qo'shimcha tugma (masalan "tozalash") */
+  right?: ReactNode;
+}) {
+  return <NavBar title={title} onBack={onBack} right={right} />;
 }
 
 // Ustki xulosa kartasi: ikonka, izoh va katta raqam

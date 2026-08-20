@@ -440,3 +440,51 @@ CREATE TABLE IF NOT EXISTS telegram_links (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_tg_links_user ON telegram_links(telegram_user_id);
+
+-- ─────────── AI yordamchi ───────────
+
+-- Suhbat. Har do'konning o'z suhbati; xodim so'rasa uniki alohida.
+CREATE TABLE IF NOT EXISTS ai_chats (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  shop_id INTEGER NOT NULL REFERENCES shops(id),
+  -- Kim gaplashyapti: NULL — do'kon egasi, aks holda xodim.
+  -- Xodimning suhbati egasinikidan ajratiladi, aks holda xodim
+  -- egasining foyda haqidagi savol-javobini o'qib qolardi.
+  employee_id INTEGER,
+  channel TEXT NOT NULL DEFAULT 'app',           -- app | telegram
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_ai_chats_shop ON ai_chats(shop_id, employee_id, channel);
+
+-- Xabarlar. Model uchun tarix ham, do'konchi uchun yozuv ham shu.
+CREATE TABLE IF NOT EXISTS ai_messages (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  chat_id INTEGER NOT NULL REFERENCES ai_chats(id),
+  shop_id INTEGER NOT NULL REFERENCES shops(id),
+  role TEXT NOT NULL,                            -- user | assistant
+  -- Modelga yuboriladigan to'liq blok (JSON): matn va vosita
+  -- chaqiruvlari shu yerda. Ekranda esa faqat matn ko'rsatiladi.
+  content TEXT NOT NULL,
+  -- Do'konchi ko'radigan sof matn (vositasiz)
+  text TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_ai_messages_chat ON ai_messages(chat_id, id);
+
+-- Har chaqiruvning hisobi: qaysi model, qancha token, qancha so'm.
+-- Admin panelda shu yig'iladi; do'kon chegaradan oshsa cheklanadi.
+CREATE TABLE IF NOT EXISTS ai_usage (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  shop_id INTEGER NOT NULL REFERENCES shops(id),
+  chat_id INTEGER,
+  model TEXT NOT NULL,
+  input_tokens INTEGER NOT NULL DEFAULT 0,
+  output_tokens INTEGER NOT NULL DEFAULT 0,
+  cache_read INTEGER NOT NULL DEFAULT 0,
+  cache_write INTEGER NOT NULL DEFAULT 0,
+  cost_uzs INTEGER NOT NULL DEFAULT 0,
+  steps INTEGER NOT NULL DEFAULT 1,              -- vosita halqasi necha marta aylandi
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_ai_usage_shop ON ai_usage(shop_id, created_at);

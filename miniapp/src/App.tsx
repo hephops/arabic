@@ -16,6 +16,7 @@ import Expenses from './screens/Expenses';
 import Orders from './screens/Orders';
 import Returns from './screens/Returns';
 import Catalog from './screens/Catalog';
+import Ai from './screens/Ai';
 import QuickActions from './QuickActions';
 import InstallPrompt from './InstallPrompt';
 import { ToastHost } from './toast';
@@ -26,7 +27,7 @@ import { setBackButton, haptic } from './telegram';
 import { setPerms, can, isOwner } from './perms';
 
 export type Tab = 'home' | 'customers' | 'add' | 'kassa' | 'profile';
-export type SubScreen = 'suppliers' | 'reports' | 'inventory' | 'reminders' | 'expenses' | 'orders' | 'returns' | 'catalog' | null;
+export type SubScreen = 'suppliers' | 'reports' | 'inventory' | 'reminders' | 'expenses' | 'orders' | 'returns' | 'catalog' | 'ai' | null;
 
 export default function App() {
   const [authed, setAuthed] = useState(!!getToken());
@@ -123,6 +124,7 @@ export default function App() {
       {sub === 'expenses' && <Expenses onBack={() => setSub(null)} />}
       {sub === 'orders' && <Orders onBack={() => setSub(null)} />}
       {sub === 'returns' && <Returns onBack={() => setSub(null)} autoScan={returnsAutoScan} />}
+      {sub === 'ai' && <Ai onBack={() => setSub(null)} />}
       {sub === 'catalog' && (
         <Catalog
           onBack={() => setSub(null)}

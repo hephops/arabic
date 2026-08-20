@@ -11,7 +11,7 @@ export type PermKey =
   | 'stock' | 'product_add' | 'product_edit' | 'product_del'
   | 'price_edit' | 'cost_view' | 'intake' | 'inventory'
   | 'suppliers' | 'orders'
-  | 'reminders' | 'reports' | 'expenses' | 'settings';
+  | 'reminders' | 'reports' | 'expenses' | 'settings' | 'ai';
 
 /** null — do'kon egasi (hammasi mumkin), ro'yxat — xodim */
 let PERMS: string[] | null = null;
@@ -49,6 +49,7 @@ export const NAV_PERM: Record<string, PermKey | 'owner' | null> = {
   navExpenses: 'expenses',
   navInventory: 'inventory',
   navCatalog: 'intake',
+  navAi: 'ai',
   navBalance: 'owner',
   navEmployees: 'owner',
   navReferral: 'owner',

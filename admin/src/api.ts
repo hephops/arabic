@@ -140,6 +140,12 @@ export interface Stats {
   total_topups: number;
   month_topups: number;
   /** kunlik narx x faol do'kon — bugungi kutilayotgan tushum */
+  ai_cost_month: number;
+  ai_cost_today: number;
+  ai_shops: number;
+  ai_calls: number;
+  /** keshdan o'qilgan token ulushi, %. Pasaysa xarajat oshadi. */
+  ai_cache_hit: number;
   daily_income: number;
   daily_price: number;
   /** oxirgi 30 kunda balanslardan yechilgan haqiqiy tushum */

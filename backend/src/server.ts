@@ -16,6 +16,7 @@ import {
 } from './telegram.js';
 import { registerAdminRoutes, seedAdmin } from './admin.js';
 import { registerCatalogRoutes } from './catalog.js';
+import { registerAiRoutes, startAiCleanup } from './ai/routes.js';
 import { seedCatalog } from './catalogSeed.js';
 import { normalizeBarcode, barcodeVariants, checkGtin, makeInStoreEan13, parseScaleBarcode, makeScaleBarcode, scaleQty } from './barcodes.js';
 import { normalizePhone } from './phone.js';
@@ -204,6 +205,10 @@ registerAdminRoutes(app);
 
 // ---------- MARKAZIY KATALOG ----------
 registerCatalogRoutes(app, { requireAuth, uploadsDir: UPLOADS_DIR });
+
+// ---------- AI YORDAMCHI ----------
+registerAiRoutes(app, { requireAi: requirePerm('ai') });
+startAiCleanup();
 
 // ---------- TELEGRAM ----------
 // Mini App Telegram ichida ochilganda initData orqali kirish

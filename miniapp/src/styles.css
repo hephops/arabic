@@ -2089,3 +2089,60 @@ button.link { background: none; color: var(--accent); font-size: 15px; font-weig
   color: var(--accent); font-size: 13.5px; font-weight: 600; text-decoration: none;
 }
 .tw-link:active { background: rgba(0, 122, 255, 0.18); }
+
+/* ───────── AI yordamchi ───────── */
+
+/* Yozish maydoni pastda yopishib turadi, shuning uchun suhbatga
+   pastdan joy qoldiramiz — oxirgi javob tugma ostida qolmasin */
+.ai-screen { padding-bottom: 20px; }
+
+.ai-intro { text-align: center; padding: 24px 12px 8px; }
+.ai-intro-title { font-size: 19px; font-weight: 700; margin-top: 10px; letter-spacing: -0.3px; }
+
+/* Xabar pufakchalari. Savol o'ngda va rangli, javob chapda va oq —
+   telefonda kim nima yozganini bir qarashda ajratish uchun. */
+.ai-msg {
+  max-width: 86%; padding: 10px 13px; border-radius: 16px;
+  margin: 6px 0; font-size: 15px; line-height: 1.45;
+  white-space: pre-wrap; word-break: break-word;
+}
+.ai-msg.user { margin-left: auto; background: var(--accent); color: #fff; border-bottom-right-radius: 5px; }
+.ai-msg.assistant { margin-right: auto; background: var(--card); border-bottom-left-radius: 5px; }
+
+/* "O'ylayapti" — uchta sakrab turgan nuqta */
+.ai-msg.thinking { display: flex; gap: 5px; align-items: center; padding: 14px 16px; }
+.ai-msg.thinking .dot {
+  width: 7px; height: 7px; border-radius: 50%; background: var(--muted);
+  animation: ai-blink 1.3s infinite;
+}
+.ai-msg.thinking .dot:nth-child(2) { animation-delay: 0.18s; }
+.ai-msg.thinking .dot:nth-child(3) { animation-delay: 0.36s; }
+@keyframes ai-blink { 0%, 60%, 100% { opacity: 0.25; } 30% { opacity: 1; } }
+
+.ai-sugg { margin-top: 14px; }
+.ai-left { margin-top: 10px; font-size: 12px; }
+
+/* Yozish paneli — dock ustida turadi */
+.ai-bar {
+  /* Suzuvchi dock ustida turadi — yozish maydoni uning ostida qolmasin */
+  position: fixed; left: 0; right: 0; bottom: 96px; z-index: 30;
+  max-width: 480px; margin: 0 auto; padding: 8px 12px;
+  display: flex; gap: 8px; align-items: center;
+  background: var(--bg); border-top: 0.5px solid var(--separator);
+}
+.ai-bar input {
+  flex: 1; min-width: 0; height: 42px; padding: 0 14px;
+  border-radius: 21px; border: 0.5px solid var(--separator);
+  background: var(--card); font-size: 16px; color: var(--text);
+}
+.ai-send {
+  width: 42px; height: 42px; flex-shrink: 0; border-radius: 50%;
+  background: var(--accent); display: flex; align-items: center; justify-content: center;
+  border: 0;
+}
+.ai-send:disabled { opacity: 0.4; }
+
+@media (min-width: 900px) {
+  /* Kompyuterda dock yo'q — panel pastga tushadi va menyu kengligiga suriladi */
+  .ai-bar { bottom: 0; left: 260px; max-width: none; margin: 0; }
+}

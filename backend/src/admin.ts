@@ -192,7 +192,31 @@ export function registerAdminRoutes(app: FastifyInstance) {
       signups.push({ day: key, count: byDay.get(key) ?? 0 });
     }
 
+    // AI xarajati — bu BIZNING xarajatimiz, do'konchining emas.
+    // Tushumdan qancha ulush olayotganini ko'rib turish kerak: kesh
+    // buzilsa yoki savol ko'paysa raqam jimgina o'sib ketadi.
+    const ai = db
+      .prepare(
+        `SELECT COALESCE(SUM(cost_uzs), 0) AS oy, COUNT(DISTINCT shop_id) AS dokonlar, COUNT(*) AS chaqiruvlar,
+                COALESCE(SUM(cache_read), 0) AS keshdan, COALESCE(SUM(input_tokens), 0) AS yangi
+         FROM ai_usage WHERE created_at >= datetime('now', '-30 days')`
+      )
+      .get() as any;
+    const aiToday = db
+      .prepare(
+        `SELECT COALESCE(SUM(cost_uzs), 0) AS s FROM ai_usage
+         WHERE date(created_at, '+5 hours') = date('now', '+5 hours')`
+      )
+      .get() as any;
+
     return {
+      ai_cost_month: ai.oy,
+      ai_cost_today: aiToday.s,
+      ai_shops: ai.dokonlar,
+      ai_calls: ai.chaqiruvlar,
+      // Keshdan o'qilgan ulush. Pasayib ketsa xarajat ~2 barobar oshadi
+      // va buni boshqa hech narsa aytmaydi.
+      ai_cache_hit: ai.keshdan + ai.yangi > 0 ? Math.round((ai.keshdan * 100) / (ai.keshdan + ai.yangi)) : 0,
       shops: shops.c,
       active_shops: active.c,
       blocked: blocked.c,

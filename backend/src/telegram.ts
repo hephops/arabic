@@ -37,6 +37,10 @@ export async function callTelegram(method: string, payload: Record<string, unkno
 export const sendMessage = (chatId: number | string, text: string, extra: Record<string, unknown> = {}) =>
   callTelegram('sendMessage', { chat_id: chatId, text, parse_mode: 'HTML', ...extra });
 
+/** "yozmoqda..." belgisi — AI o'ylayotganda do'konchi jim qolmasin */
+export const sendChatAction = (chatId: number | string, action = 'typing') =>
+  callTelegram('sendChatAction', { chat_id: chatId, action });
+
 /* ─────────── Mini App avtorizatsiyasi (initData) ─────────── */
 
 // Telegram initData'ni tekshirish: https://core.telegram.org/bots/webapps#validating-data
@@ -299,6 +303,43 @@ const CUSTOMER_KEYS = {
 };
 
 
+
+/**
+ * Botdagi savolga AI yordamchi javob beradi.
+ *
+ * Model o'ylayotganda do'konchi jim ekranga qarab qolmasin — Telegram
+ * "yozmoqda..." belgisini ko'rsatamiz. AI o'chiq bo'lsa yoki javob
+ * bermasa, eski tushunarli xabar qaytadi: bot "buzildi" ko'rinmasin.
+ */
+async function aiReply(chatId: number, shopId: number, question: string) {
+  const fallback =
+    "Tushunolmadim 🤔\nQarz yozish uchun: «Karim akaga 120 ming so'm, shanbagacha»";
+  if (!question) {
+    await sendMessage(chatId, fallback, { reply_markup: miniAppKeyboard() });
+    return;
+  }
+  const { aiEnabled } = await import('./ai/config.js');
+  if (!aiEnabled()) {
+    await sendMessage(chatId, fallback, { reply_markup: miniAppKeyboard() });
+    return;
+  }
+  await sendChatAction(chatId, 'typing');
+  try {
+    const { ask } = await import('./ai/agent.js');
+    const r = await ask({ shopId, employeeId: null, question, channel: 'telegram' });
+    // Javob HTML sifatida yuboriladi, model matnida esa "<" yoki "&"
+    // bo'lishi mumkin — belgilanmasa Telegram xabarni umuman
+    // yubormaydi va do'konchi jim qolardi
+    await sendMessage(chatId, escapeHtml(r.text || fallback));
+  } catch (e: any) {
+    if (e?.code === 'daily_limit') {
+      await sendMessage(chatId, '⏳ Bugungi savol chegarangiz tugadi. Ertaga yana savol bera olasiz.');
+      return;
+    }
+    await sendMessage(chatId, fallback, { reply_markup: miniAppKeyboard() });
+  }
+}
+
 export async function handleUpdate(update: any) {
   const msg = update.message ?? update.edited_message;
   if (!msg) return;
@@ -467,12 +508,22 @@ export async function handleUpdate(update: any) {
     return;
   }
 
+  // AI yordamchi. Uchta yo'l bilan chaqiriladi:
+  //   /savol ... yoki /ai ...  — aniq buyruq
+  //   so'roq belgisi bilan tugasa — savol ekani ko'rinib turibdi
+  //   qarz yozuvi sifatida tushunilmasa — oxirgi chora
+  // Tartib muhim: savol belgisi qarz tahlilidan OLDIN tekshiriladi,
+  // aks holda "Cola 1.5 qancha turadi?" qarz yozuvi bo'lib qolardi.
+  const askCmd = /^\/(savol|ai|савол|вопрос)\b/i.test(text);
+  const question = askCmd ? text.replace(/^\/\S+\s*/, '').trim() : cleaned;
+  if (askCmd || /\?\s*$/.test(cleaned)) {
+    await aiReply(chatId, shop.id, question);
+    return;
+  }
+
   const parsed = parseDebtText(cleaned);
   if (!parsed) {
-    await sendMessage(
-      chatId,
-      "Tushunolmadim 🤔\nMasalan shunday yozing: «Karim akaga 120 ming so'm, shanbagacha»"
-    );
+    await aiReply(chatId, shop.id, cleaned);
     return;
   }
 

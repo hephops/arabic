@@ -100,6 +100,19 @@ export default function Dashboard({ onOpenShops }: { onOpenShops: () => void }) 
             <div className="sub">hali ishlatilmagan</div>
           </div>
         </div>
+        {/* AI — bizning xarajatimiz. Tushumdan qancha ulush olayotgani
+            ko'rinib tursin: kesh buzilsa raqam jimgina ikki barobar oshadi. */}
+        <div className="stat">
+          <AppIcon glyph="sparkle" size={38} />
+          <div className="txt">
+            <div className="k">AI xarajati (30 kun)</div>
+            <div className="v red">{fmt(s.ai_cost_month)}</div>
+            <div className="sub">
+              bugun {fmt(s.ai_cost_today)} · {s.ai_shops} do'kon · keshdan {s.ai_cache_hit}%
+              {s.ai_cache_hit > 0 && s.ai_cache_hit < 50 ? ' ⚠️' : ''}
+            </div>
+          </div>
+        </div>
       </div>
 
       <div className="panel">

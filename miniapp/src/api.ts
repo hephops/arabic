@@ -200,6 +200,16 @@ export const api = {
   updateEmployee: (id: number, data: { is_active?: number; name?: string; pin?: string; permissions?: PermKey[] }) =>
     request<Employee>(`/employees/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   referral: () => request<{ code: string; invited_count: number; reward_text: string }>('/referral'),
+
+  /* ── AI yordamchi ── */
+  aiStatus: () => request<AiStatus>('/ai/status'),
+  aiAsk: (question: string, deep = false) =>
+    request<{ text: string; chat_id: number; tools_used: string[] }>('/ai/ask', {
+      method: 'POST',
+      body: JSON.stringify({ question, deep }),
+    }),
+  aiHistory: () => request<AiMessage[]>('/ai/history'),
+  aiClear: () => request<{ ok: true }>('/ai/history', { method: 'DELETE' }),
   updateCustomer: (
     id: number,
     data: Partial<Pick<Customer, 'name' | 'phone' | 'language' | 'reminder_mode' | 'credit_limit' | 'is_blocked'>>
@@ -359,6 +369,23 @@ export interface PermCatalog {
   groups: { group: string; keys: PermKey[] }[];
   all: PermKey[];
   presets: Record<string, PermKey[]>;
+}
+
+/** AI yordamchining holati */
+export interface AiStatus {
+  enabled: boolean;
+  model: string;
+  daily_limit: number;
+  asked_today: number;
+  /** null — cheksiz */
+  left_today: number | null;
+}
+
+/** Suhbatdagi bitta xabar */
+export interface AiMessage {
+  role: 'user' | 'assistant';
+  text: string;
+  created_at: string;
 }
 
 /** Xodimning bitta kirishi */

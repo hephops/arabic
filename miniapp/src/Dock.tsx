@@ -40,6 +40,7 @@ const LAUNCHER_ITEMS: { key: string; glyph: string; color?: string; target: NavT
   { key: 'navExpenses', glyph: 'wallet', target: { sub: 'expenses' } },
   { key: 'navInventory', glyph: 'boxes', target: { sub: 'inventory' } },
   { key: 'navCatalog', glyph: 'sparkle', color: 'pink', target: { sub: 'catalog' } },
+  { key: 'navAi', glyph: 'sparkle', color: 'purple', target: { sub: 'ai' } },
   { key: 'navBalance', glyph: 'banknote', target: { tab: 'profile', profileView: 'balance' } },
   { key: 'navEmployees', glyph: 'employee', target: { tab: 'profile', profileView: 'employees' } },
   { key: 'navReferral', glyph: 'gift', target: { tab: 'profile', profileView: 'referral' } },
@@ -59,6 +60,7 @@ const SIDE_GROUPS: SideGroup[] = [
     { key: 'tabKassa', glyph: 'cart', target: { tab: 'kassa' } },
   ] },
   { title: 'sideTrade', items: [
+    { key: 'navAi', glyph: 'sparkle', color: 'purple', target: { sub: 'ai' } },
     { key: 'navCatalog', glyph: 'sparkle', color: 'pink', target: { sub: 'catalog' } },
     { key: 'navInventory', glyph: 'boxes', target: { sub: 'inventory' } },
     { key: 'navSuppliers', glyph: 'truck', target: { sub: 'suppliers' } },
