@@ -2,14 +2,20 @@
 //
 // NARX — asosiy cheklov. Do'konchi kuniga 3 300 so'm to'laydi (oyiga
 // ~100 000). AI xarajati shundan sezilarli ulush olmasligi kerak,
-// shuning uchun kundalik savollar HAIKU bilan ishlanadi:
+// shuning uchun kundalik savollar HAIKU bilan ishlanadi.
 //
-//   Haiku 4.5  ($1/$5 per 1M)  — bitta savol ~58 so'm
-//   Sonnet 5   ($3/$15)        — bitta chuqur tahlil ~210 so'm
+// HAQIQIY MODEL BILAN O'LCHANGAN (TZ dagi taxmin emas):
 //
-// Do'konchi kuniga 5 savol bersa oyiga ~15 000 so'm chiqadi — kunlik
-// to'lovning ~15%. Opus bilan bu raqam obunaning o'zidan oshib
-// ketardi, shuning uchun standart Haiku.
+//   Haiku 4.5  ($1/$5 per 1M)  — bitta savol ~100 so'm
+//   Sonnet 5   ($3/$15)        — bitta savol ~300 so'm
+//
+// TZ da 58 va 210 so'm deb taxmin qilingan edi; haqiqiy raqam ~1.7
+// barobar yuqori chiqdi, chunki har chaqiruvda 12 ta vositaning
+// ta'rifi (~1900 token) qaytadan yuboriladi va kesh ishlamaydi
+// (sababi agent.ts dagi izohda).
+//
+// Kuniga 5 savol -> ~500 so'm/kun -> ~15 000 so'm/oy, ya'ni 100 000
+// so'mlik obunaning ~15%i. Bu qabul qilsa bo'ladigan raqam.
 //
 // Modelni almashtirmoqchi bo'lsangiz .env orqali: AI_MODEL=claude-sonnet-5
 
@@ -55,8 +61,14 @@ export function costUzs(model: string, u: Usage): number {
   return Math.round(usd * USD);
 }
 
-/** Kuniga nechta savol. 0 — cheksiz. */
-export const DAILY_LIMIT = Number(process.env.AI_DAILY_LIMIT ?? 20);
+/**
+ * Kuniga nechta savol. 0 — cheksiz (tavsiya etilmaydi).
+ *
+ * 10 tanlandi: eng yomon holatda 10 × 100 = 1 000 so'm/kun, ya'ni
+ * 3 300 so'mlik kunlik to'lovning uchdan biri. 20 bo'lsa xarajat
+ * to'lovning uchdan ikkisiga chiqib ketardi.
+ */
+export const DAILY_LIMIT = Number(process.env.AI_DAILY_LIMIT ?? 10);
 
 /** Bitta savolda modelga necha marta murojaat qilinadi (vosita halqasi) */
 export const MAX_STEPS = Number(process.env.AI_MAX_STEPS ?? 6);

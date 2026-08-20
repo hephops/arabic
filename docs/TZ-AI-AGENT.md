@@ -448,6 +448,18 @@ shundan sezilarli ulush olmasligi kerak.
 | Suhbat tarixi | ~800 | |
 | Javob | ~400 | chiqish |
 
+> **YANGILANDI — haqiqiy model bilan o'lchandi.** Quyidagi hisob
+> taxmin edi; ishga tushirilgandan keyin o'lchangan raqamlar boshqacha
+> chiqdi: **Haiku ~100 so'm**, **Sonnet ~300 so'm** (taxmindan ~1.7
+> barobar yuqori). Sababi: kesh ishlamaydi — Haiku 4.5 da eng kichik
+> keshlanadigan uzunlik 4096 token, bizning "vositalar + ko'rsatma"
+> qismi esa 2604 token. Ataylab to'ldirilmadi: kesh yozish narxi
+> (1.25 barobar) do'konchining siyrak savollarida foyda bermaydi.
+> 2-bosqichda ish qiladigan vositalar qo'shilsa 4096 dan oshadi va
+> kesh o'zi ishlab ketadi.
+>
+> Shunga ko'ra kunlik chegara 20 dan **10** ga tushirildi.
+
 **Haiku 4.5** (`claude-haiku-4-5`, $1 / $5 per 1M):
 - kirish: 2 500 keshdan (~$0.00025) + 2 300 yangi (~$0.0023)
 - chiqish: 400 (~$0.002)

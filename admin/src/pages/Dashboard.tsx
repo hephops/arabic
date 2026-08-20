@@ -108,8 +108,13 @@ export default function Dashboard({ onOpenShops }: { onOpenShops: () => void }) 
             <div className="k">AI xarajati (30 kun)</div>
             <div className="v red">{fmt(s.ai_cost_month)}</div>
             <div className="sub">
-              bugun {fmt(s.ai_cost_today)} · {s.ai_shops} do'kon · keshdan {s.ai_cache_hit}%
-              {s.ai_cache_hit > 0 && s.ai_cache_hit < 50 ? ' ⚠️' : ''}
+              bugun {fmt(s.ai_cost_today)} · {s.ai_shops} do'kon · {s.ai_calls} chaqiruv
+              {/* Kesh hozir ishlamaydi: oldingi qism 2604 token, Haiku'da
+                  chegara 4096. Shuning uchun 0% — bu xato emas, kutilgan
+                  holat. Ogohlantirish faqat kesh BIR MARTA ishlab, keyin
+                  buzilgan bo'lsa chiqadi. */}
+              {s.ai_cache_hit > 0 && s.ai_cache_hit < 50 ? ' · keshdan ' + s.ai_cache_hit + '% ⚠️' : ''}
+              {s.ai_cache_hit >= 50 ? ' · keshdan ' + s.ai_cache_hit + '%' : ''}
             </div>
           </div>
         </div>

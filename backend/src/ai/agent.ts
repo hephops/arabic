@@ -28,10 +28,24 @@ function api(): Anthropic {
 /**
  * Tizim ko'rsatmasi.
  *
- * O'ZGARMAS bo'lishi shart — keshlanadi. Ichiga sana yoki do'kon nomi
- * qo'yilsa kesh har safar buziladi va xarajat ikki barobar oshadi.
- * O'zgaruvchi narsalar (bugungi sana, do'kon nomi) foydalanuvchi
- * xabariga qo'shiladi, ko'rsatmaga emas.
+ * O'ZGARMAS bo'lishi shart. O'zgaruvchi narsalar (bugungi sana, do'kon
+ * nomi) foydalanuvchi xabariga qo'shiladi, ko'rsatmaga emas.
+ *
+ * KESH HAQIDA — o'lchab ko'rilgan haqiqat. Haiku 4.5 da eng kichik
+ * keshlanadigan uzunlik 4096 token. Bizning "vositalar + ko'rsatma"
+ * qismi 2604 token — ya'ni kesh HOZIR ISHLAMAYDI, chaqiruvlar to'liq
+ * narxda ketadi (bitta savol ~75 so'm).
+ *
+ * Ataylab to'ldirmadik. Hisob shuni ko'rsatdi: 4096 gacha cho'zsak,
+ * birinchi chaqiruv keshga YOZADI (1.25 barobar narx = 5120 token),
+ * ikkinchisi o'qiydi (410) — jami 5530. To'ldirmasak esa 2×2604=5208.
+ * Ya'ni to'ldirish qimmatroq tushadi, chunki do'konchi kuniga bir-ikki
+ * savol beradi va 5 daqiqalik kesh muddati orasida ikkinchi savol
+ * kelmaydi.
+ *
+ * cache_control shundoq qoldirildi: 2-bosqichda ish qiladigan
+ * vositalar qo'shilsa oldingi qism 4096 dan oshadi va kesh O'ZI
+ * ishlab ketadi. O'shanda xarajat uch barobar tushadi.
  */
 const SYSTEM = `Sen BuySale ilovasining yordamchisisan. Foydalanuvchi — O'zbekistondagi kichik do'kon egasi yoki uning xodimi.
 
@@ -44,6 +58,13 @@ QANDAY GAPIRASAN
 
 QANDAY ISHLAYSAN
 - Raqam kerak bo'lsa ALBATTA vositadan ol. Xotirangdan yoki taxminan raqam AYTMA.
+- SAVOLGA SAVOL BILAN JAVOB BERMA. Vosita uchun kerak bo'lgan raqamni
+  (necha kun, nechta, qaysi davr) do'konchi aytmagan bo'lsa, o'zing
+  oqilona qiymat tanlab, darhol javob ber. Keyin bir og'iz qo'shib qo'y:
+  qaysi qiymatni olganingni va uni o'zgartirish mumkinligini.
+  Oqilona qiymatlar: srok — 30 kun, harakatsiz tovar — 30 kun,
+  davr — joriy kun, ro'yxat uzunligi — 10 ta.
+  Do'konchi kassada turibdi; unga savol emas, javob kerak.
 - Vosita bo'sh qaytarsa, "ma'lumot yo'q" deb ayt. To'qib chiqarma.
 - Bir savolga bir necha vosita kerak bo'lsa, hammasini chaqir, keyin javob ber.
 - Javobning oxirida imkoni bo'lsa BITTA aniq maslahat ber: nima qilish kerakligini.
