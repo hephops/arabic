@@ -14,6 +14,14 @@ import { haptic, setBackButton } from '../telegram';
 // tayyor savollar turadi: birinchi marta kirganda "nima so'rashim
 // mumkin?" degan savol tug'ilmasin.
 
+/** Suhbatdagi tasdiqlash kartasi: qaysi xabardan keyin turishi — `at` */
+type DraftCard = { at: number; id: number; items: AiDraftItem[] };
+
+// Bazadan tiklangan karta suhbatning OXIRIDA turadi: u qaysi xabardan
+// keyin chiqqani endi ma'lum emas, do'konchi esa uni darrov ko'rishi
+// kerak — tovar hali omborga tushmagan.
+const TAIL = Number.MAX_SAFE_INTEGER;
+
 const SUGGESTIONS = [
   { key: 'aiQ1', q: "Bugungi savdo va foyda qancha?" },
   { key: 'aiQ2', q: "Qaysi tovarlarning srogi yaqin?" },
@@ -109,15 +117,52 @@ export default function Ai({ onBack }: { onBack: () => void }) {
   // Hozir qaysi vosita ishlayapti — kutish jonli ko'rinsin
   const [statusTool, setStatusTool] = useState('');
   const endRef = useRef<HTMLDivElement>(null);
+  // Suhbatdagi tasdiqlash kartalari: qaysi xabardan keyin turishi
+  const [drafts, setDrafts] = useState<DraftCard[]>([]);
+
+  /**
+   * Kartani ro'yxatga qo'shish.
+   *
+   * Bitta taklif ikki yo'ldan kelishi mumkin: oqimdagi `draft` hodisasi
+   * va bazadagi 'pending' ro'yxati. Ilova ochilgan zahoti ikkalasi
+   * ustma-ust tushib, ekranda bir xil karta ikki marta turib qolardi —
+   * shuning uchun id bo'yicha ikkinchisi tashlanadi.
+   */
+  function addDrafts(list: DraftCard[]) {
+    setDrafts((d) => [...d, ...list.filter((n) => !d.some((x) => x.id === n.id))]);
+  }
+
+  /**
+   * Karta tasdiqlandi.
+   *
+   * Karta ekrandan OLIB TASHLANMAYDI — o'z o'rnida "omborga tushdi"
+   * ko'rinishiga o'tadi. Do'konchi qaysi karta bajarilganini o'sha
+   * joyning o'zida ko'rishi kerak; ro'yxatdan yo'q qilib yuborilsa,
+   * suhbat pastga siljib ketgan paytda hech qanday iz qolmasdi.
+   * Bekor qilingani ham xuddi shunday joyida qoladi.
+   *
+   * Qayta kirilganda qaytmasligini baza hal qiladi: taklif endi
+   * 'pending' emas, ya'ni /ai/intake/pending uni bermaydi.
+   */
+  function draftDone(_id: number, txt: string) {
+    setMsgs((m) => [...m, { role: 'assistant', text: txt, created_at: '' }]);
+  }
 
   useEffect(() => {
     api.aiHistory().then(setMsgs).catch(loadFailed);
     api.aiStatus().then(setStatus).catch(loadFailed);
+    // Tarix bilan birga tasdiqlanmagan takliflar ham qaytariladi:
+    // do'konchi kartadan chiqib ketgan bo'lsa ham tovar omborga hali
+    // tushmagan. Xatosi ko'rsatilmaydi — suhbatning o'zi baribir ishlaydi.
+    api
+      .aiIntakePending()
+      .then((list) => addDrafts(list.map((p) => ({ at: TAIL, id: p.id, items: p.items }))))
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [msgs.length, busy]);
+  }, [msgs.length, busy, drafts.length]);
 
   async function send(q: string, img?: string | null) {
     const question = q.trim();
@@ -167,7 +212,7 @@ export default function Ai({ onBack }: { onBack: () => void }) {
           else if (e.type === 'error') push((acc ? '\n\n' : '') + e.message);
           else if (e.type === 'draft') {
             // Karta javob matnidan keyin turadi
-            setDrafts((d) => [...d, { at: msgs.length + 1, id: e.draft_id, items: e.items }]);
+            addDrafts([{ at: msgs.length + 1, id: e.draft_id, items: e.items }]);
           }
         },
         pic ?? undefined
@@ -216,8 +261,6 @@ export default function Ai({ onBack }: { onBack: () => void }) {
     };
   }, [zoom, onBack]);
   const fileRef = useRef<HTMLInputElement>(null);
-  // Suhbatdagi tasdiqlash kartalari: qaysi xabardan keyin turishi
-  const [drafts, setDrafts] = useState<{ at: number; id: number; items: AiDraftItem[] }[]>([]);
 
   /**
    * Chegara qachon ogohlantirsin.
@@ -339,27 +382,17 @@ export default function Ai({ onBack }: { onBack: () => void }) {
               {drafts
                 .filter((d) => d.at === i)
                 .map((d) => (
-                  <AiDraft
-                    key={d.id}
-                    draftId={d.id}
-                    items={d.items}
-                    onDone={(txt) => setMsgs((m) => [...m, { role: 'assistant', text: txt, created_at: '' }])}
-                  />
+                  <AiDraft key={d.id} draftId={d.id} items={d.items} onDone={(txt) => draftDone(d.id, txt)} />
                 ))}
             </div>
           );
         })}
 
-        {/* Oxirgi javobdan keyin kelgan kartalar */}
+        {/* Oxirgi javobdan keyin kelgan va bazadan tiklangan (at = TAIL) kartalar */}
         {drafts
           .filter((d) => d.at >= shown.length)
           .map((d) => (
-            <AiDraft
-              key={d.id}
-              draftId={d.id}
-              items={d.items}
-              onDone={(txt) => setMsgs((m) => [...m, { role: 'assistant', text: txt, created_at: '' }])}
-            />
+            <AiDraft key={d.id} draftId={d.id} items={d.items} onDone={(txt) => draftDone(d.id, txt)} />
           ))}
 
         {busy && (

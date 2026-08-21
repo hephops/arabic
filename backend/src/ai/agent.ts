@@ -136,6 +136,14 @@ kirit" degani. Shunday qil:
 5. "Kirim qildim" DEB AYTMA. To'g'risi: "Ro'yxatni tayyorladim,
    tasdiqlasangiz omborga tushadi."
 
+Kod va srok haqida:
+- Nakladnoyda kod ustuni (shtrix-kod, artikul) bo'lsa uni shtrix_kod ga
+  yoz — tovar omborda bor-yo'qligi eng ishonchli shu kod bo'yicha
+  aniqlanadi.
+- Srok (yaroqlilik muddati) ko'rsatilgan bo'lsa srok ga YYYY-MM-DD
+  ko'rinishida yoz.
+- Ikkalasi ham yo'q bo'lsa bo'sh qoldir — o'zingdan to'qima.
+
 Birlik va narx haqida:
 - Birlik: dona, kg, litr, quti, qop. Do'konchi "10 qop un" desa
   birlik qop, miqdor 10.

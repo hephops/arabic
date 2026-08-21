@@ -284,6 +284,37 @@ export function registerAiRoutes(app: FastifyInstance, opts: { requireAi: Guard;
     }
   );
 
+  /**
+   * Tasdiqlanmagan ("pending") takliflar.
+   *
+   * Do'konchi kartadan chiqib ketsa yoki ilovani yopib qo'ysa, taklif
+   * bazada turgani holda ekrandan yo'qolib ketardi va suratni qaytadan
+   * yuborishga to'g'ri kelardi. Ilova ochilganda shu yo'ldan o'qib,
+   * kartani joyiga qaytaradi.
+   */
+  app.get('/ai/intake/pending', { preHandler: opts.requireAi }, async (req) => {
+    const rows = db
+      .prepare(
+        `SELECT id, items, created_at FROM ai_intake_drafts
+         WHERE shop_id = ? AND status = 'pending'
+           AND ((employee_id IS NULL AND ? IS NULL) OR employee_id = ?)
+         ORDER BY id LIMIT 5`
+      )
+      .all(req.shopId, req.employeeId, req.employeeId) as any[];
+
+    const out: any[] = [];
+    for (const d of rows) {
+      // Bitta buzilgan yozuv butun ro'yxatni yiqitmasin — qolganlari
+      // baribir ekranga chiqishi kerak
+      try {
+        out.push({ id: d.id, items: JSON.parse(d.items), created_at: d.created_at });
+      } catch {
+        /* o'qib bo'lmadi — o'tkazib yuboramiz */
+      }
+    }
+    return out;
+  });
+
   /** Saqlangan kirim taklifini o'qish */
   app.get<{ Params: { id: string } }>('/ai/intake/:id', { preHandler: opts.requireAi }, async (req, reply) => {
     const d = db
@@ -336,9 +367,16 @@ export function registerAiRoutes(app: FastifyInstance, opts: { requireAi: Guard;
             name,
             unit: String(r?.birlik ?? '') || undefined,
             qty,
-            cost_price: Number(r?.kirim_narxi) || 0,
-            sell_price: Number(r?.sotuv_narxi) || 0,
+            // Narx o'qilmagan bo'lsa YUBORILMAYDI: /products/intake
+            // nol kelsa uni haqiqiy narx deb yozib, ombordagi eski
+            // narxni o'chirib yuborardi
+            cost_price: Number(r?.kirim_narxi) || undefined,
+            sell_price: Number(r?.sotuv_narxi) || undefined,
             expiry_date: /^\d{4}-\d{2}-\d{2}$/.test(String(r?.srok ?? '')) ? String(r.srok) : undefined,
+            // Kod bo'lsa tovar avval SHU kod bo'yicha qidiriladi va
+            // yangi tovarga darhol biriktiriladi — keyin skaner bilan
+            // sotiladi
+            barcode: String(r?.shtrix_kod ?? '').trim() || undefined,
           },
         });
         if (res.statusCode === 200) {

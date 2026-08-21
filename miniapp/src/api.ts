@@ -233,11 +233,24 @@ export const api = {
     // u holda nuqtalar abadiy aylanaverardi. Shu sababli qorovul qo'yamiz:
     // STALL_MS davomida bitta ham bo'lak kelmasa yoki umumiy vaqt
     // TOTAL_MS dan oshsa, so'rovni uzib, tushunarli xato beramiz.
-    const STALL_MS = 45_000;
-    const TOTAL_MS = 100_000;
+    //
+    // Lekin YUKLASH bosqichi alohida hisoblanadi. Nakladnoy surati
+    // telefondan chiqib ketguncha sekin aloqada bir necha daqiqa ketishi
+    // mumkin va o'sha paytda serverdan bitta ham bayt kelmaydi. Ilgari
+    // jimlik soati so'rov boshlanishi bilan yurar edi va hammasi joyida
+    // bo'la turib "Aloqa uzilib qoldi" chiqib qolardi. Endi yuklashga
+    // UPLOAD_MS beriladi (javob sarlavhalari kelguncha), jimlik soati
+    // esa faqat shundan keyin boshlanadi.
+    //
+    // Javob boshlangach server har 15 soniyada ": ping" yozib turadi,
+    // ya'ni tirik ulanishda jimlik deyarli bo'lmaydi — bu qorovul
+    // chindan o'lgan ulanish uchun, sekin ishlagani uchun emas.
+    const UPLOAD_MS = 120_000;
+    const STALL_MS = 60_000;
+    const TOTAL_MS = 180_000;
     const ac = new AbortController();
     let stalled = false;
-    let watch = setTimeout(() => { stalled = true; ac.abort(); }, STALL_MS);
+    let watch = setTimeout(() => { stalled = true; ac.abort(); }, UPLOAD_MS);
     const total = setTimeout(() => { stalled = true; ac.abort(); }, TOTAL_MS);
     const kick = () => { clearTimeout(watch); watch = setTimeout(() => { stalled = true; ac.abort(); }, STALL_MS); };
     const stop = () => { clearTimeout(watch); clearTimeout(total); };
@@ -254,6 +267,9 @@ export const api = {
       stop();
       throw new Error(stalled ? translate('aiStalled') : translate('gatewayError'));
     }
+    // Sarlavhalar keldi — demak surat serverga yetib bordi: shu yerdan
+    // boshlab qorovul qisqaroq, jimlik soatiga o'tadi
+    kick();
     if (!res.ok || !res.body) {
       stop();
       const body: any = await res.json().catch(() => ({}));
@@ -300,6 +316,8 @@ export const api = {
       '/ai/intake/confirm',
       { method: 'POST', body: JSON.stringify({ draft_id, items }) }
     ),
+  /** Hali tasdiqlanmagan takliflar — ilova ochilganda kartalar joyiga qaytadi */
+  aiIntakePending: () => request<AiPendingDraft[]>('/ai/intake/pending'),
   aiIntakeCancel: (draft_id: number) =>
     request<{ ok: true }>('/ai/intake/cancel', { method: 'POST', body: JSON.stringify({ draft_id }) }),
   updateCustomer: (
@@ -475,7 +493,7 @@ export interface AiStatus {
   price: number;
 }
 
-/** Oqimdan keladigan hodisa */
+/** Kirim taklifidagi bitta qator */
 export interface AiDraftItem {
   nom: string;
   miqdor: number;
@@ -483,10 +501,26 @@ export interface AiDraftItem {
   kirim_narxi: number;
   sotuv_narxi: number;
   srok: string;
+  /** skaner o'qiydigan kod: nakladnoyda bo'lmasa do'konchi o'zi qo'shadi */
+  shtrix_kod?: string;
+  /* Quyidagilarni vosita ombordan topib qo'shadi — faqat ko'rsatish
+     uchun. Do'konchi tovar allaqachon borligini tasdiqlashdan OLDIN
+     bilishi kerak, aks holda ikkinchi nusxa ochilib ketardi. */
   omborda_bor?: boolean;
+  mavjud_id?: number | null;
   eski_birlik?: string | null;
+  eski_sotuv_narxi?: number | null;
+  eski_qoldiq?: number | null;
 }
 
+/** Tasdiqlanmagan taklif — ekrandan chiqilsa ham bazada turaveradi */
+export interface AiPendingDraft {
+  id: number;
+  items: AiDraftItem[];
+  created_at: string;
+}
+
+/** Oqimdan keladigan hodisa */
 export type AiEvent =
   | { type: 'status'; tool: string }
   | { type: 'text'; delta: string }

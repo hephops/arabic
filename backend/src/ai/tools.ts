@@ -10,6 +10,7 @@
 
 import { db } from '../db.js';
 import { dailyPrice } from '../billing.js';
+import { barcodeVariants } from '../barcodes.js';
 
 export interface ToolDef {
   name: string;
@@ -602,6 +603,41 @@ TOOLS.push({
 });
 
 /**
+ * Nomni solishtirish uchun soddalashtirilgan shakli: kichik harf, faqat
+ * harf va raqam, ortiqcha bo'shliqsiz. Apostrofning har xil belgilari
+ * ham tushib qoladi — "Yog'" va "Yogʻ" bitta tovar.
+ */
+const simpleName = (s: string) =>
+  String(s ?? '')
+    .toLowerCase()
+    .replace(/[\u02B9-\u02BF\u2018\u2019']/g, '')
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .trim();
+
+/**
+ * Kod bo'yicha ombordagi tovar — ilovaning o'z qidiruvi bilan bir xil:
+ * ham products.barcode, ham qo'shimcha kodlar jadvali (bitta tovarning
+ * bir necha kodi bo'ladi), kodning barcha teng ko'rinishlari bo'yicha
+ * (12/13/14 xonali kod — o'sha tovar).
+ */
+function stockByBarcode(shopId: number, code: string): any {
+  const variants = barcodeVariants(code);
+  if (!variants.length) return null;
+  const marks = variants.map(() => '?').join(',');
+  return (
+    db
+      .prepare(
+        `SELECT p.id, p.name, p.unit, p.sell_price, p.stock FROM products p
+         WHERE p.shop_id = ? AND (
+           REPLACE(REPLACE(UPPER(TRIM(p.barcode)), ' ', ''), '-', '') IN (${marks})
+           OR p.id IN (SELECT product_id FROM product_barcodes WHERE shop_id = ? AND barcode IN (${marks}))
+         ) LIMIT 1`
+      )
+      .get(shopId, ...variants, shopId, ...variants) ?? null
+  );
+}
+
+/**
  * Rasmdan o'qilgan kirimni TAKLIF qilish.
  *
  * DIQQAT: bu vosita omborga hech narsa yozmaydi. U faqat ro'yxatni
@@ -621,7 +657,9 @@ TOOLS.push({
     "Rasmdan yoki matndan o'qilgan tovarlar ro'yxatini KIRIM TAKLIFI sifatida saqlaydi. " +
     "Omborga yozmaydi — do'konchi tasdiqlashi kerak. " +
     "Har tovarga nom va miqdor SHART. Narx yoki birlik noaniq bo'lsa bo'sh qoldir " +
-    "va javobingda do'konchidan so'ra.",
+    "va javobingda do'konchidan so'ra. " +
+    "Nakladnoyda kod (shtrix-kod yoki artikul) ustuni bo'lsa uni ham o'qi — " +
+    "tovar omborda bor-yo'qligi eng ishonchli shu kod bo'yicha aniqlanadi.",
   input_schema: {
     type: 'object',
     properties: {
@@ -637,8 +675,9 @@ TOOLS.push({
             kirim_narxi: { type: 'number', description: "bir birlik uchun. Bilmasang 0" },
             sotuv_narxi: { type: 'number', description: "bir birlik uchun. Bilmasang 0" },
             srok: { type: 'string', description: 'YYYY-MM-DD yoki bo\'sh satr' },
+            shtrix_kod: { type: 'string', description: "nakladnoydagi shtrix-kod yoki artikul raqami, bo'lmasa bo'sh satr" },
           },
-          required: ['nom', 'miqdor', 'birlik', 'kirim_narxi', 'sotuv_narxi', 'srok'],
+          required: ['nom', 'miqdor', 'birlik', 'kirim_narxi', 'sotuv_narxi', 'srok', 'shtrix_kod'],
           additionalProperties: false,
         },
       },
@@ -656,23 +695,59 @@ TOOLS.push({
         kirim_narxi: Math.max(0, Math.round(Number(r?.kirim_narxi) || 0)),
         sotuv_narxi: Math.max(0, Math.round(Number(r?.sotuv_narxi) || 0)),
         srok: /^\d{4}-\d{2}-\d{2}$/.test(String(r?.srok ?? '')) ? String(r.srok) : '',
+        // Kod skanerdan o'tishi kerak: nakladnoyda u tire, probel yoki
+        // qavs bilan yozilgan bo'lishi mumkin, bazada esa faqat harf va
+        // raqam, bosh harflarda turadi
+        shtrix_kod: String(r?.shtrix_kod ?? '').replace(/[^0-9A-Za-z]/g, '').toUpperCase().slice(0, 32),
       }))
       .filter((r: any) => r.nom && r.miqdor > 0);
 
     if (!items.length) return { bajarilmadi: "Ro'yxat bo'sh yoki nom/miqdor o'qilmadi" };
 
+    // Soddalashtirilgan nomlar jadvali bir marta yig'iladi: har qator
+    // uchun butun omborni qayta o'qib chiqmaslik uchun.
+    const bySimple = new Map<string, any>();
+    for (const p of db
+      .prepare('SELECT id, name, unit, sell_price, stock FROM products WHERE shop_id = ?')
+      .all(shopId) as any[]) {
+      const key = simpleName(p.name);
+      if (!key) continue;
+      // Ikki tovar bir xil soddalashsa — ikkalasi ham tashlab
+      // yuboriladi. Noto'g'ri tovarning qoldig'ini oshirgandan ko'ra
+      // "yangi" deb ko'rsatgan zararsiz.
+      bySimple.set(key, bySimple.has(key) ? null : p);
+    }
+
+    // Ombordagi mosini topamiz — do'konchi qaysi qator yangi, qaysi
+    // biri allaqachon bor ekanini ko'rib tursin
+    const known = items.map((r: any) => {
+      const p =
+        (r.shtrix_kod ? stockByBarcode(shopId, r.shtrix_kod) : null) ??
+        (db
+          .prepare('SELECT id, name, unit, sell_price, stock FROM products WHERE shop_id = ? AND name = ? COLLATE NOCASE')
+          .get(shopId, r.nom) as any) ??
+        bySimple.get(simpleName(r.nom)) ??
+        null;
+      return {
+        ...r,
+        // Nakladnoyda sotuv narxi ko'pincha yozilmaydi, ombordagi
+        // tovarda esa turibdi — do'konchi uni qo'lda qayta yozib
+        // o'tirmasin. Kirim narxiga bu tegishli emas: u har partiyada
+        // o'zgaradi va faqat nakladnoydan olinadi.
+        sotuv_narxi: r.sotuv_narxi || (p?.sell_price ?? 0),
+        omborda_bor: !!p,
+        mavjud_id: p?.id ?? null,
+        eski_birlik: p?.unit ?? null,
+        eski_sotuv_narxi: p?.sell_price ?? null,
+        eski_qoldiq: p?.stock ?? null,
+      };
+    });
+
+    // Belgilari bilan birga saqlanadi: do'konchi kartadan chiqib qayta
+    // kirsa (GET /ai/intake/pending) karta o'sha ko'rinishda qaytadi.
     const info = db
       .prepare("INSERT INTO ai_intake_drafts (shop_id, items) VALUES (?, ?)")
-      .run(shopId, JSON.stringify(items));
-
-    // Nomlari bo'yicha ombordagi mosini topamiz — do'konchi yangi
-    // tovarmi yoki bormi, ko'rib tursin
-    const known = items.map((r: any) => {
-      const p = db
-        .prepare('SELECT id, name, unit, cost_price, sell_price FROM products WHERE shop_id = ? AND name = ? COLLATE NOCASE')
-        .get(shopId, r.nom) as any;
-      return { ...r, omborda_bor: !!p, eski_birlik: p?.unit ?? null };
-    });
+      .run(shopId, JSON.stringify(known));
 
     return {
       taklif_id: Number(info.lastInsertRowid),
