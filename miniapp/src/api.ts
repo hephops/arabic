@@ -498,6 +498,9 @@ export type AiEvent =
 export interface AiMessage {
   role: 'user' | 'assistant';
   text: string;
+  /** yuborilgan surat: serverdan "/uploads/..." keladi, endigina
+      yuborilganda esa ekranda darhol ko'rinishi uchun "data:..." */
+  image_url?: string | null;
   created_at: string;
 }
 

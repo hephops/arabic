@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { api, fmt, AiMessage, AiStatus, AiDraftItem } from '../api';
+import { api, fmt, BASE, AiMessage, AiStatus, AiDraftItem } from '../api';
 import AiDraft from './AiDraft';
 import { AppIcon, Glyph } from '../icons';
 import { SubHeader } from '../ui';
@@ -128,7 +128,11 @@ export default function Ai({ onBack }: { onBack: () => void }) {
     setText('');
     // Savol darhol ekranga chiqadi — javob kutilayotgani bilinib tursin
     setPhoto(null);
-    setMsgs((m) => [...m, { role: 'user', text: pic ? `🖼 ${question}` : question, created_at: '' }]);
+    // Surat pufakchaning ichida darhol ko'rinadi: pic — telefonda
+    // kichraytirilgan "data:image/jpeg;base64,..." satri, uni serverdan
+    // kutish shart emas. Sahifa qayta yuklanganda o'sha xabar tarixdan
+    // "/uploads/..." yo'li bilan keladi — <img src> ikkalasini ham tushunadi.
+    setMsgs((m) => [...m, { role: 'user', text: question, image_url: pic ?? null, created_at: '' }]);
     setBusy(true);
     setStatusTool('');
     // Javob bo'lak-bo'lak keladi.
@@ -187,6 +191,9 @@ export default function Ai({ onBack }: { onBack: () => void }) {
   const [warnHidden, setWarnHidden] = useState(false);
   // Yuborilishi kutilayotgan surat (data URL) va uning ko'rinishi
   const [photo, setPhoto] = useState<string | null>(null);
+  // To'liq ekranda ochilgan surat: nakladnoydagi mayda yozuvni
+  // pufakchadagi kichik rasmdan o'qib bo'lmaydi
+  const [zoom, setZoom] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   // Suhbatdagi tasdiqlash kartalari: qaysi xabardan keyin turishi
   const [drafts, setDrafts] = useState<{ at: number; id: number; items: AiDraftItem[] }[]>([]);
@@ -223,6 +230,12 @@ export default function Ai({ onBack }: { onBack: () => void }) {
     setMsgs([]);
     toast.info(t('aiCleared'));
   }
+
+  // Ekranga chiqadigan xabarlar. Matnsiz, faqat suratli xabar ham
+  // ko'rinishi kerak. Tasdiqlash kartalari SHU ro'yxatdagi indeksga
+  // qarab joylashadi (d.at), shuning uchun ro'yxat bitta joyda
+  // hisoblanadi — pastdagi ikki filtr ayrilib qolmasin.
+  const shown = msgs.filter((m) => m.text || m.image_url);
 
   if (status && !status.enabled) {
     return (
@@ -261,35 +274,56 @@ export default function Ai({ onBack }: { onBack: () => void }) {
           </div>
         )}
 
-        {msgs.filter((m) => m.text).map((m, i) => (
-          <div key={i} className={`ai-msg-wrap ${m.role}`}>
-            <div className={`ai-msg ${m.role}`}>{m.text}</div>
-            {/* Javobni bir bosishda Telegramga o'tkazish. Yordamchi
-                buni gap bilan ham qila oladi, lekin do'konchi bunday
-                imkoniyat borligini bilishi kerak — tugma ko'rinib
-                tursin. */}
-            {m.role === 'assistant' && m.text.length > 40 && (
-              <button className="ai-send-tg" onClick={() => sendToTelegram(m.text, i)}>
-                <Glyph name={tgSent === i ? 'check' : 'send'} size={13} color="var(--accent)" />{' '}
-                {tgSent === i ? t('aiTgDone') : t('aiToTelegram')}
-              </button>
-            )}
-            {drafts
-              .filter((d) => d.at === i)
-              .map((d) => (
-                <AiDraft
-                  key={d.id}
-                  draftId={d.id}
-                  items={d.items}
-                  onDone={(txt) => setMsgs((m) => [...m, { role: 'assistant', text: txt, created_at: '' }])}
-                />
-              ))}
-          </div>
-        ))}
+        {shown.map((m, i) => {
+          // "data:" — endigina yuborilgan surat, qolgani serverdagi fayl
+          const img = m.image_url
+            ? m.image_url.startsWith('data:')
+              ? m.image_url
+              : BASE + m.image_url
+            : null;
+          return (
+            <div key={i} className={`ai-msg-wrap ${m.role}`}>
+              <div className={`ai-msg ${m.role}${img ? ' with-img' : ''}`}>
+                {img && (
+                  <img
+                    className="ai-msg-img"
+                    src={img}
+                    alt=""
+                    loading="lazy"
+                    onClick={() => setZoom(img)}
+                  />
+                )}
+                {/* Matn bo'sh bo'lsa (faqat surat yuborilgan) hech narsa
+                    chizilmaydi — pufakchada ortiqcha joy qolmasin */}
+                {m.text && <span className="ai-msg-txt">{m.text}</span>}
+              </div>
+              {/* Javobni bir bosishda Telegramga o'tkazish. Yordamchi
+                  buni gap bilan ham qila oladi, lekin do'konchi bunday
+                  imkoniyat borligini bilishi kerak — tugma ko'rinib
+                  tursin. */}
+              {m.role === 'assistant' && m.text.length > 40 && (
+                <button className="ai-send-tg" onClick={() => sendToTelegram(m.text, i)}>
+                  <Glyph name={tgSent === i ? 'check' : 'send'} size={13} color="var(--accent)" />{' '}
+                  {tgSent === i ? t('aiTgDone') : t('aiToTelegram')}
+                </button>
+              )}
+              {drafts
+                .filter((d) => d.at === i)
+                .map((d) => (
+                  <AiDraft
+                    key={d.id}
+                    draftId={d.id}
+                    items={d.items}
+                    onDone={(txt) => setMsgs((m) => [...m, { role: 'assistant', text: txt, created_at: '' }])}
+                  />
+                ))}
+            </div>
+          );
+        })}
 
         {/* Oxirgi javobdan keyin kelgan kartalar */}
         {drafts
-          .filter((d) => d.at >= msgs.filter((m) => m.text).length)
+          .filter((d) => d.at >= shown.length)
           .map((d) => (
             <AiDraft
               key={d.id}
@@ -321,6 +355,13 @@ export default function Ai({ onBack }: { onBack: () => void }) {
         )}
 
       </div>
+
+      {/* Kattalashtirilgan surat — qayerga bosilsa ham yopiladi */}
+      {zoom && (
+        <div className="ai-zoom" onClick={() => setZoom(null)} role="button" aria-label={t('close')}>
+          <img src={zoom} alt="" />
+        </div>
+      )}
 
       {/* Chegara oynasi — ko'rsatkich bosilganda ochiladi */}
       {quotaOpen && status && (

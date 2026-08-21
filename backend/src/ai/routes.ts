@@ -4,7 +4,7 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { db } from '../db.js';
 import { getSetting } from '../billing.js';
 import { can } from '../auth.js';
-import { ask, askStream, AiError, spend, purgeOld, type AiEvent } from './agent.js';
+import { ask, askStream, AiError, spend, purgeOld, dropChatImages, type AiEvent } from './agent.js';
 import { KEEP_DAYS, aiEnabled, aiKey, model as aiModel, dailyLimit, questionPrice } from './config.js';
 
 type Guard = (req: FastifyRequest, reply: FastifyReply) => Promise<unknown>;
@@ -365,11 +365,15 @@ export function registerAiRoutes(app: FastifyInstance, opts: { requireAi: Guard;
       )
       .get(req.shopId, req.employeeId, req.employeeId) as any;
     if (!chat) return [];
-    // Faqat ko'rinadigan matn: vosita chaqiruvlari ekranda kerak emas
+    // Faqat ko'rinadigan narsa: vosita chaqiruvlari ekranda kerak emas.
+    // Ular ham matnsiz saqlanadi (saveMsg(..., results, '')), lekin
+    // surati yo'q — shuning uchun image_url sharti ularni ochib
+    // qo'ymaydi. Matnsiz, faqat suratli xabar esa endi ko'rinadi.
     return db
       .prepare(
-        `SELECT role, text, created_at FROM ai_messages
-         WHERE chat_id = ? AND text IS NOT NULL AND text != '' ORDER BY id LIMIT 100`
+        `SELECT role, text, image_url, created_at FROM ai_messages
+         WHERE chat_id = ? AND ((text IS NOT NULL AND text != '') OR image_url IS NOT NULL)
+         ORDER BY id LIMIT 100`
       )
       .all(chat.id);
   });
@@ -383,6 +387,9 @@ export function registerAiRoutes(app: FastifyInstance, opts: { requireAi: Guard;
       )
       .all(req.shopId, req.employeeId, req.employeeId) as any[];
     for (const c of chats) {
+      // Suhbat bilan birga uning suratlari ham ketsin — do'konchi
+      // "tozaladim" degandan keyin nakladnoyi diskda qolib ketmasin
+      dropChatImages(c.id);
       db.prepare('DELETE FROM ai_messages WHERE chat_id = ?').run(c.id);
       db.prepare('DELETE FROM ai_chats WHERE id = ?').run(c.id);
     }

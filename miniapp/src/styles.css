@@ -2117,6 +2117,37 @@ button.link { background: none; color: var(--accent); font-size: 15px; font-weig
 .ai-msg.user { margin-left: auto; background: var(--accent); color: #fff; border-bottom-right-radius: 5px; }
 .ai-msg.assistant { margin-right: auto; background: var(--card); border-bottom-left-radius: 5px; }
 
+/* Suratli pufakcha — Telegramdagidek: rasm pufakchaning ichida,
+   matn uning ostida. Ichki bo'shliq ingichka ramkaga aylanadi,
+   aks holda rasm atrofida keraksiz bo'sh joy qolardi. */
+/* min-width — surat yuklanguncha pufakcha ip-ingichka bo'lib turib,
+   keyin sakrab kengayib ketmasligi uchun */
+.ai-msg.with-img { padding: 5px; min-width: 200px; }
+.ai-msg.with-img .ai-msg-txt { display: block; padding: 4px 8px 4px; }
+.ai-msg-img {
+  display: block; width: 100%; max-width: 100%;
+  /* Nakladnoy suratlari baland bo'ladi — cheklamasak bitta xabar
+     butun ekranni egallab, suhbat ko'rinmay qoladi. To'liq holi
+     bosilganda ochiladi. */
+  max-height: 260px; object-fit: cover;
+  border-radius: 12px; cursor: zoom-in;
+}
+
+/* Suratni to'liq ekranda ko'rish. Nakladnoydagi mayda yozuvni
+   pufakchadagi kichik rasmdan o'qib bo'lmaydi. */
+.ai-zoom {
+  position: fixed; inset: 0; z-index: 210;
+  background: rgba(0, 0, 0, 0.92);
+  display: flex; align-items: center; justify-content: center;
+  padding: 8px; cursor: zoom-out;
+  animation: sheetFade 0.18s ease-out;
+}
+/* Deyarli butun ekranni egallasin: nakladnoy qanchalik katta ko'rinsa,
+   yozuvni shunchalik oson o'qiydi. Telefonda ustidan barmoq bilan
+   kattalashtirish ham ishlaydi — sahifada user-scalable to'sib
+   qo'yilmagan. */
+.ai-zoom img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 8px; }
+
 /* Xabar va uning ostidagi tugma bitta ustunda turadi */
 .ai-msg-wrap { display: flex; flex-direction: column; }
 .ai-msg-wrap.user { align-items: flex-end; }

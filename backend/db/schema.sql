@@ -468,6 +468,10 @@ CREATE TABLE IF NOT EXISTS ai_messages (
   content TEXT NOT NULL,
   -- Do'konchi ko'radigan sof matn (vositasiz)
   text TEXT,
+  -- Do'konchi yuborgan surat qaysi faylga tushgani (/uploads/...).
+  -- Suratning o'zi content ga yozilmaydi — base64 megabaytlab joy
+  -- egallaydi; ekranda ko'rsatish uchun shu yo'l yetarli.
+  image_url TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_ai_messages_chat ON ai_messages(chat_id, id);

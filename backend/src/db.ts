@@ -130,6 +130,9 @@ for (const sql of [
   // Xodimning shaxsiy ruxsatlari. Eski xodimlarda NULL qoladi va
   // "sotuvchi" to'plami sifatida o'qiladi — ishlari buzilmaydi.
   'ALTER TABLE employees ADD COLUMN permissions TEXT',
+  // AI suhbatiga yuborilgan surat qaysi faylda. Ilgari faqat matnga
+  // "🖼" qo'yilardi va do'konchi o'zi nima yuborganini ko'ra olmasdi.
+  'ALTER TABLE ai_messages ADD COLUMN image_url TEXT',
 ]) {
   try {
     db.exec(sql);

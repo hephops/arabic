@@ -10,9 +10,19 @@
 // ekanini kafolatlash.
 
 import Anthropic from '@anthropic-ai/sdk';
+import { writeFileSync, unlinkSync } from 'node:fs';
+import { join, dirname, basename } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { randomBytes } from 'node:crypto';
 import { db } from '../db.js';
 import { TOOL_BY_NAME, toolSchemas, ACTION_TOOLS } from './tools.js';
 import { MODEL_DEEP, MAX_STEPS, costUzs, aiEnabled, aiKey, model as aiModel, dailyLimit, questionPrice } from './config.js';
+
+// Suratlar server.ts dagi bir xil jildga tushadi — /uploads/:file
+// o'sha yerdan beradi. ai/ jildi bittaga chuqurroq turgani uchun
+// bu yerda ikki pog'ona yuqoriga chiqiladi.
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const UPLOADS_DIR = join(__dirname, '..', '..', 'uploads');
 
 // Mijoz obyekti keshlanadi, LEKIN kalit bilan birga: admin panelda
 // kalit almashtirilsa eskisi bilan ishlab qolmasin. Ilgari shunchaki
@@ -293,8 +303,9 @@ function history(chatId: number, limit = 12): Anthropic.MessageParam[] {
   return out;
 }
 
-function saveMsg(chatId: number, shopId: number, role: string, content: unknown, text: string) {
-  db.prepare('INSERT INTO ai_messages (chat_id, shop_id, role, content, text) VALUES (?, ?, ?, ?, ?)').run(
+/** Xabarni saqlaydi va uning id sini qaytaradi (suratni bog'lash uchun kerak) */
+function saveMsg(chatId: number, shopId: number, role: string, content: unknown, text: string): number {
+  const info = db.prepare('INSERT INTO ai_messages (chat_id, shop_id, role, content, text) VALUES (?, ?, ?, ?, ?)').run(
     chatId,
     shopId,
     role,
@@ -302,6 +313,52 @@ function saveMsg(chatId: number, shopId: number, role: string, content: unknown,
     text
   );
   db.prepare("UPDATE ai_chats SET updated_at = datetime('now') WHERE id = ?").run(chatId);
+  return Number(info.lastInsertRowid);
+}
+
+const IMG_EXT: Record<string, string> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
+
+/**
+ * Suratni diskka yozib, ekranga qo'yiladigan yo'lni qaytarish.
+ *
+ * Fayl nomida TASODIFIY qism bor va u shart. /uploads/:file yo'li
+ * ochiq — auth so'ramaydi. Nom faqat xabar id sidan iborat bo'lsa,
+ * begona odam raqamni ketma-ket sinab, boshqa do'konlarning
+ * nakladnoylari va qarz daftarlarini bemalol yuklab olardi.
+ * 16 ta tasodifiy belgi bunday tanlashni imkonsiz qiladi.
+ *
+ * Yozib bo'lmasa (disk to'lgan va h.k.) so'rov YIQILMAYDI: surat
+ * ko'rinmay qoladi, lekin javobning o'zi do'konchiga baribir keladi.
+ */
+function saveAiImage(msgId: number, img: { media: string; data: string }): string | null {
+  try {
+    const filename = `ai-${msgId}-${randomBytes(8).toString('hex')}.${IMG_EXT[img.media] ?? 'jpg'}`;
+    writeFileSync(join(UPLOADS_DIR, filename), Buffer.from(img.data, 'base64'));
+    return `/uploads/${filename}`;
+  } catch (e) {
+    console.warn('[ai] surat saqlanmadi:', e);
+    return null;
+  }
+}
+
+/**
+ * Suhbat suratlarini diskdan olib tashlash.
+ *
+ * Qatorlar o'chirilsa fayllar yetim qolib, uploads jildi cheksiz
+ * o'sardi — hech kim ko'rmaydigan nakladnoylar diskda yotaverardi.
+ * Shuning uchun DELETE dan OLDIN chaqiriladi.
+ */
+export function dropChatImages(chatId: number) {
+  const rows = db
+    .prepare('SELECT image_url FROM ai_messages WHERE chat_id = ? AND image_url IS NOT NULL')
+    .all(chatId) as any[];
+  for (const r of rows) {
+    try {
+      unlinkSync(join(UPLOADS_DIR, basename(String(r.image_url))));
+    } catch {
+      /* fayl allaqachon yo'q — tozalash shu sababdan to'xtamasin */
+    }
+  }
 }
 
 /** Vosita natijasini modelga sig'adigan hajmga keltirish */
@@ -411,7 +468,13 @@ async function run(opts: AskOptions, emit?: (e: AiEvent) => void): Promise<AskRe
   const messages: Anthropic.MessageParam[] = [...history(chatId), { role: 'user', content }];
   // Suratning o'zi tarixga yozilmaydi — u megabaytlab joy egallaydi va
   // keyingi savollarda qayta yuborilsa pul ham, vaqt ham ketardi.
-  saveMsg(chatId, opts.shopId, 'user', dated, img ? `🖼 ${question}` : question);
+  const userMsgId = saveMsg(chatId, opts.shopId, 'user', dated, question);
+  // Ekran uchun esa nusxasi faylga tushadi: do'konchi o'z pufakchasida
+  // qaysi daftarni yuborganini ko'rib turishi kerak.
+  if (img) {
+    const url = saveAiImage(userMsgId, img);
+    if (url) db.prepare('UPDATE ai_messages SET image_url = ? WHERE id = ?').run(url, userMsgId);
+  }
 
   const used: string[] = [];
   let steps = 0;
@@ -555,6 +618,7 @@ export function purgeOld(days: number) {
     .prepare(`SELECT id FROM ai_chats WHERE updated_at < datetime('now', ?)`)
     .all(`-${days} days`) as any[];
   for (const c of old) {
+    dropChatImages(c.id);
     db.prepare('DELETE FROM ai_messages WHERE chat_id = ?').run(c.id);
     db.prepare('DELETE FROM ai_chats WHERE id = ?').run(c.id);
   }
