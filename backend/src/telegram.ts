@@ -209,7 +209,7 @@ export async function sendLoginCode(phone: string, code: string): Promise<boolea
   return !!res?.ok;
 }
 
-function escapeHtml(s: string): string {
+export function escapeHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 

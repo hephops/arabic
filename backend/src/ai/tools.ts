@@ -21,7 +21,9 @@ export interface ToolDef {
     additionalProperties: false;
   };
   /** shopId serverda qo'yiladi — modeldan kelmaydi */
-  run: (shopId: number, input: any) => unknown;
+  run: (shopId: number, input: any) => unknown | Promise<unknown>;
+  /** Bu vosita ma'lumot o'qimaydi, ISH qiladi (masalan xabar yuboradi) */
+  action?: boolean;
 }
 
 /** Uzbekistan vaqti bilan kun boshlanishi (UTC'da saqlanadi) */
@@ -33,12 +35,46 @@ const num = (v: unknown, def: number, min: number, max: number) => {
   return Math.min(max, Math.max(min, Math.round(n)));
 };
 
-/** Davr nomini SQL sanasiga aylantirish */
-function periodFrom(period: string): string {
-  if (period === 'hafta') return "date('now', '+5 hours', '-6 days')";
-  if (period === 'oy') return "date('now', '+5 hours', '-29 days')";
-  return dayExpr;
+/**
+ * Davr chegaralari.
+ *
+ * Ilgari faqat kun/hafta/oy bor edi va do'konchi "yakshanba kuni
+ * qancha savdo bo'lgan?" deb so'raganda yordamchi "bunday funksiya
+ * yo'q" deyishga majbur edi. Endi aniq sana ham, oraliq ham bo'ladi.
+ *
+ * Qaytadi: [dan, gacha] — ikkalasi ham SQL ifodasi ko'rinishida,
+ * gacha CHEGARASI KIRADI (>= dan AND <= gacha).
+ */
+function isDate(v: unknown): v is string {
+  return typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v);
 }
+
+function period(i: any): { from: string; to: string; label: string } {
+  // Aniq oraliq
+  if (isDate(i.dan) && isDate(i.gacha)) {
+    return { from: `'${i.dan}'`, to: `'${i.gacha}'`, label: `${i.dan} — ${i.gacha}` };
+  }
+  // Bitta kun
+  if (isDate(i.sana)) return { from: `'${i.sana}'`, to: `'${i.sana}'`, label: i.sana };
+
+  const p = String(i.davr ?? 'kun');
+  if (p === 'kecha') {
+    const y = "date('now', '+5 hours', '-1 day')";
+    return { from: y, to: y, label: 'kecha' };
+  }
+  if (p === 'hafta') return { from: "date('now', '+5 hours', '-6 days')", to: dayExpr, label: 'oxirgi 7 kun' };
+  if (p === 'oy') return { from: "date('now', '+5 hours', '-29 days')", to: dayExpr, label: 'oxirgi 30 kun' };
+  return { from: dayExpr, to: dayExpr, label: 'bugun' };
+}
+
+/** Davr tanlaydigan vositalarda bir xil takrorlanadigan maydonlar */
+const PERIOD_FIELDS = {
+  davr: { type: 'string', enum: ['kun', 'kecha', 'hafta', 'oy'], description: "kun — bugun. Aniq sana kerak bo'lsa 'sana' maydonini ishlating." },
+  sana: { type: 'string', description: "Aniq bitta kun, YYYY-MM-DD. Kerak bo'lmasa bo'sh satr." },
+  dan: { type: 'string', description: "Oraliq boshi, YYYY-MM-DD. Kerak bo'lmasa bo'sh satr." },
+  gacha: { type: 'string', description: "Oraliq oxiri, YYYY-MM-DD. Kerak bo'lmasa bo'sh satr." },
+} as const;
+const PERIOD_REQUIRED = ['davr', 'sana', 'dan', 'gacha'];
 
 export const TOOLS: ToolDef[] = [
   {
@@ -104,19 +140,22 @@ export const TOOLS: ToolDef[] = [
   },
   {
     name: 'savdo_hisoboti',
-    description: "Savdo, foyda va cheklar. davr: 'kun', 'hafta' yoki 'oy'.",
+    description:
+      "Savdo, foyda va cheklar. Davrni uch xil berish mumkin: davr (kun/kecha/hafta/oy), " +
+      "aniq sana (masalan o'tgan yakshanba), yoki dan-gacha oralig'i.",
     input_schema: {
       type: 'object',
-      properties: { davr: { type: 'string', enum: ['kun', 'hafta', 'oy'] } },
-      required: ['davr'],
+      properties: { ...PERIOD_FIELDS },
+      required: [...PERIOD_REQUIRED],
       additionalProperties: false,
     },
     run: (shopId, i) => {
-      const from = periodFrom(String(i.davr));
+      const { from, to, label } = period(i);
       const sales = db
         .prepare(
           `SELECT COUNT(*) AS chek_soni, COALESCE(SUM(total), 0) AS savdo
-           FROM sales WHERE shop_id = ? AND date(created_at, '+5 hours') >= ${from}`
+           FROM sales WHERE shop_id = ?
+             AND date(created_at, '+5 hours') BETWEEN ${from} AND ${to}`
         )
         .get(shopId) as any;
       const profit = db
@@ -125,25 +164,27 @@ export const TOOLS: ToolDef[] = [
            FROM sale_items si
            JOIN sales s ON s.id = si.sale_id
            JOIN products p ON p.id = si.product_id
-           WHERE s.shop_id = ? AND date(s.created_at, '+5 hours') >= ${from}`
+           WHERE s.shop_id = ?
+             AND date(s.created_at, '+5 hours') BETWEEN ${from} AND ${to}`
         )
         .get(shopId) as any;
       const rets = db
         .prepare(
           `SELECT COALESCE(SUM(total), 0) AS qaytarilgan FROM returns
-           WHERE shop_id = ? AND date(created_at, '+5 hours') >= ${from}`
+           WHERE shop_id = ? AND date(created_at, '+5 hours') BETWEEN ${from} AND ${to}`
         )
         .get(shopId) as any;
       const byPay = db
         .prepare(
           `SELECT payment_type AS tolov_turi, COUNT(*) AS soni, COALESCE(SUM(total), 0) AS summa
-           FROM sales WHERE shop_id = ? AND date(created_at, '+5 hours') >= ${from}
+           FROM sales WHERE shop_id = ?
+             AND date(created_at, '+5 hours') BETWEEN ${from} AND ${to}
            GROUP BY payment_type`
         )
         .all(shopId);
       const avg = sales.chek_soni ? Math.round(sales.savdo / sales.chek_soni) : 0;
       return {
-        davr: i.davr,
+        davr: label,
         savdo: sales.savdo,
         foyda: profit.foyda,
         qaytarilgan: rets.qaytarilgan,
@@ -161,15 +202,15 @@ export const TOOLS: ToolDef[] = [
     input_schema: {
       type: 'object',
       properties: {
-        davr: { type: 'string', enum: ['kun', 'hafta', 'oy'] },
+        ...PERIOD_FIELDS,
         tartib: { type: 'string', enum: ['savdo', 'foyda', 'miqdor'] },
         limit: { type: 'integer', description: '1 dan 20 gacha' },
       },
-      required: ['davr', 'tartib', 'limit'],
+      required: [...PERIOD_REQUIRED, 'tartib', 'limit'],
       additionalProperties: false,
     },
     run: (shopId, i) => {
-      const from = periodFrom(String(i.davr));
+      const { from, to } = period(i);
       const order =
         i.tartib === 'foyda' ? 'foyda' : i.tartib === 'miqdor' ? 'miqdor' : 'savdo';
       return db
@@ -181,7 +222,8 @@ export const TOOLS: ToolDef[] = [
            FROM sale_items si
            JOIN sales s ON s.id = si.sale_id
            JOIN products p ON p.id = si.product_id
-           WHERE s.shop_id = ? AND date(s.created_at, '+5 hours') >= ${from}
+           WHERE s.shop_id = ?
+             AND date(s.created_at, '+5 hours') BETWEEN ${from} AND ${to}
            GROUP BY p.id ORDER BY ${order} DESC LIMIT ?`
         )
         .all(shopId, num(i.limit, 10, 1, 20));
@@ -311,20 +353,21 @@ export const TOOLS: ToolDef[] = [
   },
   {
     name: 'xarajatlar',
-    description: 'Xarajatlar kategoriya bo\'yicha.',
+    description: "Xarajatlar kategoriya bo'yicha. Davr, aniq sana yoki oraliq.",
     input_schema: {
       type: 'object',
-      properties: { davr: { type: 'string', enum: ['kun', 'hafta', 'oy'] } },
-      required: ['davr'],
+      properties: { ...PERIOD_FIELDS },
+      required: [...PERIOD_REQUIRED],
       additionalProperties: false,
     },
     run: (shopId, i) => {
-      const from = periodFrom(String(i.davr));
+      const { from, to } = period(i);
       return db
         .prepare(
           `SELECT COALESCE(category, 'boshqa') AS kategoriya,
                   COUNT(*) AS soni, SUM(amount) AS summa
-           FROM expenses WHERE shop_id = ? AND date(spent_at, '+5 hours') >= ${from}
+           FROM expenses WHERE shop_id = ?
+             AND date(spent_at, '+5 hours') BETWEEN ${from} AND ${to}
            GROUP BY category ORDER BY summa DESC`
         )
         .all(shopId);
@@ -332,21 +375,22 @@ export const TOOLS: ToolDef[] = [
   },
   {
     name: 'xodim_samaradorligi',
-    description: "Xodimlar bo'yicha savdo va qaytarishlar.",
+    description: "Xodimlar bo'yicha savdo va qaytarishlar. Davr, aniq sana yoki oraliq.",
     input_schema: {
       type: 'object',
-      properties: { davr: { type: 'string', enum: ['kun', 'hafta', 'oy'] } },
-      required: ['davr'],
+      properties: { ...PERIOD_FIELDS },
+      required: [...PERIOD_REQUIRED],
       additionalProperties: false,
     },
     run: (shopId, i) => {
-      const from = periodFrom(String(i.davr));
+      const { from, to } = period(i);
       return db
         .prepare(
           `SELECT COALESCE(e.name, 'Do''kon egasi') AS xodim,
                   COUNT(*) AS chek_soni, SUM(s.total) AS savdo
            FROM sales s LEFT JOIN employees e ON e.id = s.created_by
-           WHERE s.shop_id = ? AND date(s.created_at, '+5 hours') >= ${from}
+           WHERE s.shop_id = ?
+             AND date(s.created_at, '+5 hours') BETWEEN ${from} AND ${to}
            GROUP BY s.created_by ORDER BY savdo DESC`
         )
         .all(shopId);
@@ -388,6 +432,63 @@ export const TOOLS: ToolDef[] = [
     },
   },
 ];
+
+/* ─────────── Ish qiladigan vosita ─────────── */
+
+// Faqat BITTASI: do'konchining O'ZIGA Telegram orqali xabar yuborish.
+//
+// Nega bu xavfsiz: xabar faqat do'konning o'z, ilgari ulangan
+// Telegram hisobiga boradi. Manzilni model bermaydi — u ham
+// shop_id kabi bazadan olinadi. Ya'ni yordamchi begona odamga
+// yoki mijozga hech narsa yubora olmaydi.
+//
+// Shuning uchun bu yerda tasdiq oynasi yo'q: do'konchi o'z
+// ma'lumotini o'z telefoniga yuborishdan zarar ko'rmaydi.
+TOOLS.push({
+  name: 'telegramga_yubor',
+  action: true,
+  description:
+    "Tayyor ro'yxat yoki hisobotni do'konchining O'Z Telegramiga yuboradi. " +
+    "Do'konchi \"telegramga yubor\", \"telegramga tashla\" desa shuni ishlat. " +
+    'Matnni oldindan tayyorlab, to\'liq ko\'rinishda ber — u o\'zgartirilmasdan yuboriladi.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      sarlavha: { type: 'string', description: "Qisqa sarlavha, masalan \"Srogi yaqin tovarlar\"" },
+      matn: { type: 'string', description: 'Yuboriladigan to\'liq matn' },
+    },
+    required: ['sarlavha', 'matn'],
+    additionalProperties: false,
+  },
+  run: async (shopId, i) => {
+    const text = String(i.matn ?? '').trim();
+    const title = String(i.sarlavha ?? '').trim();
+    if (!text) return { yuborilmadi: 'matn bo\'sh' };
+    if (text.length > 3500) return { yuborilmadi: 'matn juda uzun' };
+
+    // Manzil BAZADAN olinadi. Model qanday kiritma yuborsa ham
+    // begona chatga yozolmaydi.
+    const shop = db.prepare('SELECT name, phone, telegram_user_id FROM shops WHERE id = ?').get(shopId) as any;
+    const link = shop?.phone
+      ? (db.prepare('SELECT chat_id FROM telegram_links WHERE phone = ?').get(shop.phone) as any)
+      : null;
+    const chatId = link?.chat_id ?? shop?.telegram_user_id;
+    if (!chatId) {
+      return {
+        yuborilmadi: "Telegram ulanmagan",
+        maslahat: "Do'konchiga ayting: botga /start yozib telefon raqamini ulasin, keyin xabar yubora olaman.",
+      };
+    }
+
+    const { sendMessage, telegramEnabled, escapeHtml } = await import('../telegram.js');
+    if (!telegramEnabled()) return { yuborilmadi: 'Telegram bot sozlanmagan' };
+
+    const body = (title ? `<b>${escapeHtml(title)}</b>\n\n` : '') + escapeHtml(text);
+    const res: any = await sendMessage(chatId, body);
+    if (res?.ok === false) return { yuborilmadi: 'Telegram qabul qilmadi' };
+    return { yuborildi: true, qayerga: 'Telegram' };
+  },
+});
 
 export const TOOL_BY_NAME = new Map(TOOLS.map((t) => [t.name, t]));
 

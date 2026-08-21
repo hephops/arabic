@@ -121,10 +121,15 @@ export function registerAiRoutes(app: FastifyInstance, opts: { requireAi: Guard;
         return reply.code(code).send({ error: e.code, message: e.message });
         }
         req.log.error(e);
-        // Model tomonidagi xato do'konchiga tushunarli tilda
+        // Model tomonidagi xato do'konchiga tushunarli tilda.
+        // Kutish muddati tugagani alohida: "xato" emas, "sekin" —
+        // do'konchi savolni qisqartirsa o'tib ketadi.
+        const slow = e?.name === 'APIConnectionTimeoutError' || /timeout/i.test(String(e?.message ?? ''));
         return reply.code(502).send({
-          error: 'ai_failed',
-          message: "Yordamchi javob bera olmadi. Birozdan keyin urinib ko'ring.",
+          error: slow ? 'ai_timeout' : 'ai_failed',
+          message: slow
+            ? "Javob juda uzoq davom etdi. Savolni qisqaroq qilib qayta yozing."
+            : "Yordamchi javob bera olmadi. Birozdan keyin urinib ko'ring.",
         });
       }
     }
