@@ -22,10 +22,23 @@ type Group = { title: string; sub?: string; fields: Field[] };
 // balansidan yechiladi.
 const GROUPS: Group[] = [
   {
-    title: "Kunlik to'lov",
-    sub: "Har kuni do'kon balansidan shuncha yechiladi",
+    // Balansdan pul ketadigan HAMMA narsa shu yerda. Ilgari ular uch
+    // joyga tarqalgan edi (kunlik to'lov, xizmat tannarxi, AI bo'limi)
+    // va "nima uchun yechilyapti" degan savolga javob topish uchun
+    // sahifa bo'ylab qidirishga to'g'ri kelardi.
+    title: 'Yechimlar — balansdan nima uchun pul yechiladi',
+    sub: "Har biri do'kon balansidan avtomatik yechiladi. 0 — o'sha xizmat bepul",
     fields: [
-      { key: 'daily_price', label: 'Kunlik narx', money: true, perMonth: true, hint: 'Asosiy narx — hamma uchun bir xil' },
+      { key: 'daily_price', label: 'Kunlik xizmat haqi', money: true, perMonth: true, hint: 'Har kuni yechiladi — asosiy tushum' },
+      { key: 'ai_question_price', label: 'AI: bitta savol', money: true, hint: "Har savolda yechiladi. 0 — bepul, kunlik haqqa kiradi" },
+      { key: 'sms_price', label: '1 ta SMS', money: true, hint: 'Mijozga eslatma yuborilganda' },
+      { key: 'call_price', label: "1 ta AI qo'ng'iroq", money: true, hint: "Qarzdorga qo'ng'iroq qilinganda" },
+    ],
+  },
+  {
+    title: "Kunlik to'lov qoidalari",
+    sub: "Bepul muddat, ogohlantirish va to'xtatish",
+    fields: [
       { key: 'trial_days', label: 'Bepul kunlar', hint: "Yangi do'konga beriladi, bu muddatda pul yechilmaydi" },
       { key: 'low_balance_days', label: 'Ogohlantirish (kun)', hint: 'Shuncha kun qolganda do‘konchi ogohlantiriladi' },
       {
@@ -46,11 +59,9 @@ const GROUPS: Group[] = [
     ],
   },
   {
-    title: 'Xizmat tannarxi',
-    sub: 'Eslatma va qo‘ng‘iroqlar hisob-kitobi uchun',
+    title: "Qo'shimchalar",
+    sub: "Balansga QO'SHILADIGAN summalar",
     fields: [
-      { key: 'sms_price', label: '1 ta SMS narxi', money: true },
-      { key: 'call_price', label: "1 ta AI qo'ng'iroq narxi", money: true },
       { key: 'referral_bonus', label: 'Taklif uchun bonus', money: true, hint: "Do'kon balansiga qo'shiladi" },
     ],
   },
@@ -193,23 +204,17 @@ export default function Settings() {
               </div>
             </div>
 
-            {/* Narxni PLATFORMA EGASI qo'yadi. Pastdagi tannarx —
-                Anthropic bizdan oladigan pul, uni o'zgartirib
-                bo'lmaydi; bu esa do'konchidan olinadigan narx. */}
+            {/* Savol narxi endi "Yechimlar" bo'limida — balansdan pul
+                ketadigan hamma narsa bitta joyda tursin. Bu yerda faqat
+                hozirgi holati eslatib turiladi. */}
             <div className="set-field">
-              <label>Bitta savol narxi (do'konchidan yechiladi)</label>
-              <input
-                type="number"
-                min={0}
-                placeholder="0"
-                value={value('ai_question_price')}
-                onChange={(e) => set('ai_question_price', e.target.value)}
-              />
-              <div className="set-hint">
+              <label>Bitta savol narxi</label>
+              <div className="set-static">
                 {Number(value('ai_question_price') || 0) > 0
-                  ? `${fmtNum(Number(value('ai_question_price')))} so'm — har savolda do'kon balansidan yechiladi`
-                  : "0 — BEPUL, kunlik obunaga kiradi"}
+                  ? `${fmtNum(Number(value('ai_question_price')))} so'm`
+                  : 'BEPUL'}
               </div>
+              <div className="set-hint">Yuqoridagi «Yechimlar» bo'limida o'zgartiriladi</div>
             </div>
 
             <div className="set-field">

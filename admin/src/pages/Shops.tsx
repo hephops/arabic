@@ -31,6 +31,9 @@ export default function Shops() {
   const [limit, setLimit] = useState(10);
   const [offset, setOffset] = useState(0);
   const [selected, setSelected] = useState<ShopDetail | null>(null);
+  // Tahrirlash va o'chirish oynalari — ro'yxatdagi tugmalardan ochiladi
+  const [editing, setEditing] = useState<Shop | null>(null);
+  const [removing, setRemoving] = useState<Shop | null>(null);
 
   function load() {
     api.shops({ q, status, limit, offset }).then((r) => {
@@ -122,7 +125,7 @@ export default function Shops() {
               <th className="num">Qarz</th>
               <th>Holat</th>
               <th>Ro'yxatdan</th>
-              <th />
+              <th className="num">Amallar</th>
             </tr>
           </thead>
           <tbody>
@@ -151,7 +154,24 @@ export default function Shops() {
                   })()}
                 </td>
                 <td className="muted">{s.created_at.slice(0, 10)}</td>
-                <td className="num"><Glyph name="chevron" size={15} color="#c7c7cc" /></td>
+                {/* Amallar. Qatorning o'zi ham bosiladi, lekin tugmalar
+                    aniqroq: o'chirish tasodifan bosilib ketmasin deb u
+                    alohida turadi va qatorni ochib yubormaydi. */}
+                <td className="num row-acts" onClick={(e) => e.stopPropagation()}>
+                  <button
+                    className="icon-btn"
+                    title="Ko'rish"
+                    onClick={async () => setSelected(await api.shop(s.id))}
+                  >
+                    <Glyph name="eye" size={16} />
+                  </button>
+                  <button className="icon-btn" title="Tahrirlash" onClick={() => setEditing(s)}>
+                    <Glyph name="pencil" size={16} />
+                  </button>
+                  <button className="icon-btn danger" title="O'chirish" onClick={() => setRemoving(s)}>
+                    <Glyph name="trash" size={16} />
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>
@@ -159,6 +179,12 @@ export default function Shops() {
         {shown.length === 0 && <div className="empty">Do'kon topilmadi</div>}
       </div>
 
+      {editing && (
+        <EditShop shop={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load(); }} />
+      )}
+      {removing && (
+        <DeleteShop shop={removing} onClose={() => setRemoving(null)} onDone={() => { setRemoving(null); load(); }} />
+      )}
       {selected && <ShopModal shop={selected} onClose={() => setSelected(null)} onChanged={load} />}
     </>
   );
@@ -185,6 +211,9 @@ function ShopModal({
   onClose: () => void;
   onChanged: () => void;
 }) {
+  // Oyna ichidagi bo'limlar. Hammasi bir ustunga tizilsa modal juda
+  // uzayib ketadi va kerakli joyni topish qiyin — shuning uchun tab.
+  const [tab, setTab] = useState<'info' | 'balance'>('info');
   const [data, setData] = useState(shop);
   const [msg, setMsg] = useState('');
   const [grantDays, setGrantDays] = useState('30');
@@ -229,6 +258,18 @@ function ShopModal({
           </div>
         </div>
 
+        {/* Bo'limlar — do'kon kartochkasi uzun bo'lgani uchun ajratilgan */}
+        <div className="tabs">
+          <button className={`tab ${tab === 'info' ? 'on' : ''}`} onClick={() => setTab('info')}>
+            <Glyph name="book" size={14} /> Ma'lumotlar
+          </button>
+          <button className={`tab ${tab === 'balance' ? 'on' : ''}`} onClick={() => setTab('balance')}>
+            <Glyph name="banknote" size={14} /> Balans tarixi
+            <span className="tab-count">{data.transactions.length}</span>
+          </button>
+        </div>
+
+        {tab === 'info' && (<>
         {/* Balans va kunlik to'lov. Tarif yo'q — bepul kun sovg'a
             qilinadi yoki balans to'g'rilanadi. */}
         <div className="panel" style={{ marginBottom: 12 }}>
@@ -326,12 +367,14 @@ function ShopModal({
           )}
         </div>
 
-        {data.transactions.length > 0 && (
+        </>)}
+
+        {tab === 'balance' && (
           <div className="panel">
             <div className="panel-title">Balans tarixi</div>
             <table>
               <tbody>
-                {data.transactions.slice(0, 10).map((t) => (
+                {data.transactions.map((t) => (
                   <tr key={t.id}>
                     <td>{t.note ?? t.type}</td>
                     <td className="muted">{t.created_at.slice(0, 16)}</td>
@@ -349,6 +392,7 @@ function ShopModal({
                 ))}
               </tbody>
             </table>
+            {data.transactions.length === 0 && <div className="empty">Hali harakat bo'lmagan</div>}
           </div>
         )}
 
@@ -357,6 +401,124 @@ function ShopModal({
           <button className="btn ghost" onClick={onClose}>
             Yopish
           </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+/** Do'kon ma'lumotini tahrirlash oynasi */
+function EditShop({ shop, onClose, onSaved }: { shop: Shop; onClose: () => void; onSaved: () => void }) {
+  const [name, setName] = useState(shop.name ?? '');
+  const [owner, setOwner] = useState(shop.owner_name ?? '');
+  const [phone, setPhone] = useState(shop.phone ?? '');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+
+  async function save() {
+    setBusy(true);
+    setErr('');
+    try {
+      await api.shopEdit(shop.id, { name, owner_name: owner, phone });
+      onSaved();
+    } catch (e: any) {
+      // Server sababni kod bilan qaytaradi — o'zbekchaga o'giramiz
+      const c = e?.details?.error ?? e?.message ?? '';
+      setErr(
+        c === 'phone_taken'
+          ? "Bu raqam boshqa do'konda ishlatilyapti"
+          : c === 'phone_invalid'
+            ? "Telefon raqami noto'g'ri"
+            : c === 'name_required'
+              ? "Nomi bo'sh bo'lmasin"
+              : String(c)
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="modal-wrap" onClick={onClose}>
+      <div className="modal sm" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-head">
+          <AppIcon glyph="house" size={30} />
+          <div className="modal-title">Do'konni tahrirlash</div>
+        </div>
+        <div className="set-field">
+          <label>Do'kon nomi</label>
+          <input value={name} onChange={(e) => setName(e.target.value)} />
+        </div>
+        <div className="set-field">
+          <label>Egasi</label>
+          <input value={owner} onChange={(e) => setOwner(e.target.value)} />
+        </div>
+        <div className="set-field">
+          <label>Telefon</label>
+          <input value={phone} onChange={(e) => setPhone(e.target.value)} />
+          <div className="set-hint">Bu raqam bilan ilovaga kiriladi — o'zgartirsangiz eski raqam ishlamaydi</div>
+        </div>
+        {err && <div className="err-msg">{err}</div>}
+        <div className="toolbar" style={{ marginTop: 12 }}>
+          <button className="btn" onClick={save} disabled={busy || !name.trim()}>
+            {busy ? 'Saqlanyapti…' : 'Saqlash'}
+          </button>
+          <button className="btn ghost" onClick={onClose} disabled={busy}>Bekor qilish</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * O'chirish oynasi.
+ *
+ * O'chirish qaytarib bo'lmaydi va butun do'konni — mijozlari, qarzlari,
+ * tovarlari bilan — yo'q qiladi. Shuning uchun tugma emas, NOMNI QO'LDA
+ * yozish talab qilinadi: chalg'ib bosilgan tugma bir do'konning butun
+ * ishini o'chirib yubormasin.
+ */
+function DeleteShop({ shop, onClose, onDone }: { shop: Shop; onClose: () => void; onDone: () => void }) {
+  const [text, setText] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const mos = text.trim() === (shop.name ?? '').trim();
+
+  async function go() {
+    setBusy(true);
+    setErr('');
+    try {
+      await api.shopDelete(shop.id, text.trim());
+      onDone();
+    } catch (e: any) {
+      setErr(e?.details?.error ?? e?.message ?? "O'chirib bo'lmadi");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="modal-wrap" onClick={onClose}>
+      <div className="modal sm" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-head">
+          <AppIcon glyph="warning" size={30} color="red" />
+          <div className="modal-title">Do'konni o'chirish</div>
+        </div>
+        <p className="muted" style={{ lineHeight: 1.5 }}>
+          <b>{shop.name}</b> ({fmtPhone(shop.phone)}) butunlay o'chiriladi: mijozlari, qarzlari,
+          tovarlari, savdolari va to'lovlari bilan birga. <b>Qaytarib bo'lmaydi.</b>
+        </p>
+        <div className="set-field">
+          <label>Tasdiqlash uchun do'kon nomini yozing</label>
+          <input value={text} onChange={(e) => setText(e.target.value)} placeholder={shop.name ?? ''} />
+        </div>
+        {err && <div className="err-msg">{err}</div>}
+        <div className="toolbar" style={{ marginTop: 12 }}>
+          <button className="btn danger" onClick={go} disabled={busy || !mos}>
+            {busy ? "O'chirilyapti…" : "Butunlay o'chirish"}
+          </button>
+          <button className="btn ghost" onClick={onClose} disabled={busy}>Bekor qilish</button>
         </div>
       </div>
     </div>

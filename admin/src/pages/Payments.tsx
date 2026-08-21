@@ -8,6 +8,8 @@ import { AppIcon, Glyph } from '../icons';
 const TYPE_LABEL: Record<string, string> = {
   topup: "To'ldirish",
   daily: 'Kunlik to‘lov',
+  // Xizmat yechimlari — do'konchining balansidan avtomatik ketadi
+  ai: 'AI savoli',
   withdraw: 'Yechim',
   refund: 'Qaytarilgan',
   grant: 'Bepul kun',
@@ -140,6 +142,10 @@ export default function Payments() {
             qo'shilmaydi, shuning uchun alohida ustunda. */}
         <Stat glyph="banknote" color="green" k="To'ldirildi" v={fmt(s?.kirim ?? 0)} />
         <Stat glyph="calendar" color="indigo" k="Kunlik yechildi" v={fmt(s?.kunlik ?? 0)} />
+        {/* AI alohida: xizmatdan qancha tushayotgani ko'rinsin. Ilgari
+            u "Yechib olindi" ichiga qo'shilib ketardi va ajratib
+            bo'lmasdi. */}
+        <Stat glyph="sparkle" color="purple" k="AI yechildi" v={fmt(s?.ai ?? 0)} />
         <Stat glyph="boxes" color="accent" k="Balanslarda qoldi" v={fmt(s?.qoldiq ?? 0)} />
         <Stat glyph="card" color="red" k="Yechib olindi" v={fmt(s?.chiqim ?? 0)} />
         <Stat glyph="gift" color="yellow" k="Qaytarilgan" v={fmt(s?.qaytarilgan ?? 0)} />
@@ -152,6 +158,7 @@ export default function Payments() {
             <label>Turi</label>
             <select value={type} onChange={(e) => setType(e.target.value)}>
               <option value="all">Hammasi</option>
+              <option value="ai">AI savoli</option>
               <option value="in">Kirim</option>
               <option value="out">Chiqim</option>
               <option value="topup">To'ldirish</option>

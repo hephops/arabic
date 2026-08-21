@@ -53,6 +53,12 @@ export const api = {
     return request<{ rows: Shop[]; total: number }>(`/admin/shops${qs ? `?${qs}` : ''}`);
   },
   shop: (id: number) => request<ShopDetail>(`/admin/shops/${id}`),
+  /** Do'kon ma'lumotini tahrirlash */
+  shopEdit: (id: number, data: { name?: string; owner_name?: string; phone?: string }) =>
+    request<Shop>(`/admin/shops/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  /** Do'konni butunlay o'chirish. confirm — do'kon nomi aynan takrorlanishi shart */
+  shopDelete: (id: number, confirm: string) =>
+    request<{ ok: true }>(`/admin/shops/${id}`, { method: 'DELETE', body: JSON.stringify({ confirm }) }),
   blockShop: (id: number, is_blocked: boolean, reason?: string) =>
     request<Shop>(`/admin/shops/${id}/block`, { method: 'PATCH', body: JSON.stringify({ is_blocked, reason }) }),
   /** Bepul kun sovg'a qilish — balansga tegilmaydi */
@@ -279,6 +285,8 @@ export interface PaymentsPage {
     kirim: number;
     /** kunlik to'lov sifatida yechilgani — bizning tushum */
     kunlik: number;
+    /** AI savollari uchun yechilgani — bu ham bizning tushum */
+    ai: number;
     /** qo'lda yechib olingani (kunlik to'lov bunga kirmaydi) */
     chiqim: number;
     qaytarilgan: number;

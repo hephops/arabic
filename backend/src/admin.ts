@@ -423,15 +423,18 @@ export function registerAdminRoutes(app: FastifyInstance) {
       .get(...params) as any).c;
 
     // Filtr bo'yicha jamlanma (sahifadagi emas, butun tanlov bo'yicha).
-    // Kunlik yechim alohida ajratiladi: u bizning tushumimiz, "chiqim"
-    // esa qaytarish va qo'lda yechib olishlar — bularni bir joyga
-    // qo'shib yuborish hisobni chalkashtirardi.
+    //
+    // Har xil yechim alohida ajratiladi. Kunlik to'lov va AI — bizning
+    // TUSHUMIMIZ; "chiqim" esa qaytarish va qo'lda yechib olishlar.
+    // Ilgari AI yechimi "chiqim" ichiga qo'shilib ketardi va do'kon
+    // egasi xizmatdan qancha tushayotganini ko'ra olmasdi.
     const agg = db
       .prepare(
         `SELECT
            COALESCE(SUM(CASE WHEN b.amount > 0 AND b.type != 'refund' THEN b.amount END), 0) AS kirim,
            COALESCE(-SUM(CASE WHEN b.type = 'daily' THEN b.amount END), 0) AS kunlik,
-           COALESCE(-SUM(CASE WHEN b.amount < 0 AND b.type != 'daily' THEN b.amount END), 0) AS chiqim,
+           COALESCE(-SUM(CASE WHEN b.type = 'ai' THEN b.amount END), 0) AS ai,
+           COALESCE(-SUM(CASE WHEN b.amount < 0 AND b.type NOT IN ('daily','ai') THEN b.amount END), 0) AS chiqim,
            COALESCE(SUM(CASE WHEN b.type = 'refund' THEN ABS(b.amount) END), 0) AS qaytarilgan
          FROM balance_transactions b JOIN shops s ON s.id = b.shop_id ${clause}`
       )
@@ -512,6 +515,97 @@ export function registerAdminRoutes(app: FastifyInstance) {
   });
 
   // Do'konlar bo'yicha umumiy ko'rsatkichlar (ro'yxat tepasidagi kartochkalar)
+  /** Do'kon ma'lumotini tahrirlash — nomi, egasi, telefoni */
+  app.patch<{ Params: { id: string }; Body: { name?: string; owner_name?: string; phone?: string } }>(
+    '/admin/shops/:id',
+    { preHandler: requireAdmin },
+    async (req, reply) => {
+      const shop = db.prepare('SELECT * FROM shops WHERE id = ?').get(req.params.id) as any;
+      if (!shop) return reply.code(404).send({ error: 'not_found' });
+
+      const name = String(req.body?.name ?? shop.name).trim();
+      if (!name) return reply.code(400).send({ error: 'name_required' });
+      const owner = String(req.body?.owner_name ?? shop.owner_name ?? '').trim();
+
+      // Telefon — kirish kaliti: bo'sh bo'lmasin va boshqa do'konga
+      // tegishli bo'lmasin, aks holda ikki do'kon bitta raqamga
+      // bog'lanib qolardi va OTP qaysi biriga kirishini bilmasdi
+      let phone = shop.phone;
+      if (req.body?.phone != null) {
+        phone = String(req.body.phone).replace(/[^\d+]/g, '');
+        if (phone.length < 9) return reply.code(400).send({ error: 'phone_invalid' });
+        const band = db.prepare('SELECT id FROM shops WHERE phone = ? AND id != ?').get(phone, shop.id);
+        if (band) return reply.code(409).send({ error: 'phone_taken' });
+      }
+
+      db.prepare('UPDATE shops SET name = ?, owner_name = ?, phone = ? WHERE id = ?').run(
+        name,
+        owner || null,
+        phone,
+        shop.id
+      );
+      log(req.admin!.id, 'shop_edit', String(shop.id), `${shop.name} -> ${name}`);
+      return db.prepare('SELECT * FROM shops WHERE id = ?').get(shop.id);
+    }
+  );
+
+  /**
+   * Do'konni BUTUNLAY o'chirish.
+   *
+   * Qaytarib bo'lmaydi: mijozlari, qarzlari, tovarlari, savdolari —
+   * hammasi ketadi. Shuning uchun ikki himoya bor:
+   *   - so'rovda do'kon nomi aynan takrorlanishi shart (chalg'ib
+   *     bosilgan tugma butun do'konni yo'q qilmasin);
+   *   - hammasi BITTA tranzaksiyada, ya'ni yarim o'chgan do'kon
+   *     qolib ketmaydi.
+   */
+  app.delete<{ Params: { id: string }; Body: { confirm?: string } }>(
+    '/admin/shops/:id',
+    { preHandler: requireAdmin },
+    async (req, reply) => {
+      const shop = db.prepare('SELECT * FROM shops WHERE id = ?').get(req.params.id) as any;
+      if (!shop) return reply.code(404).send({ error: 'not_found' });
+      if (String(req.body?.confirm ?? '').trim() !== String(shop.name).trim()) {
+        return reply.code(400).send({ error: 'confirm_mismatch', expected: shop.name });
+      }
+
+      // Avval bolalar, keyin ota-onalar: tashqi kalitlar buzilmasin.
+      // Ro'yxat schema.sql dagi bog'lanishlar bo'yicha tuzilgan.
+      const id = shop.id;
+      const tx = db.transaction(() => {
+        const run = (sql: string, ...a: any[]) => {
+          try {
+            db.prepare(sql).run(...a);
+          } catch {
+            /* jadval yo'q bo'lsa (eski baza) o'chirish to'xtamasin */
+          }
+        };
+        run('DELETE FROM sale_items WHERE sale_id IN (SELECT id FROM sales WHERE shop_id = ?)', id);
+        run('DELETE FROM return_items WHERE return_id IN (SELECT id FROM returns WHERE shop_id = ?)', id);
+        run('DELETE FROM order_items WHERE order_id IN (SELECT id FROM orders WHERE shop_id = ?)', id);
+        run('DELETE FROM debt_payments WHERE debt_id IN (SELECT id FROM debts WHERE shop_id = ?)', id);
+        run(
+          'DELETE FROM supplier_debt_payments WHERE supplier_debt_id IN (SELECT id FROM supplier_debts WHERE shop_id = ?)',
+          id
+        );
+        for (const t of [
+          'ai_messages', 'ai_usage', 'ai_intake_drafts', 'ai_chats',
+          'stock_movements', 'product_batches', 'product_barcodes', 'products',
+          'debts', 'customers', 'supplier_debts', 'suppliers',
+          'sales', 'returns', 'orders', 'expenses', 'reminder_logs',
+          'employee_logins', 'employees', 'balance_transactions',
+        ]) {
+          run(`DELETE FROM ${t} WHERE shop_id = ?`, id);
+        }
+        run('DELETE FROM shops WHERE id = ?', id);
+      });
+      tx();
+
+      log(req.admin!.id, 'shop_delete', String(id), `${shop.name} (${shop.phone})`);
+      return { ok: true };
+    }
+  );
+
   app.get('/admin/shops/summary', { preHandler: requireAdmin }, async () =>
     db
       .prepare(
