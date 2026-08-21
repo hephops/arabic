@@ -607,7 +607,7 @@ TOOLS.push({
  * harf va raqam, ortiqcha bo'shliqsiz. Apostrofning har xil belgilari
  * ham tushib qoladi — "Yog'" va "Yogʻ" bitta tovar.
  */
-const simpleName = (s: string) =>
+export const simpleName = (s: string) =>
   String(s ?? '')
     .toLowerCase()
     .replace(/[\u02B9-\u02BF\u2018\u2019']/g, '')

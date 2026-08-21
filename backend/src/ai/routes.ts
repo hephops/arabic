@@ -6,7 +6,7 @@ import { getSetting } from '../billing.js';
 import { can } from '../auth.js';
 import { ask, askStream, AiError, spend, purgeOld, dropChat, type AiEvent } from './agent.js';
 import { KEEP_DAYS, aiEnabled, aiKey, model as aiModel, dailyLimit, questionPrice } from './config.js';
-import { cleanBarcode } from './tools.js';
+import { cleanBarcode, simpleName } from './tools.js';
 import { normalizeBarcode } from '../barcodes.js';
 
 type Guard = (req: FastifyRequest, reply: FastifyReply) => Promise<unknown>;
@@ -336,6 +336,12 @@ export function registerAiRoutes(app: FastifyInstance, opts: { requireAi: Guard;
    * hozirgina yuborgan nakladnoyi.
    */
   app.get('/ai/intake/pending', { preHandler: opts.requireAi }, async (req) => {
+    // Kartani faqat KIRIM ruxsati bori ko'radi. Ro'yxat butun do'konga
+    // ochiq (yuqoriga qara), ya'ni busiz kassadagi sotuvchi ham butun
+    // nakladnoyni — kirim narxlari bilan — ko'rib turardi va uni bekor
+    // qila olardi.
+    if (!can(req, 'intake')) return [];
+
     const rows = db
       .prepare(
         `SELECT id, items, created_at FROM ai_intake_drafts
@@ -353,7 +359,14 @@ export function registerAiRoutes(app: FastifyInstance, opts: { requireAi: Guard;
       // Bitta buzilgan yozuv butun ro'yxatni yiqitmasin — qolganlari
       // baribir ekranga chiqishi kerak
       try {
-        out.push({ id: d.id, items: JSON.parse(d.items), created_at: d.created_at });
+        const items = JSON.parse(d.items) as any[];
+        // Kirim narxi alohida ruxsat: uni ko'rmasligi kerak bo'lgan
+        // xodimga tannarx ketmasin (ilovaning boshqa joylarida ham
+        // shunday). Miqdor va sotuv narxi qoladi — ular unga kerak.
+        const safe = can(req, 'cost_view')
+          ? items
+          : items.map((x) => ({ ...x, kirim_narxi: 0 }));
+        out.push({ id: d.id, items: safe, created_at: d.created_at });
       } catch {
         /* o'qib bo'lmadi — o'tkazib yuboramiz */
       }
@@ -367,7 +380,14 @@ export function registerAiRoutes(app: FastifyInstance, opts: { requireAi: Guard;
       .prepare('SELECT * FROM ai_intake_drafts WHERE id = ? AND shop_id = ?')
       .get(req.params.id, req.shopId) as any;
     if (!d) return reply.code(404).send({ error: 'not_found' });
-    return { id: d.id, status: d.status, items: JSON.parse(d.items), created_at: d.created_at };
+    if (!can(req, 'intake')) return reply.code(403).send({ error: 'no_permission', permission: 'intake' });
+    const items = JSON.parse(d.items) as any[];
+    return {
+      id: d.id,
+      status: d.status,
+      items: can(req, 'cost_view') ? items : items.map((x) => ({ ...x, kirim_narxi: 0 })),
+      created_at: d.created_at,
+    };
   });
 
   /**
@@ -418,10 +438,18 @@ export function registerAiRoutes(app: FastifyInstance, opts: { requireAi: Guard;
       // O'qib bo'lmasa null qoladi: u holda hamma kod suratdan kelgan
       // deb hisoblanadi, ya'ni qattiqroq tekshiriladi.
       let aiCodes: Set<string> | null = null;
+      // Taklif tuzilganda qanday nomlar bo'lgani. Do'konchi kartada
+      // nomni TUZATGAN bo'lsa (yordamchi qo'lyozmani noto'g'ri o'qigan
+      // bo'lishi mumkin) — o'sha qatorning eski mosligiga endi ishonib
+      // bo'lmaydi, pastga qara.
+      const aiNames = new Set<string>();
       try {
-        aiCodes = new Set(
-          (JSON.parse(d.items) as any[]).map((x) => String(x?.shtrix_kod ?? '')).filter(Boolean)
-        );
+        const saved = JSON.parse(d.items) as any[];
+        aiCodes = new Set(saved.map((x) => String(x?.shtrix_kod ?? '')).filter(Boolean));
+        for (const x of saved) {
+          const n = simpleName(String(x?.nom ?? ''));
+          if (n) aiNames.add(n);
+        }
       } catch {
         /* buzuq yozuv — tekshiruv qattiq qoladi */
       }
@@ -453,9 +481,21 @@ export function registerAiRoutes(app: FastifyInstance, opts: { requireAi: Guard;
               .prepare('SELECT id, name, sell_price FROM products WHERE id = ? AND shop_id = ?')
               .get(pid, req.shopId) as any)
           : null;
-        // Topilmasa (tovar o'chirilgan bo'lishi mumkin) qator o'z nomi
-        // bilan davom etadi — bitta qator butun so'rovni yiqitmasin
-        if (stock?.name) name = String(stock.name);
+        // Moslikka FAQAT nom o'zgarmagan bo'lsa ishoniladi.
+        //
+        // Karta nomi ataylab tahrirlanadigan: yordamchi qo'lyozmani
+        // noto'g'ri o'qigan bo'lsa do'konchi tuzatadi. Tuzatilgan nomni
+        // e'tiborsiz qoldirib eski mavjud_id ga tayansak, tovar
+        // BEGONA kartochkaga tushib ketardi — bu dublikatdan ham
+        // yomonroq. Shuning uchun: nom taklifdagidek qolgan bo'lsa
+        // yoki ombordagi nomning o'zi bo'lsa — moslik kuchda; tuzatilgan
+        // bo'lsa moslik bekor va qator o'z (yangi) nomi bilan ketadi.
+        //
+        // Topilmasa ham (tovar o'chirilgan bo'lishi mumkin) qator o'z
+        // nomi bilan davom etadi — bitta qator butun so'rovni yiqitmasin.
+        const key = simpleName(name);
+        const kept = !!stock && (aiNames.has(key) || key === simpleName(String(stock.name)));
+        if (kept && stock?.name) name = String(stock.name);
 
         // Sotuv narxi.
         //
@@ -468,7 +508,7 @@ export function registerAiRoutes(app: FastifyInstance, opts: { requireAi: Guard;
         // narxni o'z holicha qoldiradi. Kartada qo'lda yozilgani esa
         // albatta ketadi.
         let sellPrice: number | undefined = Number(r?.sotuv_narxi) || undefined;
-        if (sellPrice && stock) {
+        if (sellPrice && stock && kept) {
           const ombordan = !!r?.sotuv_narxi_ombordan && Number(r?.eski_sotuv_narxi) === sellPrice;
           if (ombordan || sellPrice === Number(stock.sell_price)) sellPrice = undefined;
         }
@@ -535,6 +575,12 @@ export function registerAiRoutes(app: FastifyInstance, opts: { requireAi: Guard;
     '/ai/intake/cancel',
     { preHandler: opts.requireAi },
     async (req, reply) => {
+      // Bekor qilish ham KIRIM ruxsatiga bog'liq: busiz faqat 'ai'
+      // ruxsati bor xodim ega tayyorlagan nakladnoyni o'chirib
+      // tashlashi mumkin edi va do'konchi suratni qaytadan yuborardi.
+      if (!can(req, 'intake')) {
+        return reply.code(403).send({ error: 'no_permission', permission: 'intake' });
+      }
       const d = db
         .prepare("SELECT id, status FROM ai_intake_drafts WHERE id = ? AND shop_id = ?")
         .get(Number(req.body?.draft_id) || 0, req.shopId) as any;
