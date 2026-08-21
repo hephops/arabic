@@ -258,31 +258,35 @@ export const api = {
     // Javob boshlangach server har 15 soniyada ": ping" yozib turadi,
     // ya'ni tirik ulanishda jimlik deyarli bo'lmaydi — bu qorovul
     // chindan o'lgan ulanish uchun, sekin ishlagani uchun emas.
-    const UPLOAD_MS = 120_000;
-    const STALL_MS = 60_000;
-    const TOTAL_MS = 180_000;
+    // UMUMIY CHEGARA YO'Q — ataylab.
+    //
+    // Do'konchi uchun "biroz kutish" muammo emas, "javob bermadi" —
+    // muammo. Ilgari 180 soniyalik umumiy chegara bor edi va u
+    // ISHLAYOTGAN so'rovni ham kesib tashlardi: uzun nakladnoy
+    // o'qilayotgan payt javob tayyor bo'la turib xato chiqardi.
+    //
+    // Qorovul faqat JIMLIK bo'yicha ishlaydi. Server har 15 soniyada
+    // ": ping" yozib turadi va model har bo'lakni darhol yuboradi, ya'ni
+    // tirik ulanishda jimlik bo'lmaydi. Demak qorovul faqat chindan
+    // o'lgan ulanishni tutadi — sekin ishlaganini emas. Javob qancha
+    // davom etsa ham kutiladi.
+    const UPLOAD_MS = 180_000;
+    const STALL_MS = 90_000;
     const ac = new AbortController();
     // Qorovul NIMA UCHUN uzganini eslab qolamiz: bitta bayroq bilan
     // uchala muddatga bitta xato matni chiqarardik va vaqt tugaganda ham
     // "internetni tekshiring" deyilardi — holbuki aloqa sog'lom edi,
     // shunchaki javob uzoq davom etdi. Do'konchi internetini bekorga
     // tekshirib yurmasin.
-    let cause: 'stall' | 'total' | null = null;
-    const cut = (why: 'stall' | 'total') => { cause = why; ac.abort(); };
-    // Qorovul uzganda ko'rsatiladigan xat — sabab bo'yicha
-    const cutError = () => new Error(cause === 'total' ? translate('aiTooLong') : translate('aiStalled'));
+    let cause: 'stall' | null = null;
+    const cut = () => { cause = 'stall'; ac.abort(); };
+    const cutError = () => new Error(translate('aiStalled'));
 
-    let watch = setTimeout(() => cut('stall'), UPLOAD_MS);
-    // Umumiy soat oldindan qurilmaydi — birinchi baytda ishga tushadi
-    let total: ReturnType<typeof setTimeout> | undefined;
-    let started = false;
-    const kick = () => { clearTimeout(watch); watch = setTimeout(() => cut('stall'), STALL_MS); };
-    const firstByte = () => {
-      if (started) return;
-      started = true;
-      total = setTimeout(() => cut('total'), TOTAL_MS);
-    };
-    const stop = () => { clearTimeout(watch); if (total !== undefined) clearTimeout(total); };
+    // Yuklashga kengroq muddat: sekin aloqada surat chiqib ketguncha
+    // serverdan bitta ham bayt kelmaydi
+    let watch = setTimeout(cut, UPLOAD_MS);
+    const kick = () => { clearTimeout(watch); watch = setTimeout(cut, STALL_MS); };
+    const stop = () => clearTimeout(watch);
 
     let res: Response;
     try {
@@ -321,8 +325,7 @@ export const api = {
         throw new Error(translate('aiNetLost'));
       }
       // Birinchi muvaffaqiyatli o'qish = yuklash tugadi: shu yerdan
-      // boshlab qorovul qisqaroq jimlik soatiga o'tadi va umumiy soat yuradi
-      firstByte();
+      // boshlab qorovul qisqaroq jimlik soatiga o'tadi
       if (done) break;
       kick();
       buf += dec.decode(value, { stream: true });

@@ -43,7 +43,17 @@ function api(): Anthropic {
       // kutmaydi. SDK ning standart chegarasi 10 daqiqa: shuncha
       // vaqt aylanayotgan spinner "ilova osilib qoldi" degani.
       // Chegaradan oshsa tushunarli xato beriladi.
-      timeout: Number(process.env.AI_TIMEOUT_MS) || 40_000,
+      // Sekin javob UZILMAYDI.
+      //
+      // Ilgari 40 soniya edi va o'sha chegara ishlayotgan so'rovni ham
+      // kesib tashlardi: do'konchi 30 qatorli nakladnoy yuborsa, javob
+      // tayyor bo'la turib xato ko'rardi. Do'konchi uchun "biroz kutish"
+      // — muammo emas, "javob bermadi" — muammo.
+      //
+      // Endi chegara faqat CHINDAN o'lgan ulanish uchun. Oqim rejimida
+      // model har bo'lakni darhol yuboradi, ya'ni tirik so'rovda jimlik
+      // bo'lmaydi; ilova tomonda ham xuddi shunday qorovul turadi.
+      timeout: Number(process.env.AI_TIMEOUT_MS) || 600_000,
       // Bitta qayta urinish bor.
       //
       // Ilgari umuman yo'q edi: 60 soniyalik chegara + urinishsizlik
@@ -615,7 +625,11 @@ async function run(opts: AskOptions, emit?: (e: AiEvent) => void): Promise<AskRe
   //
   // Shuning uchun 75 soniyada O'ZIMIZ to'xtaymiz va bor javobni
   // beramiz — uzilgan so'rovdan ko'ra chala javob yaxshiroq.
-  const deadline = Date.now() + (Number(process.env.AI_TOTAL_MS) || 75_000);
+  // Halqaning umumiy muddati. Bu javobni QISQARTIRISH uchun emas —
+  // cheksiz aylanib qolishdan saqlaydigan oxirgi to'siq. Haqiqiy
+  // chegara MAX_STEPS: model shuncha marta vosita chaqirgach to'xtaydi.
+  // Shuning uchun muddat keng: sekin javob kutilsa ham kesilmaydi.
+  const deadline = Date.now() + (Number(process.env.AI_TOTAL_MS) || 600_000);
 
   while (steps < MAX_STEPS) {
     if (steps > 0 && Date.now() > deadline) {

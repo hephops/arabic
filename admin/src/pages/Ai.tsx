@@ -2,11 +2,12 @@ import { useEffect, useMemo, useState } from 'react';
 import { api, fmt, fmtNum, fmtPhone, type AiReport } from '../api';
 import { AppIcon } from '../icons';
 
-// AI bo'limi: tannarx, tushum va savollar soni bir joyda.
+// AI bo'lagi — PANELNING ichida turadi, alohida sahifa emas.
 //
-// Panel kartasi faqat 30 kunlik yig'indini ko'rsatadi — bu yerda esa
-// dinamikasi bilan turadi, chunki asosiy savol "qancha ketdi" emas,
-// "o'sib boryaptimi va narx tannarxni qoplayaptimi" degani.
+// Do'kon egasi hamma narsani bitta joyda ko'rishni so'radi: menyu bo'ylab
+// yurib qidirmasin. Asosiy savol "qancha ketdi" emas, "o'sib boryaptimi
+// va narx tannarxni qoplayaptimi" degani — shuning uchun yig'indi emas,
+// dinamikasi bilan turadi.
 
 const DAVRLAR = [
   { kun: 7, nom: '7 kun' },
@@ -18,7 +19,7 @@ const DAVRLAR = [
 /** Kun sanasini qisqa ko'rinishda: 2026-08-21 -> 21.08 */
 const kunLabel = (s: string) => `${s.slice(8, 10)}.${s.slice(5, 7)}`;
 
-export default function Ai() {
+export default function AiSection() {
   const [days, setDays] = useState(30);
   const [r, setR] = useState<AiReport | null>(null);
   const [err, setErr] = useState('');
@@ -41,7 +42,7 @@ export default function Ai() {
   );
 
   if (err) return <div className="panel"><div className="err-msg">{err}</div></div>;
-  if (!r) return <div className="panel">Yuklanmoqda...</div>;
+  if (!r) return <div className="panel">AI hisoboti yuklanmoqda...</div>;
 
   const farq = r.jami.tushum - r.jami.tannarx;
   // "Narxni qo'ysam qancha bo'lardi" — narx 0 bo'lganda ham ko'rinsin
@@ -49,6 +50,7 @@ export default function Ai() {
 
   return (
     <>
+      <div className="section-head">AI — tannarx, tushum va savollar</div>
       {/* Butun vaqt bo'yicha — bu raqamlar davr tanlovidan o'zgarmaydi */}
       <div className="stats">
         <div className="stat">

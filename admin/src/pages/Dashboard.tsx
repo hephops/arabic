@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, fmt, fmtNum, type Stats } from '../api';
 import { AppIcon } from '../icons';
+import AiSection from './Ai';
 
 export default function Dashboard({ onOpenShops }: { onOpenShops: () => void }) {
   const [s, setStats] = useState<Stats | null>(null);
@@ -197,6 +198,8 @@ export default function Dashboard({ onOpenShops }: { onOpenShops: () => void }) 
           </div>
         </div>
       </div>
+      {/* AI bo'lagi — alohida sahifa emas, panelning davomi */}
+      <AiSection />
     </>
   );
 }

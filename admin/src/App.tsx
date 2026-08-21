@@ -6,7 +6,6 @@ import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Shops from './pages/Shops';
 import Payments from './pages/Payments';
-import Ai from './pages/Ai';
 import Reminders from './pages/Reminders';
 import Referrals from './pages/Referrals';
 import Settings from './pages/Settings';
@@ -15,7 +14,7 @@ import Logs from './pages/Logs';
 import Catalog from './pages/Catalog';
 
 export type Page =
-  | 'dashboard' | 'shops' | 'payments' | 'ai' | 'catalog' | 'reminders'
+  | 'dashboard' | 'shops' | 'payments' | 'catalog' | 'reminders'
   | 'referrals' | 'settings' | 'admins' | 'logs';
 
 interface NavItem {
@@ -32,7 +31,6 @@ const GROUPS: NavItem[][] = [
     { id: 'dashboard', label: 'Panel', glyph: 'chart', sub: 'Tizimning umumiy holati' },
     { id: 'shops', label: "Do'konlar", glyph: 'house', sub: "Ro'yxatdan o'tgan do'konlar" },
     { id: 'payments', label: 'Balans', glyph: 'banknote', sub: "To'lovlar, kirim va chiqim" },
-    { id: 'ai', label: 'AI', glyph: 'sparkle', sub: 'Tannarx, tushum va savollar' },
   ],
   [
     { id: 'catalog', label: 'Katalog', glyph: 'boxes', sub: "Markaziy tovarlar bazasi" },
@@ -160,7 +158,6 @@ export default function App() {
           {page === 'dashboard' && <Dashboard onOpenShops={() => setPage('shops')} />}
           {page === 'shops' && <Shops />}
           {page === 'payments' && <Payments />}
-          {page === 'ai' && <Ai />}
           {page === 'catalog' && <Catalog />}
           {page === 'reminders' && <Reminders />}
           {page === 'referrals' && <Referrals />}
