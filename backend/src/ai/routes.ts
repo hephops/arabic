@@ -196,6 +196,24 @@ export function registerAiRoutes(app: FastifyInstance, opts: { requireAi: Guard;
           /* ulanish uzilgan bo'lsa yozib o'tirmaymiz */
         }
       };
+
+      // Tirik ekanini bildirib turadigan bo'sh belgi.
+      //
+      // Uzun nakladnoyni o'qiyotganda model bir necha o'n soniya
+      // davomida MATN yozmaydi — u vosita chaqiruvini tuzayotgan
+      // bo'ladi. Ilova esa jim turgan oqimni uzilgan deb hisoblab,
+      // "Aloqa uzilib qoldi" deb yozib qo'yardi. SSE izohi (":" bilan
+      // boshlanadi) ilova tomonidan e'tiborsiz qoldiriladi, lekin
+      // baytlar kelgani qorovul soatini qaytadan boshlaydi.
+      const beat = setInterval(() => {
+        try {
+          reply.raw.write(': ping\n\n');
+        } catch {
+          /* ulanish uzilgan */
+        }
+      }, 15_000);
+      beat.unref?.();
+
       try {
         const r = await askStream(
           {
@@ -218,6 +236,7 @@ export function registerAiRoutes(app: FastifyInstance, opts: { requireAi: Guard;
           send({ type: 'error', ...friendlyError(e) });
         }
       } finally {
+        clearInterval(beat);
         reply.raw.end();
       }
     }

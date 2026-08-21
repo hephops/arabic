@@ -285,12 +285,62 @@ function getChat(shopId: number, employeeId: number | null, channel: string): nu
   return Number(info.lastInsertRowid);
 }
 
+/**
+ * Yaroqsiz vosita juftliklarini tarixdan olib tashlash.
+ *
+ * API qat'iy talab qiladi: `tool_use` bo'lgan javobdan KEYIN darhol
+ * o'sha id ga mos `tool_result` turishi shart. Aks holda butun so'rov
+ * 400 bilan rad etiladi:
+ *   "tool_use ids were found without tool_result blocks immediately after"
+ *
+ * Bunday nosozlik bir marta yozilib qolsa, suhbat BUTUNLAY ishdan
+ * chiqadi — keyingi har bir savol o'sha xatoga urilaveradi va
+ * do'konchi yordamchidan umuman foydalana olmay qoladi. Shuning uchun
+ * tarix modelga yuborilishidan oldin shu yerda tozalanadi: kod endi
+ * bunday yozuvni yozmaydi, lekin ALLAQACHON buzilgan suhbatlar ham
+ * o'z-o'zidan tuzalib ketsin.
+ *
+ * Tozalashda javob matni saqlanib qoladi — faqat javobsiz vosita
+ * chaqiruvi tashlanadi, do'konchining suhbati yo'qolmaydi.
+ */
+function pairTools(msgs: Anthropic.MessageParam[]): Anthropic.MessageParam[] {
+  const blocksOf = (m?: Anthropic.MessageParam): any[] =>
+    m && Array.isArray(m.content) ? (m.content as any[]) : [];
+  const out: Anthropic.MessageParam[] = [];
+  for (let i = 0; i < msgs.length; i++) {
+    const m = msgs[i];
+    const blocks = blocksOf(m);
+    const uses = blocks.filter((b) => b?.type === 'tool_use').map((b) => b.id);
+    if (m.role === 'assistant' && uses.length) {
+      const next = msgs[i + 1];
+      const answered = new Set(
+        blocksOf(next)
+          .filter((b) => b?.type === 'tool_result')
+          .map((b) => b.tool_use_id)
+      );
+      if (next?.role === 'user' && uses.every((id) => answered.has(id))) {
+        out.push(m, next);
+        i++; // juftlik doim birga ketadi
+        continue;
+      }
+      const text = blocks.filter((b) => b?.type === 'text');
+      if (text.length) out.push({ role: 'assistant', content: text as any });
+      continue;
+    }
+    // Egasiz tool_result ham xuddi shunday rad etiladi. Bu tarix
+    // oynasi (LIMIT) juftlikning o'rtasidan kesilganda ham bo'ladi.
+    if (m.role === 'user' && blocks.some((b) => b?.type === 'tool_result')) continue;
+    out.push(m);
+  }
+  return out;
+}
+
 /** Suhbat tarixi — modelga yuboriladigan ko'rinishda */
 function history(chatId: number, limit = 12): Anthropic.MessageParam[] {
   const rows = db
     .prepare('SELECT role, content FROM ai_messages WHERE chat_id = ? ORDER BY id DESC LIMIT ?')
     .all(chatId, limit) as any[];
-  const out: Anthropic.MessageParam[] = [];
+  let out: Anthropic.MessageParam[] = [];
   for (const r of rows.reverse()) {
     try {
       out.push({ role: r.role, content: JSON.parse(r.content) });
@@ -298,6 +348,7 @@ function history(chatId: number, limit = 12): Anthropic.MessageParam[] {
       /* buzilgan yozuv tarixni to'xtatmasin */
     }
   }
+  out = pairTools(out);
   // Tarix "user" bilan boshlanishi shart, aks holda API rad etadi
   while (out.length && out[0].role !== 'user') out.shift();
   return out;
@@ -518,6 +569,23 @@ async function run(opts: AskOptions, emit?: (e: AiEvent) => void): Promise<AskRe
   let steps = 0;
   let cost = 0;
   let answer = '';
+  // Modeldan biror matn oqib o'tdimi — ajratkich qo'yish uchun kerak
+  let streamed = false;
+
+  /**
+   * Bizning o'z gapimizni javobga qo'shish.
+   *
+   * MUHIM: bu matnlar modeldan kelmaydi, ya'ni stream.on('text') ularni
+   * uzatmaydi. Ilgari ular faqat qaytish qiymatiga tushardi, oqim
+   * rejimida esa (ilova doim shu rejimda ishlaydi) hech qayerga
+   * chiqmasdi — do'konchi sababini bilmay "Javob kelmadi" degan quruq
+   * yozuvni ko'rardi.
+   */
+  const note = (msg: string) => {
+    const sep = answer || streamed ? '\n\n' : '';
+    answer = answer + sep + msg;
+    emit?.({ type: 'text', delta: sep + msg });
+  };
 
   // UMUMIY MUDDAT. Bitta chaqiruvning o'z chegarasi bor, lekin halqa
   // bir necha marta aylanadi va yig'indi juda cho'zilib ketishi mumkin.
@@ -533,15 +601,17 @@ async function run(opts: AskOptions, emit?: (e: AiEvent) => void): Promise<AskRe
 
   while (steps < MAX_STEPS) {
     if (steps > 0 && Date.now() > deadline) {
-      answer =
-        (answer ? answer + '\n\n' : '') +
-        "Javob to'liq tayyor bo'lmadi — savol biroz og'ir keldi. Uni ikkiga bo'lib so'rab ko'ring.";
+      note("Javob to'liq tayyor bo'lmadi — savol biroz og'ir keldi. Uni ikkiga bo'lib so'rab ko'ring.");
       break;
     }
     steps++;
     const params = {
       model,
-      max_tokens: 2000,
+      // 30 qatorli nakladnoyning kirim taklifi ~1750 token chiqadi —
+      // 2000 chegarasiga tegib, javob kesilib qolardi. O'lchandi:
+      // chegarani ko'tarish vaqtga deyarli ta'sir qilmaydi (12.5s -> 14.9s),
+      // to'lov esa faqat CHINDAN yozilgan tokenlar uchun ketadi.
+      max_tokens: Number(process.env.AI_MAX_TOKENS) || 4000,
       // Ko'rsatma va vositalar o'zgarmaydi — keshdan o'qiladi, narxi 10%
       system: [{ type: 'text' as const, text: SYSTEM, cache_control: { type: 'ephemeral' as const } }],
       tools: toolSchemas({ actions: opts.canAct !== false }) as any,
@@ -552,7 +622,10 @@ async function run(opts: AskOptions, emit?: (e: AiEvent) => void): Promise<AskRe
     if (emit) {
       const stream = api().messages.stream(params);
       // Matn yozilishi bilan darhol uzatiladi
-      stream.on('text', (delta) => emit({ type: 'text', delta }));
+      stream.on('text', (delta) => {
+        streamed = true;
+        emit({ type: 'text', delta });
+      });
       res = await stream.finalMessage();
     } else {
       res = await api().messages.create(params);
@@ -575,10 +648,23 @@ async function run(opts: AskOptions, emit?: (e: AiEvent) => void): Promise<AskRe
     );
 
     messages.push({ role: 'assistant', content: res.content });
-    saveMsg(chatId, opts.shopId, 'assistant', res.content, textOf(res.content));
 
     if (res.stop_reason !== 'tool_use') {
+      // Javob 'max_tokens' da kesilgan bo'lsa, ichida CHALA tool_use
+      // qolishi mumkin. Uni saqlab qo'ysak, keyingi har bir savol
+      // "tool_use ids were found without tool_result" xatosiga urilib,
+      // suhbat butunlay ishdan chiqardi. Shuning uchun javobning
+      // faqat matn qismi saqlanadi.
+      const keep = res.content.filter((b) => b.type !== 'tool_use');
+      saveMsg(chatId, opts.shopId, 'assistant', keep, textOf(res.content));
       answer = textOf(res.content);
+      if (res.stop_reason === 'max_tokens') {
+        note(
+          answer
+            ? "Ro'yxat juda uzun bo'lgani uchun oxirigacha yetmadi. Nakladnoyni ikkiga bo'lib suratga oling."
+            : "Nakladnoy juda uzun ekan — bir marotabada o'qib bo'lmadi. Uni ikkiga bo'lib suratga oling."
+        );
+      }
       break;
     }
 
@@ -627,13 +713,19 @@ async function run(opts: AskOptions, emit?: (e: AiEvent) => void): Promise<AskRe
       }
     }
     // Hamma natija BITTA xabarda qaytadi — bo'lib yuborilsa model
-    // keyingi safar vositalarni parallel chaqirmay qo'yadi
+    // keyingi safar vositalarni parallel chaqirmay qo'yadi.
+    //
+    // Chaqiruv va uning natijasi KETMA-KET, shu yerda saqlanadi:
+    // ilgari chaqiruv yuqorida, natija esa shu yerda yozilardi va
+    // orasida biror narsa uzilib qolsa tarixda javobsiz chaqiruv
+    // qolib ketardi.
     messages.push({ role: 'user', content: results });
+    saveMsg(chatId, opts.shopId, 'assistant', res.content, textOf(res.content));
     saveMsg(chatId, opts.shopId, 'user', results, '');
   }
 
-  if (!answer) {
-    answer = 'Javob tayyorlashda muammo bo\'ldi. Savolni qisqaroq qilib qayta yozing.';
+  if (!answer && !streamed) {
+    note("Javob tayyorlashda muammo bo'ldi. Savolni qisqaroq qilib qayta yozing.");
   }
 
   // Pul javob TAYYOR bo'lgandan keyin yechiladi: model javob bermasa
