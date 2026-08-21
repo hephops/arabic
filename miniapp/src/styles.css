@@ -2141,6 +2141,10 @@ button.link { background: none; color: var(--accent); font-size: 15px; font-weig
   display: flex; align-items: center; justify-content: center;
   padding: 8px; cursor: zoom-out;
   animation: sheetFade 0.18s ease-out;
+  /* Barmoq qoplama ustida harakatlansa orqadagi suhbat surilib
+     ketmasin — do'konchi suratni ko'rib bo'lgach o'zi qayerda
+     turganini yo'qotmasin */
+  touch-action: none; overscroll-behavior: contain;
 }
 /* Deyarli butun ekranni egallasin: nakladnoy qanchalik katta ko'rinsa,
    yozuvni shunchalik oson o'qiydi. Telefonda ustidan barmoq bilan

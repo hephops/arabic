@@ -4,7 +4,7 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { db } from '../db.js';
 import { getSetting } from '../billing.js';
 import { can } from '../auth.js';
-import { ask, askStream, AiError, spend, purgeOld, dropChatImages, type AiEvent } from './agent.js';
+import { ask, askStream, AiError, spend, purgeOld, dropChat, type AiEvent } from './agent.js';
 import { KEEP_DAYS, aiEnabled, aiKey, model as aiModel, dailyLimit, questionPrice } from './config.js';
 
 type Guard = (req: FastifyRequest, reply: FastifyReply) => Promise<unknown>;
@@ -386,13 +386,9 @@ export function registerAiRoutes(app: FastifyInstance, opts: { requireAi: Guard;
            AND ((employee_id IS NULL AND ? IS NULL) OR employee_id = ?)`
       )
       .all(req.shopId, req.employeeId, req.employeeId) as any[];
-    for (const c of chats) {
-      // Suhbat bilan birga uning suratlari ham ketsin — do'konchi
-      // "tozaladim" degandan keyin nakladnoyi diskda qolib ketmasin
-      dropChatImages(c.id);
-      db.prepare('DELETE FROM ai_messages WHERE chat_id = ?').run(c.id);
-      db.prepare('DELETE FROM ai_chats WHERE id = ?').run(c.id);
-    }
+    // Suhbat bilan birga uning suratlari ham ketadi — do'konchi
+    // "tozaladim" degandan keyin nakladnoyi diskda qolib ketmasin
+    for (const c of chats) dropChat(c.id);
     return { ok: true, deleted: chats.length };
   });
 }

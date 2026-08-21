@@ -5,7 +5,7 @@ import { AppIcon, Glyph } from '../icons';
 import { SubHeader } from '../ui';
 import { useT } from '../i18n';
 import { toast, loadFailed } from '../toast';
-import { haptic } from '../telegram';
+import { haptic, setBackButton } from '../telegram';
 
 // AI yordamchi bilan suhbat.
 //
@@ -156,7 +156,11 @@ export default function Ai({ onBack }: { onBack: () => void }) {
     };
     try {
       await api.aiStream(
-        question || t('aiPhotoAsk'),
+        // Matn yozilmagan bo'lsa BO'SH ketadi: modelga standart
+        // ko'rsatmani server o'zi qo'yadi. Ilgari bu yerda tayyor gap
+        // yuborilardi va u tarixda do'konchining o'z yozuvi bo'lib
+        // qolardi — qayta ochganda u yozmagan jumla turardi.
+        question,
         (e) => {
           if (e.type === 'text') push(e.delta);
           else if (e.type === 'status') setStatusTool(e.tool);
@@ -194,6 +198,23 @@ export default function Ai({ onBack }: { onBack: () => void }) {
   // To'liq ekranda ochilgan surat: nakladnoydagi mayda yozuvni
   // pufakchadagi kichik rasmdan o'qib bo'lmaydi
   const [zoom, setZoom] = useState<string | null>(null);
+
+  // Surat to'liq ekranda turganda:
+  //  - orqadagi suhbat surilmasin (barmoq qoplama ustida harakatlansa
+  //    ham ro'yxat siljib ketardi);
+  //  - Telegramning "Orqaga" tugmasi avval SURATNI yopsin. Ilgari u
+  //    butun AI ekranidan chiqarib yuborardi va do'konchi suhbatini
+  //    yo'qotardi.
+  useEffect(() => {
+    if (!zoom) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    setBackButton(() => setZoom(null));
+    return () => {
+      document.body.style.overflow = prev;
+      setBackButton(onBack);
+    };
+  }, [zoom, onBack]);
   const fileRef = useRef<HTMLInputElement>(null);
   // Suhbatdagi tasdiqlash kartalari: qaysi xabardan keyin turishi
   const [drafts, setDrafts] = useState<{ at: number; id: number; items: AiDraftItem[] }[]>([]);
@@ -290,6 +311,14 @@ export default function Ai({ onBack }: { onBack: () => void }) {
                     src={img}
                     alt=""
                     loading="lazy"
+                    // Surat yuklanmaguncha balandligi nolga teng. Avtomatik
+                    // pastga surish esa xabar qo'shilishi bilan ishlaydi —
+                    // ya'ni surat o'sishidan OLDIN. Shuning uchun oxirgi
+                    // xabardagi surat yuklangach yana bir marta suriladi,
+                    // aks holda javob ekran ostida qolib ketardi.
+                    onLoad={() => {
+                      if (i === shown.length - 1) endRef.current?.scrollIntoView({ block: 'end' });
+                    }}
                     onClick={() => setZoom(img)}
                   />
                 )}

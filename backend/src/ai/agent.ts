@@ -318,6 +318,32 @@ function saveMsg(chatId: number, shopId: number, role: string, content: unknown,
 
 const IMG_EXT: Record<string, string> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
 
+/** Matnsiz surat yuborilganda modelga beriladigan ko'rsatma */
+const PHOTO_ASK = "Suratdagi ma'lumotni o'qib ber.";
+
+/**
+ * Bir kunda saqlanadigan suratlar soni.
+ *
+ * Kunlik savol chegarasi ai_usage qatorlarini sanaydi, ular esa faqat
+ * model MUVAFFAQIYATLI javob bergandan keyin qo'shiladi. Kalit buzuq
+ * bo'lsa yoki model doim xato qaytarsa, chegara hech qachon to'lmaydi
+ * va surat yozish cheksiz takrorlanishi mumkin edi. Shuning uchun
+ * fayl yozishning O'ZIGA alohida, modeldan mustaqil chegara.
+ */
+const IMG_DAY_CAP = Number(process.env.AI_IMG_DAY_CAP) || 30;
+
+/** Bugun shu do'kon uchun nechta surat saqlangan */
+function imagesToday(shopId: number): number {
+  const r = db
+    .prepare(
+      `SELECT COUNT(*) AS c FROM ai_messages
+       WHERE shop_id = ? AND image_url IS NOT NULL
+         AND date(created_at, '+5 hours') = date('now', '+5 hours')`
+    )
+    .get(shopId) as any;
+  return r.c;
+}
+
 /**
  * Suratni diskka yozib, ekranga qo'yiladigan yo'lni qaytarish.
  *
@@ -341,24 +367,31 @@ function saveAiImage(msgId: number, img: { media: string; data: string }): strin
   }
 }
 
+/** Bitta surat faylini o'chirish. basename — bazadagi yo'l qanday
+ *  bo'lishidan qat'i nazar jilddan tashqariga chiqib ketmaslik uchun. */
+function dropImageFile(url: unknown) {
+  try {
+    unlinkSync(join(UPLOADS_DIR, basename(String(url))));
+  } catch {
+    /* fayl allaqachon yo'q — tozalash shu sababdan to'xtamasin */
+  }
+}
+
 /**
- * Suhbat suratlarini diskdan olib tashlash.
+ * Suhbatni butunlay o'chirish: avval suratlar, keyin xabarlar, keyin
+ * suhbatning o'zi.
  *
- * Qatorlar o'chirilsa fayllar yetim qolib, uploads jildi cheksiz
- * o'sardi — hech kim ko'rmaydigan nakladnoylar diskda yotaverardi.
- * Shuning uchun DELETE dan OLDIN chaqiriladi.
+ * Uchtasi doim birga bajarilishi kerak. Ilgari bu ketma-ketlik ikki
+ * joyda so'zma-so'z takrorlanardi va birida fayl o'chirish esdan
+ * chiqsa, nakladnoylar diskda yetim qolib ketardi.
  */
-export function dropChatImages(chatId: number) {
+export function dropChat(chatId: number) {
   const rows = db
     .prepare('SELECT image_url FROM ai_messages WHERE chat_id = ? AND image_url IS NOT NULL')
     .all(chatId) as any[];
-  for (const r of rows) {
-    try {
-      unlinkSync(join(UPLOADS_DIR, basename(String(r.image_url))));
-    } catch {
-      /* fayl allaqachon yo'q — tozalash shu sababdan to'xtamasin */
-    }
-  }
+  for (const r of rows) dropImageFile(r.image_url);
+  db.prepare('DELETE FROM ai_messages WHERE chat_id = ?').run(chatId);
+  db.prepare('DELETE FROM ai_chats WHERE id = ?').run(chatId);
 }
 
 /** Vosita natijasini modelga sig'adigan hajmga keltirish */
@@ -430,8 +463,14 @@ export async function askStream(opts: AskOptions, emit: (e: AiEvent) => void): P
 async function run(opts: AskOptions, emit?: (e: AiEvent) => void): Promise<AskResult> {
   if (!aiEnabled()) throw new AiError('ai_off', 'AI yoqilmagan');
   const question = String(opts.question ?? '').trim();
-  if (!question) throw new AiError('empty', "Savol bo'sh");
+  const img = parseImage(opts.image);
+  // Surat yuborilib matn yozilmasligi mumkin — bu to'liq to'g'ri holat:
+  // do'konchi daftarni suratga oladi-yu, hech narsa yozmaydi. Shunda
+  // MODELGA standart ko'rsatma ketadi, do'konchining PUFAKCHASIGA esa
+  // bo'sh matn yoziladi — u yozmagan gap uning nomidan turmasin.
+  if (!question && !img) throw new AiError('empty', "Savol bo'sh");
   if (question.length > 2000) throw new AiError('too_long', 'Savol juda uzun');
+  const asked = question || PHOTO_ASK;
 
   const limit = dailyLimit();
   if (limit > 0 && askedToday(opts.shopId) >= limit) {
@@ -456,11 +495,10 @@ async function run(opts: AskOptions, emit?: (e: AiEvent) => void): Promise<AskRe
   // Bugungi sana KO'RSATMAGA emas, savolga qo'shiladi: ko'rsatma
   // o'zgarmas bo'lishi kerak (kesh uchun), sana esa har kuni
   // o'zgaradi. Do'konchi ko'radigan matn — faqat uning savoli.
-  const dated = `${todayLine()}\n\n${question}`;
+  const dated = `${todayLine()}\n\n${asked}`;
 
   // Surat bo'lsa savol bilan birga ketadi. Rasm BIRINCHI turadi:
   // model avval ko'radi, keyin nima so'ralayotganini o'qiydi.
-  const img = parseImage(opts.image);
   const content: any = img
     ? [{ type: 'image', source: { type: 'base64', media_type: img.media, data: img.data } }, { type: 'text', text: dated }]
     : dated;
@@ -471,7 +509,7 @@ async function run(opts: AskOptions, emit?: (e: AiEvent) => void): Promise<AskRe
   const userMsgId = saveMsg(chatId, opts.shopId, 'user', dated, question);
   // Ekran uchun esa nusxasi faylga tushadi: do'konchi o'z pufakchasida
   // qaysi daftarni yuborganini ko'rib turishi kerak.
-  if (img) {
+  if (img && imagesToday(opts.shopId) < IMG_DAY_CAP) {
     const url = saveAiImage(userMsgId, img);
     if (url) db.prepare('UPDATE ai_messages SET image_url = ? WHERE id = ?').run(url, userMsgId);
   }
@@ -617,10 +655,24 @@ export function purgeOld(days: number) {
   const old = db
     .prepare(`SELECT id FROM ai_chats WHERE updated_at < datetime('now', ?)`)
     .all(`-${days} days`) as any[];
-  for (const c of old) {
-    dropChatImages(c.id);
-    db.prepare('DELETE FROM ai_messages WHERE chat_id = ?').run(c.id);
-    db.prepare('DELETE FROM ai_chats WHERE id = ?').run(c.id);
+  for (const c of old) dropChat(c.id);
+
+  // Suhbatning O'ZI eskirmasligi mumkin: getChat har do'konga bitta
+  // suhbatni qayta ishlatadi va har xabar updated_at ni yangilaydi,
+  // ya'ni faol do'konda yuqoridagi tozalash hech qachon ishlamaydi.
+  // Suratlar esa eng og'ir qism — ular xabarning O'Z yoshiga qarab
+  // ketadi, aks holda uploads jildi cheksiz o'sib borardi.
+  // Yo'l NULL ga tushadi: fayl yo'q bo'lsa ekranda buzuq rasm
+  // belgisi chiqib qolmasin.
+  const stale = db
+    .prepare(
+      `SELECT id, image_url FROM ai_messages
+       WHERE image_url IS NOT NULL AND created_at < datetime('now', ?)`
+    )
+    .all(`-${days} days`) as any[];
+  for (const m of stale) {
+    dropImageFile(m.image_url);
+    db.prepare('UPDATE ai_messages SET image_url = NULL WHERE id = ?').run(m.id);
   }
   return old.length;
 }
