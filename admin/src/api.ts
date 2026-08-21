@@ -167,6 +167,13 @@ export interface Stats {
   total_topups: number;
   month_topups: number;
   /** kunlik narx x faol do'kon — bugungi kutilayotgan tushum */
+  /** Anthropic chegarasining oxirgi ma'lum holati (javob sarlavhalaridan) */
+  ai_rate: {
+    req_limit: number | null; req_left: number | null;
+    in_limit: number | null; in_left: number | null;
+    out_limit: number | null; out_left: number | null;
+    reset: string | null; at: string;
+  } | null;
   ai_cost_month: number;
   ai_cost_today: number;
   ai_shops: number;

@@ -118,6 +118,48 @@ export default function Dashboard({ onOpenShops }: { onOpenShops: () => void }) 
             </div>
           </div>
         </div>
+
+        {/* Anthropic chegarasi.
+            "Yuz do'kon bir vaqtda ishlatsa yetadimi?" degan savolga
+            taxmin bilan emas, haqiqiy raqam bilan javob beradi. Raqamlar
+            javob sarlavhalaridan bepul o'qiladi — alohida so'rov yo'q.
+            Eng tor joyi ko'rsatiladi: chegaraga birinchi bo'lib
+            o'shanisi uriladi, qolgani ahamiyatsiz. */}
+        {s.ai_rate && (() => {
+          const r = s.ai_rate;
+          const parts = [
+            { k: "so'rov", limit: r.req_limit, left: r.req_left },
+            { k: 'kirish token', limit: r.in_limit, left: r.in_left },
+            { k: 'chiqish token', limit: r.out_limit, left: r.out_left },
+          ].filter((x) => x.limit != null && x.left != null) as
+            { k: string; limit: number; left: number }[];
+          if (!parts.length) return null;
+          // Foizi eng kam bo'lgani — eng tor joyi
+          const tight = parts.reduce((a, b) =>
+            b.left / (b.limit || 1) < a.left / (a.limit || 1) ? b : a
+          );
+          const pct = Math.round((tight.left * 100) / (tight.limit || 1));
+          const rang = pct <= 15 ? 'red' : pct <= 40 ? 'accent' : 'green';
+          return (
+            <div className="stat">
+              <AppIcon glyph="chart" size={38} />
+              <div className="txt">
+                <div className="k">Anthropic chegarasi</div>
+                <div className={`v ${rang}`}>{pct}% bo'sh</div>
+                <div className="sub">
+                  eng tor joyi: {tight.k} — {fmtNum(tight.left)} / {fmtNum(tight.limit)} daqiqasiga
+                  {parts.length > 1
+                    ? ' · ' +
+                      parts
+                        .filter((x) => x !== tight)
+                        .map((x) => `${x.k} ${Math.round((x.left * 100) / (x.limit || 1))}%`)
+                        .join(' · ')
+                    : ''}
+                </div>
+              </div>
+            </div>
+          );
+        })()}
       </div>
 
       <div className="panel">

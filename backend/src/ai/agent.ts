@@ -16,6 +16,7 @@ import { fileURLToPath } from 'node:url';
 import { randomBytes } from 'node:crypto';
 import { db } from '../db.js';
 import { gate, BusyError } from './gate.js';
+import { readRateHeaders } from './ratelimit.js';
 import { TOOL_BY_NAME, toolSchemas, ACTION_TOOLS } from './tools.js';
 import { MODEL_DEEP, MAX_STEPS, costUzs, aiEnabled, aiKey, model as aiModel, dailyLimit, questionPrice } from './config.js';
 
@@ -649,9 +650,15 @@ async function run(opts: AskOptions, emit?: (e: AiEvent) => void): Promise<AskRe
         streamed = true;
         emit({ type: 'text', delta });
       });
-      return await stream.finalMessage();
-    }
-      return await api().messages.create(params);
+      const done = await stream.finalMessage();
+        // Chegara holati baribir kelayotgan javobning sarlavhasida
+        // turibdi — alohida so'rov yubormasdan o'qib qo'yamiz
+        readRateHeaders(stream.response?.headers);
+        return done;
+      }
+      const raw = await api().messages.create(params).withResponse();
+      readRateHeaders(raw.response?.headers);
+      return raw.data;
       });
     } catch (e) {
       // Navbat to'lgan: bu xato emas, shunchaki hozir gavjum. Do'konchi

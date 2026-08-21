@@ -2,6 +2,7 @@ import { randomBytes, scryptSync, timingSafeEqual, createHmac } from 'node:crypt
 import { hit, reset } from './ratelimit.js';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { db } from './db.js';
+import { rateState } from './ai/ratelimit.js';
 import { uzDayShift, uzToday } from './tz.js';
 import { dailyPrice, lowBalanceDays, serviceState, chargeShop, setSetting } from './billing.js';
 
@@ -209,7 +210,13 @@ export function registerAdminRoutes(app: FastifyInstance) {
       )
       .get() as any;
 
+    // Anthropic chegarasining hozirgi holati — "yuz do'kon bir vaqtda
+    // ishlatsa yetadimi?" degan savolga taxmin emas, haqiqiy raqam.
+    // Sarlavhalardan bepul o'qiladi (ai/ratelimit.ts).
+    const rate = rateState();
+
     return {
+      ai_rate: rate,
       ai_cost_month: ai.oy,
       ai_cost_today: aiToday.s,
       ai_shops: ai.dokonlar,
