@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { api, fmt, type AdminAiStatus } from '../api';
+import { api, fmt, fmtNum, type AdminAiStatus } from '../api';
 
 type Field = {
   key: string;
@@ -89,11 +89,19 @@ export default function Settings() {
     setDirty((d) => ({ ...d, [k]: v }));
   }
 
-  /** Kalitni haqiqiy so'rov bilan sinab ko'rish */
+  /**
+   * Kalitni haqiqiy so'rov bilan sinab ko'rish.
+   *
+   * Sinov SAQLANGAN kalitni tekshiradi. Shuning uchun maydonda
+   * saqlanmagan o'zgarish bo'lsa avval o'zi saqlaydi — aks holda
+   * yangi kalitni yozib "Sinab ko'rish" bosgan odam eskisining
+   * (yoki yo'qligining) natijasini ko'rib chalkashardi.
+   */
   async function testAi() {
     setTesting(true);
     setTestMsg('');
     try {
+      if (Object.keys(dirty).length > 0) await save();
       const r = await api.aiTest();
       setTestOk(r.ok);
       setTestMsg(r.ok ? `✅ Ishlayapti (${r.model}): ${r.answer}` : `⛔ ${r.error}`);
@@ -137,8 +145,18 @@ export default function Settings() {
             {ai.enabled ? (
               <>
                 ✅ <b>Yoqilgan</b> · kalit …{ai.key_tail || '????'}
-                {ai.from_env ? ' (.env faylidan)' : ''} · 30 kunda <b>{fmt(ai.cost_month)}</b> ·{' '}
-                {ai.calls_month} chaqiruv · {ai.shops_month} do'kon
+                {ai.from_env ? ' (.env faylidan)' : ''}
+                <br />
+                30 kunda: tannarx <b>{fmt(ai.cost_month)}</b>
+                {ai.question_price > 0 && (
+                  <>
+                    {' '}· do'konchilardan <b>{fmt(ai.earned_month)}</b> ({ai.paid_questions_month} savol) ·{' '}
+                    <b className={ai.earned_month >= ai.cost_month ? 'ok-msg' : 'err-msg'}>
+                      {ai.earned_month >= ai.cost_month ? 'foyda' : 'zarar'} {fmt(Math.abs(ai.earned_month - ai.cost_month))}
+                    </b>
+                  </>
+                )}
+                {' '}· {ai.calls_month} chaqiruv · {ai.shops_month} do'kon
               </>
             ) : (
               <>⛔ <b>O'chiq</b> — kalit qo'yilmagan. Do'konchilarga "AI yoqilmagan" deb ko'rinadi.</>
@@ -166,10 +184,32 @@ export default function Settings() {
             <div className="set-field">
               <label>Model</label>
               <select value={value('ai_model') || 'claude-haiku-4-5'} onChange={(e) => set('ai_model', e.target.value)}>
-                <option value="claude-haiku-4-5">Haiku — arzon (~100 so'm/savol)</option>
-                <option value="claude-sonnet-5">Sonnet — aqlliroq (~300 so'm/savol)</option>
+                <option value="claude-haiku-4-5">Haiku — arzon</option>
+                <option value="claude-sonnet-5">Sonnet — aqlliroq</option>
               </select>
-              <div className="set-hint">Sonnet o'zbekchani tabiiyroq yozadi, lekin uch barobar qimmat</div>
+              <div className="set-hint">
+                Sonnet o'zbekchani tabiiyroq yozadi. Bizga tushadigan TANNARX: Haiku ~100 so'm,
+                Sonnet ~300 so'm bitta savolga. Do'konchidan olinadigan narxni siz qo'yasiz.
+              </div>
+            </div>
+
+            {/* Narxni PLATFORMA EGASI qo'yadi. Pastdagi tannarx —
+                Anthropic bizdan oladigan pul, uni o'zgartirib
+                bo'lmaydi; bu esa do'konchidan olinadigan narx. */}
+            <div className="set-field">
+              <label>Bitta savol narxi (do'konchidan yechiladi)</label>
+              <input
+                type="number"
+                min={0}
+                placeholder="0"
+                value={value('ai_question_price')}
+                onChange={(e) => set('ai_question_price', e.target.value)}
+              />
+              <div className="set-hint">
+                {Number(value('ai_question_price') || 0) > 0
+                  ? `${fmtNum(Number(value('ai_question_price')))} so'm — har savolda do'kon balansidan yechiladi`
+                  : "0 — BEPUL, kunlik obunaga kiradi"}
+              </div>
             </div>
 
             <div className="set-field">
@@ -182,15 +222,14 @@ export default function Settings() {
                 onChange={(e) => set('ai_daily_limit', e.target.value)}
               />
               <div className="set-hint">
-                0 — cheksiz (tavsiya etilmaydi). Hozir: {ai.daily_limit} ta ·
-                eng yomon holatda {fmt(ai.daily_limit * 100)}/kun
+                0 — cheksiz (tavsiya etilmaydi). Hozir: {ai.daily_limit} ta
               </div>
             </div>
           </div>
 
           <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: 12, flexWrap: 'wrap' }}>
-            <button className="btn" onClick={testAi} disabled={testing}>
-              {testing ? 'Tekshirilyapti…' : 'Sinab ko\'rish'}
+            <button className="btn" onClick={testAi} disabled={testing || saving}>
+              {testing ? 'Tekshirilyapti…' : dirty.anthropic_api_key ? 'Saqlab sinash' : 'Sinab ko\'rish'}
             </button>
             {testMsg && <span className={testOk ? 'ok-msg' : 'err-msg'}>{testMsg}</span>}
           </div>

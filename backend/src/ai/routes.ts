@@ -4,7 +4,7 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { db } from '../db.js';
 import { getSetting } from '../billing.js';
 import { ask, AiError, spend, purgeOld } from './agent.js';
-import { KEEP_DAYS, aiEnabled, aiKey, model as aiModel, dailyLimit } from './config.js';
+import { KEEP_DAYS, aiEnabled, aiKey, model as aiModel, dailyLimit, questionPrice } from './config.js';
 
 type Guard = (req: FastifyRequest, reply: FastifyReply) => Promise<unknown>;
 
@@ -19,6 +19,10 @@ export function registerAiRoutes(app: FastifyInstance, opts: { requireAi: Guard;
       daily_limit: limit,
       asked_today: s.savollar,
       left_today: limit > 0 ? Math.max(0, limit - s.savollar) : null,
+      // Bitta savol qancha turadi (0 — bepul). Ilova buni oldindan
+      // ko'rsatadi: do'konchi bilib tursin, keyin "pulim qayoqqa
+      // ketdi" degan savol tug'ilmasin.
+      price: questionPrice(),
     };
   });
 
@@ -37,6 +41,15 @@ export function registerAiRoutes(app: FastifyInstance, opts: { requireAi: Guard;
          FROM ai_usage WHERE created_at >= datetime('now', '-30 days')`
       )
       .get() as any;
+    // Do'konchilardan yechilgan pul — bu DAROMAD, yuqoridagisi esa
+    // Anthropic'ga to'lanadigan TANNARX. Ikkalasi yonma-yon turishi
+    // kerak: narx tannarxni qoplayaptimi yoki yo'q, shundan ko'rinadi.
+    const earned = db
+      .prepare(
+        `SELECT COALESCE(-SUM(amount), 0) AS s, COUNT(*) AS c FROM balance_transactions
+         WHERE type = 'ai' AND created_at >= datetime('now', '-30 days')`
+      )
+      .get() as any;
     return {
       enabled: aiEnabled(),
       // Kalitning O'ZI hech qachon qaytarilmaydi — faqat bor-yo'qligi
@@ -44,6 +57,7 @@ export function registerAiRoutes(app: FastifyInstance, opts: { requireAi: Guard;
       key_tail: key ? key.slice(-4) : null,
       model: aiModel(),
       daily_limit: dailyLimit(),
+      question_price: questionPrice(),
       keep_days: KEEP_DAYS,
       // Kalit .env dan kelayaptimi yoki admin paneldan — "nega
       // o'chirmayapti" degan savolga javob shu yerda
@@ -51,6 +65,8 @@ export function registerAiRoutes(app: FastifyInstance, opts: { requireAi: Guard;
       cost_month: month.s,
       calls_month: month.c,
       shops_month: month.d,
+      earned_month: earned.s,
+      paid_questions_month: earned.c,
     };
   });
 
@@ -98,10 +114,11 @@ export function registerAiRoutes(app: FastifyInstance, opts: { requireAi: Guard;
         });
         // Sarf do'konchiga ko'rsatilmaydi — u obunaga kirgan, har
         // savolda "shuncha so'm ketdi" deb turish bezovta qiladi
-        return { text: r.text, chat_id: r.chat_id, tools_used: r.tools_used };
+        return { text: r.text, chat_id: r.chat_id, tools_used: r.tools_used, charged: r.charged };
       } catch (e: any) {
         if (e instanceof AiError) {
-          return reply.code(e.code === 'daily_limit' ? 429 : 400).send({ error: e.code, message: e.message });
+          const code = e.code === 'daily_limit' ? 429 : e.code === 'no_balance' ? 402 : 400;
+        return reply.code(code).send({ error: e.code, message: e.message });
         }
         req.log.error(e);
         // Model tomonidagi xato do'konchiga tushunarli tilda

@@ -104,6 +104,20 @@ export function model(): string {
 }
 
 /**
+ * Do'konchidan bitta savol uchun qancha olinadi.
+ *
+ * BU BIZNING TANNARXIMIZ EMAS — bu SOTUV narxi, uni platforma egasi
+ * o'zi qo'yadi: 0 (bepul), 100, 1000 — nima desa o'sha.
+ * Admin panel > Sozlamalar dan belgilanadi.
+ */
+export function questionPrice(): number {
+  const raw = getSetting('ai_question_price', '').trim();
+  if (!raw) return 0;
+  const n = Number(raw);
+  return Number.isFinite(n) && n >= 0 ? Math.round(n) : 0;
+}
+
+/**
  * Kunlik chegara.
  *
  * DIQQAT: sozlama BO'SH bo'lsa .env dagi qiymat olinadi, nol emas.

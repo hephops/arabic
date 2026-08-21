@@ -379,6 +379,8 @@ export interface AiStatus {
   asked_today: number;
   /** null — cheksiz */
   left_today: number | null;
+  /** bitta savol narxi, so'm. 0 — bepul */
+  price: number;
 }
 
 /** Suhbatdagi bitta xabar */

@@ -12,7 +12,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { db } from '../db.js';
 import { TOOL_BY_NAME, toolSchemas } from './tools.js';
-import { MODEL_DEEP, MAX_STEPS, costUzs, aiEnabled, aiKey, model as aiModel, dailyLimit } from './config.js';
+import { MODEL_DEEP, MAX_STEPS, costUzs, aiEnabled, aiKey, model as aiModel, dailyLimit, questionPrice } from './config.js';
 
 // Mijoz obyekti keshlanadi, LEKIN kalit bilan birga: admin panelda
 // kalit almashtirilsa eskisi bilan ishlab qolmasin. Ilgari shunchaki
@@ -95,6 +95,8 @@ export interface AskResult {
   cost_uzs: number;
   model: string;
   tools_used: string[];
+  /** do'konchidan yechilgan summa (0 — bepul) */
+  charged: number;
 }
 
 export class AiError extends Error {
@@ -207,6 +209,17 @@ export async function ask(opts: AskOptions): Promise<AskResult> {
     throw new AiError('daily_limit', `Bugungi savol chegarasi tugadi (${limit} ta)`);
   }
 
+  // Savol pullik bo'lsa — balansda yetarli pul bormi. Tekshiruv
+  // SO'ROVDAN OLDIN: modelga so'rov ketib, keyin "puling yetmadi"
+  // deyish do'konchining pulini bekorga sarflagan bo'lardi.
+  const price = questionPrice();
+  if (price > 0) {
+    const shop = db.prepare('SELECT balance FROM shops WHERE id = ?').get(opts.shopId) as any;
+    if ((shop?.balance ?? 0) < price) {
+      throw new AiError('no_balance', `Savol uchun ${price} so'm kerak. Balansni to'ldiring.`);
+    }
+  }
+
   const channel = opts.channel ?? 'app';
   const chatId = getChat(opts.shopId, opts.employeeId, channel);
   const model = opts.deep ? MODEL_DEEP : aiModel();
@@ -287,7 +300,18 @@ export async function ask(opts: AskOptions): Promise<AskResult> {
     answer = 'Javob tayyorlashda muammo bo\'ldi. Savolni qisqaroq qilib qayta yozing.';
   }
 
-  return { text: answer, chat_id: chatId, steps, cost_uzs: cost, model, tools_used: used };
+  // Pul javob TAYYOR bo'lgandan keyin yechiladi: model javob bermasa
+  // do'konchidan olinmaydi
+  if (price > 0) {
+    db.prepare('UPDATE shops SET balance = balance - ? WHERE id = ?').run(price, opts.shopId);
+    db.prepare("INSERT INTO balance_transactions (shop_id, type, amount, note) VALUES (?, 'ai', ?, ?)").run(
+      opts.shopId,
+      -price,
+      'AI savoli'
+    );
+  }
+
+  return { text: answer, chat_id: chatId, steps, cost_uzs: cost, model, tools_used: used, charged: price };
 }
 
 /** Eski suhbatlarni tozalash — TZ bo'yicha 30 kun */

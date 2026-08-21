@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { api, AiMessage, AiStatus } from '../api';
+import { api, fmt, AiMessage, AiStatus } from '../api';
 import { AppIcon, Glyph } from '../icons';
 import { SubHeader } from '../ui';
 import { useT } from '../i18n';
@@ -96,6 +96,9 @@ export default function Ai({ onBack }: { onBack: () => void }) {
             <AppIcon glyph="sparkle" color="pink" size={52} />
             <div className="ai-intro-title">{t('aiHello')}</div>
             <p className="hint center">{t('aiHint')}</p>
+            {status && status.price > 0 && (
+              <p className="hint center">{t('aiPriceHint').replace('{n}', fmt(status.price))}</p>
+            )}
           </div>
         )}
 
@@ -125,9 +128,13 @@ export default function Ai({ onBack }: { onBack: () => void }) {
           </div>
         )}
 
-        {status && status.left_today !== null && (
+        {status && (status.left_today !== null || status.price > 0) && (
           <p className="hint center ai-left">
-            {t('aiLeft').replace('{n}', String(status.left_today))}
+            {status.price > 0 && (
+              <>{t('aiPrice').replace('{n}', fmt(status.price))}</>
+            )}
+            {status.price > 0 && status.left_today !== null && ' · '}
+            {status.left_today !== null && t('aiLeft').replace('{n}', String(status.left_today))}
           </p>
         )}
       </div>

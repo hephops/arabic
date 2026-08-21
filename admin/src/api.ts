@@ -146,10 +146,16 @@ export interface AdminAiStatus {
   from_env: boolean;
   model: string;
   daily_limit: number;
+  /** do'konchidan bitta savol uchun olinadigan pul (0 — bepul) */
+  question_price: number;
   keep_days: number;
+  /** bizning tannarximiz — Anthropic'ga to'lanadigan */
   cost_month: number;
   calls_month: number;
   shops_month: number;
+  /** do'konchilardan tushgan pul */
+  earned_month: number;
+  paid_questions_month: number;
 }
 
 export interface Stats {
