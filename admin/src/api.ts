@@ -219,6 +219,14 @@ export interface Shop {
   customers_count?: number;
   debts_count?: number;
   last_activity?: string | null;
+  /* Pul aylanmasi — balansning o'zi kam narsa aytadi, chunki sinov
+     muddatidagi do'konda u doim 0 turadi */
+  /** jami qancha to'ldirgan */
+  paid_total?: number;
+  /** jami qancha yechilgan (kunlik haq, AI, SMS...) */
+  spent_total?: number;
+  /** AI ga ketgan tannarx — kim ko'p ishlatayotgani ko'rinsin */
+  ai_cost?: number;
   telegram_user_id?: number | null;
   card_number?: string | null;
   address?: string | null;
@@ -317,6 +325,10 @@ export interface ShopsSummary {
   bloklangan: number;
   /** do'konlar balansidagi umumiy summa */
   balans: number;
+  /** balansi minusga tushgan do'konlar soni */
+  qarzdor: number;
+  /** ularning umumiy qarzi */
+  qarz_summa: number;
 }
 
 export interface ReminderLog {

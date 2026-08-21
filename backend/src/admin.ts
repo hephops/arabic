@@ -269,13 +269,27 @@ export function registerAdminRoutes(app: FastifyInstance) {
         where.push('s.is_blocked = 1');
       }
       const clause = where.length ? `WHERE ${where.join(' AND ')}` : '';
+      // Balansning O'ZI kam narsa aytadi: sinov muddatidagi do'konda u
+      // doim 0 turadi. Shuning uchun yoniga PUL AYLANMASI qo'shiladi —
+      // jami qancha to'lagani va qancha yechilgani, hamda AI tannarxi.
+      // Shunda kim haqiqiy pul to'layotgani va kim ko'p ishlatayotgani
+      // ro'yxatning o'zidan ko'rinadi.
+      //
+      // Manfiy balansli do'kon TEPAGA chiqadi: u qarzda, ya'ni birinchi
+      // navbatda ko'rilishi kerak.
       const rows = db
         .prepare(
           `SELECT s.*,
                   (SELECT COUNT(*) FROM customers c WHERE c.shop_id = s.id) AS customers_count,
                   (SELECT COUNT(*) FROM debts d WHERE d.shop_id = s.id) AS debts_count,
-                  (SELECT MAX(created_at) FROM debts d WHERE d.shop_id = s.id) AS last_activity
-           FROM shops s ${clause} ORDER BY s.created_at DESC LIMIT ? OFFSET ?`
+                  (SELECT MAX(created_at) FROM debts d WHERE d.shop_id = s.id) AS last_activity,
+                  COALESCE((SELECT SUM(amount) FROM balance_transactions b
+                            WHERE b.shop_id = s.id AND b.amount > 0), 0) AS paid_total,
+                  COALESCE((SELECT -SUM(amount) FROM balance_transactions b
+                            WHERE b.shop_id = s.id AND b.amount < 0), 0) AS spent_total,
+                  COALESCE((SELECT SUM(cost_uzs) FROM ai_usage u WHERE u.shop_id = s.id), 0) AS ai_cost
+           FROM shops s ${clause}
+           ORDER BY (s.balance < 0) DESC, s.created_at DESC LIMIT ? OFFSET ?`
         )
         .all(...params, limit, offset);
       const total = db.prepare(`SELECT COUNT(*) AS c FROM shops s ${clause}`).get(...params) as any;
@@ -614,7 +628,12 @@ export function registerAdminRoutes(app: FastifyInstance) {
            COALESCE(SUM(CASE WHEN is_blocked = 0 AND charged_through >= ? THEN 1 END), 0) AS ishlayapti,
            COALESCE(SUM(CASE WHEN is_blocked = 0 AND (charged_through IS NULL OR charged_through < ?) THEN 1 END), 0) AS toxtagan,
            COALESCE(SUM(CASE WHEN is_blocked = 1 THEN 1 END), 0) AS bloklangan,
-           COALESCE(SUM(CASE WHEN balance > 0 THEN balance END), 0) AS balans
+           COALESCE(SUM(CASE WHEN balance > 0 THEN balance END), 0) AS balans,
+           -- Minusga tushganlar: ular xizmatdan foydalangan-u, hisobi
+           -- qoplanmagan. Alohida sanaladi, aks holda umumiy qoldiq
+           -- ichida yo'qolib ketardi.
+           COALESCE(SUM(CASE WHEN balance < 0 THEN 1 END), 0) AS qarzdor,
+           COALESCE(SUM(CASE WHEN balance < 0 THEN -balance END), 0) AS qarz_summa
          FROM shops`
       )
       .get(uzToday(), uzToday())

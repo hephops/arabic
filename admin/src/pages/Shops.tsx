@@ -21,6 +21,9 @@ function daysLeft(s: { balance: number; charged_through: string | null }, today:
   return ahead + 1 + (price > 0 ? Math.floor(Math.max(0, s.balance) / price) : 0);
 }
 
+/** Do'kon hali bepul sinov muddatidami */
+const onTrial = (s: Shop, today: string) => !!s.trial_ends_at && s.trial_ends_at >= today;
+
 export default function Shops() {
   const [rows, setRows] = useState<Shop[]>([]);
   const [total, setTotal] = useState(0);
@@ -65,6 +68,16 @@ export default function Shops() {
         <Stat glyph="clock" color="red" k="To'xtagan" v={fmtNum(sum?.toxtagan ?? 0)} />
         <Stat glyph="warning" color="red" k="Bloklangan" v={fmtNum(sum?.bloklangan ?? 0)} />
         <Stat glyph="banknote" color="indigo" k="Balanslarda" v={fmt(sum?.balans ?? 0)} />
+        {/* Minusga tushganlar alohida: ular xizmatdan foydalangan-u,
+            hisobi qoplanmagan. Umumiy qoldiq ichida yo'qolib ketmasin. */}
+        {(sum?.qarzdor ?? 0) > 0 && (
+          <Stat
+            glyph="warning"
+            color="red"
+            k="Qarzda (manfiy balans)"
+            v={`${fmtNum(sum!.qarzdor)} ta · ${fmt(sum!.qarz_summa)}`}
+          />
+        )}
       </div>
 
       <div className="panel">
@@ -120,6 +133,8 @@ export default function Shops() {
               <th>Do'kon</th>
               <th>Telefon</th>
               <th className="num">Balans</th>
+              <th className="num">Pul aylanmasi</th>
+              <th className="num">AI</th>
               <th className="num">Qolgan kun</th>
               <th className="num">Mijoz</th>
               <th className="num">Qarz</th>
@@ -136,8 +151,28 @@ export default function Shops() {
                   <div className="cell-sub">{s.owner_name ?? '—'}</div>
                 </td>
                 <td className="muted">{fmtPhone(s.phone)}</td>
+                {/* Balans + u NIMA UCHUN shunday ekani. Sinov muddatidagi
+                    do'konda balans doim 0 turadi va sababsiz 0 chalg'itadi. */}
                 <td className="num" style={{ fontWeight: 600, color: s.balance < 0 ? 'var(--red)' : undefined }}>
                   {fmtNum(s.balance)} so'm
+                  <div className="cell-sub">
+                    {onTrial(s, today) ? (
+                      <span className="tag trial">sinov</span>
+                    ) : (s.paid_total ?? 0) > 0 ? (
+                      <span className="tag real">to'lagan</span>
+                    ) : (
+                      <span className="tag none">to'lamagan</span>
+                    )}
+                  </div>
+                </td>
+                {/* Jami to'lagan va jami yechilgan — kim haqiqiy pul
+                    olib kelayotgani shundan ko'rinadi */}
+                <td className="num">
+                  <div style={{ color: 'var(--green)', fontWeight: 600 }}>+{fmtNum(s.paid_total ?? 0)}</div>
+                  <div className="cell-sub" style={{ color: 'var(--red)' }}>−{fmtNum(s.spent_total ?? 0)}</div>
+                </td>
+                <td className="num" style={{ color: (s.ai_cost ?? 0) > 0 ? 'var(--text)' : 'var(--muted)' }}>
+                  {fmtNum(s.ai_cost ?? 0)}
                 </td>
                 <td className="num">
                   {(() => {
