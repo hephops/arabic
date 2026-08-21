@@ -100,6 +100,7 @@ export default function Ai({ onBack }: { onBack: () => void }) {
    */
   const [tgSent, setTgSent] = useState(-1);
   const [quotaOpen, setQuotaOpen] = useState(false);
+  const [warnHidden, setWarnHidden] = useState(false);
 
   /**
    * Chegara qachon ogohlantirsin.
@@ -159,6 +160,26 @@ export default function Ai({ onBack }: { onBack: () => void }) {
           ) : undefined
         }
       />
+      {/* Ogohlantirish lentasi.
+          Chegara yaqinlashganda do'konchi buni SAVOL BERISHDAN OLDIN
+          ko'rishi kerak — pastdagi kichik raqamga har doim ham ko'z
+          tushmaydi. Yopilsa shu seans davomida qaytmaydi. */}
+      {status && quotaLevel !== 'ok' && !warnHidden && (
+        <div className={`ai-warn ${quotaLevel}`}>
+          <Glyph name="warning" size={15} color={quotaLevel === 'out' ? 'var(--red)' : 'var(--yellow)'} />
+          <span>
+            {quotaLevel === 'out'
+              ? t('aiWarnOut')
+              : t('aiWarnLow')
+                  .replace('{p}', String(Math.round((status.asked_today / Math.max(1, status.daily_limit)) * 100)))
+                  .replace('{n}', String(status.left_today ?? 0))}
+          </span>
+          <button className="ai-warn-x" onClick={() => setWarnHidden(true)} aria-label={t('cancel')}>
+            <Glyph name="close" size={14} color="var(--muted)" />
+          </button>
+        </div>
+      )}
+
       <div className="screen ai-screen">
         {msgs.length === 0 && (
           <div className="ai-intro">

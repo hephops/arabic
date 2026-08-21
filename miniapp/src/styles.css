@@ -2161,6 +2161,17 @@ button.link { background: none; color: var(--accent); font-size: 15px; font-weig
 }
 .ai-quota-btn.low { background: rgba(255, 149, 0, 0.16); color: var(--yellow); }
 .ai-quota-btn.out { background: rgba(255, 59, 48, 0.14); color: var(--red); }
+
+/* Ogohlantirish lentasi — sarlavha ostida, suhbat ustida */
+.ai-warn {
+  display: flex; align-items: center; gap: 8px;
+  margin: 8px 16px 0; padding: 9px 11px; border-radius: 10px;
+  font-size: 13px; line-height: 1.35;
+}
+.ai-warn.low { background: rgba(255, 149, 0, 0.13); color: #a35c00; }
+.ai-warn.out { background: rgba(255, 59, 48, 0.11); color: #b3251c; }
+.ai-warn span { flex: 1; min-width: 0; }
+.ai-warn-x { background: none; border: 0; padding: 2px; display: flex; flex-shrink: 0; cursor: pointer; }
 .ai-quota-btn:active { opacity: 0.6; }
 
 /* Ortidagi to'siq — tashqariga bosilsa yopiladi */
