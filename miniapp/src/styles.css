@@ -2149,6 +2149,22 @@ button.link { background: none; color: var(--accent); font-size: 15px; font-weig
 .ai-sugg { margin-top: 14px; }
 .ai-left { margin-top: 10px; font-size: 12px; }
 
+/* Kunlik chegara ko'rsatkichi — raqam ham, chiziq ham */
+.ai-quota { margin-top: 16px; padding: 11px 13px; background: var(--card); border-radius: 12px; }
+.ai-quota-top {
+  display: flex; justify-content: space-between; align-items: baseline;
+  font-size: 12.5px; color: var(--muted); margin-bottom: 7px;
+}
+.ai-quota-num { font-variant-numeric: tabular-nums; font-weight: 600; color: var(--text); }
+.ai-quota-bar { height: 5px; border-radius: 3px; background: var(--separator); overflow: hidden; }
+.ai-quota-bar .fill {
+  height: 100%; background: var(--accent); border-radius: 3px;
+  transition: width 0.3s ease;
+}
+/* Oz qolganda rangi o'zgaradi — do'konchi oldindan bilsin */
+.ai-quota-bar .fill.low { background: var(--yellow); }
+.ai-quota-sub { margin-top: 6px; font-size: 11.5px; color: var(--muted); }
+
 /* Yozish paneli — dock ustida turadi */
 .ai-bar {
   /* Suzuvchi dock ustida turadi — yozish maydoni uning ostida qolmasin */

@@ -197,6 +197,48 @@ export function registerAiRoutes(app: FastifyInstance, opts: { requireAi: Guard;
     }
   );
 
+  /**
+   * Tayyor matnni Telegramga uzatish — MODELSIZ.
+   *
+   * Ilgari "Telegramga yubor" tugmasi butun javobni yangi savol
+   * qilib modelga qaytarardi: model uni boshidan o'qib, keyin
+   * yuborish vositasini chaqirardi. Bu sekin (o'n soniyalab), pullik
+   * va ba'zan umuman uzilib qolardi.
+   *
+   * Matn allaqachon bizda turibdi — modelning bunda hech qanday ishi
+   * yo'q. Endi to'g'ridan-to'g'ri ketadi: bir soniya, bepul.
+   */
+  app.post<{ Body: { text?: string; title?: string } }>(
+    '/ai/telegram',
+    { preHandler: opts.requireAi },
+    async (req, reply) => {
+      const text = String(req.body?.text ?? '').trim();
+      if (!text) return reply.code(400).send({ error: 'empty' });
+      if (text.length > 3500) return reply.code(400).send({ error: 'too_long' });
+
+      const shop = db.prepare('SELECT name, phone, telegram_user_id FROM shops WHERE id = ?').get(req.shopId) as any;
+      const link = shop?.phone
+        ? (db.prepare('SELECT chat_id FROM telegram_links WHERE phone = ?').get(shop.phone) as any)
+        : null;
+      const chatId = link?.chat_id ?? shop?.telegram_user_id;
+      if (!chatId) {
+        return reply.code(400).send({
+          error: 'not_linked',
+          message: "Telegram ulanmagan. Botga /start yozib telefon raqamingizni ulang.",
+        });
+      }
+
+      const { sendMessage, telegramEnabled, escapeHtml } = await import('../telegram.js');
+      if (!telegramEnabled()) return reply.code(400).send({ error: 'tg_off', message: 'Telegram sozlanmagan' });
+
+      const title = String(req.body?.title ?? '').trim();
+      const body = (title ? `<b>${escapeHtml(title)}</b>\n\n` : '') + escapeHtml(text);
+      const res: any = await sendMessage(chatId, body);
+      if (res?.ok === false) return reply.code(502).send({ error: 'tg_failed', message: 'Telegram qabul qilmadi' });
+      return { ok: true };
+    }
+  );
+
   /** Suhbat tarixi */
   app.get('/ai/history', { preHandler: opts.requireAi }, async (req) => {
     const chat = db

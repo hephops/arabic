@@ -261,6 +261,9 @@ export const api = {
     }
   },
   aiClear: () => request<{ ok: true }>('/ai/history', { method: 'DELETE' }),
+  /** Tayyor javobni Telegramga uzatish — modelga urinmasdan, darhol */
+  aiToTelegram: (text: string, title?: string) =>
+    request<{ ok: true }>('/ai/telegram', { method: 'POST', body: JSON.stringify({ text, title }) }),
   updateCustomer: (
     id: number,
     data: Partial<Pick<Customer, 'name' | 'phone' | 'language' | 'reminder_mode' | 'credit_limit' | 'is_blocked'>>

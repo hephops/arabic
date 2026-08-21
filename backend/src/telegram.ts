@@ -311,7 +311,7 @@ const CUSTOMER_KEYS = {
  * "yozmoqda..." belgisini ko'rsatamiz. AI o'chiq bo'lsa yoki javob
  * bermasa, eski tushunarli xabar qaytadi: bot "buzildi" ko'rinmasin.
  */
-async function aiReply(chatId: number, shopId: number, question: string) {
+async function aiReply(chatId: number, shopId: number, question: string, quoted?: string) {
   const fallback =
     "Tushunolmadim 🤔\nQarz yozish uchun: «Karim akaga 120 ming so'm, shanbagacha»";
   if (!question) {
@@ -326,7 +326,12 @@ async function aiReply(chatId: number, shopId: number, question: string) {
   await sendChatAction(chatId, 'typing');
   try {
     const { ask } = await import('./ai/agent.js');
-    const r = await ask({ shopId, employeeId: null, question, channel: 'telegram' });
+    // Javob qilingan xabar savolning oldiga qo'yiladi — model qaysi
+    // ro'yxat haqida gap ketayotganini bilsin
+    const full = quoted
+      ? `Do'konchi quyidagi xabarga javob yozdi:\n---\n${quoted.slice(0, 1500)}\n---\n\nSavoli: ${question}`
+      : question;
+    const r = await ask({ shopId, employeeId: null, question: full, channel: 'telegram' });
     // Javob HTML sifatida yuboriladi, model matnida esa "<" yoki "&"
     // bo'lishi mumkin — belgilanmasa Telegram xabarni umuman
     // yubormaydi va do'konchi jim qolardi
@@ -516,8 +521,15 @@ export async function handleUpdate(update: any) {
   // aks holda "Cola 1.5 qancha turadi?" qarz yozuvi bo'lib qolardi.
   const askCmd = /^\/(savol|ai|савол|вопрос)\b/i.test(text);
   const question = askCmd ? text.replace(/^\/\S+\s*/, '').trim() : cleaned;
-  if (askCmd || /\?\s*$/.test(cleaned)) {
-    await aiReply(chatId, shop.id, question);
+
+  // Do'konchi botning xabariga JAVOB qilib yozgan bo'lsa — o'sha xabar
+  // gapning konteksti. "Shu ro'yxatdagi birinchisiga chegirma ber"
+  // degani qaysi ro'yxat ekanini bilmasak ma'nosiz bo'lardi.
+  const quoted = msg.reply_to_message?.text as string | undefined;
+  const isReplyToBot = !!quoted && !!msg.reply_to_message?.from?.is_bot;
+
+  if (askCmd || isReplyToBot || /\?\s*$/.test(cleaned)) {
+    await aiReply(chatId, shop.id, question, isReplyToBot ? quoted : undefined);
     return;
   }
 

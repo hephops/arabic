@@ -91,9 +91,23 @@ export default function Ai({ onBack }: { onBack: () => void }) {
     }
   }
 
-  /** Tayyor javobni Telegramga o'tkazish — yordamchining o'ziga aytamiz */
-  function sendToTelegram(text: string) {
-    send(`${t('aiToTelegramCmd')}\n\n${text.slice(0, 1500)}`);
+  /**
+   * Javobni Telegramga o'tkazish.
+   *
+   * Modelga umuman tegilmaydi: matn allaqachon bizda, uni faqat
+   * uzatish kerak. Ilgari yordamchiga "shuni yubor" deb qaytarilardi
+   * va bu o'n soniyalab cho'zilib, ba'zan uzilib ham qolardi.
+   */
+  const [tgSent, setTgSent] = useState(-1);
+  async function sendToTelegram(text: string, i: number) {
+    haptic.select();
+    try {
+      await api.aiToTelegram(text, t('aiTgTitle'));
+      setTgSent(i);
+      toast.success(t('aiTgDone'));
+    } catch (e: any) {
+      toast.error(t('error'), e.details?.message ?? e.message);
+    }
   }
 
   async function clear() {
@@ -148,8 +162,9 @@ export default function Ai({ onBack }: { onBack: () => void }) {
                 imkoniyat borligini bilishi kerak — tugma ko'rinib
                 tursin. */}
             {m.role === 'assistant' && m.text.length > 40 && (
-              <button className="ai-send-tg" onClick={() => sendToTelegram(m.text)} disabled={busy}>
-                <Glyph name="send" size={13} color="var(--accent)" /> {t('aiToTelegram')}
+              <button className="ai-send-tg" onClick={() => sendToTelegram(m.text, i)}>
+                <Glyph name={tgSent === i ? 'check' : 'send'} size={13} color="var(--accent)" />{' '}
+                {tgSent === i ? t('aiTgDone') : t('aiToTelegram')}
               </button>
             )}
           </div>
@@ -176,14 +191,30 @@ export default function Ai({ onBack }: { onBack: () => void }) {
           </div>
         )}
 
-        {status && (status.left_today !== null || status.price > 0) && (
-          <p className="hint center ai-left">
-            {status.price > 0 && (
-              <>{t('aiPrice').replace('{n}', fmt(status.price))}</>
-            )}
-            {status.price > 0 && status.left_today !== null && ' · '}
-            {status.left_today !== null && t('aiLeft').replace('{n}', String(status.left_today))}
-          </p>
+        {/* Kunlik chegara ko'rsatkichi.
+            Raqamning o'zi ("yana 8 ta") ko'z bilan o'lchanmaydi —
+            chiziq esa bir qarashda aytadi: ko'p qoldimi yoki ozmi. */}
+        {status && status.daily_limit > 0 && (
+          <div className="ai-quota">
+            <div className="ai-quota-top">
+              <span>{t('aiQuota')}</span>
+              <span className="ai-quota-num">
+                {status.asked_today} / {status.daily_limit}
+                {status.price > 0 && ` · ${t('aiPrice').replace('{n}', fmt(status.price))}`}
+              </span>
+            </div>
+            <div className="ai-quota-bar">
+              <div
+                className={`fill ${status.left_today !== null && status.left_today <= 2 ? 'low' : ''}`}
+                style={{ width: `${Math.min(100, (status.asked_today / status.daily_limit) * 100)}%` }}
+              />
+            </div>
+            <div className="ai-quota-sub">
+              {status.left_today === 0
+                ? t('aiQuotaOut')
+                : t('aiLeft').replace('{n}', String(status.left_today ?? 0))}
+            </div>
+          </div>
         )}
       </div>
 
