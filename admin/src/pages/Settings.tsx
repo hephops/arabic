@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { api, fmt } from '../api';
+import { api, fmt, type AdminAiStatus } from '../api';
 
 type Field = {
   key: string;
@@ -66,6 +66,10 @@ const GROUPS: Group[] = [
 ];
 
 export default function Settings() {
+  const [ai, setAi] = useState<AdminAiStatus | null>(null);
+  const [testing, setTesting] = useState(false);
+  const [testMsg, setTestMsg] = useState('');
+  const [testOk, setTestOk] = useState(false);
   const [data, setData] = useState<Record<string, string>>({});
   const [dirty, setDirty] = useState<Record<string, string>>({});
   const [msg, setMsg] = useState('');
@@ -74,6 +78,7 @@ export default function Settings() {
 
   useEffect(() => {
     api.settings().then(setData).catch((e) => setErr(e.message));
+    api.aiStatus().then(setAi).catch(() => {});
   }, []);
 
   const value = (k: string) => dirty[k] ?? data[k] ?? '';
@@ -84,6 +89,22 @@ export default function Settings() {
     setDirty((d) => ({ ...d, [k]: v }));
   }
 
+  /** Kalitni haqiqiy so'rov bilan sinab ko'rish */
+  async function testAi() {
+    setTesting(true);
+    setTestMsg('');
+    try {
+      const r = await api.aiTest();
+      setTestOk(r.ok);
+      setTestMsg(r.ok ? `✅ Ishlayapti (${r.model}): ${r.answer}` : `⛔ ${r.error}`);
+    } catch (e: any) {
+      setTestOk(false);
+      setTestMsg(`⛔ ${e.message}`);
+    } finally {
+      setTesting(false);
+    }
+  }
+
   async function save() {
     setSaving(true);
     setErr('');
@@ -91,6 +112,9 @@ export default function Settings() {
       setData(await api.saveSettings(dirty));
       setDirty({});
       setMsg('Saqlandi');
+      // Kalit yoki model o'zgargan bo'lishi mumkin — holatni yangilaymiz
+      api.aiStatus().then(setAi).catch(() => {});
+      setTestMsg('');
     } catch (e: any) {
       setErr(e.message);
     } finally {
@@ -100,6 +124,78 @@ export default function Settings() {
 
   return (
     <>
+      {/* AI yordamchi.
+          Kalit shu yerdan qo'yiladi — serverga kirib .env tahrirlash
+          shart emas. Kalitning O'ZI hech qachon qaytarilmaydi: brauzerga
+          faqat oxirgi 4 belgi keladi, jurnalga esa "qo'yildi/o'chirildi"
+          yoziladi. Yozib saqlash bilan darhol ishlaydi, qayta ishga
+          tushirish kerak emas. */}
+      {ai && (
+        <div className="panel">
+          <h3>AI yordamchi</h3>
+          <div className="muted" style={{ marginTop: -6, marginBottom: 12, fontSize: 13 }}>
+            {ai.enabled ? (
+              <>
+                ✅ <b>Yoqilgan</b> · kalit …{ai.key_tail || '????'}
+                {ai.from_env ? ' (.env faylidan)' : ''} · 30 kunda <b>{fmt(ai.cost_month)}</b> ·{' '}
+                {ai.calls_month} chaqiruv · {ai.shops_month} do'kon
+              </>
+            ) : (
+              <>⛔ <b>O'chiq</b> — kalit qo'yilmagan. Do'konchilarga "AI yoqilmagan" deb ko'rinadi.</>
+            )}
+          </div>
+
+          <div className="set-grid">
+            <div className="set-field wide">
+              <label>
+                Anthropic kaliti{ai.key_tail ? ` · hozir …${ai.key_tail}` : ''}
+              </label>
+              <input
+                type="password"
+                autoComplete="off"
+                placeholder={ai.key_tail ? "O'zgartirish uchun yangisini yozing" : 'sk-ant-...'}
+                value={dirty.anthropic_api_key ?? ''}
+                onChange={(e) => set('anthropic_api_key', e.target.value)}
+              />
+              <div className="set-hint">
+                console.anthropic.com → API Keys. Yozib "Saqlash" bosilsa darhol ishlaydi — serverni
+                qayta ishga tushirish shart emas. Kalit brauzerga hech qachon qaytarilmaydi.
+              </div>
+            </div>
+
+            <div className="set-field">
+              <label>Model</label>
+              <select value={value('ai_model') || 'claude-haiku-4-5'} onChange={(e) => set('ai_model', e.target.value)}>
+                <option value="claude-haiku-4-5">Haiku — arzon (~100 so'm/savol)</option>
+                <option value="claude-sonnet-5">Sonnet — aqlliroq (~300 so'm/savol)</option>
+              </select>
+              <div className="set-hint">Sonnet o'zbekchani tabiiyroq yozadi, lekin uch barobar qimmat</div>
+            </div>
+
+            <div className="set-field">
+              <label>Kuniga savol chegarasi (bitta do'kon uchun)</label>
+              <input
+                type="number"
+                min={0}
+                placeholder={String(ai.daily_limit)}
+                value={value('ai_daily_limit')}
+                onChange={(e) => set('ai_daily_limit', e.target.value)}
+              />
+              <div className="set-hint">
+                0 — cheksiz (tavsiya etilmaydi). Hozir: {ai.daily_limit} ta ·
+                eng yomon holatda {fmt(ai.daily_limit * 100)}/kun
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: 12, flexWrap: 'wrap' }}>
+            <button className="btn" onClick={testAi} disabled={testing}>
+              {testing ? 'Tekshirilyapti…' : 'Sinab ko\'rish'}
+            </button>
+            {testMsg && <span className={testOk ? 'ok-msg' : 'err-msg'}>{testMsg}</span>}
+          </div>
+        </div>
+      )}
 
       {/* Maydonlar ustunma-ustun joylashadi — ilgari har biri butun
           kenglikni egallab, sahifa cho'zilib ketardi */}

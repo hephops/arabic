@@ -2,22 +2,85 @@
 
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { db } from '../db.js';
+import { getSetting } from '../billing.js';
 import { ask, AiError, spend, purgeOld } from './agent.js';
-import { DAILY_LIMIT, KEEP_DAYS, MODEL, aiEnabled } from './config.js';
+import { KEEP_DAYS, aiEnabled, aiKey, model as aiModel, dailyLimit } from './config.js';
 
 type Guard = (req: FastifyRequest, reply: FastifyReply) => Promise<unknown>;
 
-export function registerAiRoutes(app: FastifyInstance, opts: { requireAi: Guard }) {
+export function registerAiRoutes(app: FastifyInstance, opts: { requireAi: Guard; requireAdmin: Guard }) {
   /** Holat: yoqilganmi, bugun nechta savol qolgan */
   app.get('/ai/status', { preHandler: opts.requireAi }, async (req) => {
     const s = spend(req.shopId!);
+    const limit = dailyLimit();
     return {
       enabled: aiEnabled(),
-      model: MODEL,
-      daily_limit: DAILY_LIMIT,
+      model: aiModel(),
+      daily_limit: limit,
       asked_today: s.savollar,
-      left_today: DAILY_LIMIT > 0 ? Math.max(0, DAILY_LIMIT - s.savollar) : null,
+      left_today: limit > 0 ? Math.max(0, limit - s.savollar) : null,
     };
+  });
+
+  /**
+   * Admin uchun holat: kalit qo'yilganmi, qaysi model, sarf qancha.
+   *
+   * Alohida yo'l — do'konchining /ai/status'i unga faqat o'z
+   * chegarasini aytadi. Platforma egasiga esa "nega ishlamayapti"
+   * degan savolga javob kerak, va u serverga kirmasdan bilishi kerak.
+   */
+  app.get('/admin/ai/status', { preHandler: opts.requireAdmin }, async () => {
+    const key = aiKey();
+    const month = db
+      .prepare(
+        `SELECT COALESCE(SUM(cost_uzs), 0) AS s, COUNT(*) AS c, COUNT(DISTINCT shop_id) AS d
+         FROM ai_usage WHERE created_at >= datetime('now', '-30 days')`
+      )
+      .get() as any;
+    return {
+      enabled: aiEnabled(),
+      // Kalitning O'ZI hech qachon qaytarilmaydi — faqat bor-yo'qligi
+      // va oxirgi to'rt belgisi, "qaysi kalit turibdi" ni bilish uchun
+      key_tail: key ? key.slice(-4) : null,
+      model: aiModel(),
+      daily_limit: dailyLimit(),
+      keep_days: KEEP_DAYS,
+      // Kalit .env dan kelayaptimi yoki admin paneldan — "nega
+      // o'chirmayapti" degan savolga javob shu yerda
+      from_env: !getSetting('anthropic_api_key', '') && !!process.env.ANTHROPIC_API_KEY,
+      cost_month: month.s,
+      calls_month: month.c,
+      shops_month: month.d,
+    };
+  });
+
+  /**
+   * Kalitni sinab ko'rish.
+   *
+   * "Yozdim, lekin ishlamayapti" degan holatni bir bosishda hal
+   * qiladi: eng arzon so'rov yuboriladi va modelning javobi yoki
+   * xatoning O'ZI qaytariladi — taxmin qilib o'tirilmaydi.
+   */
+  app.post('/admin/ai/test', { preHandler: opts.requireAdmin }, async (reply) => {
+    if (!aiEnabled()) return { ok: false, error: 'Kalit qo\'yilmagan' };
+    try {
+      const Anthropic = (await import('@anthropic-ai/sdk')).default;
+      const c = new Anthropic({
+        apiKey: aiKey(),
+        ...(process.env.ANTHROPIC_BASE_URL ? { baseURL: process.env.ANTHROPIC_BASE_URL } : {}),
+      });
+      const r = await c.messages.create({
+        model: aiModel(),
+        max_tokens: 20,
+        messages: [{ role: 'user', content: 'Javob: "ishlayapti" deb yoz.' }],
+      });
+      const text = r.content.filter((b: any) => b.type === 'text').map((b: any) => b.text).join(' ');
+      return { ok: true, model: aiModel(), answer: text.trim().slice(0, 120) };
+    } catch (e: any) {
+      // Anthropic xatosini o'zgartirmasdan qaytaramiz — "kalit
+      // noto'g'ri" bilan "hisobda pul yo'q" ni ajratish uchun
+      return { ok: false, error: e?.error?.error?.message || e?.message || 'Nomalum xato' };
+    }
   });
 
   /** Savol berish */

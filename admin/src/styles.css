@@ -421,6 +421,15 @@ td.num, th.num { text-align: right; white-space: nowrap; }
   padding: 14px 0 4px; background: linear-gradient(180deg, rgba(242,242,247,0), var(--bg) 40%);
 }
 .ok-msg { color: var(--green); font-size: 13.5px; font-weight: 600; }
+/* Sinov natijasi — uzun bo'lishi mumkin, satrga sig'masa o'raladi */
+.err-msg { color: var(--red); font-size: 13.5px; font-weight: 600; }
+.ok-msg, .err-msg { max-width: 100%; word-break: break-word; }
+/* Sozlamalardagi tanlov ro'yxati input bilan bir xil ko'rinsin */
+.set-field select {
+  width: 100%; height: 38px; padding: 0 10px; border-radius: 9px;
+  border: 1px solid var(--separator); background: var(--card);
+  font-family: inherit; font-size: 14px; color: var(--text);
+}
 
 /* Sozlamalar va boshqa formalar */
 .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }

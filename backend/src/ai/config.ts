@@ -17,7 +17,10 @@
 // Kuniga 5 savol -> ~500 so'm/kun -> ~15 000 so'm/oy, ya'ni 100 000
 // so'mlik obunaning ~15%i. Bu qabul qilsa bo'ladigan raqam.
 //
-// Modelni almashtirmoqchi bo'lsangiz .env orqali: AI_MODEL=claude-sonnet-5
+// Modelni almashtirmoqchi bo'lsangiz admin panel > Sozlamalar, yoki
+// .env orqali: AI_MODEL=claude-sonnet-5
+
+import { getSetting } from '../billing.js';
 
 /** Kundalik savollar uchun */
 export const MODEL = process.env.AI_MODEL || 'claude-haiku-4-5';
@@ -76,7 +79,41 @@ export const MAX_STEPS = Number(process.env.AI_MAX_STEPS ?? 6);
 /** Suhbat necha kun saqlanadi */
 export const KEEP_DAYS = Number(process.env.AI_KEEP_DAYS ?? 30);
 
+/**
+ * Kalit qayerdan olinadi.
+ *
+ * Avval admin paneldagi sozlama, keyin .env. Nega shu tartibda:
+ * kalitni almashtirish uchun serverga kirib fayl tahrirlash va
+ * qayta ishga tushirish kerak bo'lmasin — admin panelda yozib
+ * saqlash bilan darhol ishlasin.
+ *
+ * .env dagisi qolaveradi: sozlama bo'sh bo'lsa u ishlatiladi.
+ */
+export function aiKey(): string {
+  return (getSetting('anthropic_api_key', '') || process.env.ANTHROPIC_API_KEY || '').trim();
+}
+
 /** Kalit qo'yilganmi — qo'yilmasa AI butunlay o'chiq turadi */
 export function aiEnabled(): boolean {
-  return !!process.env.ANTHROPIC_API_KEY;
+  return !!aiKey();
+}
+
+/** Model ham admin paneldan almashtirilishi mumkin */
+export function model(): string {
+  return getSetting('ai_model', '').trim() || MODEL;
+}
+
+/**
+ * Kunlik chegara.
+ *
+ * DIQQAT: sozlama BO'SH bo'lsa .env dagi qiymat olinadi, nol emas.
+ * Number('') nolga teng, nol esa "cheksiz" degani — ya'ni sozlama
+ * to'ldirilmagan bo'lsa chegara jimgina olib tashlanardi va bitta
+ * do'kon kuniga yuzlab savol berib pul yeyishi mumkin edi.
+ */
+export function dailyLimit(): number {
+  const raw = getSetting('ai_daily_limit', '').trim();
+  if (!raw) return DAILY_LIMIT;
+  const n = Number(raw);
+  return Number.isFinite(n) && n >= 0 ? Math.round(n) : DAILY_LIMIT;
 }

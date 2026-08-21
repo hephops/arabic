@@ -546,22 +546,44 @@ export function registerAdminRoutes(app: FastifyInstance) {
   );
 
   // Sozlamalar
-  app.get('/admin/settings', { preHandler: requireAdmin }, async () => {
+  /**
+   * Sozlamalar ichida MAXFIY qiymatlar ham bor (AI kaliti).
+   * Ular hech qachon brauzerga qaytarilmaydi va jurnalga yozilmaydi:
+   * admin panelga kirgan har kim kalitni ko'chirib ololmasin, jurnalni
+   * o'qigan ham. Faqat "qo'yilganmi" va oxirgi 4 belgi ko'rinadi.
+   */
+  const SECRET_SETTINGS = new Set(['anthropic_api_key']);
+
+  function publicSettings(): Record<string, string> {
     const rows = db.prepare('SELECT * FROM settings').all() as any[];
-    return Object.fromEntries(rows.map((r) => [r.key, r.value]));
-  });
+    const out: Record<string, string> = {};
+    for (const r of rows) {
+      if (SECRET_SETTINGS.has(r.key)) {
+        // Qiymat o'rniga faqat dumi — "qaysi kalit turibdi" bilinsin
+        out[r.key + '_tail'] = r.value ? String(r.value).slice(-4) : '';
+        continue;
+      }
+      out[r.key] = r.value;
+    }
+    return out;
+  }
+
+  app.get('/admin/settings', { preHandler: requireAdmin }, async () => publicSettings());
 
   app.patch<{ Body: Record<string, string> }>('/admin/settings', { preHandler: requireAdmin }, async (req) => {
     for (const [key, value] of Object.entries(req.body ?? {})) {
+      const secret = SECRET_SETTINGS.has(key);
+      const clean = String(value).trim();
+      // Bo'sh yuborilsa maxfiy qiymat o'chiriladi (kalitni olib tashlash)
       db.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = ?').run(
         key,
-        String(value),
-        String(value)
+        clean,
+        clean
       );
-      log(req.admin!.id, 'set_setting', key, String(value));
+      // Jurnalga maxfiy qiymatning O'ZI emas, faqat o'zgargani yoziladi
+      log(req.admin!.id, 'set_setting', key, secret ? (clean ? 'kalit qo\'yildi' : 'kalit o\'chirildi') : clean);
     }
-    const rows = db.prepare('SELECT * FROM settings').all() as any[];
-    return Object.fromEntries(rows.map((r) => [r.key, r.value]));
+    return publicSettings();
   });
 
   // Referal statistikasi

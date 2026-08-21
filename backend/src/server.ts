@@ -14,7 +14,7 @@ import {
   handleUpdate, verifyInitData, telegramEnabled, setWebhook, sendMessage, sendLoginCode,
   botUsername, otpDeepLink, supplierDeepLink, sendOrderToSupplier, chatForPhone,
 } from './telegram.js';
-import { registerAdminRoutes, seedAdmin } from './admin.js';
+import { registerAdminRoutes, seedAdmin, requireAdmin } from './admin.js';
 import { registerCatalogRoutes } from './catalog.js';
 import { registerAiRoutes, startAiCleanup } from './ai/routes.js';
 import { seedCatalog } from './catalogSeed.js';
@@ -207,7 +207,7 @@ registerAdminRoutes(app);
 registerCatalogRoutes(app, { requireAuth, uploadsDir: UPLOADS_DIR });
 
 // ---------- AI YORDAMCHI ----------
-registerAiRoutes(app, { requireAi: requirePerm('ai') });
+registerAiRoutes(app, { requireAi: requirePerm('ai'), requireAdmin });
 startAiCleanup();
 
 // ---------- TELEGRAM ----------

@@ -12,15 +12,25 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { db } from '../db.js';
 import { TOOL_BY_NAME, toolSchemas } from './tools.js';
-import { MODEL, MODEL_DEEP, MAX_STEPS, DAILY_LIMIT, costUzs, aiEnabled } from './config.js';
+import { MODEL_DEEP, MAX_STEPS, costUzs, aiEnabled, aiKey, model as aiModel, dailyLimit } from './config.js';
 
+// Mijoz obyekti keshlanadi, LEKIN kalit bilan birga: admin panelda
+// kalit almashtirilsa eskisi bilan ishlab qolmasin. Ilgari shunchaki
+// bir marta yaratilsa, yangi kalit faqat serverni qayta ishga
+// tushirgandan keyin ishlardi — bu esa sozlamani panelga chiqarishning
+// butun ma'nosini yo'qotardi.
 let client: Anthropic | null = null;
+let clientKey = '';
+
 function api(): Anthropic {
-  if (!client) {
+  const key = aiKey();
+  if (!client || clientKey !== key) {
     client = new Anthropic({
+      apiKey: key,
       // Sinov uchun manzilni almashtirish (TELEGRAM_API_BASE bilan bir xil usul)
       ...(process.env.ANTHROPIC_BASE_URL ? { baseURL: process.env.ANTHROPIC_BASE_URL } : {}),
     });
+    clientKey = key;
   }
   return client;
 }
@@ -192,13 +202,14 @@ export async function ask(opts: AskOptions): Promise<AskResult> {
   if (!question) throw new AiError('empty', "Savol bo'sh");
   if (question.length > 2000) throw new AiError('too_long', 'Savol juda uzun');
 
-  if (DAILY_LIMIT > 0 && askedToday(opts.shopId) >= DAILY_LIMIT) {
-    throw new AiError('daily_limit', `Bugungi savol chegarasi tugadi (${DAILY_LIMIT} ta)`);
+  const limit = dailyLimit();
+  if (limit > 0 && askedToday(opts.shopId) >= limit) {
+    throw new AiError('daily_limit', `Bugungi savol chegarasi tugadi (${limit} ta)`);
   }
 
   const channel = opts.channel ?? 'app';
   const chatId = getChat(opts.shopId, opts.employeeId, channel);
-  const model = opts.deep ? MODEL_DEEP : MODEL;
+  const model = opts.deep ? MODEL_DEEP : aiModel();
 
   const messages: Anthropic.MessageParam[] = [...history(chatId), { role: 'user', content: question }];
   saveMsg(chatId, opts.shopId, 'user', question, question);

@@ -75,6 +75,13 @@ export const api = {
   shopsSummary: () => request<ShopsSummary>('/admin/shops/summary'),
   reminders: (channel = 'all') =>
     request<{ rows: ReminderLog[]; stats: { channel: string; c: number }[] }>(`/admin/reminders?channel=${channel}`),
+  aiStatus: () => request<AdminAiStatus>('/admin/ai/status'),
+  // Tanasiz POST'ni Fastify bo'sh JSON deb rad etadi — bo'sh obyekt yuboramiz
+  aiTest: () =>
+    request<{ ok: boolean; model?: string; answer?: string; error?: string }>('/admin/ai/test', {
+      method: 'POST',
+      body: '{}',
+    }),
   settings: () => request<Record<string, string>>('/admin/settings'),
   saveSettings: (data: Record<string, string>) =>
     request<Record<string, string>>('/admin/settings', { method: 'PATCH', body: JSON.stringify(data) }),
@@ -129,6 +136,20 @@ export interface Admin {
   role: 'admin' | 'super';
   is_active?: number;
   last_login_at?: string | null;
+}
+
+/** AI holati — kalitning O'ZI hech qachon kelmaydi, faqat dumi */
+export interface AdminAiStatus {
+  enabled: boolean;
+  key_tail: string | null;
+  /** kalit .env dan kelayaptimi (admin paneldan emas) */
+  from_env: boolean;
+  model: string;
+  daily_limit: number;
+  keep_days: number;
+  cost_month: number;
+  calls_month: number;
+  shops_month: number;
 }
 
 export interface Stats {
