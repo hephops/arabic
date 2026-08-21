@@ -15,6 +15,7 @@ import { join, dirname, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomBytes } from 'node:crypto';
 import { db } from '../db.js';
+import { gate, BusyError } from './gate.js';
 import { TOOL_BY_NAME, toolSchemas, ACTION_TOOLS } from './tools.js';
 import { MODEL_DEEP, MAX_STEPS, costUzs, aiEnabled, aiKey, model as aiModel, dailyLimit, questionPrice } from './config.js';
 
@@ -41,12 +42,20 @@ function api(): Anthropic {
       // kutmaydi. SDK ning standart chegarasi 10 daqiqa: shuncha
       // vaqt aylanayotgan spinner "ilova osilib qoldi" degani.
       // Chegaradan oshsa tushunarli xato beriladi.
-      timeout: Number(process.env.AI_TIMEOUT_MS) || 60_000,
-      // Qayta urinish YO'Q. Chaqiruv 60 soniyada uzilsa, ikkinchi
-      // urinish yana 60 soniya oladi va jami 120 ga chiqadi —
-      // Cloudflare tuneli esa 100 soniyada uzib tashlaydi. Ya'ni
-      // qayta urinish do'konchiga foyda emas, zarar keltirardi.
-      maxRetries: 0,
+      timeout: Number(process.env.AI_TIMEOUT_MS) || 40_000,
+      // Bitta qayta urinish bor.
+      //
+      // Ilgari umuman yo'q edi: 60 soniyalik chegara + urinishsizlik
+      // degani, tarmoqda bir marta osilib qolish do'konchiga to'liq
+      // xato bo'lib qaytardi ("Taym-aut zaprosa istek"). O'lchandi:
+      // o'sha so'rov qayta yuborilganda 5-17 soniyada muvaffaqiyatli
+      // tugadi, ya'ni muammo o'tkinchi edi.
+      //
+      // Chegara 40 soniyaga tushirildi: ikki urinish jami 80 soniya —
+      // pastdagi umumiy muddatga (75s) yaqin, ya'ni cho'zilib ketmaydi.
+      // SDK faqat ulanish xatosi, 429 va 5xx da qayta uradi; model
+      // sekin yozgani uchun emas.
+      maxRetries: Number(process.env.AI_RETRIES ?? 1),
       // Sinov uchun manzilni almashtirish (TELEGRAM_API_BASE bilan bir xil usul)
       ...(process.env.ANTHROPIC_BASE_URL ? { baseURL: process.env.ANTHROPIC_BASE_URL } : {}),
     });
@@ -626,7 +635,13 @@ async function run(opts: AskOptions, emit?: (e: AiEvent) => void): Promise<AskRe
       messages,
     };
 
+    // Modelga chiqish DARVOZADAN o'tadi: bir vaqtda cheklangan sondagi
+    // so'rov ketadi, qolgani navbatda kutadi. Busiz yuz do'konchi bir
+    // vaqtda so'raganda hammasi birdan yo'lga chiqib, API tezlik
+    // chegarasiga urilardi va hech kim javob olmasdi (gate.ts ga qara).
     let res: Anthropic.Message;
+    try {
+      res = await gate(async () => {
     if (emit) {
       const stream = api().messages.stream(params);
       // Matn yozilishi bilan darhol uzatiladi
@@ -634,9 +649,17 @@ async function run(opts: AskOptions, emit?: (e: AiEvent) => void): Promise<AskRe
         streamed = true;
         emit({ type: 'text', delta });
       });
-      res = await stream.finalMessage();
-    } else {
-      res = await api().messages.create(params);
+      return await stream.finalMessage();
+    }
+      return await api().messages.create(params);
+      });
+    } catch (e) {
+      // Navbat to'lgan: bu xato emas, shunchaki hozir gavjum. Do'konchi
+      // nima qilishni bilsin — bir daqiqadan keyin qayta so'rasa bo'ladi.
+      if (e instanceof BusyError) {
+        throw new AiError('ai_busy', "Hozir juda ko'p so'rov bor. Bir daqiqadan keyin qayta urinib ko'ring.");
+      }
+      throw e;
     }
 
     cost += costUzs(model, res.usage as any);
@@ -678,6 +701,8 @@ async function run(opts: AskOptions, emit?: (e: AiEvent) => void): Promise<AskRe
 
     const calls = res.content.filter((b): b is Anthropic.ToolUseBlock => b.type === 'tool_use');
     const results: Anthropic.ToolResultBlockParam[] = [];
+    // Karta tuzildimi — shundan keyin modelga qaytish shart emas
+    let draftMade = false;
     for (const c of calls) {
       const tool = TOOL_BY_NAME.get(c.name);
       // Ikkinchi to'siq: vosita ro'yxatda ko'rsatilmagan bo'lsa ham
@@ -707,6 +732,7 @@ async function run(opts: AskOptions, emit?: (e: AiEvent) => void): Promise<AskRe
         // tasdiqlanadigan karta bo'lib ko'rinishi kerak
         if (c.name === 'kirim_taklif' && data?.taklif_id) {
           emit?.({ type: 'draft', draft_id: data.taklif_id, items: data.tovarlar ?? [] });
+          draftMade = true;
         }
         // Katta ro'yxat modelga to'liq yuborilsa javob sekinlashadi va
         // qimmatlashadi. Do'konchiga baribir birinchi o'ntasi kerak.
@@ -720,6 +746,26 @@ async function run(opts: AskOptions, emit?: (e: AiEvent) => void): Promise<AskRe
         });
       }
     }
+    // Kirim taklifi tayyor bo'lsa ikkinchi chaqiruv KERAK EMAS.
+    //
+    // O'lchandi: 30 qatorli nakladnoyda ikkinchi chaqiruvga 7608 token
+    // kirish ketardi (surat va butun ro'yxat qaytadan yuborilardi) va
+    // undan atigi 73 token chiqardi — "ro'yxatni tayyorladim" degan
+    // gap. Ya'ni javobning yarmi shu bir gapga sarflanardi: 108 so'm
+    // va 5 soniya. Do'konchiga esa kartaning o'zi keladi, u kartadan
+    // hamma narsani ko'rib turadi.
+    if (draftMade) {
+      // Modelning o'z gapi allaqachon ekranga oqib o'tgan — tarixda ham
+      // o'shanisi qolsin, aks holda suhbat qayta ochilganda javob
+      // bo'shab qolardi
+      const said = textOf(res.content);
+      if (said) answer = said;
+      note("Ro'yxat tayyor — pastdagi kartani tekshirib, tasdiqlasangiz omborga tushadi.");
+      // Faqat MATN saqlanadi: javobsiz tool_use tarixni buzadi
+      saveMsg(chatId, opts.shopId, 'assistant', [{ type: 'text', text: answer }], answer);
+      break;
+    }
+
     // Hamma natija BITTA xabarda qaytadi — bo'lib yuborilsa model
     // keyingi safar vositalarni parallel chaqirmay qo'yadi.
     //
