@@ -228,11 +228,11 @@ export const api = {
    * qarab turadi (model soniyasiga ~44 token yozadi). Bu yerda esa
    * birinchi so'zlar darhol chiqadi.
    */
-  aiStream: async (question: string, on: (e: AiEvent) => void) => {
+  aiStream: async (question: string, on: (e: AiEvent) => void, image?: string) => {
     const res = await fetch(`${BASE}/ai/stream`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
-      body: JSON.stringify({ question }),
+      body: JSON.stringify({ question, image }),
     });
     if (!res.ok || !res.body) {
       const body: any = await res.json().catch(() => ({}));
@@ -264,6 +264,14 @@ export const api = {
   /** Tayyor javobni Telegramga uzatish — modelga urinmasdan, darhol */
   aiToTelegram: (text: string, title?: string) =>
     request<{ ok: true }>('/ai/telegram', { method: 'POST', body: JSON.stringify({ text, title }) }),
+  /** Rasmdan o'qilgan kirimni tasdiqlash — shundan keyin omborga tushadi */
+  aiIntakeConfirm: (draft_id: number, items: AiDraftItem[]) =>
+    request<{ ok: boolean; done: { nom: string; miqdor: number }[]; failed: { nom: string; sabab: string }[] }>(
+      '/ai/intake/confirm',
+      { method: 'POST', body: JSON.stringify({ draft_id, items }) }
+    ),
+  aiIntakeCancel: (draft_id: number) =>
+    request<{ ok: true }>('/ai/intake/cancel', { method: 'POST', body: JSON.stringify({ draft_id }) }),
   updateCustomer: (
     id: number,
     data: Partial<Pick<Customer, 'name' | 'phone' | 'language' | 'reminder_mode' | 'credit_limit' | 'is_blocked'>>
@@ -438,9 +446,21 @@ export interface AiStatus {
 }
 
 /** Oqimdan keladigan hodisa */
+export interface AiDraftItem {
+  nom: string;
+  miqdor: number;
+  birlik: string;
+  kirim_narxi: number;
+  sotuv_narxi: number;
+  srok: string;
+  omborda_bor?: boolean;
+  eski_birlik?: string | null;
+}
+
 export type AiEvent =
   | { type: 'status'; tool: string }
   | { type: 'text'; delta: string }
+  | { type: 'draft'; draft_id: number; items: AiDraftItem[] }
   | { type: 'done'; charged: number; tools: string[] }
   | { type: 'error'; code: string; message: string };
 

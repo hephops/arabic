@@ -488,3 +488,21 @@ CREATE TABLE IF NOT EXISTS ai_usage (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_ai_usage_shop ON ai_usage(shop_id, created_at);
+
+-- Rasmdan o'qilgan kirim taklifi.
+--
+-- Do'konchi daftar yoki nakladnoyni suratga oladi, yordamchi uni
+-- o'qib ro'yxat tuzadi. LEKIN OMBORGA O'ZI YOZMAYDI: qo'lyozmani
+-- noto'g'ri o'qish oson, xato kirim esa qoldiqni ham, foydani ham
+-- buzadi. Shuning uchun avval TAKLIF saqlanadi, do'konchi ko'rib
+-- tasdiqlagandan keyingina haqiqiy kirim bo'ladi.
+CREATE TABLE IF NOT EXISTS ai_intake_drafts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  shop_id INTEGER NOT NULL REFERENCES shops(id),
+  employee_id INTEGER,
+  chat_id INTEGER,
+  items TEXT NOT NULL,                           -- JSON: o'qilgan qatorlar
+  status TEXT NOT NULL DEFAULT 'pending',        -- pending | done | cancelled
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_ai_drafts_shop ON ai_intake_drafts(shop_id, status);

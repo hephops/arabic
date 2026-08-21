@@ -101,7 +101,7 @@ export function registerAiRoutes(app: FastifyInstance, opts: { requireAi: Guard;
   });
 
   /** Savol berish */
-  app.post<{ Body: { question?: string; deep?: boolean } }>(
+  app.post<{ Body: { question?: string; deep?: boolean; image?: string } }>(
     '/ai/ask',
     { preHandler: opts.requireAi },
     async (req, reply) => {
@@ -114,6 +114,7 @@ export function registerAiRoutes(app: FastifyInstance, opts: { requireAi: Guard;
           question: String(req.body?.question ?? ''),
           channel: 'app',
           deep: !!req.body?.deep,
+          image: typeof req.body?.image === 'string' ? req.body.image : undefined,
         });
         // Sarf do'konchiga ko'rsatilmaydi — u obunaga kirgan, har
         // savolda "shuncha so'm ketdi" deb turish bezovta qiladi
@@ -145,7 +146,7 @@ export function registerAiRoutes(app: FastifyInstance, opts: { requireAi: Guard;
    * Ilova esa shu yo'ldan yuradi — do'konchi bo'sh ekranga qarab
    * o'tirmasin.
    */
-  app.post<{ Body: { question?: string; deep?: boolean } }>(
+  app.post<{ Body: { question?: string; deep?: boolean; image?: string } }>(
     '/ai/stream',
     { preHandler: opts.requireAi },
     async (req, reply) => {
@@ -173,6 +174,7 @@ export function registerAiRoutes(app: FastifyInstance, opts: { requireAi: Guard;
             question: String(req.body?.question ?? ''),
             channel: 'app',
             deep: !!req.body?.deep,
+            image: typeof req.body?.image === 'string' ? req.body.image : undefined,
           },
           send
         );
@@ -235,6 +237,96 @@ export function registerAiRoutes(app: FastifyInstance, opts: { requireAi: Guard;
       const body = (title ? `<b>${escapeHtml(title)}</b>\n\n` : '') + escapeHtml(text);
       const res: any = await sendMessage(chatId, body);
       if (res?.ok === false) return reply.code(502).send({ error: 'tg_failed', message: 'Telegram qabul qilmadi' });
+      return { ok: true };
+    }
+  );
+
+  /** Saqlangan kirim taklifini o'qish */
+  app.get<{ Params: { id: string } }>('/ai/intake/:id', { preHandler: opts.requireAi }, async (req, reply) => {
+    const d = db
+      .prepare('SELECT * FROM ai_intake_drafts WHERE id = ? AND shop_id = ?')
+      .get(req.params.id, req.shopId) as any;
+    if (!d) return reply.code(404).send({ error: 'not_found' });
+    return { id: d.id, status: d.status, items: JSON.parse(d.items), created_at: d.created_at };
+  });
+
+  /**
+   * Kirim taklifini TASDIQLASH.
+   *
+   * Shu yergacha omborga hech narsa tushmagan. Bu yerda ham
+   * yordamchining kodi tovar yozmaydi: har qator ilovaning O'Z kirim
+   * yo'liga (/products/intake) yuboriladi.
+   *
+   * Nega shunday: o'sha yo'lda partiya ochish, qoldiqni oshirish,
+   * harakat jurnaliga yozish, birlikni tekshirish, ruxsatni tekshirish
+   * — hammasi allaqachon bor va sinovdan o'tgan. Ikkinchi nusxa
+   * yozilsa ular vaqt o'tib bir-biridan ajralib ketardi.
+   */
+  app.post<{ Body: { draft_id?: number; items?: any[] } }>(
+    '/ai/intake/confirm',
+    { preHandler: opts.requireAi },
+    async (req, reply) => {
+      const d = db
+        .prepare("SELECT * FROM ai_intake_drafts WHERE id = ? AND shop_id = ?")
+        .get(Number(req.body?.draft_id) || 0, req.shopId) as any;
+      if (!d) return reply.code(404).send({ error: 'not_found' });
+      if (d.status !== 'pending') return reply.code(409).send({ error: 'already_' + d.status });
+
+      // Do'konchi ekranda tuzatgan bo'lishi mumkin — o'zi yuborgan
+      // ro'yxat ustun turadi, lekin uzunligi cheklanadi
+      const rows: any[] = Array.isArray(req.body?.items) ? req.body!.items!.slice(0, 40) : JSON.parse(d.items);
+
+      const done: any[] = [];
+      const failed: any[] = [];
+      for (const r of rows) {
+        const name = String(r?.nom ?? '').trim();
+        const qty = Number(r?.miqdor) || 0;
+        if (!name || qty <= 0) {
+          failed.push({ nom: name, sabab: 'nom yoki miqdor yo\'q' });
+          continue;
+        }
+        const res = await app.inject({
+          method: 'POST',
+          url: '/products/intake',
+          headers: { authorization: req.headers.authorization ?? '', 'content-type': 'application/json' },
+          payload: {
+            name,
+            unit: String(r?.birlik ?? '') || undefined,
+            qty,
+            cost_price: Number(r?.kirim_narxi) || 0,
+            sell_price: Number(r?.sotuv_narxi) || 0,
+            expiry_date: /^\d{4}-\d{2}-\d{2}$/.test(String(r?.srok ?? '')) ? String(r.srok) : undefined,
+          },
+        });
+        if (res.statusCode === 200) {
+          done.push({ nom: name, miqdor: qty });
+        } else {
+          const body: any = res.json();
+          failed.push({ nom: name, sabab: body?.message ?? body?.error ?? `HTTP ${res.statusCode}` });
+        }
+      }
+
+      // Bittasi ham o'tmagan bo'lsa taklif ochiq qoladi — do'konchi
+      // tuzatib qayta urinsin
+      if (done.length) {
+        db.prepare("UPDATE ai_intake_drafts SET status = 'done' WHERE id = ?").run(d.id);
+      }
+      return { ok: done.length > 0, done, failed };
+    }
+  );
+
+  /** Taklifni bekor qilish */
+  app.post<{ Body: { draft_id?: number } }>(
+    '/ai/intake/cancel',
+    { preHandler: opts.requireAi },
+    async (req, reply) => {
+      const d = db
+        .prepare("SELECT id, status FROM ai_intake_drafts WHERE id = ? AND shop_id = ?")
+        .get(Number(req.body?.draft_id) || 0, req.shopId) as any;
+      if (!d) return reply.code(404).send({ error: 'not_found' });
+      if (d.status === 'pending') {
+        db.prepare("UPDATE ai_intake_drafts SET status = 'cancelled' WHERE id = ?").run(d.id);
+      }
       return { ok: true };
     }
   );

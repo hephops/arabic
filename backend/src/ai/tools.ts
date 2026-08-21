@@ -601,10 +601,95 @@ TOOLS.push({
   },
 });
 
+/**
+ * Rasmdan o'qilgan kirimni TAKLIF qilish.
+ *
+ * DIQQAT: bu vosita omborga hech narsa yozmaydi. U faqat ro'yxatni
+ * saqlaydi va do'konchiga ko'rsatadi. Haqiqiy kirim do'konchi
+ * "Tasdiqlash" tugmasini bosgandan keyin, ilovaning o'z kirim
+ * yo'li orqali bo'ladi.
+ *
+ * Nega shunday: qo'lyozmani noto'g'ri o'qish oson — "15" ni "16",
+ * "kg" ni "dona" deb. Xato kirim esa qoldiqni ham, foydani ham,
+ * buyurtma taklifini ham buzadi va uni orqaga qaytarish qiyin.
+ * Chegirmadan farqli, bu qaytarib bo'lmaydigan ish.
+ */
+TOOLS.push({
+  name: 'kirim_taklif',
+  action: true,
+  description:
+    "Rasmdan yoki matndan o'qilgan tovarlar ro'yxatini KIRIM TAKLIFI sifatida saqlaydi. " +
+    "Omborga yozmaydi — do'konchi tasdiqlashi kerak. " +
+    "Har tovarga nom va miqdor SHART. Narx yoki birlik noaniq bo'lsa bo'sh qoldir " +
+    "va javobingda do'konchidan so'ra.",
+  input_schema: {
+    type: 'object',
+    properties: {
+      tovarlar: {
+        type: 'array',
+        description: "Ko'pi bilan 40 ta qator",
+        items: {
+          type: 'object',
+          properties: {
+            nom: { type: 'string' },
+            miqdor: { type: 'number' },
+            birlik: { type: 'string', description: 'dona, kg, litr, quti — bilmasang bo\'sh satr' },
+            kirim_narxi: { type: 'number', description: "bir birlik uchun. Bilmasang 0" },
+            sotuv_narxi: { type: 'number', description: "bir birlik uchun. Bilmasang 0" },
+            srok: { type: 'string', description: 'YYYY-MM-DD yoki bo\'sh satr' },
+          },
+          required: ['nom', 'miqdor', 'birlik', 'kirim_narxi', 'sotuv_narxi', 'srok'],
+          additionalProperties: false,
+        },
+      },
+    },
+    required: ['tovarlar'],
+    additionalProperties: false,
+  },
+  run: (shopId, i) => {
+    const rows = Array.isArray(i.tovarlar) ? i.tovarlar.slice(0, 40) : [];
+    const items = rows
+      .map((r: any) => ({
+        nom: String(r?.nom ?? '').trim().slice(0, 120),
+        miqdor: Number(r?.miqdor) || 0,
+        birlik: String(r?.birlik ?? '').trim().slice(0, 20),
+        kirim_narxi: Math.max(0, Math.round(Number(r?.kirim_narxi) || 0)),
+        sotuv_narxi: Math.max(0, Math.round(Number(r?.sotuv_narxi) || 0)),
+        srok: /^\d{4}-\d{2}-\d{2}$/.test(String(r?.srok ?? '')) ? String(r.srok) : '',
+      }))
+      .filter((r: any) => r.nom && r.miqdor > 0);
+
+    if (!items.length) return { bajarilmadi: "Ro'yxat bo'sh yoki nom/miqdor o'qilmadi" };
+
+    const info = db
+      .prepare("INSERT INTO ai_intake_drafts (shop_id, items) VALUES (?, ?)")
+      .run(shopId, JSON.stringify(items));
+
+    // Nomlari bo'yicha ombordagi mosini topamiz — do'konchi yangi
+    // tovarmi yoki bormi, ko'rib tursin
+    const known = items.map((r: any) => {
+      const p = db
+        .prepare('SELECT id, name, unit, cost_price, sell_price FROM products WHERE shop_id = ? AND name = ? COLLATE NOCASE')
+        .get(shopId, r.nom) as any;
+      return { ...r, omborda_bor: !!p, eski_birlik: p?.unit ?? null };
+    });
+
+    return {
+      taklif_id: Number(info.lastInsertRowid),
+      tovarlar: known,
+      eslatma:
+        "Ro'yxat SAQLANDI, lekin omborga hali tushmadi. Do'konchi ekranda " +
+        "ko'rib 'Tasdiqlash' tugmasini bossa kirim bo'ladi. Javobingda shuni ayt.",
+    };
+  },
+});
+
 export const TOOL_BY_NAME = new Map(TOOLS.map((t) => [t.name, t]));
 
 /** Ma'lumotni o'zgartiradigan vositalar — alohida ruxsat talab qiladi */
-export const ACTION_TOOLS = new Set(TOOLS.filter((t) => t.action && t.name === 'chegirma_qoy').map((t) => t.name));
+export const ACTION_TOOLS = new Set(
+  TOOLS.filter((t) => t.action && t.name !== 'telegramga_yubor').map((t) => t.name)
+);
 
 /**
  * Modelga yuboriladigan e'lon (run funksiyasisiz).

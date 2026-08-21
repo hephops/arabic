@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { api, fmt, AiMessage, AiStatus } from '../api';
+import { api, fmt, AiMessage, AiStatus, AiDraftItem } from '../api';
+import AiDraft from './AiDraft';
 import { AppIcon, Glyph } from '../icons';
 import { SubHeader } from '../ui';
 import { useT } from '../i18n';
@@ -21,6 +22,46 @@ const SUGGESTIONS = [
   { key: 'aiQ5', q: "Qaysi tovar ombordagi pulni bog'lab yotibdi?" },
   { key: 'aiQ6', q: "Srogi yaqin tovarlarni telegramga yubor" },
 ];
+
+
+/**
+ * Suratni yuborishdan oldin kichraytirish.
+ *
+ * Telefon kamerasi 4-8 megabaytlik surat beradi. Uni shundoq
+ * yuborish uch joyda zarar: tarmoqda sekin, modelda qimmat
+ * (rasm token bilan hisoblanadi), serverda esa chegaradan oshadi.
+ * 1280 piksel qo'lyozmani o'qish uchun yetarli va rasm modelga
+ * kamroq token bo'lib tushadi — javob tezroq keladi.
+ */
+async function shrink(file: File): Promise<string> {
+  const MAX = 1280;
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise<HTMLImageElement>((res, rej) => {
+      const im = new Image();
+      im.onload = () => res(im);
+      im.onerror = rej;
+      im.src = url;
+    });
+    const scale = Math.min(1, MAX / Math.max(img.width, img.height));
+    const w = Math.round(img.width * scale);
+    const h = Math.round(img.height * scale);
+    const c = document.createElement('canvas');
+    c.width = w;
+    c.height = h;
+    c.getContext('2d')?.drawImage(img, 0, 0, w, h);
+    return c.toDataURL('image/jpeg', 0.78);
+  } catch {
+    // Kichraytirib bo'lmasa asl holicha yuboramiz — server o'zi cheklaydi
+    return await new Promise((res) => {
+      const r = new FileReader();
+      r.onload = () => res(String(r.result));
+      r.readAsDataURL(file);
+    });
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
 
 export default function Ai({ onBack }: { onBack: () => void }) {
   const { t } = useT();
@@ -45,14 +86,16 @@ export default function Ai({ onBack }: { onBack: () => void }) {
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [msgs.length, busy]);
 
-  async function send(q: string) {
+  async function send(q: string, img?: string | null) {
     const question = q.trim();
-    if (!question || sending.current) return;
+    const pic = img ?? photo;
+    if ((!question && !pic) || sending.current) return;
     sending.current = true;
     haptic.select();
     setText('');
     // Savol darhol ekranga chiqadi — javob kutilayotgani bilinib tursin
-    setMsgs((m) => [...m, { role: 'user', text: question, created_at: '' }]);
+    setPhoto(null);
+    setMsgs((m) => [...m, { role: 'user', text: pic ? `🖼 ${question}` : question, created_at: '' }]);
     setBusy(true);
     setStatusTool('');
     // Javob bo'lak-bo'lak keladi.
@@ -75,11 +118,19 @@ export default function Ai({ onBack }: { onBack: () => void }) {
       });
     };
     try {
-      await api.aiStream(question, (e) => {
-        if (e.type === 'text') push(e.delta);
-        else if (e.type === 'status') setStatusTool(e.tool);
-        else if (e.type === 'error') push((acc ? '\n\n' : '') + e.message);
-      });
+      await api.aiStream(
+        question || t('aiPhotoAsk'),
+        (e) => {
+          if (e.type === 'text') push(e.delta);
+          else if (e.type === 'status') setStatusTool(e.tool);
+          else if (e.type === 'error') push((acc ? '\n\n' : '') + e.message);
+          else if (e.type === 'draft') {
+            // Karta javob matnidan keyin turadi
+            setDrafts((d) => [...d, { at: msgs.length + 1, id: e.draft_id, items: e.items }]);
+          }
+        },
+        pic ?? undefined
+      );
       if (!acc) push(t('aiNoAnswer'));
       api.aiStatus().then(setStatus).catch(() => {});
     } catch (e: any) {
@@ -101,6 +152,11 @@ export default function Ai({ onBack }: { onBack: () => void }) {
   const [tgSent, setTgSent] = useState(-1);
   const [quotaOpen, setQuotaOpen] = useState(false);
   const [warnHidden, setWarnHidden] = useState(false);
+  // Yuborilishi kutilayotgan surat (data URL) va uning ko'rinishi
+  const [photo, setPhoto] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  // Suhbatdagi tasdiqlash kartalari: qaysi xabardan keyin turishi
+  const [drafts, setDrafts] = useState<{ at: number; id: number; items: AiDraftItem[] }[]>([]);
 
   /**
    * Chegara qachon ogohlantirsin.
@@ -185,8 +241,30 @@ export default function Ai({ onBack }: { onBack: () => void }) {
                 {tgSent === i ? t('aiTgDone') : t('aiToTelegram')}
               </button>
             )}
+            {drafts
+              .filter((d) => d.at === i)
+              .map((d) => (
+                <AiDraft
+                  key={d.id}
+                  draftId={d.id}
+                  items={d.items}
+                  onDone={(txt) => setMsgs((m) => [...m, { role: 'assistant', text: txt, created_at: '' }])}
+                />
+              ))}
           </div>
         ))}
+
+        {/* Oxirgi javobdan keyin kelgan kartalar */}
+        {drafts
+          .filter((d) => d.at >= msgs.filter((m) => m.text).length)
+          .map((d) => (
+            <AiDraft
+              key={d.id}
+              draftId={d.id}
+              items={d.items}
+              onDone={(txt) => setMsgs((m) => [...m, { role: 'assistant', text: txt, created_at: '' }])}
+            />
+          ))}
 
         {busy && (
           <div className="ai-msg assistant thinking">
@@ -274,7 +352,35 @@ export default function Ai({ onBack }: { onBack: () => void }) {
           </div>
         )}
 
+        {/* Tanlangan surat — yuborishdan oldin ko'rinib tursin */}
+        {photo && (
+          <div className="ai-photo">
+            <img src={photo} alt="" />
+            <div className="ai-photo-txt">{t('aiPhotoHint')}</div>
+            <button className="ai-warn-x" onClick={() => setPhoto(null)} aria-label={t('cancel')}>
+              <Glyph name="close" size={15} color="var(--muted)" />
+            </button>
+          </div>
+        )}
+
         <div className="ai-bar-row">
+          {/* Daftar yoki nakladnoyni suratga olish. Telefonda kamera
+              ochiladi, kompyuterda fayl tanlash oynasi. */}
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            style={{ display: 'none' }}
+            onChange={async (e) => {
+              const f = e.target.files?.[0];
+              e.target.value = '';
+              if (f) setPhoto(await shrink(f));
+            }}
+          />
+          <button className="ai-photo-btn" onClick={() => fileRef.current?.click()} aria-label={t('aiPhoto')}>
+            <Glyph name="camera" size={19} color="var(--accent)" />
+          </button>
         {/* Qancha savol qolgani — yuborish tugmasining yonida.
             Bosilsa batafsil oyna ochiladi. */}
         {status && status.daily_limit > 0 && (
@@ -293,7 +399,12 @@ export default function Ai({ onBack }: { onBack: () => void }) {
           placeholder={t('aiPlaceholder')}
           disabled={busy}
         />
-        <button className="ai-send" onClick={() => send(text)} disabled={busy || !text.trim()} aria-label={t('send')}>
+        <button
+            className="ai-send"
+            onClick={() => send(text)}
+            disabled={busy || (!text.trim() && !photo)}
+            aria-label={t('send')}
+          >
           <Glyph name="arrowUp" size={20} color="#fff" strokeWidth={2.4} />
         </button>
       </div>
