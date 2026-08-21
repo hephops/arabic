@@ -2160,6 +2160,7 @@ button.link { background: none; color: var(--accent); font-size: 15px; font-weig
   font-variant-numeric: tabular-nums; cursor: pointer;
 }
 .ai-quota-btn.low { background: rgba(255, 149, 0, 0.16); color: var(--yellow); }
+.ai-quota-btn.out { background: rgba(255, 59, 48, 0.14); color: var(--red); }
 .ai-quota-btn:active { opacity: 0.6; }
 
 /* Ortidagi to'siq — tashqariga bosilsa yopiladi */
@@ -2182,6 +2183,7 @@ button.link { background: none; color: var(--accent); font-size: 15px; font-weig
 .ai-quota-bar .fill { height: 100%; background: var(--accent); border-radius: 3px; transition: width 0.3s ease; }
 /* Oz qolganda rangi o'zgaradi — do'konchi oldindan bilsin */
 .ai-quota-bar .fill.low { background: var(--yellow); }
+.ai-quota-bar .fill.out { background: var(--red); }
 .ai-quota-sub { margin-top: 7px; font-size: 11.5px; color: var(--muted); }
 
 @media (min-width: 900px) {

@@ -100,6 +100,22 @@ export default function Ai({ onBack }: { onBack: () => void }) {
    */
   const [tgSent, setTgSent] = useState(-1);
   const [quotaOpen, setQuotaOpen] = useState(false);
+
+  /**
+   * Chegara qachon ogohlantirsin.
+   *
+   * Ilgari "2 ta qolganda" deb qat'iy son qo'yilgandi. Chegara 10 ta
+   * bo'lsa bu to'g'ri, 50 ta bo'lsa esa juda kech: 48 tasi
+   * ishlatilib bo'lgandan keyin ogohlantirishning foydasi yo'q.
+   * Endi ulushga qarab: chegaraning beshdan biri qolganda, lekin
+   * kamida ikkita qolganda.
+   */
+  const quotaLevel = (() => {
+    if (!status || status.daily_limit <= 0 || status.left_today === null) return 'ok';
+    if (status.left_today === 0) return 'out';
+    const warnAt = Math.max(2, Math.ceil(status.daily_limit * 0.2));
+    return status.left_today <= warnAt ? 'low' : 'ok';
+  })();
   async function sendToTelegram(text: string, i: number) {
     haptic.select();
     try {
@@ -207,7 +223,7 @@ export default function Ai({ onBack }: { onBack: () => void }) {
             </div>
             <div className="ai-quota-bar">
               <div
-                className={`fill ${status.left_today !== null && status.left_today <= 2 ? 'low' : ''}`}
+                className={`fill ${quotaLevel}`}
                 style={{ width: `${Math.min(100, (status.asked_today / Math.max(1, status.daily_limit)) * 100)}%` }}
               />
             </div>
@@ -236,7 +252,7 @@ export default function Ai({ onBack }: { onBack: () => void }) {
             Bosilsa batafsil oyna ochiladi. */}
         {status && status.daily_limit > 0 && (
           <button
-            className={`ai-quota-btn ${status.left_today !== null && status.left_today <= 2 ? 'low' : ''}`}
+            className={`ai-quota-btn ${quotaLevel}`}
             onClick={() => setQuotaOpen((v) => !v)}
             aria-label={t('aiQuota')}
           >
