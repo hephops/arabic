@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { api, getToken, type CatalogProduct, type Shop } from './api';
+import { api, getToken, type CatalogProduct, type Shop, type Announce } from './api';
 import Dock, { NavTarget } from './Dock';
 import { NavBar } from './ui';
 import Login from './screens/Login';
@@ -79,6 +79,19 @@ export default function App() {
 
   const refresh = () => setRefreshKey((k) => k + 1);
 
+  // Yuguruvchi e'lon. Kimga ko'rinishi serverda emas, shu yerda hal
+  // qilinadi: "faqat balansi tugaganlarga" degani do'konning holatiga
+  // bog'liq, u esa /me dan keladi.
+  const [announce, setAnnounce] = useState<Announce | null>(null);
+  useEffect(() => {
+    api.announce().then(setAnnounce).catch(() => {});
+  }, []);
+  const showAnnounce =
+    announce?.enabled &&
+    (announce.audience === 'all' ||
+      (announce.audience === 'stopped' && shop?.service && !shop.service.active) ||
+      (announce.audience === 'active' && shop?.service?.active));
+
   const TITLES: Record<Tab, string> = {
     home: t('tabHome'),
     customers: t('tabCustomers'),
@@ -92,6 +105,27 @@ export default function App() {
       {/* Ichki ekranlar o'z navigatsiya panelini chizadi — bu yerda
           ikkinchi panel chiqib qolmasligi uchun ularni chetlab o'tamiz */}
       {!sub && !(tab === 'profile' && profileView !== 'main') && <NavBar title={TITLES[tab]} />}
+      {/* E'lon menyu nomining TAGIDAN o'tadi — ekranni bosib qolmasin,
+          lekin ko'zga tashlansin. Ichki ekranlarda ham ko'rinadi:
+          do'konchi qayerda turganidan qat'i nazar xabarni olishi kerak. */}
+      {showAnnounce && announce && (
+        <div
+          className="announce"
+          style={{
+            background: `linear-gradient(90deg, ${announce.bg1}, ${announce.bg2})`,
+            color: announce.color,
+            fontSize: `${announce.size}px`,
+            fontWeight: announce.weight === 'bold' ? 700 : announce.weight === 'medium' ? 500 : 400,
+          }}
+        >
+          <div className="announce-run" style={{ animationDuration: `${announce.speed}s` }}>
+            {/* Matn ikki marta: birinchisi chetdan chiqib ketayotganda
+                ikkinchisi kirib keladi, ya'ni uzilish ko'rinmaydi */}
+            <span>{announce.text}</span>
+            <span aria-hidden="true">{announce.text}</span>
+          </div>
+        </div>
+      )}
       <ToastHost />
       <InstallPrompt />
 

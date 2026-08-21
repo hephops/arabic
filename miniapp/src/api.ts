@@ -346,6 +346,8 @@ export const api = {
     stop();
   },
   aiClear: () => request<{ ok: true }>('/ai/history', { method: 'DELETE' }),
+  /** Yuguruvchi e'lon — kirmagan foydalanuvchi ham ko'radi */
+  announce: () => request<Announce>('/public/announce'),
   /** Tayyor javobni Telegramga uzatish — modelga urinmasdan, darhol */
   aiToTelegram: (text: string, title?: string) =>
     request<{ ok: true }>('/ai/telegram', { method: 'POST', body: JSON.stringify({ text, title }) }),
@@ -979,3 +981,17 @@ export interface ExpensesInfo {
 }
 
 export { fmt, fmtShort } from './i18n';
+
+/** Ilova tepasidan o'tib turadigan e'lon */
+export interface Announce {
+  enabled: boolean;
+  text?: string;
+  color?: string;
+  bg1?: string;
+  bg2?: string;
+  size?: number;
+  weight?: string;
+  /** to'liq aylanish necha soniyada — kichik son = tezroq */
+  speed?: number;
+  audience?: string;
+}

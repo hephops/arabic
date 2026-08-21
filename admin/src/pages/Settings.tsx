@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api, fmt, fmtNum, type AdminAiStatus } from '../api';
+import AnnounceModal, { parseAnnounce, type AnnounceCfg } from './Announce';
 
 type Field = {
   key: string;
@@ -124,6 +125,17 @@ export default function Settings() {
     }
   }
 
+  // Yuguruvchi e'lon — alohida oynada sozlanadi, lekin oddiy sozlama
+  // bo'lib saqlanadi (bitta JSON)
+  const [annOpen, setAnnOpen] = useState(false);
+  const ann: AnnounceCfg = parseAnnounce(value('announce'));
+
+  async function saveAnnounce(v: AnnounceCfg) {
+    setData(await api.saveSettings({ announce: JSON.stringify(v) }));
+    setAnnOpen(false);
+    setMsg("E'lon saqlandi");
+  }
+
   async function save() {
     setSaving(true);
     setErr('');
@@ -143,6 +155,41 @@ export default function Settings() {
 
   return (
     <>
+      {/* Yuguruvchi e'lon — do'konchilarga umumiy xabar. Alohida oynada
+          sozlanadi, chunki rang/o'lcham/tezlik ko'p va ular sozlamalar
+          ro'yxatiga sig'masdi. */}
+      <div className="panel">
+        <h3>Yuguruvchi e'lon</h3>
+        <div className="muted" style={{ marginTop: -6, marginBottom: 12, fontSize: 13 }}>
+          Ilovaning tepasida, bo‘lim nomi tagidan o‘tib turadi
+        </div>
+        {ann.enabled && ann.text.trim() ? (
+          <div
+            className="ann-preview"
+            style={{
+              background: `linear-gradient(90deg, ${ann.bg1}, ${ann.bg2})`,
+              color: ann.color,
+              fontSize: `${ann.size}px`,
+              fontWeight: ann.weight === 'bold' ? 700 : ann.weight === 'medium' ? 500 : 400,
+            }}
+          >
+            <div className="ann-run" style={{ animationDuration: `${ann.speed}s` }}>
+              <span>{ann.text}</span>
+              <span aria-hidden="true">{ann.text}</span>
+            </div>
+          </div>
+        ) : (
+          <div className="muted" style={{ fontSize: 13 }}>Hozir e‘lon ko‘rsatilmayapti</div>
+        )}
+        <div className="toolbar" style={{ marginTop: 12 }}>
+          <button className="btn" onClick={() => setAnnOpen(true)}>Sozlash</button>
+        </div>
+      </div>
+
+      {annOpen && (
+        <AnnounceModal value={ann} onClose={() => setAnnOpen(false)} onSave={saveAnnounce} />
+      )}
+
       {/* AI yordamchi.
           Kalit shu yerdan qo'yiladi — serverga kirib .env tahrirlash
           shart emas. Kalitning O'ZI hech qachon qaytarilmaydi: brauzerga

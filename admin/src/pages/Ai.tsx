@@ -52,7 +52,7 @@ export default function AiSection() {
     <>
       <div className="section-head">AI — tannarx, tushum va savollar</div>
       {/* Butun vaqt bo'yicha — bu raqamlar davr tanlovidan o'zgarmaydi */}
-      <div className="stats">
+      <div className="cards ai-cards">
         <div className="stat">
           <AppIcon glyph="sparkle" size={38} />
           <div className="txt">

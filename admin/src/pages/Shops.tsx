@@ -202,6 +202,16 @@ function Stat({ glyph, color, k, v }: { glyph: string; color: string; k: string;
   );
 }
 
+/** Balans harakatining turi — do'konchi tilida */
+const TX_LABEL: Record<string, string> = {
+  topup: "To'ldirish",
+  daily: 'Kunlik haq',
+  ai: 'AI savoli',
+  withdraw: 'Yechim',
+  refund: 'Qaytarilgan',
+  grant: 'Bepul kun',
+};
+
 function ShopModal({
   shop,
   onClose,
@@ -217,6 +227,35 @@ function ShopModal({
   const [data, setData] = useState(shop);
   const [msg, setMsg] = useState('');
   const [grantDays, setGrantDays] = useState('30');
+  // Do'kon ma'lumotlari shu oynada tahrirlanadi
+  const [eName, setEName] = useState(shop.name ?? '');
+  const [eOwner, setEOwner] = useState(shop.owner_name ?? '');
+  const [ePhone, setEPhone] = useState(shop.phone ?? '');
+  const [savingInfo, setSavingInfo] = useState(false);
+  const [infoErr, setInfoErr] = useState('');
+  const changed =
+    eName !== (data.name ?? '') || eOwner !== (data.owner_name ?? '') || ePhone !== (data.phone ?? '');
+
+  async function saveInfo() {
+    setSavingInfo(true);
+    setInfoErr('');
+    try {
+      await api.shopEdit(data.id, { name: eName, owner_name: eOwner, phone: ePhone });
+      setMsg('Saqlandi');
+      await reload();
+    } catch (e: any) {
+      const c = e?.details?.error ?? e?.message ?? '';
+      setInfoErr(
+        c === 'phone_taken'
+          ? "Bu raqam boshqa do'konda ishlatilyapti"
+          : c === 'phone_invalid'
+            ? "Telefon raqami noto'g'ri"
+            : String(c)
+      );
+    } finally {
+      setSavingInfo(false);
+    }
+  }
   const [amount, setAmount] = useState('');
   const [reason, setReason] = useState('');
 
@@ -224,6 +263,11 @@ function ShopModal({
     setData(await api.shop(shop.id));
     onChanged();
   }
+
+  // Tarix bo'yicha yig'indi. Balansning O'ZI emas: bu do'kon qancha
+  // to'lagani va qancha yechilganini ko'rsatadi.
+  const kirim = data.transactions.filter((t) => t.amount > 0).reduce((a, t) => a + t.amount, 0);
+  const chiqim = -data.transactions.filter((t) => t.amount < 0).reduce((a, t) => a + t.amount, 0);
 
   return (
     <div className="modal-wrap" onClick={onClose}>
@@ -270,20 +314,66 @@ function ShopModal({
         </div>
 
         {tab === 'info' && (<>
-        {/* Balans va kunlik to'lov. Tarif yo'q — bepul kun sovg'a
-            qilinadi yoki balans to'g'rilanadi. */}
+        {/* Do'kon ma'lumotlari — SHU YERDA tahrirlanadi. Ilgari ular
+            faqat sarlavhadagi yozuv edi va o'zgartirish uchun alohida
+            oyna ochish kerak bo'lardi. */}
         <div className="panel" style={{ marginBottom: 12 }}>
-          <div className="panel-title">Balans va kunlik to'lov</div>
-          <div className="muted" style={{ marginBottom: 10 }}>
-            Balans: <b>{fmt(data.balance)}</b> · Kunlik: <b>{fmt(data.service.daily_price)}</b> ·{' '}
-            {data.service.active ? (
-              <>
-                yana <b>{data.service.days_left}</b> kun (<b>{data.service.runs_out_on}</b> gacha)
-              </>
-            ) : (
-              <b style={{ color: 'var(--red)' }}>balans tugagan — xizmat to'xtagan</b>
-            )}
-            {data.service.on_trial && ' · sinov muddatida'}
+          <div className="panel-title">Do'kon ma'lumotlari</div>
+          <div className="field-grid">
+            <div className="set-field">
+              <label>Do'kon nomi</label>
+              <input value={eName} onChange={(e) => setEName(e.target.value)} />
+            </div>
+            <div className="set-field">
+              <label>Egasi</label>
+              <input value={eOwner} onChange={(e) => setEOwner(e.target.value)} />
+            </div>
+            <div className="set-field">
+              <label>Telefon</label>
+              <input value={ePhone} onChange={(e) => setEPhone(e.target.value)} />
+              <div className="set-hint">Ilovaga shu raqam bilan kiriladi</div>
+            </div>
+            <div className="set-field">
+              <label>Telegram</label>
+              <div className="set-static">{data.telegram_user_id ? 'Ulangan' : 'Ulanmagan'}</div>
+            </div>
+          </div>
+          {infoErr && <div className="err-msg">{infoErr}</div>}
+          <div className="toolbar">
+            <button className="btn sm" onClick={saveInfo} disabled={savingInfo || !eName.trim() || !changed}>
+              {savingInfo ? 'Saqlanyapti…' : changed ? 'Saqlash' : "O'zgarish yo'q"}
+            </button>
+          </div>
+        </div>
+
+        {/* Balans va xizmat — o'qish uchun, lekin har biri alohida
+            katakda: ilgari hammasi bitta yozuv bo'lib yotardi va
+            kerakli raqamni ko'z bilan ajratib bo'lmasdi. */}
+        <div className="panel" style={{ marginBottom: 12 }}>
+          <div className="panel-title">Balans va xizmat</div>
+          <div className="field-grid">
+            <div className="set-field">
+              <label>Balans</label>
+              <div className={`set-static ${data.balance < 0 ? 'red' : ''}`}>{fmt(data.balance)}</div>
+            </div>
+            <div className="set-field">
+              <label>Kunlik haq</label>
+              <div className="set-static">{fmt(data.service.daily_price)}</div>
+            </div>
+            <div className="set-field">
+              <label>Qolgan kun</label>
+              <div className={`set-static ${data.service.days_left <= 3 ? 'red' : ''}`}>
+                {data.service.active ? `${data.service.days_left} kun` : '—'}
+              </div>
+            </div>
+            <div className="set-field">
+              <label>Holat</label>
+              <div className={`set-static ${data.service.active ? 'green' : 'red'}`}>
+                {data.service.active
+                  ? `${data.service.runs_out_on} gacha${data.service.on_trial ? ' · sinov' : ''}`
+                  : "balans tugagan — to'xtagan"}
+              </div>
+            </div>
           </div>
 
           <div className="toolbar">
@@ -371,27 +461,54 @@ function ShopModal({
 
         {tab === 'balance' && (
           <div className="panel">
-            <div className="panel-title">Balans tarixi</div>
-            <table>
-              <tbody>
-                {data.transactions.map((t) => (
-                  <tr key={t.id}>
-                    <td>{t.note ?? t.type}</td>
-                    <td className="muted">{t.created_at.slice(0, 16)}</td>
-                    <td
-                      className="num"
-                      style={{
-                        color:
-                          t.amount === 0 ? 'var(--muted)' : t.amount > 0 ? 'var(--green)' : 'var(--red)',
-                      }}
-                    >
-                      {t.amount > 0 ? '+' : ''}
-                      {fmtNum(t.amount)}
-                    </td>
+            {/* Kirim va chiqim yig'indisi — tarixni satrma-satr qo'shib
+                chiqmasdan turib do'kon qancha to'laganini ko'rish uchun */}
+            <div className="sum-cards">
+              <div className="sum-card in">
+                <div className="k">Jami kirim</div>
+                <div className="v">+{fmt(kirim)}</div>
+              </div>
+              <div className="sum-card out">
+                <div className="k">Jami chiqim</div>
+                <div className="v">−{fmt(chiqim)}</div>
+              </div>
+            </div>
+            <div className="table-wrap">
+              <table className="tbl">
+                <thead>
+                  <tr>
+                    <th>Sana</th>
+                    <th>Turi</th>
+                    <th className="num">Summa</th>
+                    <th>Izoh</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {data.transactions.map((t) => (
+                    <tr key={t.id}>
+                      <td className="muted">{t.created_at.slice(0, 16).replace('T', ' ')}</td>
+                      <td>
+                        <span className={`badge ${t.amount > 0 ? 'ok' : t.amount < 0 ? 'bad' : ''}`}>
+                          {TX_LABEL[t.type] ?? t.type}
+                        </span>
+                      </td>
+                      <td
+                        className="num"
+                        style={{
+                          fontWeight: 600,
+                          color:
+                            t.amount === 0 ? 'var(--muted)' : t.amount > 0 ? 'var(--green)' : 'var(--red)',
+                        }}
+                      >
+                        {t.amount > 0 ? '+' : ''}
+                        {fmtNum(t.amount)} so'm
+                      </td>
+                      <td className="muted">{t.note ?? '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
             {data.transactions.length === 0 && <div className="empty">Hali harakat bo'lmagan</div>}
           </div>
         )}

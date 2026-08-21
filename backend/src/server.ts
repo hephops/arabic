@@ -241,6 +241,41 @@ app.get('/public/support', async () => ({
   telegram: getSetting('support_telegram', ''),
 }));
 
+/**
+ * Yuguruvchi e'lon — ilovaning tepasida menyu tagidan o'tib turadi.
+ *
+ * Sozlamalarda bitta JSON bo'lib saqlanadi: matn, ranglar, o'lcham,
+ * tezlik va kimga ko'rinishi. Bitta yozuv bo'lgani uchun alohida
+ * jadval ochilmadi — ustun qo'shish har o'zgarishda migratsiya
+ * talab qilardi, JSON esa yangi maydonni erkin qabul qiladi.
+ *
+ * Ochiq yo'l: e'lon hammaga mo'ljallangan, kirmagan foydalanuvchi ham
+ * ko'rishi mumkin. O'chirilgan bo'lsa bo'sh qaytadi.
+ */
+app.get('/public/announce', async () => {
+  try {
+    const raw = getSetting('announce', '');
+    if (!raw) return { enabled: false };
+    const a = JSON.parse(raw);
+    if (!a?.enabled || !String(a?.text ?? '').trim()) return { enabled: false };
+    return {
+      enabled: true,
+      text: String(a.text),
+      color: String(a.color ?? '#ffffff'),
+      bg1: String(a.bg1 ?? '#3e97f7'),
+      bg2: String(a.bg2 ?? '#6b5cf6'),
+      size: Number(a.size) || 14,
+      weight: String(a.weight ?? 'bold'),
+      speed: Number(a.speed) || 22,
+      audience: String(a.audience ?? 'all'),
+    };
+  } catch {
+    // Buzuq JSON butun ilovani to'xtatmasin — e'lon shunchaki
+    // ko'rinmaydi
+    return { enabled: false };
+  }
+});
+
 // ---------- PROFIL ----------
 app.get('/me', { preHandler: requireAuth }, async (req) => {
   const shop = db.prepare('SELECT * FROM shops WHERE id = ?').get(req.shopId) as any;
