@@ -27,39 +27,72 @@ const SUGGESTIONS = [
 /**
  * Suratni yuborishdan oldin kichraytirish.
  *
- * Telefon kamerasi 4-8 megabaytlik surat beradi. Uni shundoq
+ * Telefon kamerasi 12 megapikselli surat beradi. Uni shundoq
  * yuborish uch joyda zarar: tarmoqda sekin, modelda qimmat
  * (rasm token bilan hisoblanadi), serverda esa chegaradan oshadi.
- * 1280 piksel qo'lyozmani o'qish uchun yetarli va rasm modelga
- * kamroq token bo'lib tushadi — javob tezroq keladi.
+ *
+ * IPHONE MUAMMOSI: iOS Safari'da canvas maydoni cheklangan. 12 MP
+ * surat (4032x3024) o'sha chegaradan oshadi va toDataURL bo'sh
+ * yoki qora rasm qaytaradi — do'konchi esa "yubordim" deb o'ylab
+ * turaveradi. Shuning uchun:
+ *   - avval createImageBitmap sinaladi (u kattaroq rasmni ham
+ *     eplaydi va HEIC ni ham ochadi);
+ *   - piksel soni ~2 megapikseldan oshmaydi;
+ *   - natija TEKSHIRILADI: haqiqiy JPEG chiqmasa xato beriladi,
+ *     jimgina buzuq rasm yuborilmaydi.
  */
 async function shrink(file: File): Promise<string> {
-  const MAX = 1280;
-  const url = URL.createObjectURL(file);
+  const MAX_SIDE = 1280;
+  const MAX_PIXELS = 2_200_000; // iOS canvas chegarasidan xavfsiz pastda
+
+  let src: ImageBitmap | HTMLImageElement | null = null;
+  let url = '';
   try {
-    const img = await new Promise<HTMLImageElement>((res, rej) => {
+    if (typeof createImageBitmap === 'function') {
+      src = await createImageBitmap(file);
+    }
+  } catch {
+    /* eplamasa quyida <img> orqali sinaymiz */
+  }
+  if (!src) {
+    url = URL.createObjectURL(file);
+    src = await new Promise<HTMLImageElement>((res, rej) => {
       const im = new Image();
       im.onload = () => res(im);
-      im.onerror = rej;
+      im.onerror = () => rej(new Error('decode'));
       im.src = url;
     });
-    const scale = Math.min(1, MAX / Math.max(img.width, img.height));
-    const w = Math.round(img.width * scale);
-    const h = Math.round(img.height * scale);
+  }
+
+  try {
+    const iw = (src as any).width as number;
+    const ih = (src as any).height as number;
+    if (!iw || !ih) throw new Error('empty');
+
+    let scale = Math.min(1, MAX_SIDE / Math.max(iw, ih));
+    if (iw * ih * scale * scale > MAX_PIXELS) scale = Math.sqrt(MAX_PIXELS / (iw * ih));
+
+    const w = Math.max(1, Math.round(iw * scale));
+    const h = Math.max(1, Math.round(ih * scale));
     const c = document.createElement('canvas');
     c.width = w;
     c.height = h;
-    c.getContext('2d')?.drawImage(img, 0, 0, w, h);
-    return c.toDataURL('image/jpeg', 0.78);
-  } catch {
-    // Kichraytirib bo'lmasa asl holicha yuboramiz — server o'zi cheklaydi
-    return await new Promise((res) => {
-      const r = new FileReader();
-      r.onload = () => res(String(r.result));
-      r.readAsDataURL(file);
-    });
+    const ctx = c.getContext('2d');
+    if (!ctx) throw new Error('ctx');
+    // Oq fon: shaffof PNG jpeg ga aylanganda qora bo'lib qolmasin
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, w, h);
+    ctx.drawImage(src as any, 0, 0, w, h);
+
+    const out = c.toDataURL('image/jpeg', 0.78);
+    // TEKSHIRUV: iOS chegaradan oshsa "data:," qaytaradi
+    if (!out.startsWith('data:image/jpeg;base64,') || out.length < 2000) {
+      throw new Error('canvas');
+    }
+    return out;
   } finally {
-    URL.revokeObjectURL(url);
+    if (url) URL.revokeObjectURL(url);
+    if (typeof (src as any)?.close === 'function') (src as any).close();
   }
 }
 
@@ -370,12 +403,17 @@ export default function Ai({ onBack }: { onBack: () => void }) {
             ref={fileRef}
             type="file"
             accept="image/*"
-            capture="environment"
             style={{ display: 'none' }}
             onChange={async (e) => {
               const f = e.target.files?.[0];
               e.target.value = '';
-              if (f) setPhoto(await shrink(f));
+              if (!f) return;
+              try {
+                setPhoto(await shrink(f));
+              } catch {
+                // Buzuq rasmni jimgina yuborgandan ko'ra aytgan yaxshi
+                toast.error(t('aiPhotoFail'), t('aiPhotoFailSub'));
+              }
             }}
           />
           <button className="ai-photo-btn" onClick={() => fileRef.current?.click()} aria-label={t('aiPhoto')}>

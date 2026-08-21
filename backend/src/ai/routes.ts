@@ -9,6 +9,45 @@ import { KEEP_DAYS, aiEnabled, aiKey, model as aiModel, dailyLimit, questionPric
 
 type Guard = (req: FastifyRequest, reply: FastifyReply) => Promise<unknown>;
 
+
+/**
+ * Model tomonidagi xatoni do'konchi tushunadigan tilga o'girish.
+ *
+ * Ilgari hamma xato "Yordamchi javob bera olmadi" bo'lib chiqardi va
+ * sababini bilish uchun serverga kirish kerak edi. Endi asosiy
+ * sabablar aytiladi — do'konchi o'zi hal qila oladi (rasmni
+ * kichraytirsin, hisobni to'ldirsin, keyinroq ursin).
+ *
+ * Kalit yoki ichki manzil kabi maxfiy narsalar bu yerga tushmaydi:
+ * faqat bizning o'z matnlarimiz va Anthropic'ning xato TURI.
+ */
+function friendlyError(e: any): { code: string; message: string } {
+  const name = String(e?.name ?? '');
+  const raw = String(e?.error?.error?.message ?? e?.message ?? '');
+  const status = Number(e?.status ?? 0);
+
+  if (name === 'APIConnectionTimeoutError' || /timeout/i.test(raw)) {
+    return { code: 'ai_timeout', message: "Javob juda uzoq davom etdi. Savolni qisqaroq qilib qayta yozing." };
+  }
+  if (status === 401 || /authentication|api key/i.test(raw)) {
+    return { code: 'ai_key', message: "AI kaliti ishlamayapti. Admin panel > Sozlamalar dan tekshiring." };
+  }
+  if (status === 400 && /image/i.test(raw)) {
+    return { code: 'ai_image', message: "Rasmni o'qib bo'lmadi. Boshqa rasm tanlang yoki qaytadan suratga oling." };
+  }
+  if (status === 429) {
+    return { code: 'ai_busy', message: "Hozir band. Bir daqiqadan keyin urinib ko'ring." };
+  }
+  if (/credit|billing|quota/i.test(raw)) {
+    return { code: 'ai_credit', message: "AI hisobida mablag' tugagan. Admin panel > Sozlamalar." };
+  }
+  // Noma'lum xato — sababini ham qo'shamiz, aks holda tuzatib bo'lmaydi
+  return {
+    code: 'ai_failed',
+    message: "Yordamchi javob bera olmadi." + (raw ? ` (${raw.slice(0, 120)})` : ''),
+  };
+}
+
 export function registerAiRoutes(app: FastifyInstance, opts: { requireAi: Guard; requireAdmin: Guard }) {
   /** Holat: yoqilganmi, bugun nechta savol qolgan */
   app.get('/ai/status', { preHandler: opts.requireAi }, async (req) => {
@@ -125,16 +164,8 @@ export function registerAiRoutes(app: FastifyInstance, opts: { requireAi: Guard;
         return reply.code(code).send({ error: e.code, message: e.message });
         }
         req.log.error(e);
-        // Model tomonidagi xato do'konchiga tushunarli tilda.
-        // Kutish muddati tugagani alohida: "xato" emas, "sekin" —
-        // do'konchi savolni qisqartirsa o'tib ketadi.
-        const slow = e?.name === 'APIConnectionTimeoutError' || /timeout/i.test(String(e?.message ?? ''));
-        return reply.code(502).send({
-          error: slow ? 'ai_timeout' : 'ai_failed',
-          message: slow
-            ? "Javob juda uzoq davom etdi. Savolni qisqaroq qilib qayta yozing."
-            : "Yordamchi javob bera olmadi. Birozdan keyin urinib ko'ring.",
-        });
+        const f = friendlyError(e);
+        return reply.code(502).send({ error: f.code, message: f.message });
       }
     }
   );
@@ -184,14 +215,7 @@ export function registerAiRoutes(app: FastifyInstance, opts: { requireAi: Guard;
           send({ type: 'error', code: e.code, message: e.message });
         } else {
           req.log.error(e);
-          const slow = e?.name === 'APIConnectionTimeoutError' || /timeout/i.test(String(e?.message ?? ''));
-          send({
-            type: 'error',
-            code: slow ? 'ai_timeout' : 'ai_failed',
-            message: slow
-              ? "Javob juda uzoq davom etdi. Savolni qisqaroq qilib qayta yozing."
-              : "Yordamchi javob bera olmadi. Birozdan keyin urinib ko'ring.",
-          });
+          send({ type: 'error', ...friendlyError(e) });
         }
       } finally {
         reply.raw.end();

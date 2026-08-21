@@ -229,12 +229,33 @@ export const api = {
    * birinchi so'zlar darhol chiqadi.
    */
   aiStream: async (question: string, on: (e: AiEvent) => void, image?: string) => {
-    const res = await fetch(`${BASE}/ai/stream`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
-      body: JSON.stringify({ question, image }),
-    });
+    // Telefonda aloqa uzilsa oqim shunchaki to'xtab qolishi mumkin —
+    // u holda nuqtalar abadiy aylanaverardi. Shu sababli qorovul qo'yamiz:
+    // STALL_MS davomida bitta ham bo'lak kelmasa yoki umumiy vaqt
+    // TOTAL_MS dan oshsa, so'rovni uzib, tushunarli xato beramiz.
+    const STALL_MS = 45_000;
+    const TOTAL_MS = 100_000;
+    const ac = new AbortController();
+    let stalled = false;
+    let watch = setTimeout(() => { stalled = true; ac.abort(); }, STALL_MS);
+    const total = setTimeout(() => { stalled = true; ac.abort(); }, TOTAL_MS);
+    const kick = () => { clearTimeout(watch); watch = setTimeout(() => { stalled = true; ac.abort(); }, STALL_MS); };
+    const stop = () => { clearTimeout(watch); clearTimeout(total); };
+
+    let res: Response;
+    try {
+      res = await fetch(`${BASE}/ai/stream`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+        body: JSON.stringify({ question, image }),
+        signal: ac.signal,
+      });
+    } catch (e) {
+      stop();
+      throw new Error(stalled ? translate('aiStalled') : translate('gatewayError'));
+    }
     if (!res.ok || !res.body) {
+      stop();
       const body: any = await res.json().catch(() => ({}));
       throw new Error(body.message ?? translate('gatewayError'));
     }
@@ -242,8 +263,16 @@ export const api = {
     const dec = new TextDecoder();
     let buf = '';
     for (;;) {
-      const { done, value } = await reader.read();
+      let done: boolean, value: Uint8Array | undefined;
+      try {
+        ({ done, value } = await reader.read());
+      } catch (e) {
+        stop();
+        if (stalled) throw new Error(translate('aiStalled'));
+        throw e;
+      }
       if (done) break;
+      kick();
       buf += dec.decode(value, { stream: true });
       // SSE bo'laklari bo'sh qator bilan ajratiladi. Bo'lak yarim
       // kelishi mumkin — oxirgi tugallanmagan qismini saqlab qolamiz.
@@ -259,6 +288,7 @@ export const api = {
         }
       }
     }
+    stop();
   },
   aiClear: () => request<{ ok: true }>('/ai/history', { method: 'DELETE' }),
   /** Tayyor javobni Telegramga uzatish — modelga urinmasdan, darhol */

@@ -478,6 +478,9 @@ const UZ: Record<string, string> = {
   aiPhoto: 'Rasm yuborish',
   aiPhotoHint: "Daftar yoki nakladnoyni suratga oling — o'qib beraman",
   aiPhotoAsk: "Shu rasmdagi tovarlarni omborga kiritish uchun ro'yxat tuz",
+  aiPhotoFail: "Rasm ochilmadi",
+  aiPhotoFailSub: "Boshqa rasm tanlang yoki kamerada qaytadan suratga oling",
+  aiStalled: "Aloqa uzilib qoldi. Internetni tekshirib, qaytadan yuboring.",
 
   aiNoAnswer: "Javob kelmadi. Qaytadan urinib ko'ring.",
   tool_ombor_holati: "Omborni ko'ryapman...",
@@ -1303,6 +1306,9 @@ const RU: Record<string, string> = {
   aiPhoto: 'Отправить фото',
   aiPhotoHint: 'Сфотографируйте тетрадь или накладную — я прочитаю',
   aiPhotoAsk: 'Составь список товаров с этого фото для прихода на склад',
+  aiPhotoFail: 'Фото не открылось',
+  aiPhotoFailSub: 'Выберите другое фото или сфотографируйте заново',
+  aiStalled: 'Связь прервалась. Проверьте интернет и отправьте ещё раз.',
 
   aiNoAnswer: 'Ответа нет. Попробуйте ещё раз.',
   tool_ombor_holati: 'Смотрю склад...',
