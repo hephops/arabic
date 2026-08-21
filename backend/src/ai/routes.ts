@@ -6,6 +6,8 @@ import { getSetting } from '../billing.js';
 import { can } from '../auth.js';
 import { ask, askStream, AiError, spend, purgeOld, dropChat, type AiEvent } from './agent.js';
 import { KEEP_DAYS, aiEnabled, aiKey, model as aiModel, dailyLimit, questionPrice } from './config.js';
+import { cleanBarcode } from './tools.js';
+import { normalizeBarcode } from '../barcodes.js';
 
 type Guard = (req: FastifyRequest, reply: FastifyReply) => Promise<unknown>;
 
@@ -46,6 +48,35 @@ function friendlyError(e: any): { code: string; message: string } {
     code: 'ai_failed',
     message: "Yordamchi javob bera olmadi." + (raw ? ` (${raw.slice(0, 120)})` : ''),
   };
+}
+
+/**
+ * Ochiq (tasdiqlanmagan) kirim takliflarining yoshi.
+ *
+ * Taklif 'pending' holatidan o'zi chiqmaydi: do'konchi kartani tashlab
+ * ketsa u bazada abadiy qolaveradi. Ro'yxat esa beshtagacha qaytaradi —
+ * shunday beshta unutilgan karta yig'ilsa, BUGUNGI nakladnoy ekranga
+ * umuman chiqmay qolardi.
+ *
+ * Shuning uchun ikki chegara: eskirgani ro'yxatga tushmaydi va bir
+ * muddatdan keyin butunlay o'chiriladi.
+ */
+const DRAFT_SHOW_DAYS = 2;
+const DRAFT_KEEP_DAYS = 7;
+
+/**
+ * Eskirgan kirim takliflarini bazadan olib tashlash.
+ *
+ * Suhbat tozalagichi (purgeOld) bularga tegmaydi: taklif suhbatga
+ * bog'lanmagan, o'z jadvalida turadi. Holatiga qaramay o'chiriladi —
+ * tasdiqlangani ham, bekor qilingani ham bir haftadan keyin hech kimga
+ * kerak emas.
+ */
+function purgeDrafts() {
+  return Number(
+    db.prepare(`DELETE FROM ai_intake_drafts WHERE created_at < datetime('now', ?)`).run(`-${DRAFT_KEEP_DAYS} days`)
+      .changes
+  );
 }
 
 export function registerAiRoutes(app: FastifyInstance, opts: { requireAi: Guard; requireAdmin: Guard }) {
@@ -291,19 +322,34 @@ export function registerAiRoutes(app: FastifyInstance, opts: { requireAi: Guard;
    * bazada turgani holda ekrandan yo'qolib ketardi va suratni qaytadan
    * yuborishga to'g'ri kelardi. Ilova ochilganda shu yo'ldan o'qib,
    * kartani joyiga qaytaradi.
+   *
+   * Taklif DO'KONGA tegishli, xodimga emas. Ilgari bu yerda employee_id
+   * tengligi talab qilinardi, kirim_taklif vositasi esa uni umuman
+   * yozmaydi (vositaga faqat shop_id beriladi) — natijada xodim
+   * sifatida kirgan odam o'zi yuborgan nakladnoyni qaytarib ololmasdi.
+   * Nakladnoy do'konning qog'ozi: kim suratga olgani muhim emas, kirimni
+   * ega ham, kirim ruxsati bor xodim ham tasdiqlaydi. Bir taklif ikki
+   * marta kirim bo'lib ketishidan tasdiqlash yo'lining o'zi saqlaydi —
+   * u taklifni ishga kirishishdan oldin bandlab oladi.
+   *
+   * Eng YANGI beshtasi olinadi: do'konchiga hozir kerak bo'lgani —
+   * hozirgina yuborgan nakladnoyi.
    */
   app.get('/ai/intake/pending', { preHandler: opts.requireAi }, async (req) => {
     const rows = db
       .prepare(
         `SELECT id, items, created_at FROM ai_intake_drafts
          WHERE shop_id = ? AND status = 'pending'
-           AND ((employee_id IS NULL AND ? IS NULL) OR employee_id = ?)
-         ORDER BY id LIMIT 5`
+           AND created_at >= datetime('now', ?)
+         ORDER BY id DESC LIMIT 5`
       )
-      .all(req.shopId, req.employeeId, req.employeeId) as any[];
+      .all(req.shopId, `-${DRAFT_SHOW_DAYS} days`) as any[];
 
     const out: any[] = [];
-    for (const d of rows) {
+    // Bazadan eng yangisi birinchi bo'lib keldi, ekranga esa eskidan
+    // yangiga qarab chiziladi — do'konchi kartalarni o'zi yuborgan
+    // tartibda ko'rsin
+    for (const d of rows.reverse()) {
       // Bitta buzilgan yozuv butun ro'yxatni yiqitmasin — qolganlari
       // baribir ekranga chiqishi kerak
       try {
@@ -346,19 +392,107 @@ export function registerAiRoutes(app: FastifyInstance, opts: { requireAi: Guard;
       if (!d) return reply.code(404).send({ error: 'not_found' });
       if (d.status !== 'pending') return reply.code(409).send({ error: 'already_' + d.status });
 
+      // Taklif ISHGA KIRISHISHDAN OLDIN bandlab olinadi.
+      //
+      // Ro'yxat butun do'konga ko'rinadi (yuqoriga qara), ya'ni ega
+      // bilan xodim bitta kartani bir vaqtda tasdiqlashi mumkin. Har
+      // qator /products/intake ga `await` bilan boradi — o'sha kutish
+      // paytida ikkinchi so'rov ham holatni 'pending' ko'rib ulgurardi
+      // va tovar IKKI MARTA kirim bo'lardi. Endi shart UPDATE ning
+      // O'ZIDA turibdi: bandlashga faqat bittasi ulguradi, ikkinchisi
+      // 409 oladi.
+      const claim = db
+        .prepare("UPDATE ai_intake_drafts SET status = 'done' WHERE id = ? AND status = 'pending'")
+        .run(d.id);
+      if (!Number(claim.changes)) {
+        const cur = db.prepare('SELECT status FROM ai_intake_drafts WHERE id = ?').get(d.id) as any;
+        return reply.code(409).send({ error: 'already_' + (cur?.status ?? 'done') });
+      }
+
       // Do'konchi ekranda tuzatgan bo'lishi mumkin — o'zi yuborgan
       // ro'yxat ustun turadi, lekin uzunligi cheklanadi
       const rows: any[] = Array.isArray(req.body?.items) ? req.body!.items!.slice(0, 40) : JSON.parse(d.items);
 
+      // SURATDAN o'qilgan kodlar. Do'konchi kartada o'zi qo'shgan kod
+      // shu ro'yxatda bo'lmaydi — pastda ikkisi boshqacha ko'riladi.
+      // O'qib bo'lmasa null qoladi: u holda hamma kod suratdan kelgan
+      // deb hisoblanadi, ya'ni qattiqroq tekshiriladi.
+      let aiCodes: Set<string> | null = null;
+      try {
+        aiCodes = new Set(
+          (JSON.parse(d.items) as any[]).map((x) => String(x?.shtrix_kod ?? '')).filter(Boolean)
+        );
+      } catch {
+        /* buzuq yozuv — tekshiruv qattiq qoladi */
+      }
+
       const done: any[] = [];
       const failed: any[] = [];
       for (const r of rows) {
-        const name = String(r?.nom ?? '').trim();
+        let name = String(r?.nom ?? '').trim();
         const qty = Number(r?.miqdor) || 0;
         if (!name || qty <= 0) {
           failed.push({ nom: name, sabab: 'nom yoki miqdor yo\'q' });
           continue;
         }
+
+        // Taklif tovarni omborda topgan bo'lsa (mavjud_id), kirim AYNAN
+        // o'sha kartochkaga tushishi shart.
+        //
+        // Nega: vosita tovarni soddalashtirilgan nom bo'yicha ham
+        // topadi ("Yog' 1л" ~ "Yogʻ 1 l"), /products/intake esa faqat
+        // kod yoki AYNAN nom bo'yicha qidiradi. Qatorning o'z nomi bilan
+        // yuborilsa ikkinchi kartochka ochilib, qoldiq ikkiga bo'linib
+        // ketardi — karta "omborda bor" deb turib dublikat yasardi.
+        //
+        // shop_id sharti majburiy: mavjud_id ilovadan keladi, ya'ni unga
+        // ishonib bo'lmaydi — begona do'konning tovari kirib qolmasin.
+        const pid = Number(r?.mavjud_id) || 0;
+        const stock = pid
+          ? (db
+              .prepare('SELECT id, name, sell_price FROM products WHERE id = ? AND shop_id = ?')
+              .get(pid, req.shopId) as any)
+          : null;
+        // Topilmasa (tovar o'chirilgan bo'lishi mumkin) qator o'z nomi
+        // bilan davom etadi — bitta qator butun so'rovni yiqitmasin
+        if (stock?.name) name = String(stock.name);
+
+        // Sotuv narxi.
+        //
+        // Vosita nakladnoyda narx yozilmagan qatorga ombordagini qo'yib
+        // beradi (sotuv_narxi_ombordan). Do'konchi taklifni ertaga
+        // tasdiqlasa, shu orada ombordagi narx o'zgargan bo'lsa ham
+        // taklifdagi ESKI narx qaytib yozilib, o'zgarishni bekor
+        // qilardi. Shuning uchun do'konchi QO'L TEGIZMAGAN narx umuman
+        // yuborilmaydi — /products/intake sell_price kelmasa ombordagi
+        // narxni o'z holicha qoldiradi. Kartada qo'lda yozilgani esa
+        // albatta ketadi.
+        let sellPrice: number | undefined = Number(r?.sotuv_narxi) || undefined;
+        if (sellPrice && stock) {
+          const ombordan = !!r?.sotuv_narxi_ombordan && Number(r?.eski_sotuv_narxi) === sellPrice;
+          if (ombordan || sellPrice === Number(stock.sell_price)) sellPrice = undefined;
+        }
+
+        // Kod.
+        //
+        // Suratdan o'qilgani tekshiruvdan O'TISHI SHART: nakladnoyning
+        // "kod" ustunida ko'pincha shtrix-kod emas, yetkazuvchining
+        // ichki artikuli turadi. U tovarga yozilsa /products/intake
+        // orqali umumiy barcode_catalog ga ham tushib, boshqa
+        // do'konlarga tarqaladi; keyingi nakladnoyda esa boshqa
+        // tovarning artikuli o'sha raqamga to'g'ri kelib, qoldiq begona
+        // tovarga qo'shilib ketadi (cleanBarcode ga qara). Tekshiruvni
+        // vosita ham qiladi, lekin bu yerda takrorlanadi: kartada eski,
+        // hali tekshirilmagan taklif turgan bo'lishi mumkin.
+        //
+        // Do'konchi kartada O'ZI skaner bilan o'qigan kod esa boshqa
+        // gap — u taxmin emas, tovarning o'zidan olingan (skaner harfli
+        // Code-128 ni ham o'qiydi), shuning uchun ilovaning boshqa
+        // joylaridagi kabi o'zgarishsiz ketadi.
+        const rawCode = String(r?.shtrix_kod ?? '').replace(/[^0-9A-Za-z]/g, '').slice(0, 32);
+        const barcode =
+          (aiCodes && !aiCodes.has(rawCode) ? normalizeBarcode(rawCode) : cleanBarcode(rawCode)) || undefined;
+
         const res = await app.inject({
           method: 'POST',
           url: '/products/intake',
@@ -371,12 +505,12 @@ export function registerAiRoutes(app: FastifyInstance, opts: { requireAi: Guard;
             // nol kelsa uni haqiqiy narx deb yozib, ombordagi eski
             // narxni o'chirib yuborardi
             cost_price: Number(r?.kirim_narxi) || undefined,
-            sell_price: Number(r?.sotuv_narxi) || undefined,
+            sell_price: sellPrice,
             expiry_date: /^\d{4}-\d{2}-\d{2}$/.test(String(r?.srok ?? '')) ? String(r.srok) : undefined,
             // Kod bo'lsa tovar avval SHU kod bo'yicha qidiriladi va
             // yangi tovarga darhol biriktiriladi — keyin skaner bilan
             // sotiladi
-            barcode: String(r?.shtrix_kod ?? '').trim() || undefined,
+            barcode,
           },
         });
         if (res.statusCode === 200) {
@@ -387,10 +521,10 @@ export function registerAiRoutes(app: FastifyInstance, opts: { requireAi: Guard;
         }
       }
 
-      // Bittasi ham o'tmagan bo'lsa taklif ochiq qoladi — do'konchi
-      // tuzatib qayta urinsin
-      if (done.length) {
-        db.prepare("UPDATE ai_intake_drafts SET status = 'done' WHERE id = ?").run(d.id);
+      // Bittasi ham o'tmagan bo'lsa bandlash bekor qilinadi va taklif
+      // yana ochiq qoladi — do'konchi tuzatib qayta urinsin
+      if (!done.length) {
+        db.prepare("UPDATE ai_intake_drafts SET status = 'pending' WHERE id = ?").run(d.id);
       }
       return { ok: done.length > 0, done, failed };
     }
@@ -455,6 +589,13 @@ export function startAiCleanup() {
   const run = () => {
     try {
       purgeOld(KEEP_DAYS);
+    } catch {
+      /* tozalash ishlamasa ilova to'xtamasin */
+    }
+    // Kirim takliflari alohida: ular suhbatga bog'lanmagan, shuning
+    // uchun purgeOld ularga tegmaydi
+    try {
+      purgeDrafts();
     } catch {
       /* tozalash ishlamasa ilova to'xtamasin */
     }

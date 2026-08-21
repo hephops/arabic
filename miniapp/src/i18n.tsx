@@ -479,6 +479,12 @@ const UZ: Record<string, string> = {
   draftInStock: 'omborda {q} bor',
   draftOldPrice: 'eski sotuv narxi {p}',
   draftUnitDiff: "omborda {u} bilan yuritiladi — qoldiq aralashib ketmasin",
+  /* Qaysi ombordagi tovarga mos kelgani — nomi bilan. Nomsiz do'konchi
+     mosligning to'g'ri-noto'g'riligini tekshira olmaydi. */
+  draftMatched: 'mos keldi: {n}',
+  draftRemoveAsk: "'{n}' qatori ro'yxatdan olib tashlansinmi?",
+  aiTooLong: "Javob juda uzoq davom etdi. Savolni qisqaroq qilib qayta yozing.",
+  aiNetLost: "Aloqa uzildi. Qaytadan yuboring.",
   aiPhoto: 'Rasm yuborish',
   aiPhotoHint: "Daftar yoki nakladnoyni suratga oling — o'qib beraman",
   aiPhotoAsk: "Shu rasmdagi tovarlarni omborga kiritish uchun ro'yxat tuz",
@@ -1311,6 +1317,10 @@ const RU: Record<string, string> = {
   draftInStock: 'на складе {q}',
   draftOldPrice: 'старая цена продажи {p}',
   draftUnitDiff: 'на складе ведётся в {u} — остаток может перепутаться',
+  draftMatched: 'совпало: {n}',
+  draftRemoveAsk: "Убрать строку '{n}' из списка?",
+  aiTooLong: 'Ответ занял слишком много времени. Задайте вопрос короче.',
+  aiNetLost: 'Связь прервалась. Отправьте ещё раз.',
   aiPhoto: 'Отправить фото',
   aiPhotoHint: 'Сфотографируйте тетрадь или накладную — я прочитаю',
   aiPhotoAsk: 'Составь список товаров с этого фото для прихода на склад',

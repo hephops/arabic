@@ -231,16 +231,29 @@ export const api = {
   aiStream: async (question: string, on: (e: AiEvent) => void, image?: string) => {
     // Telefonda aloqa uzilsa oqim shunchaki to'xtab qolishi mumkin —
     // u holda nuqtalar abadiy aylanaverardi. Shu sababli qorovul qo'yamiz:
-    // STALL_MS davomida bitta ham bo'lak kelmasa yoki umumiy vaqt
-    // TOTAL_MS dan oshsa, so'rovni uzib, tushunarli xato beramiz.
+    // STALL_MS davomida bitta ham bo'lak kelmasa yoki javob TOTAL_MS dan
+    // uzoq cho'zilsa, so'rovni uzib, tushunarli xato beramiz.
     //
     // Lekin YUKLASH bosqichi alohida hisoblanadi. Nakladnoy surati
     // telefondan chiqib ketguncha sekin aloqada bir necha daqiqa ketishi
     // mumkin va o'sha paytda serverdan bitta ham bayt kelmaydi. Ilgari
     // jimlik soati so'rov boshlanishi bilan yurar edi va hammasi joyida
     // bo'la turib "Aloqa uzilib qoldi" chiqib qolardi. Endi yuklashga
-    // UPLOAD_MS beriladi (javob sarlavhalari kelguncha), jimlik soati
-    // esa faqat shundan keyin boshlanadi.
+    // alohida UPLOAD_MS beriladi.
+    //
+    // Yuklash tugaganini SARLAVHALAR emas, BIRINCHI BAYT bildiradi:
+    // Node tomonda writeHead() sarlavhalarni darhol simga chiqarmaydi —
+    // birinchi yozuvgacha buferda ushlab turishi mumkin. Sarlavhaga
+    // ishonsak, jimlik soatiga o'tish kechikadi; bayt esa yolg'on
+    // gapirmaydi — u kelgan bo'lsa, surat serverga yetib borgan.
+    //
+    // Umumiy soat ham xuddi shu birinchi baytdan yuradi. Ilgari u so'rov
+    // boshidan yurar edi va yuklashga ketgan vaqt uning ichidan yeyilardi:
+    // surat 120 soniyada chiqsa javobga atigi 60 soniya qolar, mijoz esa
+    // SERVERDAN OLDIN taslim bo'lardi — server hali gapini aytib
+    // ulgurmagan bo'lardi. Server javobini ~75 soniyada tugatadi, TOTAL_MS
+    // esa undan ancha katta: endi mijoz har doim serverdan KEYIN taslim
+    // bo'ladi.
     //
     // Javob boshlangach server har 15 soniyada ": ping" yozib turadi,
     // ya'ni tirik ulanishda jimlik deyarli bo'lmaydi — bu qorovul
@@ -249,11 +262,27 @@ export const api = {
     const STALL_MS = 60_000;
     const TOTAL_MS = 180_000;
     const ac = new AbortController();
-    let stalled = false;
-    let watch = setTimeout(() => { stalled = true; ac.abort(); }, UPLOAD_MS);
-    const total = setTimeout(() => { stalled = true; ac.abort(); }, TOTAL_MS);
-    const kick = () => { clearTimeout(watch); watch = setTimeout(() => { stalled = true; ac.abort(); }, STALL_MS); };
-    const stop = () => { clearTimeout(watch); clearTimeout(total); };
+    // Qorovul NIMA UCHUN uzganini eslab qolamiz: bitta bayroq bilan
+    // uchala muddatga bitta xato matni chiqarardik va vaqt tugaganda ham
+    // "internetni tekshiring" deyilardi — holbuki aloqa sog'lom edi,
+    // shunchaki javob uzoq davom etdi. Do'konchi internetini bekorga
+    // tekshirib yurmasin.
+    let cause: 'stall' | 'total' | null = null;
+    const cut = (why: 'stall' | 'total') => { cause = why; ac.abort(); };
+    // Qorovul uzganda ko'rsatiladigan xat — sabab bo'yicha
+    const cutError = () => new Error(cause === 'total' ? translate('aiTooLong') : translate('aiStalled'));
+
+    let watch = setTimeout(() => cut('stall'), UPLOAD_MS);
+    // Umumiy soat oldindan qurilmaydi — birinchi baytda ishga tushadi
+    let total: ReturnType<typeof setTimeout> | undefined;
+    let started = false;
+    const kick = () => { clearTimeout(watch); watch = setTimeout(() => cut('stall'), STALL_MS); };
+    const firstByte = () => {
+      if (started) return;
+      started = true;
+      total = setTimeout(() => cut('total'), TOTAL_MS);
+    };
+    const stop = () => { clearTimeout(watch); if (total !== undefined) clearTimeout(total); };
 
     let res: Response;
     try {
@@ -265,14 +294,16 @@ export const api = {
       });
     } catch (e) {
       stop();
-      throw new Error(stalled ? translate('aiStalled') : translate('gatewayError'));
+      if (cause) throw cutError();
+      throw new Error(translate('gatewayError'));
     }
-    // Sarlavhalar keldi — demak surat serverga yetib bordi: shu yerdan
-    // boshlab qorovul qisqaroq, jimlik soatiga o'tadi
-    kick();
     if (!res.ok || !res.body) {
-      stop();
+      // Tanani o'qish ham qorovul ostida qoladi: ilgari stop() tanadan
+      // OLDIN chaqirilardi va tana kelmay qolsa hech kim so'rovni uzmasdi —
+      // va'da hech qachon yopilmay, nuqtalar abadiy aylanaverardi.
       const body: any = await res.json().catch(() => ({}));
+      stop();
+      if (cause) throw cutError();
       throw new Error(body.message ?? translate('gatewayError'));
     }
     const reader = res.body.getReader();
@@ -284,9 +315,14 @@ export const api = {
         ({ done, value } = await reader.read());
       } catch (e) {
         stop();
-        if (stalled) throw new Error(translate('aiStalled'));
-        throw e;
+        if (cause) throw cutError();
+        // Qorovul emas, ulanishning o'zi o'rtada uzildi. Xom brauzer
+        // xatosi inglizcha bo'ladi — suhbat pufakchasiga o'zbekcha chiqsin.
+        throw new Error(translate('aiNetLost'));
       }
+      // Birinchi muvaffaqiyatli o'qish = yuklash tugadi: shu yerdan
+      // boshlab qorovul qisqaroq jimlik soatiga o'tadi va umumiy soat yuradi
+      firstByte();
       if (done) break;
       kick();
       buf += dec.decode(value, { stream: true });
@@ -509,8 +545,12 @@ export interface AiDraftItem {
   omborda_bor?: boolean;
   mavjud_id?: number | null;
   eski_birlik?: string | null;
+  /** ombordagi tovarning o'z nomi — moslik to'g'rimi, ko'rinib tursin */
+  eski_nom?: string | null;
   eski_sotuv_narxi?: number | null;
   eski_qoldiq?: number | null;
+  /** sotuv narxi nakladnoydan emas, ombordan olinganmi */
+  sotuv_narxi_ombordan?: boolean;
 }
 
 /** Tasdiqlanmagan taklif — ekrandan chiqilsa ham bazada turaveradi */

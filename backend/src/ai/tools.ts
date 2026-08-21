@@ -10,7 +10,7 @@
 
 import { db } from '../db.js';
 import { dailyPrice } from '../billing.js';
-import { barcodeVariants } from '../barcodes.js';
+import { barcodeVariants, normalizeBarcode, checkGtin } from '../barcodes.js';
 
 export interface ToolDef {
   name: string;
@@ -615,6 +615,31 @@ const simpleName = (s: string) =>
     .trim();
 
 /**
+ * Nakladnoydan o'qilgan "kod" ustunidan HAQIQIY shtrix-kodni ajratib
+ * olish. Tekshiruvdan o'tmasa bo'sh satr qaytadi — u holda kod na
+ * qidirishda, na saqlashda ishlatilmaydi.
+ *
+ * Nega bunchalik qattiq: o'sha ustunda ko'pincha shtrix-kod emas,
+ * yetkazuvchining ICHKI ARTIKULI turadi (100545 kabi). U tovarga kod
+ * bo'lib yozilsa ikki zarar bor:
+ *   1. /products/intake uni umumiy barcode_catalog ga ham yozadi —
+ *      xato kod boshqa do'konlarga ham tarqaladi;
+ *   2. keyingi nakladnoyda BOSHQA tovarning artikuli o'sha raqamga
+ *      to'g'ri kelsa, qoldiq begona tovarga qo'shilib ketadi.
+ *
+ * Shuning uchun faqat GTIN qoidasiga to'liq mos kod o'tadi: butunlay
+ * raqam, uzunligi 8/12/13/14 va nazorat raqami joyida (barcodes.ts,
+ * checkGtin). Skaner o'qigan haqiqiy kod bu tekshiruvdan bemalol
+ * o'tadi, artikul esa deyarli hech qachon.
+ */
+export function cleanBarcode(raw: unknown): string {
+  // Nakladnoyda kod tire, probel yoki qavs bilan yozilgan bo'lishi
+  // mumkin — avval belgilardan tozalanadi, keyin tekshiriladi
+  const code = normalizeBarcode(String(raw ?? '').replace(/[^0-9A-Za-z]/g, '').slice(0, 32));
+  return checkGtin(code) === true ? code : '';
+}
+
+/**
  * Kod bo'yicha ombordagi tovar — ilovaning o'z qidiruvi bilan bir xil:
  * ham products.barcode, ham qo'shimcha kodlar jadvali (bitta tovarning
  * bir necha kodi bo'ladi), kodning barcha teng ko'rinishlari bo'yicha
@@ -695,10 +720,12 @@ TOOLS.push({
         kirim_narxi: Math.max(0, Math.round(Number(r?.kirim_narxi) || 0)),
         sotuv_narxi: Math.max(0, Math.round(Number(r?.sotuv_narxi) || 0)),
         srok: /^\d{4}-\d{2}-\d{2}$/.test(String(r?.srok ?? '')) ? String(r.srok) : '',
-        // Kod skanerdan o'tishi kerak: nakladnoyda u tire, probel yoki
-        // qavs bilan yozilgan bo'lishi mumkin, bazada esa faqat harf va
-        // raqam, bosh harflarda turadi
-        shtrix_kod: String(r?.shtrix_kod ?? '').replace(/[^0-9A-Za-z]/g, '').toUpperCase().slice(0, 32),
+        // Kod ISHLATILISHDAN OLDIN tekshiriladi: "kod" ustunida
+        // ko'pincha shtrix-kod emas, artikul turadi (cleanBarcode ga
+        // qara). O'tmasa qator kodsiz qoladi va tovar nomi bo'yicha
+        // qidiriladi — xato kod bilan begona tovarga tushgandan ko'ra
+        // shunisi xavfsiz.
+        shtrix_kod: cleanBarcode(r?.shtrix_kod),
       }))
       .filter((r: any) => r.nom && r.miqdor > 0);
 
@@ -735,8 +762,20 @@ TOOLS.push({
         // o'tirmasin. Kirim narxiga bu tegishli emas: u har partiyada
         // o'zgaradi va faqat nakladnoydan olinadi.
         sotuv_narxi: r.sotuv_narxi || (p?.sell_price ?? 0),
+        // Narx nakladnoydan emas, OMBORDAN olinganini belgilab
+        // qo'yamiz. Tasdiqlash shu belgiga qarab ish tutadi: do'konchi
+        // qo'l tegizmagan narxni ombor tomon qaytarib yozmaydi — taklif
+        // ertaga tasdiqlansa, ombordagi narx bu orada o'zgargan bo'lishi
+        // mumkin va eski narx uni bosib ketardi.
+        sotuv_narxi_ombordan: !r.sotuv_narxi && !!p?.sell_price,
         omborda_bor: !!p,
         mavjud_id: p?.id ?? null,
+        // Ombordagi tovarning O'Z nomi. Moslik kod yoki soddalashtirilgan
+        // nom bo'yicha topilganda u nakladnoydagidan boshqacha bo'ladi —
+        // do'konchi kartada aynan qaysi tovarga tushayotganini ko'rib,
+        // noto'g'ri mosligni tuta olsin. Nomsiz uni tekshirishning iloji
+        // yo'q, xato moslik esa begona tovarning qoldig'ini oshiradi.
+        eski_nom: p?.name ?? null,
         eski_birlik: p?.unit ?? null,
         eski_sotuv_narxi: p?.sell_price ?? null,
         eski_qoldiq: p?.stock ?? null,

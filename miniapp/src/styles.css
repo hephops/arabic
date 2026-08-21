@@ -2241,11 +2241,24 @@ button.link { background: none; color: var(--accent); font-size: 15px; font-weig
 }
 .ai-draft-row { border-top: 0.5px solid var(--separator); padding-top: 9px; margin-top: 9px; }
 .ai-draft-top { display: flex; align-items: center; gap: 6px; }
+/* Balandligi yopiq qatordagi yozuv bilan bir xil: qator ochilganda nom
+   joyidan qimirlamasin. Global input qoidasidagi pastki chekka ham
+   olib tashlanadi — u nomni satr o'rtasidan yuqoriga surib qo'yardi. */
 .ai-draft-top .nom {
-  flex: 1; min-width: 0; border: 0; background: none; padding: 0;
+  flex: 1; min-width: 0; height: 36px; border: 0; background: none; padding: 0; margin: 0;
   font-family: inherit; font-size: 14.5px; font-weight: 600; color: var(--text);
 }
-.ai-draft-x { background: none; border: 0; padding: 3px; display: flex; cursor: pointer; }
+/* O'chirish tugmasi ochish tugmasidan uzoqroq va o'zi kattaroq bo'lsin:
+   ilgari ular 6px berida edi va barmoq bilan bosganda qator so'ramasdan
+   o'chib ketardi. O'ng chekka manfiy — tugma karta chetiga qaytadi,
+   shunda nomga ajratilgan joy qisqarmaydi. */
+.ai-draft-x {
+  flex-shrink: 0; width: 36px; height: 36px; margin-left: 10px; margin-right: -9px;
+  background: none; border: 0; padding: 0; border-radius: 9px;
+  display: flex; align-items: center; justify-content: center; cursor: pointer;
+}
+/* "yangi" belgisi siqilib matni ikki qatorga tushib ketmasin */
+.ai-draft-top .badge { flex-shrink: 0; margin-left: 0; }
 .ai-draft-fields { display: grid; grid-template-columns: repeat(2, 1fr); gap: 7px 9px; margin-top: 8px; }
 .ai-draft-fields label { display: block; min-width: 0; }
 .ai-draft-fields span { display: block; font-size: 11px; color: var(--muted); margin-bottom: 3px; }
@@ -2256,16 +2269,35 @@ button.link { background: none; color: var(--accent); font-size: 15px; font-weig
 }
 /* Yopiq qator: nom, miqdor va narx bitta satrda. Qatorda oltita maydon
    bor — 30-40 qatorli nakladnoyda hammasi ochiq tursa karta bir necha
-   ekran bo'lib ketadi. */
-.ai-draft-toggle { background: none; border: 0; padding: 2px 0; display: flex; cursor: pointer; }
+   ekran bo'lib ketadi.
+   Bosish maydoni barmoqqa mo'ljallangan: 13px belgi o'zicha 13x17px joy
+   egallardi, telefonda unga tegib bo'lmasdi. Belgi o'sha-o'shaligicha,
+   atrofidagi maydon 36x36. Chap chekka manfiy — tugma karta chetiga
+   qaytadi, ya'ni nom uchun joy yo'qolmaydi. */
+.ai-draft-toggle {
+  flex-shrink: 0; width: 36px; height: 36px; margin-left: -9px;
+  background: none; border: 0; padding: 0; border-radius: 9px;
+  display: flex; align-items: center; justify-content: center; cursor: pointer;
+}
 .ai-draft-toggle svg { transition: transform 0.15s; }
 .ai-draft-toggle.on svg { transform: rotate(90deg); }
+/* Ochiq qatorda nom maydoni input — uni bosib qatorni yopib bo'lmaydi.
+   Shuning uchun ochiq holatda tugmaning o'zi ajralib tursin: yopadigan
+   joy shu ekani ko'rinib turadi. */
+.ai-draft-toggle.on { background: var(--fill); }
+/* Yopiq qatorni ochishning asosiy joyi — satrning o'zi. Balandligi
+   barmoqqa yetarli (36px) va ochiq qatordagi nom maydoni bilan bir xil. */
 .ai-draft-sum {
-  flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 7px;
-  background: none; border: 0; padding: 0; text-align: left; cursor: pointer;
+  flex: 1; min-width: 0; min-height: 36px; display: flex; align-items: baseline; gap: 7px;
+  background: none; border: 0; padding: 9px 0; text-align: left; cursor: pointer;
 }
+/* Nom yopiq va ochiq qatorda bir xil ko'rinsin: bu yozuv global button
+   qoidasidan 15px/500 olardi, ochilgandagi ".nom" inputi esa 14.5px/600 —
+   qator ochilganda matn "sakrardi". Rangi ham aniq berilgan: tugma ichidagi
+   matn brauzerning o'z rangini olib qolmasin. */
 .ai-draft-sum .ai-draft-sum-nom {
   flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: 14.5px; font-weight: 600; color: var(--text);
 }
 .ai-draft-sum .meta { flex-shrink: 0; font-size: 12px; color: var(--muted); }
 
@@ -2276,7 +2308,9 @@ button.link { background: none; color: var(--accent); font-size: 15px; font-weig
   font-size: 12px; line-height: 1.3; color: var(--green);
 }
 .ai-draft-stock.warn { color: var(--yellow); }
-.ai-draft-stock span { min-width: 0; }
+/* Ombordagi nom uzun yoki bo'sh joysiz bo'lishi mumkin — satr karta
+   chetidan chiqib, kartani yonlamasiga surib yubormasin */
+.ai-draft-stock span { min-width: 0; overflow-wrap: anywhere; }
 
 .ai-draft-fields label.wide { grid-column: 1 / -1; }
 /* Shtrix-kod: qo'lda ham yoziladi, skaner bilan ham o'qiladi */

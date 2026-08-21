@@ -30,6 +30,9 @@ import Scanner from '../Scanner';
 type Row = AiDraftItem & {
   shtrix_kod?: string;
   mavjud_id?: number | null;
+  /** Ombordagi tovarning O'Z nomi — moslik kod yoki soddalashtirilgan nom
+      bo'yicha topilganda u nakladnoydagidan boshqacha bo'ladi */
+  eski_nom?: string | null;
   eski_sotuv_narxi?: number | null;
   eski_qoldiq?: number | null;
 };
@@ -88,6 +91,14 @@ export default function AiDraft({
   }
 
   function removeRow(i: number) {
+    // O'chirish qaytarib bo'lmaydi, tugmasi esa qatorni ochish tugmasining
+    // yonginasida turadi — barmoq bilan bosganda 23-40 qatorli nakladnoyda
+    // qaysi qator yo'qolganini ham bilib bo'lmaydi. Shuning uchun qator
+    // nomini aytib tasdiq so'raymiz (boshqa ekranlar ham shunday qiladi).
+    // window. kerak: shu komponentda confirm() nomli o'z funksiyamiz bor,
+    // usiz brauzerniki emas, tasdiqlash oqimi chaqirilib ketardi.
+    if (!window.confirm(t('draftRemoveAsk', { n: rows[i]?.nom || t('name') }))) return;
+    haptic.select();
     setRows((x) => x.filter((_, k) => k !== i));
     // Ochiq/yopiq holat indeksga bog'langan — o'chirilganidan keyingilarini
     // bir pog'ona surmasak, holat qo'shni qatorga o'tib ketadi
@@ -159,9 +170,21 @@ export default function AiDraft({
         ]
           .filter(Boolean)
           .join(' · ');
+        // Moslik shtrix-kod yoki soddalashtirilgan nom bo'yicha topilgan
+        // bo'lishi mumkin — u holda kartada nakladnoydagi nom turadi va
+        // do'konchi moslik to'g'rimi-yo'qmi tekshira olmaydi. Noto'g'ri
+        // moslik esa BEGONA tovarning qoldig'ini oshirib yuboradi, shuning
+        // uchun ombordagi tovarning o'z nomini ko'rsatamiz. Nomlar bir xil
+        // bo'lsa yozuv ortiqcha — kartani behuda uzaytirmaymiz.
+        const eskiNom = r.eski_nom?.trim() || '';
+        const matched =
+          eskiNom && eskiNom.toLowerCase() !== (r.nom || '').trim().toLowerCase()
+            ? t('draftMatched', { n: eskiNom })
+            : '';
         // Omborda bori uchun quruq "bor" degani kam: qoldiq va eski sotuv
         // narxi ko'rinsa, do'konchi narxni o'zgartirayotganini darrov biladi
         const stock = [
+          matched,
           r.eski_qoldiq != null
             ? t('draftInStock', { q: `${qtyText(r.eski_qoldiq)} ${r.eski_birlik || r.birlik || ''}`.trim() })
             : '',
@@ -175,13 +198,18 @@ export default function AiDraft({
         return (
           <div className={`ai-draft-row ${op ? 'open' : ''}`} key={i}>
             <div className="ai-draft-top">
+              {/* Ochiq qatorda nom maydoni inputga aylanadi — uni bosgan
+                  odam yozishga tushib qoladi, ya'ni qatorni yopadigan
+                  yagona joy shu tugma. Shu sababli tugma nomi holatga
+                  qarab o'zgaradi va ochiq holatda ko'rinib turadi (.on). */}
               <button
                 className={`ai-draft-toggle ${op ? 'on' : ''}`}
                 onClick={() => toggle(i)}
                 aria-expanded={op}
-                aria-label={t('draftToggle')}
+                aria-label={op ? t('close') : t('draftToggle')}
+                title={op ? t('close') : t('draftToggle')}
               >
-                <Glyph name="chevron" size={13} color="var(--muted)" />
+                <Glyph name="chevron" size={13} color={op ? 'var(--text)' : 'var(--muted)'} />
               </button>
               {op ? (
                 <input
@@ -265,9 +293,16 @@ export default function AiDraft({
                 <label className="wide">
                   <span>{t('barcodeLabel')} · {t('optional')}</span>
                   <div className="ai-draft-code">
+                    {/* Maydon harfni ham qabul qiladi (ART9 kabi artikullar),
+                        shuning uchun klaviatura ham harfli bo'lsin: raqamli
+                        klaviaturada artikulni qo'lda yozib bo'lmasdi.
+                        Uzun raqamli kodni esa yonidagi skaner o'qiydi. */}
                     <input
                       className="kod"
-                      inputMode="numeric"
+                      inputMode="text"
+                      autoComplete="off"
+                      autoCorrect="off"
+                      spellCheck={false}
                       value={r.shtrix_kod ?? ''}
                       onChange={(e) => set(i, { shtrix_kod: e.target.value.replace(/[^0-9A-Za-z]/g, '') })}
                     />
