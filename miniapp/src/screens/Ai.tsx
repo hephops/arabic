@@ -160,26 +160,6 @@ export default function Ai({ onBack }: { onBack: () => void }) {
           ) : undefined
         }
       />
-      {/* Ogohlantirish lentasi.
-          Chegara yaqinlashganda do'konchi buni SAVOL BERISHDAN OLDIN
-          ko'rishi kerak — pastdagi kichik raqamga har doim ham ko'z
-          tushmaydi. Yopilsa shu seans davomida qaytmaydi. */}
-      {status && quotaLevel !== 'ok' && !warnHidden && (
-        <div className={`ai-warn ${quotaLevel}`}>
-          <Glyph name="warning" size={15} color={quotaLevel === 'out' ? 'var(--red)' : 'var(--yellow)'} />
-          <span>
-            {quotaLevel === 'out'
-              ? t('aiWarnOut')
-              : t('aiWarnLow')
-                  .replace('{p}', String(Math.round((status.asked_today / Math.max(1, status.daily_limit)) * 100)))
-                  .replace('{n}', String(status.left_today ?? 0))}
-          </span>
-          <button className="ai-warn-x" onClick={() => setWarnHidden(true)} aria-label={t('cancel')}>
-            <Glyph name="close" size={14} color="var(--muted)" />
-          </button>
-        </div>
-      )}
-
       <div className="screen ai-screen">
         {msgs.length === 0 && (
           <div className="ai-intro">
@@ -268,7 +248,33 @@ export default function Ai({ onBack }: { onBack: () => void }) {
         </>
       )}
 
-      <div className="ai-bar">
+      {/* Yozish paneli: ogohlantirish lentasi va kiritish qatori
+          BITTA idishda turadi. Ilgari lenta alohida joylashtirilib,
+          "pastdan shuncha piksel" deb qat'iy raqam yozilgandi va u
+          panel bilan ustma-ust tushib qolardi. Endi ular yopishgan. */}
+      <div className="ai-dock">
+      {/* Ogohlantirish lentasi — AYNAN yozish maydonining ustida.
+            Chegara yaqinlashganda do'konchi buni savol yozayotganda
+            ko'rishi kerak. Ekranning tepasida tursa suhbat surilib
+            ketganda ko'rinmay qoladi. Yopilsa shu seans davomida
+            qaytmaydi. */}
+          {status && quotaLevel !== 'ok' && !warnHidden && (
+          <div className={`ai-warn ${quotaLevel}`}>
+            <Glyph name="warning" size={15} color={quotaLevel === 'out' ? 'var(--red)' : 'var(--yellow)'} />
+            <span>
+              {quotaLevel === 'out'
+                ? t('aiWarnOut')
+                : t('aiWarnLow')
+                    .replace('{p}', String(Math.round((status.asked_today / Math.max(1, status.daily_limit)) * 100)))
+                    .replace('{n}', String(status.left_today ?? 0))}
+            </span>
+            <button className="ai-warn-x" onClick={() => setWarnHidden(true)} aria-label={t('cancel')}>
+              <Glyph name="close" size={14} color="var(--muted)" />
+            </button>
+          </div>
+        )}
+
+        <div className="ai-bar-row">
         {/* Qancha savol qolgani — yuborish tugmasining yonida.
             Bosilsa batafsil oyna ochiladi. */}
         {status && status.daily_limit > 0 && (
@@ -290,6 +296,7 @@ export default function Ai({ onBack }: { onBack: () => void }) {
         <button className="ai-send" onClick={() => send(text)} disabled={busy || !text.trim()} aria-label={t('send')}>
           <Glyph name="arrowUp" size={20} color="#fff" strokeWidth={2.4} />
         </button>
+      </div>
       </div>
     </>
   );

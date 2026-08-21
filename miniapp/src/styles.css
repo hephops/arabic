@@ -2162,10 +2162,10 @@ button.link { background: none; color: var(--accent); font-size: 15px; font-weig
 .ai-quota-btn.low { background: rgba(255, 149, 0, 0.16); color: var(--yellow); }
 .ai-quota-btn.out { background: rgba(255, 59, 48, 0.14); color: var(--red); }
 
-/* Ogohlantirish lentasi — sarlavha ostida, suhbat ustida */
+/* Ogohlantirish lentasi — yozish qatori bilan bitta idishda */
 .ai-warn {
   display: flex; align-items: center; gap: 8px;
-  margin: 8px 16px 0; padding: 9px 11px; border-radius: 10px;
+  margin: 0 0 8px; padding: 9px 11px; border-radius: 10px;
   font-size: 13px; line-height: 1.35;
 }
 .ai-warn.low { background: rgba(255, 149, 0, 0.13); color: #a35c00; }
@@ -2178,7 +2178,7 @@ button.link { background: none; color: var(--accent); font-size: 15px; font-weig
 .ai-quota-back { position: fixed; inset: 0; z-index: 40; }
 
 .ai-quota-pop {
-  position: fixed; left: 12px; right: 12px; bottom: 142px; z-index: 41;
+  position: fixed; left: 12px; right: 12px; bottom: 152px; z-index: 41;
   max-width: 456px; margin: 0 auto;
   background: var(--card); border-radius: 14px; padding: 13px 15px;
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.18);
@@ -2202,15 +2202,17 @@ button.link { background: none; color: var(--accent); font-size: 15px; font-weig
   .ai-quota-pop { bottom: 62px; left: 272px; right: 16px; margin: 0; max-width: 360px; }
 }
 
-/* Yozish paneli — dock ustida turadi */
-.ai-bar {
-  /* Suzuvchi dock ustida turadi — yozish maydoni uning ostida qolmasin */
+/* Yozish paneli — dock ustida turadi.
+   Ichida ogohlantirish lentasi va kiritish qatori. Ilgari lenta
+   alohida joylashtirilib "pastdan shuncha piksel" deb yozilgandi va
+   panel bilan ustma-ust tushib qolardi. */
+.ai-dock {
   position: fixed; left: 0; right: 0; bottom: 96px; z-index: 30;
   max-width: 480px; margin: 0 auto; padding: 8px 12px;
-  display: flex; gap: 8px; align-items: center;
   background: var(--bg); border-top: 0.5px solid var(--separator);
 }
-.ai-bar input {
+.ai-bar-row { display: flex; gap: 8px; align-items: center; }
+.ai-bar-row input {
   flex: 1; min-width: 0; height: 42px; padding: 0 14px;
   border-radius: 21px; border: 0.5px solid var(--separator);
   background: var(--card); font-size: 16px; color: var(--text);
@@ -2224,5 +2226,5 @@ button.link { background: none; color: var(--accent); font-size: 15px; font-weig
 
 @media (min-width: 900px) {
   /* Kompyuterda dock yo'q — panel pastga tushadi va menyu kengligiga suriladi */
-  .ai-bar { bottom: 0; left: 260px; max-width: none; margin: 0; }
+  .ai-dock { bottom: 0; left: 260px; max-width: none; margin: 0; }
 }
