@@ -99,6 +99,7 @@ export default function Ai({ onBack }: { onBack: () => void }) {
    * va bu o'n soniyalab cho'zilib, ba'zan uzilib ham qolardi.
    */
   const [tgSent, setTgSent] = useState(-1);
+  const [quotaOpen, setQuotaOpen] = useState(false);
   async function sendToTelegram(text: string, i: number) {
     haptic.select();
     try {
@@ -191,34 +192,57 @@ export default function Ai({ onBack }: { onBack: () => void }) {
           </div>
         )}
 
-        {/* Kunlik chegara ko'rsatkichi.
-            Raqamning o'zi ("yana 8 ta") ko'z bilan o'lchanmaydi —
-            chiziq esa bir qarashda aytadi: ko'p qoldimi yoki ozmi. */}
-        {status && status.daily_limit > 0 && (
-          <div className="ai-quota">
-            <div className="ai-quota-top">
+      </div>
+
+      {/* Chegara oynasi — ko'rsatkich bosilganda ochiladi */}
+      {quotaOpen && status && (
+        <>
+          <div className="ai-quota-back" onClick={() => setQuotaOpen(false)} />
+          <div className="ai-quota-pop">
+            <div className="ai-quota-row">
               <span>{t('aiQuota')}</span>
-              <span className="ai-quota-num">
+              <b>
                 {status.asked_today} / {status.daily_limit}
-                {status.price > 0 && ` · ${t('aiPrice').replace('{n}', fmt(status.price))}`}
-              </span>
+              </b>
             </div>
             <div className="ai-quota-bar">
               <div
                 className={`fill ${status.left_today !== null && status.left_today <= 2 ? 'low' : ''}`}
-                style={{ width: `${Math.min(100, (status.asked_today / status.daily_limit) * 100)}%` }}
+                style={{ width: `${Math.min(100, (status.asked_today / Math.max(1, status.daily_limit)) * 100)}%` }}
               />
             </div>
             <div className="ai-quota-sub">
               {status.left_today === 0
                 ? t('aiQuotaOut')
                 : t('aiLeft').replace('{n}', String(status.left_today ?? 0))}
+              {' · '}
+              {t('aiQuotaReset')}
+            </div>
+
+            <div className="ai-quota-row sep">
+              <span>{t('aiQuotaPrice')}</span>
+              <b>{status.price > 0 ? fmt(status.price) : t('aiFree')}</b>
+            </div>
+            <div className="ai-quota-row">
+              <span>{t('aiQuotaModel')}</span>
+              <b>{status.model.replace('claude-', '').replace(/-\d.*$/, '')}</b>
             </div>
           </div>
-        )}
-      </div>
+        </>
+      )}
 
       <div className="ai-bar">
+        {/* Qancha savol qolgani — yuborish tugmasining yonida.
+            Bosilsa batafsil oyna ochiladi. */}
+        {status && status.daily_limit > 0 && (
+          <button
+            className={`ai-quota-btn ${status.left_today !== null && status.left_today <= 2 ? 'low' : ''}`}
+            onClick={() => setQuotaOpen((v) => !v)}
+            aria-label={t('aiQuota')}
+          >
+            {status.left_today}
+          </button>
+        )}
         <input
           value={text}
           onChange={(e) => setText(e.target.value)}
