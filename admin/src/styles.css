@@ -590,3 +590,41 @@ tr.picked { background: rgba(0, 122, 255, 0.06); }
   font-size: 13px; padding: 7px 10px;
 }
 .cat-img-tools .btn { padding: 7px 12px; font-size: 13px; white-space: nowrap; }
+
+/* ── AI hisoboti ─────────────────────────────────────────────── */
+
+/* Davr tanlovi panel sarlavhasining o'ng chetida turadi */
+.seg { float: right; display: inline-flex; gap: 4px; }
+.seg-item {
+  border: 1px solid var(--line); background: var(--card); color: var(--muted);
+  border-radius: 8px; padding: 4px 10px; font-size: 12.5px; font-weight: 600; cursor: pointer;
+}
+.seg-item:hover { color: var(--text); }
+.seg-item.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+.legend { display: flex; gap: 16px; font-size: 12.5px; color: var(--muted); margin: 2px 0 8px; }
+.legend .dot { display: inline-block; width: 9px; height: 9px; border-radius: 3px; margin-right: 5px; }
+.legend .dot.red { background: #e5372a; }
+.legend .dot.green { background: #1cb33f; }
+
+/* Ikki ustunli diagramma: tannarx va tushum yonma-yon.
+   Kunlar ko'p bo'lsa (butun vaqt) gorizontal surилади — ustunlar
+   qisilib, o'qib bo'lmaydigan holga kelmasin. */
+.chart-pair { overflow-x: auto; }
+.chart-pair .col { min-width: 26px; }
+.chart .pair { width: 100%; height: 100%; display: flex; align-items: flex-end; gap: 2px; }
+.chart .pair .bar { flex: 1; max-width: none; }
+.chart .bar.red { background: linear-gradient(180deg, #ff6a5c, #e5372a); }
+.chart .bar.green { background: linear-gradient(180deg, #4cd766, #1cb33f); }
+
+/* Diagramma tagidagi yig'indi satri */
+.sum-row {
+  display: flex; flex-wrap: wrap; gap: 18px; margin-top: 12px;
+  padding-top: 10px; border-top: 1px solid var(--line);
+  font-size: 13px; color: var(--muted);
+}
+.sum-row b { color: var(--text); }
+.sum-row b.red { color: var(--red); }
+.sum-row b.green { color: var(--green); }
+
+.empty { padding: 18px 0; color: var(--muted); font-size: 13.5px; }

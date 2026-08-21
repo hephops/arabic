@@ -142,6 +142,166 @@ export function registerAiRoutes(app: FastifyInstance, opts: { requireAi: Guard;
   });
 
   /**
+   * AI hisoboti — batafsil.
+   *
+   * Panel kartasi faqat 30 kunlik yig'indini ko'rsatadi. Bu yerda esa
+   * uch narsa birga turadi va shu sababli qaror qabul qilsa bo'ladi:
+   *   - TANNARX: Anthropic'ga to'lanadigan pul;
+   *   - TUSHUM: do'konchilardan savol uchun yechilgani;
+   *   - SAVOLLAR SONI: narx hozir 0 bo'lsa ham hisoblanadi, shunda
+   *     "narxni 100 so'm qilsam qancha bo'lardi" degan savolga javob
+   *     bor.
+   *
+   * Savollar soni ai_usage dagi steps = 1 qatorlari bo'yicha
+   * sanaladi: har savolning BIRINCHI chaqiruvi shunday belgilanadi,
+   * qolgan chaqiruvlar o'sha savolning davomi.
+   */
+  app.get<{ Querystring: { days?: string } }>(
+    '/admin/ai/report',
+    { preHandler: opts.requireAdmin },
+    async (req) => {
+      // 0 = butun vaqt
+      const days = Math.max(0, Math.min(365, Number(req.query?.days ?? 30) || 0));
+      const since = days ? `-${days} days` : '-100 years';
+
+      const money = (v: unknown) => Math.round(Number(v) || 0);
+
+      // ── Butun vaqt bo'yicha
+      const allCost = db
+        .prepare(
+          `SELECT COALESCE(SUM(cost_uzs),0) c, COUNT(*) calls,
+                  COALESCE(SUM(CASE WHEN steps = 1 THEN 1 ELSE 0 END),0) q,
+                  COUNT(DISTINCT shop_id) shops,
+                  COALESCE(SUM(input_tokens),0) tin, COALESCE(SUM(output_tokens),0) tout,
+                  COALESCE(SUM(cache_read),0) cread
+           FROM ai_usage`
+        )
+        .get() as any;
+      const allEarned = db
+        .prepare(
+          "SELECT COALESCE(-SUM(amount),0) s, COUNT(*) c FROM balance_transactions WHERE type = 'ai'"
+        )
+        .get() as any;
+
+      // ── Tanlangan davr
+      const perCost = db
+        .prepare(
+          `SELECT COALESCE(SUM(cost_uzs),0) c, COUNT(*) calls,
+                  COALESCE(SUM(CASE WHEN steps = 1 THEN 1 ELSE 0 END),0) q,
+                  COUNT(DISTINCT shop_id) shops
+           FROM ai_usage WHERE created_at >= datetime('now', ?)`
+        )
+        .get(since) as any;
+      const perEarned = db
+        .prepare(
+          `SELECT COALESCE(-SUM(amount),0) s, COUNT(*) c FROM balance_transactions
+           WHERE type = 'ai' AND created_at >= datetime('now', ?)`
+        )
+        .get(since) as any;
+
+      // ── Kunlik dinamika. Sana +5 soat bilan olinadi — hisobotlarning
+      // qolgan qismi ham O'zbekiston kuni bo'yicha yuritiladi.
+      const dayCost = db
+        .prepare(
+          `SELECT date(created_at, '+5 hours') d,
+                  COALESCE(SUM(cost_uzs),0) cost, COUNT(*) calls,
+                  COALESCE(SUM(CASE WHEN steps = 1 THEN 1 ELSE 0 END),0) q
+           FROM ai_usage WHERE created_at >= datetime('now', ?)
+           GROUP BY d ORDER BY d`
+        )
+        .all(since) as any[];
+      const dayEarned = db
+        .prepare(
+          `SELECT date(created_at, '+5 hours') d, COALESCE(-SUM(amount),0) s
+           FROM balance_transactions WHERE type = 'ai' AND created_at >= datetime('now', ?)
+           GROUP BY d ORDER BY d`
+        )
+        .all(since) as any[];
+      const earnedByDay = new Map(dayEarned.map((x: any) => [x.d, money(x.s)]));
+      const kunlar = dayCost.map((x: any) => ({
+        sana: x.d,
+        tannarx: money(x.cost),
+        tushum: earnedByDay.get(x.d) ?? 0,
+        savollar: Number(x.q) || 0,
+        chaqiruvlar: Number(x.calls) || 0,
+      }));
+
+      // ── Do'konlar bo'yicha: kim qancha ishlatyapti
+      const dokonlar = db
+        .prepare(
+          `SELECT u.shop_id, s.name, s.phone,
+                  COALESCE(SUM(u.cost_uzs),0) tannarx, COUNT(*) chaqiruvlar,
+                  COALESCE(SUM(CASE WHEN u.steps = 1 THEN 1 ELSE 0 END),0) savollar
+           FROM ai_usage u JOIN shops s ON s.id = u.shop_id
+           WHERE u.created_at >= datetime('now', ?)
+           GROUP BY u.shop_id ORDER BY tannarx DESC LIMIT 50`
+        )
+        .all(since) as any[];
+      const shopEarned = new Map(
+        (
+          db
+            .prepare(
+              `SELECT shop_id, COALESCE(-SUM(amount),0) s FROM balance_transactions
+               WHERE type = 'ai' AND created_at >= datetime('now', ?) GROUP BY shop_id`
+            )
+            .all(since) as any[]
+        ).map((x: any) => [x.shop_id, money(x.s)])
+      );
+
+      // ── Modellar bo'yicha: qaysi model qancha yeyapti
+      const modellar = db
+        .prepare(
+          `SELECT model, COUNT(*) chaqiruvlar, COALESCE(SUM(cost_uzs),0) tannarx
+           FROM ai_usage WHERE created_at >= datetime('now', ?)
+           GROUP BY model ORDER BY tannarx DESC`
+        )
+        .all(since) as any[];
+
+      const narx = questionPrice();
+      const savollar = Number(allCost.q) || 0;
+      return {
+        narx,
+        // Narx 0 bo'lsa ham "qo'ysam qancha bo'lardi" ko'rinib tursin
+        jami: {
+          tannarx: money(allCost.c),
+          tushum: money(allEarned.s),
+          chaqiruvlar: Number(allCost.calls) || 0,
+          savollar,
+          dokonlar: Number(allCost.shops) || 0,
+          kirish_token: Number(allCost.tin) || 0,
+          chiqish_token: Number(allCost.tout) || 0,
+          keshdan_token: Number(allCost.cread) || 0,
+          // Bitta savolning o'rtacha tannarxi — narx qo'yishda asosiy raqam
+          ortacha: savollar ? Math.round(money(allCost.c) / savollar) : 0,
+        },
+        davr: {
+          kunlar: days,
+          tannarx: money(perCost.c),
+          tushum: money(perEarned.s),
+          chaqiruvlar: Number(perCost.calls) || 0,
+          savollar: Number(perCost.q) || 0,
+          dokonlar: Number(perCost.shops) || 0,
+        },
+        kunlar,
+        modellar: modellar.map((m: any) => ({
+          model: m.model,
+          chaqiruvlar: Number(m.chaqiruvlar) || 0,
+          tannarx: money(m.tannarx),
+        })),
+        dokonlar: dokonlar.map((d: any) => ({
+          shop_id: d.shop_id,
+          nom: d.name,
+          telefon: d.phone,
+          savollar: Number(d.savollar) || 0,
+          chaqiruvlar: Number(d.chaqiruvlar) || 0,
+          tannarx: money(d.tannarx),
+          tushum: shopEarned.get(d.shop_id) ?? 0,
+        })),
+      };
+    }
+  );
+
+  /**
    * Kalitni sinab ko'rish.
    *
    * "Yozdim, lekin ishlamayapti" degan holatni bir bosishda hal

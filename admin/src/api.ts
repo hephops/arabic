@@ -92,6 +92,8 @@ export const api = {
   updateAdmin: (id: number, data: { is_active?: boolean; password?: string }) =>
     request<Admin>(`/admin/admins/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   logs: () => request<AdminLog[]>('/admin/logs'),
+  /** AI hisoboti. days = 0 bo'lsa butun vaqt bo'yicha */
+  aiReport: (days: number) => request<AiReport>(`/admin/ai/report?days=${days}`),
 
   // ── Markaziy katalog ──
   catStats: () => request<CatalogStats>('/admin/catalog/stats'),
@@ -392,4 +394,36 @@ export interface CatalogProduct {
   image_source?: string | null;
   status: string;
   category_uz?: string;
+}
+
+/** AI hisoboti — tannarx, tushum va savollar soni bir joyda */
+export interface AiReport {
+  /** bitta savolning hozirgi narxi (0 = bepul) */
+  narx: number;
+  jami: {
+    tannarx: number;
+    tushum: number;
+    chaqiruvlar: number;
+    savollar: number;
+    dokonlar: number;
+    kirish_token: number;
+    chiqish_token: number;
+    keshdan_token: number;
+    /** bitta savolning o'rtacha tannarxi — narx qo'yishda asosiy raqam */
+    ortacha: number;
+  };
+  davr: {
+    kunlar: number;
+    tannarx: number;
+    tushum: number;
+    chaqiruvlar: number;
+    savollar: number;
+    dokonlar: number;
+  };
+  kunlar: { sana: string; tannarx: number; tushum: number; savollar: number; chaqiruvlar: number }[];
+  modellar: { model: string; chaqiruvlar: number; tannarx: number }[];
+  dokonlar: {
+    shop_id: number; nom: string; telefon: string;
+    savollar: number; chaqiruvlar: number; tannarx: number; tushum: number;
+  }[];
 }
