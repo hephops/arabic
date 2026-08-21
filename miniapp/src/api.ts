@@ -53,7 +53,18 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   }
   if (!res.ok) {
     const body: any = await res.json().catch(() => ({}));
-    const err: any = new Error(body.error ?? `HTTP ${res.status}`);
+    // Tana bo'sh bo'lsa javob BIZDAN emas — oldidagi proksidan
+    // (Cloudflare tuneli) kelgan. 502/504 esa doim bitta narsani
+    // anglatadi: server javobni juda uzoq kutdirdi yoki o'chgan.
+    // "HTTP 502" degan yozuv do'konchi uchun hech narsa anglatmaydi.
+    const bare = !body?.error && !body?.message;
+    const msg =
+      body.message ??
+      (bare && (res.status === 502 || res.status === 504)
+        ? translate('gatewayError')
+        : body.error ?? `HTTP ${res.status}`);
+    const err: any = new Error(msg);
+    err.status = res.status;
     err.details = body;          // masalan: qoldig'i yetmagan tovarlar ro'yxati
     throw err;
   }

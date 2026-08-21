@@ -2117,6 +2117,23 @@ button.link { background: none; color: var(--accent); font-size: 15px; font-weig
 .ai-msg.user { margin-left: auto; background: var(--accent); color: #fff; border-bottom-right-radius: 5px; }
 .ai-msg.assistant { margin-right: auto; background: var(--card); border-bottom-left-radius: 5px; }
 
+/* Xabar va uning ostidagi tugma bitta ustunda turadi */
+.ai-msg-wrap { display: flex; flex-direction: column; }
+.ai-msg-wrap.user { align-items: flex-end; }
+.ai-msg-wrap.assistant { align-items: flex-start; }
+
+/* "Telegramga yubor" — javob ostidagi kichik tugma. Ko'zga
+   tashlanadi, lekin javobning o'zidan ustun bo'lib ketmaydi. */
+.ai-send-tg {
+  display: inline-flex; align-items: center; gap: 5px;
+  margin: 2px 0 8px; padding: 5px 11px; border-radius: 14px;
+  background: var(--card); border: 0.5px solid var(--separator);
+  color: var(--accent); font-size: 12.5px; font-weight: 600;
+  font-family: inherit; cursor: pointer;
+}
+.ai-send-tg:active { background: var(--separator); }
+.ai-send-tg:disabled { opacity: 0.45; }
+
 /* "O'ylayapti" — uchta sakrab turgan nuqta */
 .ai-msg.thinking { display: flex; gap: 5px; align-items: center; padding: 14px 16px; }
 .ai-msg.thinking .dot {

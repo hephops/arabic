@@ -230,6 +230,23 @@ function saveMsg(chatId: number, shopId: number, role: string, content: unknown,
   db.prepare("UPDATE ai_chats SET updated_at = datetime('now') WHERE id = ?").run(chatId);
 }
 
+/** Vosita natijasini modelga sig'adigan hajmga keltirish */
+const MAX_RESULT = Number(process.env.AI_MAX_RESULT) || 12_000;
+
+function trim(data: unknown): string {
+  let text = JSON.stringify(data);
+  if (text.length <= MAX_RESULT) return text;
+  // Ro'yxat bo'lsa — qatorlarini kamaytiramiz, matnni o'rtasidan
+  // kesib qo'ymaymiz (kesilgan JSON modelni chalkashtiradi)
+  if (Array.isArray(data)) {
+    const rows = data as unknown[];
+    let n = rows.length;
+    while (n > 1 && JSON.stringify(rows.slice(0, n)).length > MAX_RESULT) n = Math.floor(n / 2);
+    return JSON.stringify({ qatorlar: rows.slice(0, n), jami_qator: rows.length, izoh: 'ro\'yxat qisqartirildi' });
+  }
+  return text.slice(0, MAX_RESULT) + '…';
+}
+
 function textOf(content: Anthropic.ContentBlock[]): string {
   return content
     .filter((b): b is Anthropic.TextBlock => b.type === 'text')
@@ -287,7 +304,25 @@ export async function ask(opts: AskOptions): Promise<AskResult> {
   let cost = 0;
   let answer = '';
 
+  // UMUMIY MUDDAT. Bitta chaqiruvning o'z chegarasi bor, lekin halqa
+  // bir necha marta aylanadi va yig'indi juda cho'zilib ketishi mumkin.
+  //
+  // Bu shunchaki noqulaylik emas: do'kon ilovasi Cloudflare tuneli
+  // orqali ishlaydi, u esa 100 soniyadan uzoq javobni uzib, o'zining
+  // 502 sahifasini qaytaradi. Do'konchi "HTTP 502" degan tushunarsiz
+  // yozuvni ko'radi va bizning xato xabarimiz unga umuman yetmaydi.
+  //
+  // Shuning uchun 75 soniyada O'ZIMIZ to'xtaymiz va bor javobni
+  // beramiz — uzilgan so'rovdan ko'ra chala javob yaxshiroq.
+  const deadline = Date.now() + (Number(process.env.AI_TOTAL_MS) || 75_000);
+
   while (steps < MAX_STEPS) {
+    if (steps > 0 && Date.now() > deadline) {
+      answer =
+        (answer ? answer + '\n\n' : '') +
+        "Javob to'liq tayyor bo'lmadi — savol biroz og'ir keldi. Uni ikkiga bo'lib so'rab ko'ring.";
+      break;
+    }
     steps++;
     const res = await api().messages.create({
       model,
@@ -348,7 +383,9 @@ export async function ask(opts: AskOptions): Promise<AskResult> {
         // DIQQAT: shopId shu yerda qo'yiladi. Model qanday kiritma
         // yuborsa ham begona do'konga o'tolmaydi.
         const data = await tool.run(opts.shopId, c.input ?? {});
-        results.push({ type: 'tool_result', tool_use_id: c.id, content: JSON.stringify(data) });
+        // Katta ro'yxat modelga to'liq yuborilsa javob sekinlashadi va
+        // qimmatlashadi. Do'konchiga baribir birinchi o'ntasi kerak.
+        results.push({ type: 'tool_result', tool_use_id: c.id, content: trim(data) });
       } catch (e: any) {
         results.push({
           type: 'tool_result',

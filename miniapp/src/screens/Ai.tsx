@@ -19,6 +19,7 @@ const SUGGESTIONS = [
   { key: 'aiQ3', q: "Kim qarzdor va kim kechiktiryapti?" },
   { key: 'aiQ4', q: "Nima tugayapti, nima buyurtma qilay?" },
   { key: 'aiQ5', q: "Qaysi tovar ombordagi pulni bog'lab yotibdi?" },
+  { key: 'aiQ6', q: "Srogi yaqin tovarlarni telegramga yubor" },
 ];
 
 export default function Ai({ onBack }: { onBack: () => void }) {
@@ -27,6 +28,10 @@ export default function Ai({ onBack }: { onBack: () => void }) {
   const [status, setStatus] = useState<AiStatus | null>(null);
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
+  // React holati darhol yangilanmaydi: Enter tez-tez bosilsa bir necha
+  // so'rov birdaniga ketib qolardi (ekranda uchta bir xil savol).
+  // Ref esa o'sha zahoti o'zgaradi.
+  const sending = useRef(false);
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -40,7 +45,8 @@ export default function Ai({ onBack }: { onBack: () => void }) {
 
   async function send(q: string) {
     const question = q.trim();
-    if (!question || busy) return;
+    if (!question || sending.current) return;
+    sending.current = true;
     haptic.select();
     setText('');
     // Savol darhol ekranga chiqadi — javob kutilayotgani bilinib tursin
@@ -54,8 +60,14 @@ export default function Ai({ onBack }: { onBack: () => void }) {
       const msg = e.details?.message ?? e.message;
       setMsgs((m) => [...m, { role: 'assistant', text: msg, created_at: '' }]);
     } finally {
+      sending.current = false;
       setBusy(false);
     }
+  }
+
+  /** Tayyor javobni Telegramga o'tkazish — yordamchining o'ziga aytamiz */
+  function sendToTelegram(text: string) {
+    send(`${t('aiToTelegramCmd')}\n\n${text.slice(0, 1500)}`);
   }
 
   async function clear() {
@@ -103,8 +115,17 @@ export default function Ai({ onBack }: { onBack: () => void }) {
         )}
 
         {msgs.map((m, i) => (
-          <div key={i} className={`ai-msg ${m.role}`}>
-            {m.text}
+          <div key={i} className={`ai-msg-wrap ${m.role}`}>
+            <div className={`ai-msg ${m.role}`}>{m.text}</div>
+            {/* Javobni bir bosishda Telegramga o'tkazish. Yordamchi
+                buni gap bilan ham qila oladi, lekin do'konchi bunday
+                imkoniyat borligini bilishi kerak — tugma ko'rinib
+                tursin. */}
+            {m.role === 'assistant' && m.text.length > 40 && (
+              <button className="ai-send-tg" onClick={() => sendToTelegram(m.text)} disabled={busy}>
+                <Glyph name="send" size={13} color="var(--accent)" /> {t('aiToTelegram')}
+              </button>
+            )}
           </div>
         ))}
 
