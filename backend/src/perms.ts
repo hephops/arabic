@@ -26,7 +26,7 @@ export type PermKey =
   // Ta'minotchi
   | 'suppliers' | 'orders'
   // Qolgani
-  | 'reminders' | 'reports' | 'expenses' | 'settings' | 'ai';
+  | 'reminders' | 'reports' | 'expenses' | 'settings' | 'ai' | 'ai_actions';
 
 /** Ro'yxat tartibi ilovadagi ko'rinish tartibi bilan bir xil */
 export const PERM_GROUPS: { group: string; keys: PermKey[] }[] = [
@@ -35,7 +35,7 @@ export const PERM_GROUPS: { group: string; keys: PermKey[] }[] = [
   { group: 'customers', keys: ['customers', 'customer_add', 'customer_edit', 'customer_del'] },
   { group: 'stock', keys: ['stock', 'product_add', 'product_edit', 'product_del', 'price_edit', 'cost_view', 'intake', 'inventory'] },
   { group: 'suppliers', keys: ['suppliers', 'orders'] },
-  { group: 'other', keys: ['reminders', 'reports', 'expenses', 'settings', 'ai'] },
+  { group: 'other', keys: ['reminders', 'reports', 'expenses', 'settings', 'ai', 'ai_actions'] },
 ];
 
 export const ALL_PERMS: PermKey[] = PERM_GROUPS.flatMap((g) => g.keys);
@@ -92,5 +92,7 @@ export function cleanPerms(list: unknown): PermKey[] {
   if (set.has('pos_debt') || set.has('pos_discount') || set.has('pos_return')) set.add('pos');
   if (set.has('pos_debt')) { set.add('debts'); set.add('debt_add'); }
   if (set.has('orders')) set.add('suppliers');
+  // AI orqali o'zgartirish — AI ning o'zisiz ma'nosiz
+  if (set.has('ai_actions')) { set.add('ai'); set.add('price_edit'); }
   return [...set];
 }

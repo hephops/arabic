@@ -447,6 +447,7 @@ const UZ: Record<string, string> = {
   aiQ4: 'Nima buyurtma qilay?',
   aiQ5: "Qaysi tovar yotib qolgan?",
   navAi: 'AI yordamchi',
+  tileAi: 'AI yordamchi',
   send: 'Yuborish',
   // Xodim huquqlari
   permTitle: 'Ruxsatlar',
@@ -488,6 +489,8 @@ const UZ: Record<string, string> = {
   perm_reports: 'Hisobotlar va foyda',
   perm_expenses: 'Xarajatlar',
   perm_settings: 'Do\'kon sozlamalari',
+  perm_ai: 'AI yordamchi bilan gaplashish',
+  perm_ai_actions: 'AI orqali chegirma qo\'yish',
   permOwnerOnly: "Balans, xodimlar va taklif kodi faqat sizda qoladi — bular xodimga berilmaydi.",
   permSaved: 'Ruxsatlar saqlandi',
   employeeDelete: "Xodimni o'chirish",
@@ -1219,6 +1222,7 @@ const RU: Record<string, string> = {
   aiQ4: 'Что заказать?',
   aiQ5: 'Какой товар залежался?',
   navAi: 'ИИ-помощник',
+  tileAi: 'ИИ-помощник',
   send: 'Отправить',
   // Права сотрудника
   permTitle: 'Права доступа',
@@ -1260,6 +1264,8 @@ const RU: Record<string, string> = {
   perm_reports: 'Отчёты и прибыль',
   perm_expenses: 'Расходы',
   perm_settings: 'Настройки магазина',
+  perm_ai: 'Общаться с ИИ-помощником',
+  perm_ai_actions: 'Ставить скидку через ИИ',
   permOwnerOnly: 'Баланс, сотрудники и промокод остаются только у вас — сотруднику они не выдаются.',
   permSaved: 'Права сохранены',
   employeeDelete: 'Удалить сотрудника',

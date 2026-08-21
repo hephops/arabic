@@ -11,7 +11,7 @@
 
 import Anthropic from '@anthropic-ai/sdk';
 import { db } from '../db.js';
-import { TOOL_BY_NAME, toolSchemas } from './tools.js';
+import { TOOL_BY_NAME, toolSchemas, ACTION_TOOLS } from './tools.js';
 import { MODEL_DEEP, MAX_STEPS, costUzs, aiEnabled, aiKey, model as aiModel, dailyLimit, questionPrice } from './config.js';
 
 // Mijoz obyekti keshlanadi, LEKIN kalit bilan birga: admin panelda
@@ -90,6 +90,17 @@ SANA
   yakshanba", "kecha", "3-avgustda" kabi so'zlarni o'sha sanadan
   hisoblab, vositaga ANIQ sana (YYYY-MM-DD) berib chaqir.
 - Aniq sana kerak bo'lmasa sana maydonlarini bo'sh satr qilib qoldir.
+
+CHEGIRMA QO'YISH
+- Do'konchi "chegirma ber", "narxini tushir" desa — chegirma_qoy
+  vositasidan foydalan. Avval qaysi tovarlarga ekanini ANIQ bil:
+  ro'yxatni o'qiydigan vositadan olib, nomlarini o'sha ko'rinishda yoz.
+- Bajargach do'konchiga NIMA o'zgarganini ayt: qaysi tovar, eski narx,
+  yangi narx. Va chegirmani qaytarib olish mumkinligini eslatib qo'y.
+- Qaysi tovarga ekani noaniq bo'lsa — o'zing tanlama, do'konchidan
+  aniqlashtir. Bu yagona holat: pulga tegadigan ish, taxmin qilinmaydi.
+- Bu vosita ro'yxatda bo'lmasa, ruxsat berilmagan degani. Unda
+  "menda bunday imkon yo'q, ilovaning o'zidan qo'ying" deb ayt.
 
 TELEGRAMGA YUBORISH
 - Do'konchi "telegramga yubor", "telegramga tashla" desa —
@@ -230,6 +241,8 @@ function textOf(content: Anthropic.ContentBlock[]): string {
 export interface AskOptions {
   shopId: number;
   employeeId: number | null;
+  /** Ma'lumot o'zgartiradigan vositalar berilsinmi (ai_actions ruxsati) */
+  canAct?: boolean;
   question: string;
   channel?: 'app' | 'telegram';
   /** Chuqur tahlil — kuchliroq (va qimmatroq) model */
@@ -281,7 +294,7 @@ export async function ask(opts: AskOptions): Promise<AskResult> {
       max_tokens: 2000,
       // Ko'rsatma va vositalar o'zgarmaydi — keshdan o'qiladi, narxi 10%
       system: [{ type: 'text', text: SYSTEM, cache_control: { type: 'ephemeral' } }],
-      tools: toolSchemas() as any,
+      tools: toolSchemas({ actions: opts.canAct !== false }) as any,
       messages,
     });
 
@@ -312,12 +325,25 @@ export async function ask(opts: AskOptions): Promise<AskResult> {
     const calls = res.content.filter((b): b is Anthropic.ToolUseBlock => b.type === 'tool_use');
     const results: Anthropic.ToolResultBlockParam[] = [];
     for (const c of calls) {
-      used.push(c.name);
       const tool = TOOL_BY_NAME.get(c.name);
+      // Ikkinchi to'siq: vosita ro'yxatda ko'rsatilmagan bo'lsa ham
+      // model uni nomidan chaqirishga urinishi mumkin
+      if (tool && ACTION_TOOLS.has(c.name) && opts.canAct === false) {
+        results.push({
+          type: 'tool_result',
+          tool_use_id: c.id,
+          content: "Bu amalga ruxsat yo'q",
+          is_error: true,
+        });
+        continue;
+      }
       if (!tool) {
         results.push({ type: 'tool_result', tool_use_id: c.id, content: 'Bunday vosita yo\'q', is_error: true });
         continue;
       }
+      // Ro'yxatga faqat CHINDAN bajarilgani yoziladi: to'silgan
+      // urinish "ishlatildi" deb ko'rinmasligi kerak
+      used.push(c.name);
       try {
         // DIQQAT: shopId shu yerda qo'yiladi. Model qanday kiritma
         // yuborsa ham begona do'konga o'tolmaydi.

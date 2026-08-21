@@ -11,7 +11,7 @@ export type PermKey =
   | 'stock' | 'product_add' | 'product_edit' | 'product_del'
   | 'price_edit' | 'cost_view' | 'intake' | 'inventory'
   | 'suppliers' | 'orders'
-  | 'reminders' | 'reports' | 'expenses' | 'settings' | 'ai';
+  | 'reminders' | 'reports' | 'expenses' | 'settings' | 'ai' | 'ai_actions';
 
 /** null — do'kon egasi (hammasi mumkin), ro'yxat — xodim */
 let PERMS: string[] | null = null;

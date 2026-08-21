@@ -161,6 +161,9 @@ export default function Dashboard({
             ['reports', 'chart', 'tileReport', 'reports'],
             ['expenses', 'wallet', 'tileExpenses', 'expenses'],
             ['inventory', 'boxes', 'tileInventory', 'inventory'],
+            // AI omborning yonida turadi — do'konchi qoldiqni ko'rgach
+            // darhol savol berishi mumkin bo'lsin
+            ['ai', 'sparkle', 'tileAi', 'ai'],
           ] as [SubScreen, string, string, PermKey][]
         )
           .filter(([, , , perm]) => can(perm))

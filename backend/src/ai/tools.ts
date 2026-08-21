@@ -433,6 +433,45 @@ export const TOOLS: ToolDef[] = [
   },
 ];
 
+// Cheklar ro'yxati. Do'konchi "cheklarni ko'rsat", "kim nima olgan"
+// deganda kerak: ilgari faqat cheklar SONI bor edi va yordamchi
+// "bunday vosita yo'q" deyishga majbur edi.
+TOOLS.push({
+  name: 'cheklar',
+  description:
+    "Sotuvlar (cheklar) ro'yxati: har birining summasi, to'lov turi, mijozi va vaqti. " +
+    'Davr, aniq sana yoki oraliq beriladi.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      ...PERIOD_FIELDS,
+      limit: { type: 'integer', description: '1 dan 50 gacha' },
+    },
+    required: [...PERIOD_REQUIRED, 'limit'],
+    additionalProperties: false,
+  },
+  run: (shopId, i) => {
+    const { from, to } = period(i);
+    return db
+      .prepare(
+        `SELECT s.id AS chek, s.total AS summa, s.payment_type AS tolov,
+                c.name AS mijoz, e.name AS sotuvchi,
+                time(s.created_at, '+5 hours') AS vaqt,
+                date(s.created_at, '+5 hours') AS sana,
+                (SELECT GROUP_CONCAT(p.name || ' ×' || CAST(si.qty AS TEXT), ', ')
+                   FROM sale_items si JOIN products p ON p.id = si.product_id
+                  WHERE si.sale_id = s.id) AS tovarlar
+         FROM sales s
+         LEFT JOIN customers c ON c.id = s.customer_id
+         LEFT JOIN employees e ON e.id = s.created_by
+         WHERE s.shop_id = ?
+           AND date(s.created_at, '+5 hours') BETWEEN ${from} AND ${to}
+         ORDER BY s.id DESC LIMIT ?`
+      )
+      .all(shopId, num(i.limit, 20, 1, 50));
+  },
+});
+
 /* ─────────── Ish qiladigan vosita ─────────── */
 
 // Faqat BITTASI: do'konchining O'ZIGA Telegram orqali xabar yuborish.
@@ -490,11 +529,94 @@ TOOLS.push({
   },
 });
 
+/**
+ * Chegirma qo'yish — yordamchining O'ZGARTIRADIGAN yagona vositasi.
+ *
+ * Nega bunga ruxsat berildi: do'konchi srogi o'tayotgan tovarni
+ * ko'rgach darhol "50% chegirma ber" deydi. Ilovaga o'tib, har
+ * tovarni qidirib, foizni yozib chiqish — o'sha paytda eng keraksiz
+ * ish. Yordamchi buni bir gapda qiladi.
+ *
+ * Nega xavfsiz:
+ *   1. Alohida ruxsat (ai_actions) — ega bermasa umuman ishlamaydi.
+ *   2. QAYTARIB BO'LADI. Chegirma sotuv narxini o'zgartirmaydi —
+ *      u alohida foiz bo'lib turadi. Nolga qaytarilsa eski narx
+ *      o'z-o'zidan tiklanadi, hech narsa yo'qolmaydi.
+ *   3. Tovarlar NOMMA-NOM ko'rsatiladi, "hammasi" degan imkoni yo'q.
+ *   4. Nima o'zgargani aniq qaytariladi — model do'konchiga eski va
+ *      yangi narxni ko'rsatib aytishi shart.
+ *   5. Jurnalga yoziladi (stock_movements emas, alohida izoh bilan).
+ */
+TOOLS.push({
+  name: 'chegirma_qoy',
+  action: true,
+  description:
+    "Ko'rsatilgan tovarlarga chegirma foizini qo'yadi yoki olib tashlaydi. " +
+    "Foiz 0 bo'lsa chegirma olib tashlanadi va eski narx qaytadi. " +
+    "Tovar nomlarini ANIQ yoz — avval ro'yxatni o'qiydigan vositadan ol.",
+  input_schema: {
+    type: 'object',
+    properties: {
+      tovarlar: {
+        type: 'array',
+        items: { type: 'string' },
+        description: "Tovar nomlari, aniq yozilgan. Ko'pi bilan 20 ta.",
+      },
+      foiz: { type: 'integer', description: '0 dan 90 gacha. 0 — chegirmani olib tashlash.' },
+    },
+    required: ['tovarlar', 'foiz'],
+    additionalProperties: false,
+  },
+  run: (shopId, i) => {
+    const pct = Math.min(90, Math.max(0, Math.round(Number(i.foiz) || 0)));
+    const names: string[] = Array.isArray(i.tovarlar) ? i.tovarlar.slice(0, 20).map(String) : [];
+    if (!names.length) return { bajarilmadi: "Tovar nomi ko'rsatilmagan" };
+
+    const done: any[] = [];
+    const missing: string[] = [];
+    for (const name of names) {
+      const p = db
+        .prepare('SELECT id, name, sell_price, discount_percent FROM products WHERE shop_id = ? AND name = ? COLLATE NOCASE')
+        .get(shopId, name.trim()) as any;
+      if (!p) {
+        missing.push(name);
+        continue;
+      }
+      db.prepare('UPDATE products SET discount_percent = ? WHERE id = ?').run(pct, p.id);
+      done.push({
+        tovar: p.name,
+        eski_foiz: p.discount_percent ?? 0,
+        yangi_foiz: pct,
+        narx: p.sell_price,
+        chegirmali_narx: pct ? Math.round((p.sell_price * (100 - pct)) / 100 / 100) * 100 : p.sell_price,
+      });
+    }
+    return {
+      ozgardi: done,
+      topilmadi: missing,
+      eslatma: pct
+        ? "Chegirma qaytarib olinadi: foizni 0 qilsangiz eski narx tiklanadi."
+        : 'Chegirma olib tashlandi, eski narx tiklandi.',
+    };
+  },
+});
+
 export const TOOL_BY_NAME = new Map(TOOLS.map((t) => [t.name, t]));
 
-/** Modelga yuboriladigan e'lon (run funksiyasisiz) */
-export function toolSchemas() {
-  return TOOLS.map((t) => ({
+/** Ma'lumotni o'zgartiradigan vositalar — alohida ruxsat talab qiladi */
+export const ACTION_TOOLS = new Set(TOOLS.filter((t) => t.action && t.name === 'chegirma_qoy').map((t) => t.name));
+
+/**
+ * Modelga yuboriladigan e'lon (run funksiyasisiz).
+ *
+ * Ruxsati yo'q bo'lsa o'zgartiradigan vosita modelga UMUMAN
+ * ko'rsatilmaydi. "Ko'rsatib, keyin rad etish" emas — model bunday
+ * imkoniyat borligini bilmasligi kerak, aks holda do'konchiga
+ * "qila olaman" deb va'da berib, keyin uddasidan chiqmasdi.
+ */
+export function toolSchemas(opts?: { actions?: boolean }) {
+  const allow = opts?.actions !== false;
+  return TOOLS.filter((t) => allow || !ACTION_TOOLS.has(t.name)).map((t) => ({
     name: t.name,
     description: t.description,
     input_schema: t.input_schema,

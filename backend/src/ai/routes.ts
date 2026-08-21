@@ -3,6 +3,7 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { db } from '../db.js';
 import { getSetting } from '../billing.js';
+import { can } from '../auth.js';
 import { ask, AiError, spend, purgeOld } from './agent.js';
 import { KEEP_DAYS, aiEnabled, aiKey, model as aiModel, dailyLimit, questionPrice } from './config.js';
 
@@ -108,6 +109,8 @@ export function registerAiRoutes(app: FastifyInstance, opts: { requireAi: Guard;
         const r = await ask({
           shopId: req.shopId!,
           employeeId: req.employeeId,
+          // Chegirma qo'yish alohida ruxsat. Ega uchun doim ochiq.
+          canAct: can(req, 'ai_actions'),
           question: String(req.body?.question ?? ''),
           channel: 'app',
           deep: !!req.body?.deep,
