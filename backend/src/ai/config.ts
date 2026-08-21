@@ -6,16 +6,15 @@
 //
 // HAQIQIY MODEL BILAN O'LCHANGAN (TZ dagi taxmin emas):
 //
-//   Haiku 4.5  ($1/$5 per 1M)  — bitta savol ~100 so'm
-//   Sonnet 5   ($3/$15)        — bitta savol ~300 so'm
+//   Haiku 4.5  ($1/$5 per 1M)  — bitta savol ~45 so'm
+//   Sonnet 5   ($3/$15)        — taxminan uch barobar
 //
-// TZ da 58 va 210 so'm deb taxmin qilingan edi; haqiqiy raqam ~1.7
-// barobar yuqori chiqdi, chunki har chaqiruvda 12 ta vositaning
-// ta'rifi (~1900 token) qaytadan yuboriladi va kesh ishlamaydi
-// (sababi agent.ts dagi izohda).
+// Avval ~100 so'm edi. Javoblar qisqartirilgach (120 so'z chegarasi,
+// bo'sh muqaddimasiz, ro'yxat 10 tadan uzun emas) ikki barobarga
+// tushdi — chiqish tokeni eng qimmat qismi.
 //
-// Kuniga 5 savol -> ~500 so'm/kun -> ~15 000 so'm/oy, ya'ni 100 000
-// so'mlik obunaning ~15%i. Bu qabul qilsa bo'ladigan raqam.
+// Kuniga 5 savol -> ~225 so'm/kun -> ~7 000 so'm/oy, ya'ni 100 000
+// so'mlik obunaning 7%i.
 //
 // Modelni almashtirmoqchi bo'lsangiz admin panel > Sozlamalar, yoki
 // .env orqali: AI_MODEL=claude-sonnet-5

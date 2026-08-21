@@ -67,7 +67,14 @@ const SYSTEM = `Sen BuySale ilovasining yordamchisisan. Foydalanuvchi — O'zbek
 
 QANDAY GAPIRASAN
 - Do'konchi qaysi tilda yozsa, o'sha tilda javob ber: o'zbekcha (lotin), o'zbekcha (kirill) yoki ruscha.
-- Qisqa gapir. Do'konchi telefonda, ish ustida o'qiydi. Uzun matn o'qilmaydi.
+- QISQA. Do'konchi telefonda, ish ustida o'qiydi. Javob 120 so'zdan oshmasin.
+- Vositani chaqirishdan OLDIN hech narsa yozma. "Bir daqiqa", "hozir
+  ko'rib chiqaman" kabi gaplar do'konchini kuttiradi va foyda bermaydi —
+  to'g'ridan-to'g'ri vositani chaqir.
+- Ro'yxatni 10 tadan uzun qilma. Ko'p bo'lsa eng muhimini ber va
+  "yana N ta bor" deb qo'y.
+- Bezakni kamaytir: har satrga emoji qo'yma, qalin harfni faqat
+  raqamga ishlat. Har ortiqcha belgi javobni sekinlashtiradi.
 - Sodda so'z ishlat. "Marja", "likvidlik", "aylanma" kabi so'zlarni tushuntirmasdan ishlatma.
 - Pulni butun son bilan yoz: 1 250 000 so'm. Tiyin yo'q.
 - Jadval chizma — telefonda buziladi. Ro'yxat qilsang qisqa satrlar bilan.
@@ -266,7 +273,33 @@ export interface AskOptions {
   deep?: boolean;
 }
 
+/** Oqim hodisalari: do'konchi kutib o'tirmasin, nima bo'layotgani ko'rinsin */
+export type AiEvent =
+  | { type: 'status'; tool: string }
+  | { type: 'text'; delta: string }
+  | { type: 'done'; charged: number; tools: string[] }
+  | { type: 'error'; code: string; message: string };
+
 export async function ask(opts: AskOptions): Promise<AskResult> {
+  return run(opts);
+}
+
+/**
+ * Javobni bo'lak-bo'lak berish.
+ *
+ * Nega kerak: model soniyasiga ~44 token yozadi. 300 tokenlik javob
+ * 7 soniya demak — do'konchi shuncha vaqt bo'sh ekranga qaraydi.
+ * Oqim bilan birinchi so'zlar bir soniyada chiqadi va kutish
+ * sezilmaydi.
+ *
+ * Ikkinchi foydasi: Cloudflare tuneli 100 soniya jim turgan
+ * so'rovni uzadi. Oqimda baytlar to'xtovsiz oqib turadi — uzilmaydi.
+ */
+export async function askStream(opts: AskOptions, emit: (e: AiEvent) => void): Promise<AskResult> {
+  return run(opts, emit);
+}
+
+async function run(opts: AskOptions, emit?: (e: AiEvent) => void): Promise<AskResult> {
   if (!aiEnabled()) throw new AiError('ai_off', 'AI yoqilmagan');
   const question = String(opts.question ?? '').trim();
   if (!question) throw new AiError('empty', "Savol bo'sh");
@@ -324,14 +357,24 @@ export async function ask(opts: AskOptions): Promise<AskResult> {
       break;
     }
     steps++;
-    const res = await api().messages.create({
+    const params = {
       model,
       max_tokens: 2000,
       // Ko'rsatma va vositalar o'zgarmaydi — keshdan o'qiladi, narxi 10%
-      system: [{ type: 'text', text: SYSTEM, cache_control: { type: 'ephemeral' } }],
+      system: [{ type: 'text' as const, text: SYSTEM, cache_control: { type: 'ephemeral' as const } }],
       tools: toolSchemas({ actions: opts.canAct !== false }) as any,
       messages,
-    });
+    };
+
+    let res: Anthropic.Message;
+    if (emit) {
+      const stream = api().messages.stream(params);
+      // Matn yozilishi bilan darhol uzatiladi
+      stream.on('text', (delta) => emit({ type: 'text', delta }));
+      res = await stream.finalMessage();
+    } else {
+      res = await api().messages.create(params);
+    }
 
     cost += costUzs(model, res.usage as any);
     db.prepare(
@@ -379,6 +422,7 @@ export async function ask(opts: AskOptions): Promise<AskResult> {
       // Ro'yxatga faqat CHINDAN bajarilgani yoziladi: to'silgan
       // urinish "ishlatildi" deb ko'rinmasligi kerak
       used.push(c.name);
+      emit?.({ type: 'status', tool: c.name });
       try {
         // DIQQAT: shopId shu yerda qo'yiladi. Model qanday kiritma
         // yuborsa ham begona do'konga o'tolmaydi.

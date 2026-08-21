@@ -2136,6 +2136,8 @@ button.link { background: none; color: var(--accent); font-size: 15px; font-weig
 
 /* "O'ylayapti" — uchta sakrab turgan nuqta */
 .ai-msg.thinking { display: flex; gap: 5px; align-items: center; padding: 14px 16px; }
+/* Nima qilinayotgani — kutish jonli ko'rinsin */
+.ai-status { margin-left: 6px; font-size: 13px; color: var(--muted); }
 .ai-msg.thinking .dot {
   width: 7px; height: 7px; border-radius: 50%; background: var(--muted);
   animation: ai-blink 1.3s infinite;

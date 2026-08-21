@@ -32,6 +32,8 @@ export default function Ai({ onBack }: { onBack: () => void }) {
   // so'rov birdaniga ketib qolardi (ekranda uchta bir xil savol).
   // Ref esa o'sha zahoti o'zgaradi.
   const sending = useRef(false);
+  // Hozir qaysi vosita ishlayapti — kutish jonli ko'rinsin
+  const [statusTool, setStatusTool] = useState('');
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -52,15 +54,39 @@ export default function Ai({ onBack }: { onBack: () => void }) {
     // Savol darhol ekranga chiqadi — javob kutilayotgani bilinib tursin
     setMsgs((m) => [...m, { role: 'user', text: question, created_at: '' }]);
     setBusy(true);
+    setStatusTool('');
+    // Javob bo'lak-bo'lak keladi.
+    //
+    // Javob pufakchasi DARHOL qo'shiladi (bo'sh holda), keyin har
+    // bo'lakda oxirgi xabar almashtiriladi. Ilgari "birinchi bo'lakda
+    // qo'sh, keyingilarida almashtir" degan bayroq ishlatilgandi va
+    // savolning o'zi yo'qolib qolardi: React yangilanishni keyinroq
+    // bajaradi, o'sha paytda bayroq allaqachon o'zgargan bo'lib,
+    // birinchi bo'lak foydalanuvchi xabarini bosib yozardi.
+    setMsgs((m) => [...m, { role: 'assistant', text: '', created_at: '' }]);
+    let acc = '';
+    const push = (delta: string) => {
+      acc += delta;
+      const text = acc;
+      setMsgs((m) => {
+        const next = [...m];
+        next[next.length - 1] = { role: 'assistant', text, created_at: '' };
+        return next;
+      });
+    };
     try {
-      const r = await api.aiAsk(question);
-      setMsgs((m) => [...m, { role: 'assistant', text: r.text, created_at: '' }]);
+      await api.aiStream(question, (e) => {
+        if (e.type === 'text') push(e.delta);
+        else if (e.type === 'status') setStatusTool(e.tool);
+        else if (e.type === 'error') push((acc ? '\n\n' : '') + e.message);
+      });
+      if (!acc) push(t('aiNoAnswer'));
       api.aiStatus().then(setStatus).catch(() => {});
     } catch (e: any) {
-      const msg = e.details?.message ?? e.message;
-      setMsgs((m) => [...m, { role: 'assistant', text: msg, created_at: '' }]);
+      push((acc ? '\n\n' : '') + (e.details?.message ?? e.message));
     } finally {
       sending.current = false;
+      setStatusTool('');
       setBusy(false);
     }
   }
@@ -114,7 +140,7 @@ export default function Ai({ onBack }: { onBack: () => void }) {
           </div>
         )}
 
-        {msgs.map((m, i) => (
+        {msgs.filter((m) => m.text).map((m, i) => (
           <div key={i} className={`ai-msg-wrap ${m.role}`}>
             <div className={`ai-msg ${m.role}`}>{m.text}</div>
             {/* Javobni bir bosishda Telegramga o'tkazish. Yordamchi
@@ -134,6 +160,7 @@ export default function Ai({ onBack }: { onBack: () => void }) {
             <span className="dot" />
             <span className="dot" />
             <span className="dot" />
+            {statusTool && <span className="ai-status">{t('tool_' + statusTool)}</span>}
           </div>
         )}
         <div ref={endRef} />

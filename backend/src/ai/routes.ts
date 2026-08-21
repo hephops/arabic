@@ -4,7 +4,7 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { db } from '../db.js';
 import { getSetting } from '../billing.js';
 import { can } from '../auth.js';
-import { ask, AiError, spend, purgeOld } from './agent.js';
+import { ask, askStream, AiError, spend, purgeOld, type AiEvent } from './agent.js';
 import { KEEP_DAYS, aiEnabled, aiKey, model as aiModel, dailyLimit, questionPrice } from './config.js';
 
 type Guard = (req: FastifyRequest, reply: FastifyReply) => Promise<unknown>;
@@ -134,6 +134,65 @@ export function registerAiRoutes(app: FastifyInstance, opts: { requireAi: Guard;
             ? "Javob juda uzoq davom etdi. Savolni qisqaroq qilib qayta yozing."
             : "Yordamchi javob bera olmadi. Birozdan keyin urinib ko'ring.",
         });
+      }
+    }
+  );
+
+  /**
+   * Savol — javob bo'lak-bo'lak keladi (SSE).
+   *
+   * Oddiy /ai/ask ham qoldi: bot va sinovlar undan foydalanadi.
+   * Ilova esa shu yo'ldan yuradi — do'konchi bo'sh ekranga qarab
+   * o'tirmasin.
+   */
+  app.post<{ Body: { question?: string; deep?: boolean } }>(
+    '/ai/stream',
+    { preHandler: opts.requireAi },
+    async (req, reply) => {
+      reply.raw.writeHead(200, {
+        'Content-Type': 'text/event-stream; charset=utf-8',
+        'Cache-Control': 'no-cache, no-transform',
+        Connection: 'keep-alive',
+        // Nginx/proksi oqimni to'plab qo'ymasin — aks holda hammasi
+        // oxirida birdaniga kelib, oqimning ma'nosi qolmaydi
+        'X-Accel-Buffering': 'no',
+      });
+      const send = (e: AiEvent) => {
+        try {
+          reply.raw.write(`data: ${JSON.stringify(e)}\n\n`);
+        } catch {
+          /* ulanish uzilgan bo'lsa yozib o'tirmaymiz */
+        }
+      };
+      try {
+        const r = await askStream(
+          {
+            shopId: req.shopId!,
+            employeeId: req.employeeId,
+            canAct: can(req, 'ai_actions'),
+            question: String(req.body?.question ?? ''),
+            channel: 'app',
+            deep: !!req.body?.deep,
+          },
+          send
+        );
+        send({ type: 'done', charged: r.charged, tools: r.tools_used });
+      } catch (e: any) {
+        if (e instanceof AiError) {
+          send({ type: 'error', code: e.code, message: e.message });
+        } else {
+          req.log.error(e);
+          const slow = e?.name === 'APIConnectionTimeoutError' || /timeout/i.test(String(e?.message ?? ''));
+          send({
+            type: 'error',
+            code: slow ? 'ai_timeout' : 'ai_failed',
+            message: slow
+              ? "Javob juda uzoq davom etdi. Savolni qisqaroq qilib qayta yozing."
+              : "Yordamchi javob bera olmadi. Birozdan keyin urinib ko'ring.",
+          });
+        }
+      } finally {
+        reply.raw.end();
       }
     }
   );

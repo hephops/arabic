@@ -220,6 +220,46 @@ export const api = {
       body: JSON.stringify({ question, deep }),
     }),
   aiHistory: () => request<AiMessage[]>('/ai/history'),
+
+  /**
+   * Savol — javob bo'lak-bo'lak keladi.
+   *
+   * Oddiy so'rovda do'konchi butun javob yozilguncha bo'sh ekranga
+   * qarab turadi (model soniyasiga ~44 token yozadi). Bu yerda esa
+   * birinchi so'zlar darhol chiqadi.
+   */
+  aiStream: async (question: string, on: (e: AiEvent) => void) => {
+    const res = await fetch(`${BASE}/ai/stream`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+      body: JSON.stringify({ question }),
+    });
+    if (!res.ok || !res.body) {
+      const body: any = await res.json().catch(() => ({}));
+      throw new Error(body.message ?? translate('gatewayError'));
+    }
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    let buf = '';
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      // SSE bo'laklari bo'sh qator bilan ajratiladi. Bo'lak yarim
+      // kelishi mumkin — oxirgi tugallanmagan qismini saqlab qolamiz.
+      const parts = buf.split('\n\n');
+      buf = parts.pop() ?? '';
+      for (const p of parts) {
+        const line = p.trim();
+        if (!line.startsWith('data:')) continue;
+        try {
+          on(JSON.parse(line.slice(5)));
+        } catch {
+          /* buzuq bo'lak butun oqimni to'xtatmasin */
+        }
+      }
+    }
+  },
   aiClear: () => request<{ ok: true }>('/ai/history', { method: 'DELETE' }),
   updateCustomer: (
     id: number,
@@ -393,6 +433,13 @@ export interface AiStatus {
   /** bitta savol narxi, so'm. 0 — bepul */
   price: number;
 }
+
+/** Oqimdan keladigan hodisa */
+export type AiEvent =
+  | { type: 'status'; tool: string }
+  | { type: 'text'; delta: string }
+  | { type: 'done'; charged: number; tools: string[] }
+  | { type: 'error'; code: string; message: string };
 
 /** Suhbatdagi bitta xabar */
 export interface AiMessage {
