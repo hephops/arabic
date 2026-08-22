@@ -137,6 +137,17 @@ for (const sql of [
   // AI suhbatiga yuborilgan surat qaysi faylda. Ilgari faqat matnga
   // "🖼" qo'yilardi va do'konchi o'zi nima yuborganini ko'ra olmasdi.
   'ALTER TABLE ai_messages ADD COLUMN image_url TEXT',
+  // Targ'ovchi xodim: uning telefoni (do'konchi chekda shu raqamni
+  // yozadi) va do'kon qaysi xodimga biriktirilgani.
+  'ALTER TABLE admins ADD COLUMN phone TEXT',
+  'ALTER TABLE shops ADD COLUMN agent_id INTEGER',
+  // Mukofot summasi do'konga YOZIB QO'YILADI: umumiy narx keyin
+  // o'zgarsa, allaqachon ulangan do'konlarning hisobi buzilmasin
+  'ALTER TABLE shops ADD COLUMN agent_bonus INTEGER',
+  'ALTER TABLE shops ADD COLUMN agent_linked_at TEXT',
+  // Admin chekni nega rad etgani. Do'konchining o'z izohi (note)
+  // o'chirilmasin — u chekni nima uchun yuborganini aytadi.
+  'ALTER TABLE payment_receipts ADD COLUMN review_note TEXT',
 ]) {
   try {
     db.exec(sql);

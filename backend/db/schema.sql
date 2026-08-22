@@ -25,6 +25,12 @@ CREATE TABLE IF NOT EXISTS shops (
   -- Do'konning O'Z kunlik narxi. NULL — umumiy sozlamadagi narx
   -- ishlatiladi; 0 esa "bu do'kondan pul olinmaydi" degani.
   daily_price INTEGER,
+  -- Do'konni qaysi targ'ovchi xodim ulagani. Mukofot summasi o'sha
+  -- paytdagi kelishuv bo'yicha SHU YERGA yozib qo'yiladi: keyin umumiy
+  -- narx o'zgarsa, allaqachon ulangan do'konlarning hisobi buzilmasin.
+  agent_id INTEGER REFERENCES admins(id),
+  agent_bonus INTEGER,
+  agent_linked_at TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -34,7 +40,10 @@ CREATE TABLE IF NOT EXISTS admins (
   username TEXT NOT NULL UNIQUE,
   password_hash TEXT NOT NULL,                   -- scrypt: salt:hash
   name TEXT,
-  role TEXT NOT NULL DEFAULT 'admin',            -- admin | super
+  role TEXT NOT NULL DEFAULT 'admin',            -- admin | super | agent
+  -- Targ'ovchi xodimning telefoni. Do'konchi chek yuborganda AYNAN shu
+  -- raqamni yozadi — do'kon shu bo'yicha xodimga biriktiriladi.
+  phone TEXT,
   is_active INTEGER NOT NULL DEFAULT 1,
   last_login_at TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -62,6 +71,7 @@ INSERT OR IGNORE INTO settings (key, value) VALUES
   ('low_balance_days', '5'),          -- shuncha kun qolganda ogohlantiriladi
   ('block_on_empty', '0'),            -- balans tugasa xizmat to'xtasinmi
   ('referral_bonus', '20000'),        -- taklif qilgan do'konga bonus
+  ('agent_bonus', '100000'),          -- ulangan har do'kon uchun xodimga mukofot
   ('sms_price', '150'),               -- 1 ta SMS tannarxi
   ('call_price', '900'),              -- 1 ta AI qo'ng'iroq tannarxi
   ('support_phone', '+998 90 000 00 00'),
@@ -513,3 +523,44 @@ CREATE TABLE IF NOT EXISTS ai_intake_drafts (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_ai_drafts_shop ON ai_intake_drafts(shop_id, status);
+
+-- To'lov cheki.
+--
+-- Payme/Click hali ulanmagan: do'konchi pulni kartaga o'tkazadi va
+-- chekning suratini shu yerga yuboradi. Admin panelda ko'rib,
+-- tasdiqlagandan keyingina balansga tushadi — ya'ni "pul tushdi"
+-- degan qaror har doim odamniki.
+CREATE TABLE IF NOT EXISTS payment_receipts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  shop_id INTEGER NOT NULL REFERENCES shops(id),
+  amount INTEGER NOT NULL DEFAULT 0,             -- do'konchi aytgan summa
+  image_url TEXT,                                -- chek surati
+  -- Do'konchi yozgan targ'ovchi xodim raqami. Do'kon shu bo'yicha
+  -- xodimga biriktiriladi (chek tasdiqlanganda).
+  agent_phone TEXT,
+  note TEXT,                                     -- do'konchining izohi
+  review_note TEXT,                              -- admin nega rad etgani
+  status TEXT NOT NULL DEFAULT 'new',            -- new | approved | rejected
+  payment_id INTEGER,                            -- tasdiqlangach balance_transactions.id
+  reviewed_by INTEGER REFERENCES admins(id),
+  reviewed_at TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_receipts_status ON payment_receipts(status, id);
+CREATE INDEX IF NOT EXISTS idx_receipts_shop ON payment_receipts(shop_id, id);
+
+-- Xodimga berilgan mukofot to'lovi.
+--
+-- Xodim ishlab topgani = ulagan do'konlarining agent_bonus yig'indisi.
+-- Shu jadval esa unga QANCHA berilganini yozadi; ikkovining farqi —
+-- qarzimiz.
+CREATE TABLE IF NOT EXISTS agent_payouts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  agent_id INTEGER NOT NULL REFERENCES admins(id),
+  amount INTEGER NOT NULL,
+  note TEXT,
+  paid_at TEXT,
+  created_by INTEGER REFERENCES admins(id),
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_payouts_agent ON agent_payouts(agent_id, id);

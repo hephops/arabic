@@ -5,6 +5,7 @@ import { db } from './db.js';
 import { rateState } from './ai/ratelimit.js';
 import { uzDayShift, uzToday } from './tz.js';
 import { dailyPrice, lowBalanceDays, serviceState, chargeShop, setSetting } from './billing.js';
+import { agentByPhone, linkAgent, agentBonus } from './agentcore.js';
 
 // Admin panel: alohida autentifikatsiya (login + parol) va boshqaruv API'si.
 // Do'konchi tokeni bilan admin API'ga kirib bo'lmaydi — token turi ajratilgan.
@@ -52,7 +53,13 @@ declare module 'fastify' {
   }
 }
 
-export async function requireAdmin(req: FastifyRequest, reply: FastifyReply) {
+/**
+ * Panelga kirgan HAR QANDAY foydalanuvchi — targ'ovchi xodim ham.
+ *
+ * Bu qo'riqchi faqat "kim ekanini" aniqlaydi. Bo'limlarga kirish
+ * huquqini requireAdmin/requireSuper hal qiladi.
+ */
+export async function requireStaff(req: FastifyRequest, reply: FastifyReply) {
   const header = req.headers.authorization;
   const token = header?.startsWith('Bearer ') ? header.slice(7) : null;
   const admin = token ? verifyAdminToken(token) : null;
@@ -60,16 +67,34 @@ export async function requireAdmin(req: FastifyRequest, reply: FastifyReply) {
     reply.code(401).send({ error: 'unauthorized' });
     return reply;
   }
-  const row = db.prepare('SELECT is_active FROM admins WHERE id = ?').get(admin.id) as any;
+  const row = db.prepare('SELECT is_active, role FROM admins WHERE id = ?').get(admin.id) as any;
   if (!row?.is_active) {
     reply.code(403).send({ error: 'blocked' });
     return reply;
   }
-  req.admin = admin;
+  // Rol tokenda ham bor, lekin bazadagisi ustun turadi: rol o'zgartirilsa
+  // eski token bilan eski huquq qolib ketmasin
+  req.admin = { id: admin.id, role: String(row.role) };
 }
 
-async function requireSuper(req: FastifyRequest, reply: FastifyReply) {
-  const res = await requireAdmin(req, reply);
+/**
+ * Boshqaruv bo'limlari: do'konlar, to'lovlar, katalog, sozlamalar.
+ *
+ * Targ'ovchi xodim (agent) bu yerga KIRMAYDI — u panelga faqat o'z
+ * natijasini ko'rish uchun kiradi. Ilgari bunday rol yo'q edi va
+ * har bir kirgan odam hamma do'konni ko'rardi.
+ */
+export async function requireAdmin(req: FastifyRequest, reply: FastifyReply) {
+  const res = await requireStaff(req, reply);
+  if (res) return res;
+  if (req.admin?.role === 'agent') {
+    reply.code(403).send({ error: 'staff_only' });
+    return reply;
+  }
+}
+
+export async function requireSuper(req: FastifyRequest, reply: FastifyReply) {
+  const res = await requireStaff(req, reply);
   if (res) return res;
   if (req.admin?.role !== 'super') {
     reply.code(403).send({ error: 'super_only' });
@@ -126,9 +151,9 @@ export function registerAdminRoutes(app: FastifyInstance) {
     };
   });
 
-  app.get('/admin/me', { preHandler: requireAdmin }, async (req) => {
+  app.get('/admin/me', { preHandler: requireStaff }, async (req) => {
     return db
-      .prepare('SELECT id, username, name, role, last_login_at FROM admins WHERE id = ?')
+      .prepare('SELECT id, username, name, role, phone, last_login_at FROM admins WHERE id = ?')
       .get(req.admin!.id);
   });
 
@@ -287,7 +312,8 @@ export function registerAdminRoutes(app: FastifyInstance) {
                             WHERE b.shop_id = s.id AND b.amount > 0), 0) AS paid_total,
                   COALESCE((SELECT -SUM(amount) FROM balance_transactions b
                             WHERE b.shop_id = s.id AND b.amount < 0), 0) AS spent_total,
-                  COALESCE((SELECT SUM(cost_uzs) FROM ai_usage u WHERE u.shop_id = s.id), 0) AS ai_cost
+                  COALESCE((SELECT SUM(cost_uzs) FROM ai_usage u WHERE u.shop_id = s.id), 0) AS ai_cost,
+                  (SELECT a.name FROM admins a WHERE a.id = s.agent_id) AS agent_name
            FROM shops s ${clause}
            ORDER BY (s.balance < 0) DESC, s.created_at DESC LIMIT ? OFFSET ?`
         )
@@ -478,11 +504,23 @@ export function registerAdminRoutes(app: FastifyInstance) {
       payer?: string;
       note?: string;
       type?: string;
+      /** Qaysi chek asosida kiritilyapti (Cheklar bo'limidan) */
+      receipt_id?: number;
     };
   }>('/admin/payments', { preHandler: requireAdmin }, async (req, reply) => {
     const b = req.body ?? ({} as any);
     const shop = db.prepare('SELECT * FROM shops WHERE id = ?').get(b.shop_id) as any;
     if (!shop) return reply.code(404).send({ error: 'shop_not_found' });
+
+    // Chek bo'yicha kiritilyaptimi. Chek FAQAT bir marta o'tishi kerak —
+    // ikki admin bir vaqtda bosса ham balansga ikki marta tushmasin.
+    let receipt: any = null;
+    if (b.receipt_id) {
+      receipt = db.prepare('SELECT * FROM payment_receipts WHERE id = ?').get(b.receipt_id) as any;
+      if (!receipt) return reply.code(404).send({ error: 'receipt_not_found' });
+      if (receipt.shop_id !== shop.id) return reply.code(400).send({ error: 'receipt_shop_mismatch' });
+      if (receipt.status !== 'new') return reply.code(409).send({ error: 'already_' + receipt.status });
+    }
     const abs = Math.abs(Math.round(Number(b.amount) || 0));
     if (!abs) return reply.code(400).send({ error: 'amount_required' });
     // Chiqim bo'lsa balansdan yechiladi
@@ -507,13 +545,44 @@ export function registerAdminRoutes(app: FastifyInstance) {
           req.admin!.id,
           b.paid_at ?? null
         );
+      if (receipt) {
+        // Bandlash SHARTNING O'ZIDA: ikkinchi so'rov 0 qator o'zgartiradi
+        const claim = db
+          .prepare(
+            `UPDATE payment_receipts
+                SET status = 'approved', payment_id = ?, reviewed_by = ?, reviewed_at = datetime('now')
+              WHERE id = ? AND status = 'new'`
+          )
+          .run(info.lastInsertRowid, req.admin!.id, receipt.id);
+        if (!Number(claim.changes)) throw new Error('receipt_taken');
+      }
       return info.lastInsertRowid;
     });
-    const id = tx();
+    let id: any;
+    try {
+      id = tx();
+    } catch (e: any) {
+      if (String(e?.message) === 'receipt_taken') return reply.code(409).send({ error: 'already_approved' });
+      throw e;
+    }
+
+    // Chekda targ'ovchi xodimning raqami bo'lsa — do'kon o'shanga
+    // biriktiriladi. Faqat BIR MARTA: allaqachon biriktirilgan do'kon
+    // uchun mukofot qayta yozilmaydi (linkAgent ga qara).
+    let linked: { id: number; name: string } | null = null;
+    if (receipt?.agent_phone) {
+      const agent = agentByPhone(String(receipt.agent_phone));
+      if (agent && linkAgent(shop.id, agent.id)) {
+        linked = agent;
+        log(req.admin!.id, 'link_agent', `shop:${shop.id}`, `${agent.name} (${receipt.agent_phone})`);
+      }
+    }
+
     // Pul tushgan bo'lsa — to'xtab turgan xizmat darhol qayta ochiladi
     if (signed > 0) chargeShop(shop.id);
     log(req.admin!.id, 'add_payment', `shop:${shop.id}`, String(signed));
-    return db.prepare('SELECT * FROM balance_transactions WHERE id = ?').get(id);
+    const row = db.prepare('SELECT * FROM balance_transactions WHERE id = ?').get(id) as any;
+    return { ...row, agent_linked: linked };
   });
 
   // To'lovni o'chirish (xato kiritilgan bo'lsa) — balans qaytariladi
@@ -544,7 +613,13 @@ export function registerAdminRoutes(app: FastifyInstance) {
    */
   app.patch<{
     Params: { id: string };
-    Body: { daily_price?: number | null; balance?: number; charged_through?: string | null };
+    Body: {
+      daily_price?: number | null;
+      balance?: number;
+      charged_through?: string | null;
+      agent_id?: number | null;
+      agent_bonus?: number;
+    };
   }>('/admin/shops/:id/service', { preHandler: requireAdmin }, async (req, reply) => {
     const shop = db.prepare('SELECT * FROM shops WHERE id = ?').get(req.params.id) as any;
     if (!shop) return reply.code(404).send({ error: 'not_found' });
@@ -588,6 +663,33 @@ export function registerAdminRoutes(app: FastifyInstance) {
         ).run(shop.id, farq > 0 ? 'topup' : 'withdraw', farq, 'Admin balansni qo\'lda qo\'ydi', req.admin!.id);
         log(req.admin!.id, 'shop_balance_set', String(shop.id), `${shop.balance} -> ${want}`);
       }
+    }
+
+    // ── Targ'ovchi xodim. Chek orqali o'zi biriktiriladi, lekin
+    // do'konchi raqamni yozmagan yoki xato yozgan bo'lsa admin
+    // qo'lda qo'ya oladi. null — biriktirish bekor qilinadi.
+    if ('agent_id' in b) {
+      if (b.agent_id === null) {
+        db.prepare('UPDATE shops SET agent_id = NULL, agent_bonus = NULL, agent_linked_at = NULL WHERE id = ?').run(shop.id);
+        log(req.admin!.id, 'shop_agent', String(shop.id), 'olib tashlandi');
+      } else {
+        const agent = db
+          .prepare("SELECT id, name FROM admins WHERE id = ? AND role = 'agent'")
+          .get(Number(b.agent_id)) as any;
+        if (!agent) return reply.code(404).send({ error: 'agent_not_found' });
+        const bonus = b.agent_bonus === undefined ? (shop.agent_bonus ?? agentBonus()) : Math.round(Number(b.agent_bonus));
+        if (!Number.isFinite(bonus) || bonus < 0) return reply.code(400).send({ error: 'bonus_invalid' });
+        db.prepare(
+          "UPDATE shops SET agent_id = ?, agent_bonus = ?, agent_linked_at = COALESCE(agent_linked_at, datetime('now')) WHERE id = ?"
+        ).run(agent.id, bonus, shop.id);
+        log(req.admin!.id, 'shop_agent', String(shop.id), `${agent.name} (${bonus})`);
+      }
+    } else if (b.agent_bonus !== undefined && shop.agent_id) {
+      // Faqat mukofot o'zgartirilyapti
+      const bonus = Math.round(Number(b.agent_bonus));
+      if (!Number.isFinite(bonus) || bonus < 0) return reply.code(400).send({ error: 'bonus_invalid' });
+      db.prepare('UPDATE shops SET agent_bonus = ? WHERE id = ?').run(bonus, shop.id);
+      log(req.admin!.id, 'shop_bonus', String(shop.id), String(bonus));
     }
 
     return db.prepare('SELECT * FROM shops WHERE id = ?').get(shop.id);
@@ -784,7 +886,13 @@ export function registerAdminRoutes(app: FastifyInstance) {
 
   // Adminlar (faqat super-admin)
   app.get('/admin/admins', { preHandler: requireSuper }, async () => {
-    return db.prepare('SELECT id, username, name, role, is_active, last_login_at, created_at FROM admins').all();
+    // Targ'ovchi xodimlar bu ro'yxatga tushmaydi: ular "Xodimlar"
+    // bo'limida, o'z hisobi bilan turadi
+    return db
+      .prepare(
+        "SELECT id, username, name, role, is_active, last_login_at, created_at FROM admins WHERE role != 'agent'"
+      )
+      .all();
   });
 
   app.post<{ Body: { username: string; password: string; name?: string; role?: string } }>(

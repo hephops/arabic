@@ -12,10 +12,13 @@ import Settings from './pages/Settings';
 import Admins from './pages/Admins';
 import Logs from './pages/Logs';
 import Catalog from './pages/Catalog';
+import Agents from './pages/Agents';
+import Receipts from './pages/Receipts';
+import My from './pages/My';
 
 export type Page =
-  | 'dashboard' | 'shops' | 'payments' | 'catalog' | 'reminders'
-  | 'referrals' | 'settings' | 'admins' | 'logs';
+  | 'dashboard' | 'shops' | 'payments' | 'receipts' | 'catalog' | 'reminders'
+  | 'referrals' | 'agents' | 'settings' | 'admins' | 'logs' | 'my';
 
 interface NavItem {
   id: Page;
@@ -23,16 +26,22 @@ interface NavItem {
   glyph: string;
   sub: string;
   superOnly?: boolean;
+  /** faqat targ'ovchi xodimga ko'rinadi */
+  agentOnly?: boolean;
 }
 
 // Bo'limlar guruhlab beriladi — do'kon ilovasidagi yon menyu kabi
 const GROUPS: NavItem[][] = [
   [
+    // Targ'ovchi xodim uchun yagona bo'lim — o'z natijasi
+    { id: 'my', label: 'Mening natijam', glyph: 'chart', sub: "Ulagan do'konlarim va hisobim", agentOnly: true },
     { id: 'dashboard', label: 'Panel', glyph: 'chart', sub: 'Tizimning umumiy holati' },
     { id: 'shops', label: "Do'konlar", glyph: 'house', sub: "Ro'yxatdan o'tgan do'konlar" },
     { id: 'payments', label: 'Balans', glyph: 'banknote', sub: "To'lovlar, kirim va chiqim" },
+    { id: 'receipts', label: 'Cheklar', glyph: 'card', sub: "Do'konchilar yuborgan to'lov cheklari" },
   ],
   [
+    { id: 'agents', label: 'Xodimlar', glyph: 'employee', sub: "Targ'ovchi agentlar va ularning hisobi" },
     { id: 'catalog', label: 'Katalog', glyph: 'boxes', sub: "Markaziy tovarlar bazasi" },
     { id: 'reminders', label: 'Eslatmalar', glyph: 'calendar', sub: "SMS va qo'ng'iroqlar jurnali" },
     { id: 'referrals', label: 'Referallar', glyph: 'gift', sub: 'Taklif qilish natijalari' },
@@ -64,8 +73,16 @@ export default function App() {
   if (loading) return <div className="login-page" />;
   if (!admin) return <Login onLogin={setAdmin} />;
 
-  const visible = (n: NavItem) => !n.superOnly || admin.role === 'super';
-  const current = ALL.find((n) => n.id === page) ?? ALL[0];
+  // Targ'ovchi xodim panelning boshqa bo'limlarini KO'RMAYDI. Bu
+  // shunchaki menyuni yashirish emas: serverda ham o'sha yo'llar unga
+  // 403 qaytaradi (admin.ts, requireAdmin).
+  const isAgent = admin.role === 'agent';
+  const visible = (n: NavItem) =>
+    isAgent ? !!n.agentOnly : !n.agentOnly && (!n.superOnly || admin.role === 'super');
+  const shown = ALL.filter(visible);
+  // Ochilgan sahifa unga tegishli bo'lmasa — birinchisiga qaytamiz
+  const current = shown.find((n) => n.id === page) ?? shown[0];
+  const view = current.id;
 
   return (
     <div className="layout">
@@ -148,22 +165,27 @@ export default function App() {
               <AppIcon glyph="person" size={30} />
               <div>
                 <div className="nm">@{admin.username}</div>
-                <div className="rl">{admin.role === 'super' ? 'Super admin' : 'Admin'}</div>
+                <div className="rl">
+                  {admin.role === 'super' ? 'Super admin' : admin.role === 'agent' ? 'Xodim' : 'Admin'}
+                </div>
               </div>
             </div>
           </div>
         </div>
 
         <div className="page">
-          {page === 'dashboard' && <Dashboard onOpenShops={() => setPage('shops')} />}
-          {page === 'shops' && <Shops />}
-          {page === 'payments' && <Payments />}
-          {page === 'catalog' && <Catalog />}
-          {page === 'reminders' && <Reminders />}
-          {page === 'referrals' && <Referrals />}
-          {page === 'settings' && <Settings />}
-          {page === 'admins' && <Admins me={admin} />}
-          {page === 'logs' && <Logs />}
+          {view === 'my' && <My />}
+          {view === 'dashboard' && <Dashboard onOpenShops={() => setPage('shops')} />}
+          {view === 'shops' && <Shops />}
+          {view === 'payments' && <Payments />}
+          {view === 'receipts' && <Receipts />}
+          {view === 'agents' && <Agents me={admin} />}
+          {view === 'catalog' && <Catalog />}
+          {view === 'reminders' && <Reminders />}
+          {view === 'referrals' && <Referrals />}
+          {view === 'settings' && <Settings />}
+          {view === 'admins' && <Admins me={admin} />}
+          {view === 'logs' && <Logs />}
         </div>
       </main>
     </div>

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { api, fmt, fmtNum, fmtPhone, type Shop, type ShopDetail, type ShopsSummary } from '../api';
+import { api, fmt, fmtNum, fmtPhone, type Agent, type Shop, type ShopDetail, type ShopsSummary } from '../api';
 import { AppIcon, Glyph } from '../icons';
 
 const PAGE_SIZES = [10, 25, 50, 100];
@@ -275,12 +275,23 @@ function ShopModal({
   const [sBal, setSBal] = useState(String(shop.balance ?? 0));
   const [sPrice, setSPrice] = useState(shop.daily_price == null ? '' : String(shop.daily_price));
   const [sThrough, setSThrough] = useState(shop.charged_through ?? '');
+  // Targ'ovchi xodim: odatda chek orqali o'zi biriktiriladi, lekin
+  // do'konchi raqamni yozmagan yoki xato yozgan bo'lsa qo'lda qo'yiladi
+  const [sAgent, setSAgent] = useState<string>(shop.agent_id ? String(shop.agent_id) : '');
+  const [sBonus, setSBonus] = useState(shop.agent_bonus == null ? '' : String(shop.agent_bonus));
+  const [agents, setAgents] = useState<Agent[]>([]);
   const [savingSvc, setSavingSvc] = useState(false);
   const [svcErr, setSvcErr] = useState('');
   const svcChanged =
     Number(sBal || 0) !== Number(data.balance || 0) ||
     (sPrice === '' ? data.daily_price != null : Number(sPrice) !== Number(data.daily_price)) ||
-    (sThrough || '') !== (data.charged_through ?? '');
+    (sThrough || '') !== (data.charged_through ?? '') ||
+    (sAgent || '') !== (data.agent_id ? String(data.agent_id) : '') ||
+    (sAgent !== '' && sBonus !== '' && Number(sBonus) !== Number(data.agent_bonus ?? 0));
+
+  useEffect(() => {
+    api.agents().then((r) => setAgents(r.rows)).catch(() => {});
+  }, []);
 
   async function saveService() {
     setSavingSvc(true);
@@ -292,6 +303,8 @@ function ShopModal({
         balance: Number(sBal || 0),
         daily_price: sPrice === '' ? null : Number(sPrice),
         charged_through: sThrough || null,
+        agent_id: sAgent === '' ? null : Number(sAgent),
+        agent_bonus: sAgent !== '' && sBonus !== '' ? Number(sBonus) : undefined,
       });
       setMsg('Xizmat sozlamalari saqlandi');
       await reload();
@@ -459,6 +472,34 @@ function ShopModal({
               <label>Xizmat to'langan sana</label>
               <input type="date" value={sThrough} onChange={(e) => setSThrough(e.target.value)} />
               <div className="set-hint">Shu kungacha to'langan hisoblanadi</div>
+            </div>
+            <div className="set-field">
+              <label>Targ'ovchi xodim</label>
+              <select value={sAgent} onChange={(e) => setSAgent(e.target.value)}>
+                <option value="">— biriktirilmagan —</option>
+                {agents.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.name ?? a.username}
+                  </option>
+                ))}
+              </select>
+              <div className="set-hint">
+                {data.agent_linked_at
+                  ? `Biriktirilgan: ${String(data.agent_linked_at).slice(0, 10)}`
+                  : "Do'konchi chekda xodim raqamini yozsa o'zi biriktiriladi"}
+              </div>
+            </div>
+            <div className="set-field">
+              <label>Xodim mukofoti (so'm)</label>
+              <input
+                type="number"
+                min={0}
+                value={sBonus}
+                onChange={(e) => setSBonus(e.target.value)}
+                disabled={sAgent === ''}
+                placeholder="100000"
+              />
+              <div className="set-hint">Shu do'kon uchun xodimga yoziladigan summa</div>
             </div>
             <div className="set-field">
               <label>Hozirgi holat</label>

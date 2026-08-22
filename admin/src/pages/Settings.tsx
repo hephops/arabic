@@ -64,6 +64,14 @@ const GROUPS: Group[] = [
     sub: "Balansga QO'SHILADIGAN summalar",
     fields: [
       { key: 'referral_bonus', label: 'Taklif uchun bonus', money: true, hint: "Do'kon balansiga qo'shiladi" },
+      // Targ'ovchi xodimga har ulangan do'kon uchun. Bu do'kon
+      // balansiga tegmaydi — xodimga beriladigan pul.
+      {
+        key: 'agent_bonus',
+        label: "Xodim mukofoti (1 do'kon)",
+        money: true,
+        hint: "Targ'ovchi xodimga har ulangan do'kon uchun",
+      },
     ],
   },
   {

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { api, fmt, logout, Shop, BalanceInfo, Employee, EmployeeLogin, PermCatalog } from '../api';
+import { api, fmt, logout, BASE, Shop, BalanceInfo, Employee, EmployeeLogin, PermCatalog } from '../api';
 import { can, isOwner, type PermKey } from '../perms';
 import { AppIcon, Glyph } from '../icons';
 import { SubHeader, EmptyState } from '../ui';
@@ -7,6 +7,7 @@ import { useT, LANG_NAMES, group, type Lang } from '../i18n';
 import { formatCard, cardDigits, formatPhone, maskCard, formatAmount, amountValue, fmtDateTime, fmtDay, fmtWhen } from '../format';
 import { toast, loadFailed } from '../toast';
 import { scanSoundOn, setScanSound, beepOk, scanVibeOn, setScanVibe, vibrate } from '../beep';
+import { shrink } from '../photo';
 
 // iOS Sozlamalar uslubidagi kabinet: asosiy ekranda qatorlar,
 // har biri o'z ichki ekraniga ochiladi.
@@ -269,10 +270,49 @@ export default function Profile({
  * Shuning uchun ekranda ikkita raqam muhim: qancha pul qolgan va u
  * necha kunga yetadi. Qolgani — tarix.
  */
-function BalanceView({ balance, onBack }: { balance: BalanceInfo; onBack: () => void; reload: () => void }) {
+function BalanceView({ balance, onBack, reload }: { balance: BalanceInfo; onBack: () => void; reload: () => void }) {
   const [amount, setAmount] = useState('');
   const { t } = useT();
   const [support, setSupport] = useState<{ phone: string; telegram: string }>({ phone: '', telegram: '' });
+  // Chek yuborish oynasi. null — yopiq.
+  const [chek, setChek] = useState<{ amount: string; phone: string; note: string; image: string } | null>(null);
+  const [sending, setSending] = useState(false);
+
+  async function pickPhoto(f: File | undefined) {
+    if (!f) return;
+    try {
+      setChek((c) => (c ? { ...c, image: '' } : c));
+      const img = await shrink(f);
+      setChek((c) => (c ? { ...c, image: img } : c));
+    } catch {
+      toast.error(t('error'), t('receiptPhotoFail'));
+    }
+  }
+
+  async function sendChek() {
+    if (!chek) return;
+    const sum = amountValue(chek.amount);
+    if (sum <= 0) return toast.error(t('error'), t('receiptNeedAmount'));
+    if (!chek.image) return toast.error(t('error'), t('receiptNeedPhoto'));
+    setSending(true);
+    try {
+      const res = await api.sendPayReceipt({
+        amount: sum,
+        image: chek.image,
+        agent_phone: chek.phone.trim() || undefined,
+        note: chek.note.trim() || undefined,
+      });
+      setChek(null);
+      // Raqam kiritilgan bo'lsa, kimga tushgani darrov aytiladi —
+      // xato raqam yozilgan bo'lsa do'konchi shu yerda biladi
+      toast.success(t('receiptSent'), res.agent_name ? `${t('receiptAgent')}: ${res.agent_name}` : t('receiptWait'));
+      reload();
+    } catch (e: any) {
+      toast.error(t('error'), e.details?.message ?? e.message);
+    } finally {
+      setSending(false);
+    }
+  }
 
   useEffect(() => {
     api.support().then(setSupport).catch(() => {});
@@ -374,6 +414,15 @@ function BalanceView({ balance, onBack }: { balance: BalanceInfo; onBack: () => 
         </div>
 
         <p className="hint">{t('topupHowTo')}</p>
+
+        {/* Chek yuborish.
+            Payme/Click hali ulanmagan, ya'ni pul o'zi tushmaydi:
+            do'konchi kartaga o'tkazadi va chekning suratini shu yerdan
+            yuboradi. Admin panelda odam ko'rib tasdiqlaydi. */}
+        <button className="btn-primary" onClick={() => setChek({ amount, phone: '', note: '', image: '' })}>
+          <Glyph name="camera" size={17} color="#fff" /> {t('receiptSend')}
+        </button>
+
         {support.telegram && (
           <a
             className="btn-ghost"
@@ -384,6 +433,37 @@ function BalanceView({ balance, onBack }: { balance: BalanceInfo; onBack: () => 
           >
             <Glyph name="send" size={16} color="var(--accent)" /> {t('topupWriteUs')}
           </a>
+        )}
+
+        {balance.receipts?.length > 0 && (
+          <>
+            <div className="section-title">{t('receiptsTitle')}</div>
+            <div className="list-group">
+              {balance.receipts.map((r) => (
+                <div className="list-item" key={r.id}>
+                  <div className="lead">
+                    {r.image_url ? (
+                      <a href={`${BASE}${r.image_url}`} target="_blank" rel="noreferrer" className="chek-thumb">
+                        <img src={`${BASE}${r.image_url}`} alt="" />
+                      </a>
+                    ) : (
+                      <AppIcon glyph="banknote" size={29} />
+                    )}
+                    <div>
+                      <div className="name">{fmt(r.amount)}</div>
+                      <div className="sub">{fmtDateTime(r.created_at)}</div>
+                      {r.status === 'rejected' && r.review_note && (
+                        <div className="sub" style={{ color: 'var(--red)' }}>{r.review_note}</div>
+                      )}
+                    </div>
+                  </div>
+                  <span className={`badge ${r.status === 'approved' ? 'green' : r.status === 'rejected' ? 'red' : ''}`}>
+                    {r.status === 'approved' ? t('receiptOk') : r.status === 'rejected' ? t('receiptNo') : t('receiptNew')}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </>
         )}
 
         {balance.transactions.length > 0 && (
@@ -409,6 +489,70 @@ function BalanceView({ balance, onBack }: { balance: BalanceInfo; onBack: () => 
           </>
         )}
       </div>
+
+      {/* Chek yuborish oynasi */}
+      {chek && (
+        <div className="sheet-wrap" onClick={() => !sending && setChek(null)}>
+          <div className="sheet" onClick={(e) => e.stopPropagation()}>
+            <div className="sheet-grip" />
+            <div className="sheet-title">{t('receiptSend')}</div>
+            <p className="sheet-sub">{t('receiptHint')}</p>
+
+            <label className="chek-pick">
+              <input
+                type="file"
+                accept="image/*"
+                capture="environment"
+                style={{ display: 'none' }}
+                onChange={(e) => pickPhoto(e.target.files?.[0])}
+              />
+              {chek.image ? (
+                <img src={chek.image} alt="" className="chek-preview" />
+              ) : (
+                <span className="chek-empty">
+                  <Glyph name="camera" size={22} color="var(--accent)" />
+                  {t('receiptPhoto')}
+                </span>
+              )}
+            </label>
+
+            <div className="form-row">
+              <label>{t('receiptAmount')}</label>
+              <input
+                inputMode="numeric"
+                value={formatAmount(chek.amount)}
+                onChange={(e) => setChek({ ...chek, amount: e.target.value })}
+                placeholder="0"
+              />
+            </div>
+            <div className="form-row">
+              <label>{t('receiptAgentPhone')}</label>
+              <input
+                inputMode="tel"
+                value={chek.phone}
+                onChange={(e) => setChek({ ...chek, phone: e.target.value })}
+                placeholder="+998 90 123 45 67"
+              />
+            </div>
+            <p className="hint" style={{ marginTop: 0 }}>{t('receiptAgentHint')}</p>
+            <div className="form-row">
+              <label>{t('receiptNote')}</label>
+              <input
+                value={chek.note}
+                onChange={(e) => setChek({ ...chek, note: e.target.value })}
+                placeholder={t('optional')}
+              />
+            </div>
+
+            <button className="btn-primary" onClick={sendChek} disabled={sending}>
+              <Glyph name="send" size={16} color="#fff" /> {sending ? t('loading') : t('send')}
+            </button>
+            <button className="btn-ghost" onClick={() => setChek(null)} disabled={sending}>
+              {t('cancel')}
+            </button>
+          </div>
+        </div>
+      )}
     </>
   );
 }

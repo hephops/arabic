@@ -59,7 +59,13 @@ export const api = {
   /** Xizmat sozlamalari: kunlik narx, balans va to'langan sana */
   shopService: (
     id: number,
-    data: { daily_price?: number | null; balance?: number; charged_through?: string | null }
+    data: {
+      daily_price?: number | null;
+      balance?: number;
+      charged_through?: string | null;
+      agent_id?: number | null;
+      agent_bonus?: number;
+    }
   ) => request<Shop>(`/admin/shops/${id}/service`, { method: 'PATCH', body: JSON.stringify(data) }),
   /** Do'konni butunlay o'chirish. confirm — do'kon nomi aynan takrorlanishi shart */
   shopDelete: (id: number, confirm: string) =>
@@ -103,6 +109,25 @@ export const api = {
   updateAdmin: (id: number, data: { is_active?: boolean; password?: string }) =>
     request<Admin>(`/admin/admins/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   logs: () => request<AdminLog[]>('/admin/logs'),
+
+  /* ── Targ'ovchi xodimlar ── */
+  agents: () => request<{ bonus: number; rows: Agent[] }>('/admin/agents'),
+  agent: (id: number) => request<AgentDetail>(`/admin/agents/${id}`),
+  /** Panelga kirgan xodimning o'z sahifasi */
+  myAgent: () => request<AgentDetail & { bonus: number }>('/admin/my'),
+  createAgent: (data: { username: string; password: string; name: string; phone: string }) =>
+    request<Agent>('/admin/agents', { method: 'POST', body: JSON.stringify(data) }),
+  updateAgent: (id: number, data: { name?: string; phone?: string; password?: string; is_active?: boolean }) =>
+    request<Agent>(`/admin/agents/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteAgent: (id: number) => request<{ ok: true }>(`/admin/agents/${id}`, { method: 'DELETE' }),
+  addPayout: (id: number, data: { amount: number; note?: string; paid_at?: string }) =>
+    request<AgentPayout>(`/admin/agents/${id}/payouts`, { method: 'POST', body: JSON.stringify(data) }),
+  deletePayout: (id: number) => request<{ ok: true }>(`/admin/payouts/${id}`, { method: 'DELETE' }),
+
+  /* ── To'lov cheklari ── */
+  receipts: (status = 'new') => request<ReceiptsPage>(`/admin/receipts?status=${status}`),
+  rejectReceipt: (id: number, reason?: string) =>
+    request<{ ok: true }>(`/admin/receipts/${id}/reject`, { method: 'POST', body: JSON.stringify({ reason }) }),
   /** AI hisoboti. days = 0 bo'lsa butun vaqt bo'yicha */
   aiReport: (days: number) => request<AiReport>(`/admin/ai/report?days=${days}`),
 
@@ -146,7 +171,8 @@ export interface Admin {
   id: number;
   username: string;
   name: string | null;
-  role: 'admin' | 'super';
+  role: 'admin' | 'super' | 'agent';
+  phone?: string | null;
   is_active?: number;
   last_login_at?: string | null;
 }
@@ -238,6 +264,11 @@ export interface Shop {
   card_number?: string | null;
   address?: string | null;
   language?: string;
+  /** do'konni ulagan targ'ovchi xodim */
+  agent_id?: number | null;
+  agent_name?: string | null;
+  agent_bonus?: number | null;
+  agent_linked_at?: string | null;
 }
 
 export interface ShopDetail extends Shop {
@@ -321,6 +352,82 @@ export interface NewPayment {
   doc_no?: string;
   payer?: string;
   note?: string;
+  /** qaysi chek asosida — tasdiqlansa chek ham yopiladi */
+  receipt_id?: number;
+}
+
+/** Targ'ovchi xodim — do'konlarni dasturga ulaydi va har biri uchun mukofot oladi */
+export interface Agent {
+  id: number;
+  username: string;
+  name: string | null;
+  phone: string | null;
+  is_active: number;
+  last_login_at?: string | null;
+  created_at?: string;
+  /* ro'yxatda hisob ham qo'shib beriladi */
+  shops?: number;
+  earned?: number;
+  paid?: number;
+  left?: number;
+}
+
+export interface AgentStats {
+  /** nechta do'kon ulagan */
+  shops: number;
+  /** ulagani uchun jami qancha mukofot yozilgan */
+  earned: number;
+  /** shundan qanchasi berilgan */
+  paid: number;
+  /** qolgan qarzimiz */
+  left: number;
+}
+
+export interface AgentPayout {
+  id: number;
+  agent_id?: number;
+  amount: number;
+  note: string | null;
+  paid_at: string | null;
+  created_at: string;
+  by_username?: string | null;
+}
+
+export interface AgentDetail {
+  agent?: Agent;
+  me?: Agent;
+  stats: AgentStats;
+  shops: (Shop & { agent_bonus?: number | null; agent_linked_at?: string | null })[];
+  payouts: AgentPayout[];
+}
+
+/** Do'konchi yuborgan to'lov cheki */
+export interface Receipt {
+  id: number;
+  shop_id: number;
+  amount: number;
+  image_url: string | null;
+  agent_phone: string | null;
+  note: string | null;
+  review_note: string | null;
+  status: 'new' | 'approved' | 'rejected';
+  payment_id: number | null;
+  reviewed_username: string | null;
+  reviewed_at: string | null;
+  created_at: string;
+  shop_name: string;
+  shop_phone: string;
+  owner_name: string | null;
+  shop_balance: number;
+  shop_agent_id: number | null;
+  shop_agent_name: string | null;
+  /** chekdagi raqam qaysi xodimniki (tasdiqlashdan oldin ko'rinsin) */
+  agent_match: { id: number; name: string; username: string } | null;
+}
+
+export interface ReceiptsPage {
+  rows: Receipt[];
+  counts: { yangi: number; tasdiqlangan: number; rad: number; yangi_summa: number };
 }
 
 export interface ShopsSummary {

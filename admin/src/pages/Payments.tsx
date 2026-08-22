@@ -334,24 +334,39 @@ function Stat({ glyph, color, k, v }: { glyph: string; color: string; k: string;
 
 /* ───────── Qo'lda to'lov kiritish oynasi ───────── */
 
-function PaymentModal({
+/** Oyna to'ldirilgan holda ochilishi uchun (Cheklar bo'limidan) */
+export interface PaymentPreset {
+  shop_id?: number;
+  shop_name?: string;
+  amount?: number;
+  payer?: string;
+  note?: string;
+  method?: string;
+  paid_at?: string;
+  /** shu chek asosida — saqlanganda chek ham "tasdiqlangan" bo'ladi */
+  receipt_id?: number;
+}
+
+export function PaymentModal({
   shops,
+  preset,
   onClose,
   onSaved,
 }: {
   shops: Shop[];
+  preset?: PaymentPreset;
   onClose: () => void;
   onSaved: () => void;
 }) {
   const [direction, setDirection] = useState<'in' | 'out'>('in');
-  const [amount, setAmount] = useState('');
-  const [paidAt, setPaidAt] = useState(today());
-  const [method, setMethod] = useState('');
-  const [shopId, setShopId] = useState<number | null>(null);
-  const [shopQuery, setShopQuery] = useState('');
-  const [payer, setPayer] = useState('');
+  const [amount, setAmount] = useState(preset?.amount ? String(preset.amount) : '');
+  const [paidAt, setPaidAt] = useState(preset?.paid_at || today());
+  const [method, setMethod] = useState(preset?.method ?? '');
+  const [shopId, setShopId] = useState<number | null>(preset?.shop_id ?? null);
+  const [shopQuery, setShopQuery] = useState(preset?.shop_name ?? '');
+  const [payer, setPayer] = useState(preset?.payer ?? '');
   const [docNo, setDocNo] = useState('');
-  const [note, setNote] = useState('');
+  const [note, setNote] = useState(preset?.note ?? '');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [listOpen, setListOpen] = useState(false);
@@ -389,6 +404,7 @@ function PaymentModal({
         doc_no: docNo.trim() || undefined,
         payer: payer.trim() || undefined,
         note: note.trim() || undefined,
+        receipt_id: preset?.receipt_id,
       });
       onSaved();
     } catch (e: any) {
@@ -403,9 +419,13 @@ function PaymentModal({
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
           <AppIcon glyph="banknote" size={34} />
-          <div className="modal-title">Yangi to'lov</div>
+          <div className="modal-title">{preset?.receipt_id ? 'Chek bo\'yicha to\'lov' : "Yangi to'lov"}</div>
         </div>
-        <div className="modal-sub">Bank o'tkazmasi, naqd yoki boshqa to'lovni qo'lda kiritish</div>
+        <div className="modal-sub">
+          {preset?.receipt_id
+            ? "Do'konchi yuborgan chek. Summani tekshiring va saqlang — chek yopiladi."
+            : "Bank o'tkazmasi, naqd yoki boshqa to'lovni qo'lda kiritish"}
+        </div>
 
         <div className="modal-grid">
           <div>

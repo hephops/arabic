@@ -359,6 +359,13 @@ export const api = {
     ),
   /** Hali tasdiqlanmagan takliflar — ilova ochilganda kartalar joyiga qaytadi */
   aiIntakePending: () => request<AiPendingDraft[]>('/ai/intake/pending'),
+  /** To'lov cheki: kartaga o'tkazilgan pulning suratini yuborish.
+      Balansga o'zi tushmaydi — admin ko'rib tasdiqlaydi. */
+  sendPayReceipt: (body: { amount: number; image?: string; agent_phone?: string; note?: string }) =>
+    request<{ ok: true; id: number; agent_name: string | null }>('/balance/receipt', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
   aiIntakeCancel: (draft_id: number) =>
     request<{ ok: true }>('/ai/intake/cancel', { method: 'POST', body: JSON.stringify({ draft_id }) }),
   updateCustomer: (
@@ -453,9 +460,24 @@ export interface ServiceState {
   low: boolean;
 }
 
+/** Yuborilgan to'lov cheki */
+export interface Receipt {
+  id: number;
+  amount: number;
+  image_url: string | null;
+  agent_phone: string | null;
+  note: string | null;
+  /** admin nega rad etgani */
+  review_note: string | null;
+  status: 'new' | 'approved' | 'rejected';
+  created_at: string;
+}
+
 export interface BalanceInfo extends ServiceState {
   min_topup: number;
   transactions: { id: number; type: string; amount: number; note: string | null; created_at: string }[];
+  /** yuborilgan cheklar va ularning holati */
+  receipts: Receipt[];
   /** tez to'ldirish tugmalari: summa va u necha kunga yetishi */
   presets: { amount: number; days: number }[];
   /** pul o'tkaziladigan karta (admin panelda kiritiladi) */

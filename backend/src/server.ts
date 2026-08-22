@@ -2,6 +2,7 @@ import 'dotenv/config';
 import Fastify from 'fastify';
 import type { FastifyRequest } from 'fastify';
 import { mkdirSync, writeFileSync, existsSync, readFileSync } from 'node:fs';
+import { randomBytes } from 'node:crypto';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { db, markOverdueDebts } from './db.js';
@@ -16,10 +17,12 @@ import {
 } from './telegram.js';
 import { registerAdminRoutes, seedAdmin, requireAdmin } from './admin.js';
 import { registerCatalogRoutes } from './catalog.js';
+import { registerAgentRoutes } from './agents.js';
 import { registerAiRoutes, startAiCleanup } from './ai/routes.js';
 import { seedCatalog } from './catalogSeed.js';
 import { normalizeBarcode, barcodeVariants, checkGtin, makeInStoreEan13, parseScaleBarcode, makeScaleBarcode, scaleQty } from './barcodes.js';
 import { normalizePhone } from './phone.js';
+import { agentByPhone } from './agentcore.js';
 import { noteEmployeeLogin, notifyPinAttempts, recentLogins } from './staffAlert.js';
 import { addBatch, consume, restore, setTotal, batchesOf, syncProduct } from './batches.js';
 import { normalizeUnit, normalizePriceQty } from './units.js';
@@ -202,6 +205,7 @@ app.post<{ Body: { phone: string; pin: string } }>('/auth/employee', async (req,
 
 // ---------- ADMIN PANEL ----------
 registerAdminRoutes(app);
+registerAgentRoutes(app);
 
 // ---------- MARKAZIY KATALOG ----------
 registerCatalogRoutes(app, { requireAuth, uploadsDir: UPLOADS_DIR });
@@ -358,6 +362,14 @@ app.get('/balance', { preHandler: requireOwner }, async (req) => {
   return {
     ...serviceState(shop),
     transactions,
+    // Yuborilgan cheklar: do'konchi "kutilyapti / tasdiqlandi / rad
+    // etildi" holatini o'z ekranida ko'rib tursin
+    receipts: db
+      .prepare(
+        `SELECT id, amount, image_url, agent_phone, note, review_note, status, created_at
+           FROM payment_receipts WHERE shop_id = ? ORDER BY id DESC LIMIT 20`
+      )
+      .all(req.shopId),
     min_topup: Number(getSetting('min_topup_amount', '10000')),
     // Tez to'ldirish tugmalari: do'konchi summani terib o'tirmasin
     presets: topupPresets(),
@@ -379,8 +391,20 @@ function topupPresets(): { amount: number; days: number }[] {
   }));
 }
 
-// DEV: to'ldirish darhol o'tadi. PROD: Payme/Click/Uzum to'lov oqimi orqali.
+/**
+ * Balansni O'ZI to'ldirish — faqat ishlab chiqish/sinov uchun.
+ *
+ * Bu yo'l haqiqiy to'lov emas: hech qanday to'lov tizimi tekshirmaydi,
+ * shunchaki balansga son qo'shadi. Ochiq qolsa har bir do'kon egasi
+ * o'ziga cheksiz pul yozib olardi (ilovada tugmasi yo'q, lekin so'rovni
+ * qo'lda yuborish qiyin emas). Shuning uchun ALLOW_SELF_TOPUP=1
+ * qo'yilmagan bo'lsa umuman yo'q.
+ *
+ * Haqiqiy oqim: do'konchi kartaga o'tkazadi va chek yuboradi
+ * (/balance/receipt), admin panelda ko'rib tasdiqlaydi.
+ */
 app.post<{ Body: { amount: number } }>('/balance/topup', { preHandler: requireOwner }, async (req, reply) => {
+  if (process.env.ALLOW_SELF_TOPUP !== '1') return reply.code(404).send({ error: 'not_found' });
   const amount = Math.round(req.body.amount);
   if (!amount || amount <= 0) return reply.code(400).send({ error: 'amount_required' });
   const minTopup = Number(getSetting('min_topup_amount', '10000'));
@@ -397,6 +421,48 @@ app.post<{ Body: { amount: number } }>('/balance/topup', { preHandler: requireOw
   const shop = db.prepare('SELECT * FROM shops WHERE id = ?').get(req.shopId) as any;
   return serviceState(shop);
 });
+
+/**
+ * To'lov cheki: do'konchi kartaga pul o'tkazgach suratini yuboradi.
+ *
+ * Bu yerda balansga HECH NARSA qo'shilmaydi — faqat ariza qoldiriladi.
+ * Pulni admin panelda odam ko'rib tasdiqlaydi. Aks holda "chek
+ * yubordim" degan har kim balansini o'zi to'ldirib olardi.
+ */
+app.post<{ Body: { amount?: number; image?: string; agent_phone?: string; note?: string } }>(
+  '/balance/receipt',
+  { preHandler: requireOwner },
+  async (req, reply) => {
+    const amount = Math.round(Number(req.body?.amount) || 0);
+    if (amount <= 0) return reply.code(400).send({ error: 'amount_required' });
+
+    // Ko'rilmagan chek to'planib qolmasin: bittasi ko'rilmaguncha
+    // beshtadan ko'p yuborilmaydi
+    const pending = (db
+      .prepare("SELECT COUNT(*) AS c FROM payment_receipts WHERE shop_id = ? AND status = 'new'")
+      .get(req.shopId) as any).c;
+    if (pending >= 5) return reply.code(429).send({ error: 'too_many_pending' });
+
+    const url = req.body?.image ? saveUpload(String(req.body.image), 'chek') : null;
+    if (req.body?.image && !url) return reply.code(400).send({ error: 'invalid_image' });
+
+    const phone = String(req.body?.agent_phone ?? '').replace(/[^\d+]/g, '').slice(0, 20);
+    const info = db
+      .prepare(
+        'INSERT INTO payment_receipts (shop_id, amount, image_url, agent_phone, note) VALUES (?, ?, ?, ?, ?)'
+      )
+      .run(req.shopId, amount, url, phone || null, String(req.body?.note ?? '').trim().slice(0, 300) || null);
+
+    // Raqam kimnikiligini DARHOL aytamiz: do'konchi xato raqam yozgan
+    // bo'lsa shu yerda bilib, tuzatib yuboradi
+    const agent = phone ? agentByPhone(phone) : null;
+    return {
+      ok: true,
+      id: Number(info.lastInsertRowid),
+      agent_name: agent?.name ?? null,
+    };
+  }
+);
 
 // ---------- DASHBOARD ----------
 app.get('/dashboard', { preHandler: requireAuth }, async (req) => {
@@ -1552,6 +1618,25 @@ app.post<{ Body: { barcode?: string; name: string; unit?: string; price_qty?: nu
     return db.prepare('SELECT * FROM products WHERE id = ?').get(product.id);
   }
 );
+
+/**
+ * Ixtiyoriy suratni faylga saqlash (chek va shunga o'xshashlar).
+ *
+ * Nomi TASODIFIY: mahsulot rasmlaridagidek "chek-7.jpg" bo'lsa,
+ * raqamni birma-bir sinab boshqa do'konning chekini ochib ko'rish
+ * mumkin bo'lardi.
+ */
+function saveUpload(dataUrl: string, prefix: string): string | null {
+  const match = dataUrl.match(/^data:image\/(png|jpe?g|webp);base64,(.+)$/);
+  if (!match) return null;
+  const ext = match[1] === 'jpeg' ? 'jpg' : match[1];
+  const buf = Buffer.from(match[2], 'base64');
+  // 8 MB dan katta surat kutilmaydi — bodyLimit ham shuncha
+  if (!buf.length || buf.length > 8 * 1024 * 1024) return null;
+  const name = `${prefix}-${randomBytes(12).toString('hex')}.${ext}`;
+  writeFileSync(join(UPLOADS_DIR, name), buf);
+  return `/uploads/${name}`;
+}
 
 // Mahsulot rasmi: base64 dataURL qabul qilib, faylga saqlaymiz
 function saveImage(dataUrl: string, productId: number): string | null {
