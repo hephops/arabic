@@ -5,7 +5,21 @@
 // "шт" kabi ko'rinishlarni yuborishi mumkin. Bittasi ham o'tib ketsa,
 // hisobotlarda bir tovar ikki xil birlikda ko'rinadi.
 
-export const UNITS = ['dona', 'kg', 'gramm', 'litr', 'ml', 'metr'] as const;
+/**
+ * Birliklar ro'yxati.
+ *
+ * Qadoq birliklari (quti, qop, rulon...) ataylab bor: AI yordamchi
+ * nakladnoyni o'qiganda "10 qop un" deb qaytaradi va ilgari server uni
+ * JIMGINA 'dona' ga aylantirardi — do'konchi 10 qopni 10 dona deb
+ * ko'rardi. Endi ro'yxatda o'z o'rni bor.
+ *
+ * m2/m3/tonna qurilish do'koni uchun, juft/komplekt kiyim uchun.
+ * Qaysi birlik qaysi do'konda TANLASA BO'LADI — shopTypes.ts hal qiladi.
+ */
+export const UNITS = [
+  'dona', 'kg', 'gramm', 'litr', 'ml', 'metr',
+  'quti', 'qop', 'rulon', 'm2', 'm3', 'tonna', 'juft', 'komplekt',
+] as const;
 export type Unit = (typeof UNITS)[number];
 
 export function normalizeUnit(value: unknown): Unit {
@@ -17,11 +31,22 @@ export function normalizeUnit(value: unknown): Unit {
   if (['mililitr', 'мл', 'миллилитр'].includes(v)) return 'ml';
   if (['m', 'м', 'метр'].includes(v)) return 'metr';
   if (['ta', 'sht', 'шт', 'штук', 'штука'].includes(v)) return 'dona';
+  if (['korobka', 'upakovka', 'коробка', 'упаковка', 'yashik', 'ящик'].includes(v)) return 'quti';
+  if (['meshok', 'мешок', 'мешк'].includes(v)) return 'qop';
+  if (['рулон'].includes(v)) return 'rulon';
+  if (['m²', 'kv.m', 'кв.м', 'м2', 'м²'].includes(v)) return 'm2';
+  if (['m³', 'kub', 'куб', 'м3', 'м³'].includes(v)) return 'm3';
+  if (['t', 'т', 'тонна'].includes(v)) return 'tonna';
+  if (['para', 'пара', 'пар'].includes(v)) return 'juft';
+  if (['komplekt', 'комплект', 'nabor', 'набор'].includes(v)) return 'komplekt';
   return 'dona';
 }
 
-/** Donada kasr bo'lmaydi — yarim dona non yo'q */
-export const isFractional = (unit: string) => normalizeUnit(unit) !== 'dona';
+/** Kasrli miqdor mumkin bo'lgan birliklar: o'lchanadigan narsalar.
+ *  Qadoq va donada kasr bo'lmaydi — yarim quti, yarim juft yo'q. */
+const FRACTIONAL: readonly string[] = ['kg', 'gramm', 'litr', 'ml', 'metr', 'm2', 'm3', 'tonna'];
+
+export const isFractional = (unit: string) => FRACTIONAL.includes(normalizeUnit(unit));
 
 /**
  * Narx qaysi miqdorga aytilgani (price_qty) — ombor birligining ulushi.
@@ -37,11 +62,21 @@ export const isFractional = (unit: string) => normalizeUnit(unit) !== 'dona';
  */
 export const PRICE_BASES: Record<Unit, number[]> = {
   dona: [1],
-  metr: [1],
+  // Kabel, arqon, mato — narx ko'pincha 10 yoki 100 metrga aytiladi
+  metr: [1, 10, 100],
   kg: [1, 0.5, 0.25, 0.1],
   gramm: [1, 100, 500],
   litr: [1, 0.5, 0.25, 0.1],
   ml: [1, 100, 500],
+  // Qadoq birliklarida bo'linma yo'q: yarim quti narxi degani yo'q
+  quti: [1],
+  qop: [1],
+  rulon: [1],
+  m2: [1],
+  m3: [1],
+  tonna: [1],
+  juft: [1],
+  komplekt: [1],
 };
 
 /** Narx birligi musbat bo'lishi shart; ro'yxatdagi qiymatga tushsa aniq qo'yiladi */

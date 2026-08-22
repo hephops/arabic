@@ -22,11 +22,11 @@ import { registerAiRoutes, startAiCleanup } from './ai/routes.js';
 import { seedCatalog } from './catalogSeed.js';
 import { normalizeBarcode, barcodeVariants, checkGtin, makeInStoreEan13, parseScaleBarcode, makeScaleBarcode, scaleQty } from './barcodes.js';
 import { normalizePhone } from './phone.js';
-import { normalizeShopType, cleanGoldPrices, goldPrice, isGold } from './shopTypes.js';
+import { normalizeShopType, cleanGoldPrices, goldPrice, isGold, shopProfile } from './shopTypes.js';
 import { agentByPhone } from './agentcore.js';
 import { noteEmployeeLogin, notifyPinAttempts, recentLogins } from './staffAlert.js';
 import { addBatch, consume, restore, setTotal, batchesOf, syncProduct } from './batches.js';
-import { normalizeUnit, normalizePriceQty } from './units.js';
+import { normalizeUnit, normalizePriceQty, normalizeQty } from './units.js';
 import { chargeShop, chargeAllShops, serviceState, getSetting, dailyPrice, trialThrough } from './billing.js';
 import { issueCode, checkCode, clearCode } from './otp.js';
 import { dailyFigures, reportText, sendDailyReport, startDailyReportScheduler } from './dailyReport.js';
@@ -514,7 +514,9 @@ app.get('/dashboard', { preHandler: requireAuth }, async (req) => {
   const recentSales = db
     .prepare(
       `SELECT s.id, s.total, s.payment_type, s.created_at, c.name AS customer_name,
-              (SELECT GROUP_CONCAT(p.name || ' ×' || CAST(si.qty AS INTEGER), ', ')
+              (SELECT GROUP_CONCAT(p.name || ' ×' || CASE WHEN si.qty = CAST(si.qty AS INTEGER)
+                               THEN CAST(CAST(si.qty AS INTEGER) AS TEXT)
+                               ELSE CAST(si.qty AS TEXT) END, ', ')
                FROM sale_items si JOIN products p ON p.id = si.product_id
                WHERE si.sale_id = s.id) AS items
        FROM sales s LEFT JOIN customers c ON c.id = s.customer_id
@@ -1478,7 +1480,13 @@ app.get<{ Querystring: { code?: string } }>('/barcodes/lookup', { preHandler: re
 
   // Tarozi bosgan yorliqmi? Bo'lsa og'irlik/narx kodning ichida turadi —
   // tovarni PLU bo'yicha topamiz va miqdorni o'zimiz hisoblaymiz.
-  const scale = parseScaleBarcode(code);
+  //
+  // Tarozi YO'Q do'konda bu tekshiruv o'tkazib yuboriladi: 21/22 bilan
+  // boshlanadigan har qanday kod (zargarlik birkasi ham bo'lishi
+  // mumkin) "tarozi yorlig'i" deb o'qilib, sotuvchiga "PLU topilmadi"
+  // degan noto'g'ri xato chiqarardi.
+  const scaleShop = shopProfile(db.prepare('SELECT shop_type FROM shops WHERE id = ?').get(req.shopId) as any).scale;
+  const scale = scaleShop ? parseScaleBarcode(code) : null;
   if (scale) {
     const byPlu = db
       .prepare('SELECT * FROM products WHERE shop_id = ? AND plu = ?')
@@ -1549,9 +1557,17 @@ app.post<{
     if (!name?.trim()) return reply.code(400).send({ error: 'name_required' });
 
     // 1) kod bo'yicha, 2) nom bo'yicha qidiramiz — shunda bir tovar
-    // ikki marta yaratilib, qoldig'i ikkiga bo'linib ketmaydi
+    // ikki marta yaratilib, qoldig'i ikkiga bo'linib ketmaydi.
+    //
+    // LEKIN yakka buyumli do'konda (zargarlik, telefon) nom bo'yicha
+    // birlashtirish ZARAR: ikkita "Uzuk" — biri 4.6 g 585, ikkinchisi
+    // 3.1 g 750 — butunlay boshqa buyum. Bir kartochkaga qo'shilsa
+    // ikkinchisining probasi ham, massasi ham yo'qolardi. Shuning
+    // uchun bunday do'konda faqat KOD bo'yicha topiladi: bir birka
+    // bir buyum degani.
+    const unique = shopProfile(shopRow).unique;
     let product = (barcode ? findByBarcode(req.shopId, barcode) : undefined) as any;
-    if (!product) {
+    if (!product && !unique) {
       product = db
         .prepare('SELECT * FROM products WHERE shop_id = ? AND name = ? COLLATE NOCASE')
         .get(req.shopId, name.trim()) as any;
@@ -1559,7 +1575,7 @@ app.post<{
 
     // Katalogdan kelgan bo'lsa — o'sha yozuvga bog'langan tovarni ham
     // qidiramiz: do'konchi nomini o'zgartirgan bo'lsa ham topilsin
-    if (!product && catalogId) {
+    if (!product && catalogId && !unique) {
       product = db
         .prepare('SELECT * FROM products WHERE shop_id = ? AND catalog_id = ?')
         .get(req.shopId, catalogId) as any;
@@ -1572,15 +1588,20 @@ app.post<{
       if (!can(req, 'product_add')) {
         return reply.code(403).send({ error: 'no_permission', permission: 'product_add' });
       }
+      // "Kam qoldi" chegarasi do'kon turidan: zargarlik va telefon
+      // do'konida har buyum yakka (qoldiq 1-2), 5 chegara qo'yilsa
+      // butun ombor doim "kam qolgan" bo'lib turardi va ogohlantirish
+      // ma'nosini yo'qotardi.
+      const lowDefault = shopProfile(shopRow).lowStock;
       const info = db
         .prepare(
           `INSERT INTO products
-             (shop_id, barcode, name, unit, price_qty, cost_price, sell_price, stock, expiry_date, category, catalog_id, proba, weight_g, size, stone)
-           VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?)`
+             (shop_id, barcode, name, unit, price_qty, cost_price, sell_price, stock, low_stock_threshold, expiry_date, category, catalog_id, proba, weight_g, size, stone)
+           VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?)`
         )
         .run(
           req.shopId, barcode || null, name.trim(), unit, priceQty,
-          cost_price ?? 0, sell_price ?? 0, expiry_date ?? null, category?.trim() || null,
+          cost_price ?? 0, sell_price ?? 0, lowDefault, expiry_date ?? null, category?.trim() || null,
           catalogId, proba, weight, size, stone
         );
       product = db.prepare('SELECT * FROM products WHERE id = ?').get(info.lastInsertRowid);
@@ -1624,7 +1645,11 @@ app.post<{
         );
       }
     }
-    const addQty = qty ?? 0;
+    // Miqdor tovarning O'Z birligiga moslanadi: donada, qutida yoki
+    // juftda kasr bo'lmaydi (yarim quti degani yo'q), kilogrammda esa
+    // bo'ladi. Ilgari bu faqat ilovada tekshirilardi va "6.7 dona"
+    // yozuvi bazaga tushib ketishi mumkin edi.
+    const addQty = normalizeQty(Number(qty ?? 0), product?.unit ?? unit);
     if (addQty > 0) {
       // Narx birligi tovarning o'z birligiga qarab tekshiriladi: eski
       // tovarga kirim qilinsa uning ombor birligi o'zgarmaydi
@@ -1842,6 +1867,10 @@ app.post<{ Params: { id: string }; Body: { plu?: string } }>(
   '/products/:id/plu',
   { preHandler: requirePerm('product_edit') },
   async (req, reply) => {
+    // Tarozi yo'q do'konda (zargarlik, telefon, kiyim) PLU bermaymiz:
+    // ilovada tugmasi ham ko'rinmaydi, lekin so'rov qo'lda kelishi mumkin
+    const shopRow = db.prepare('SELECT shop_type FROM shops WHERE id = ?').get(req.shopId) as any;
+    if (!shopProfile(shopRow).scale) return reply.code(400).send({ error: 'no_scale' });
     const product = db
       .prepare('SELECT * FROM products WHERE id = ? AND shop_id = ?')
       .get(req.params.id, req.shopId) as any;
@@ -2233,7 +2262,9 @@ app.get<{ Querystring: { limit?: string; q?: string } }>('/sales', { preHandler:
   return db
     .prepare(
       `SELECT s.*, c.name AS customer_name, c.phone AS customer_phone,
-              (SELECT GROUP_CONCAT(p.name || ' ×' || CAST(si.qty AS INTEGER), ', ')
+              (SELECT GROUP_CONCAT(p.name || ' ×' || CASE WHEN si.qty = CAST(si.qty AS INTEGER)
+                               THEN CAST(CAST(si.qty AS INTEGER) AS TEXT)
+                               ELSE CAST(si.qty AS TEXT) END, ', ')
                FROM sale_items si JOIN products p ON p.id = si.product_id WHERE si.sale_id = s.id) AS items,
               (SELECT COALESCE(SUM(r.total), 0) FROM returns r WHERE r.sale_id = s.id) AS returned
        FROM sales s LEFT JOIN customers c ON c.id = s.customer_id
@@ -2860,7 +2891,9 @@ app.get<{ Querystring: { period?: string } }>('/reports/export', { preHandler: r
     .prepare(
       `SELECT s.created_at AS sana, s.total AS summa, s.payment_type AS tolov,
               COALESCE(c.name, '') AS mijoz,
-              (SELECT GROUP_CONCAT(p.name || ' x' || CAST(si.qty AS INTEGER), '; ')
+              (SELECT GROUP_CONCAT(p.name || ' x' || CASE WHEN si.qty = CAST(si.qty AS INTEGER)
+                               THEN CAST(CAST(si.qty AS INTEGER) AS TEXT)
+                               ELSE CAST(si.qty AS TEXT) END, '; ')
                FROM sale_items si JOIN products p ON p.id = si.product_id WHERE si.sale_id = s.id) AS mahsulotlar
        FROM sales s LEFT JOIN customers c ON c.id = s.customer_id
        WHERE s.shop_id = ? AND s.created_at >= ?

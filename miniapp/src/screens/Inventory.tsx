@@ -14,7 +14,12 @@ import {
 } from '../units';
 import { ean13Svg, isEan13, scaleBarcode } from '../ean13';
 import { scanFail } from '../beep';
-import { goldShop, goldPrice, goldLine, shopInfo, PROBAS } from '../shopTypes';
+import { goldShop, goldPrice, goldLine, shopInfo, profile, PROBAS } from '../shopTypes';
+
+/** Shu tovar uchun "kam qoldi" chegarasi: o'zinikini bo'lsa o'shanisi,
+ *  bo'lmasa do'kon turining standarti (oltin/telefonda 0-1, oziqda 5) */
+const lowLimit = (p: { low_stock_threshold?: number | null }) =>
+  p.low_stock_threshold ?? profile().lowStock;
 
 // Ombor: mahsulotlar ro'yxati, tahrirlash va inventarizatsiya
 
@@ -70,7 +75,10 @@ export default function Inventory({ onBack }: { onBack: () => void }) {
   const filtered = products.filter((p) => {
     if (query && !p.name.toLowerCase().includes(query.toLowerCase())) return false;
     if (category && p.category !== category) return false;
-    if (filter === 'low') return p.stock <= 5;
+    // Tovarning O'Z chegarasi bo'yicha. Ilgari hamma joyda qat'iy 5
+    // turardi: zargarlik va telefon do'konida har buyum yakka (qoldiq
+    // 1-2) va BUTUN ombor doim "kam qolgan" bo'lib yonib turardi.
+    if (filter === 'low') return p.stock <= lowLimit(p);
     if (filter === 'expiry') return p.expiry_date !== null && daysTo(p.expiry_date) <= 7;
     return true;
   });
@@ -107,13 +115,16 @@ export default function Inventory({ onBack }: { onBack: () => void }) {
           </div>
         </div>
 
+        {/* "Srogi yaqin" filtri faqat srogi bor do'konda. Zargarlik yoki
+            telefon do'konida u doim bo'sh natija berardi — ekranning
+            uchdan biri o'lik turardi. */}
         <Segmented
           value={filter}
           onChange={setFilter}
           items={[
             { id: 'all', label: t('filterAll') },
             { id: 'low', label: t('filterLow') },
-            { id: 'expiry', label: t('filterExpiry') },
+            ...(profile().expiry ? [{ id: 'expiry' as const, label: t('filterExpiry') }] : []),
           ]}
         />
 
@@ -158,7 +169,7 @@ export default function Inventory({ onBack }: { onBack: () => void }) {
                       ) : (
                         priceLabel(p.sell_price, p.unit, p.price_qty)
                       )}
-                      {expDays !== null && (
+                      {expDays !== null && profile().expiry && (
                         <span style={{ color: expDays < 0 ? 'var(--red)' : expDays <= 7 ? 'var(--yellow)' : undefined }}>
                           {' '}
                           · {t('expiry')}: {expDays < 0 ? `${-expDays} ${t('daysPassed')}` : `${expDays} ${t('daysLeft')}`}
@@ -170,7 +181,7 @@ export default function Inventory({ onBack }: { onBack: () => void }) {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <span
                     className="amount"
-                    style={{ color: p.stock < 0 ? 'var(--red)' : p.stock <= 5 ? 'var(--yellow)' : undefined }}
+                    style={{ color: p.stock < 0 ? 'var(--red)' : p.stock <= lowLimit(p) ? 'var(--yellow)' : undefined }}
                   >
                     {qtyWithUnit(p.stock, p.unit)}
                   </span>
@@ -222,7 +233,7 @@ function ProductEdit({ product, onBack, onSaved }: { product: Product; onBack: (
     cost_price: String(priceForBasis(product.cost_price, basisOf(product.unit, product.price_qty).qty)),
     sell_price: String(priceForBasis(product.sell_price, basisOf(product.unit, product.price_qty).qty)),
     stock: String(product.stock),
-    low_stock_threshold: String(product.low_stock_threshold ?? 5),
+    low_stock_threshold: String(product.low_stock_threshold ?? profile().lowStock),
     // Birlikni keyin ham o'zgartirish mumkin: do'konchi "dona" deb
     // kiritib qo'yib, keyin bu tovar kilogrammda ekanini eslashi mumkin
     unit: normalizeUnit(product.unit),
@@ -231,6 +242,13 @@ function ProductEdit({ product, onBack, onSaved }: { product: Product; onBack: (
   const [supplierId, setSupplierId] = useState<string>(product.supplier_id ? String(product.supplier_id) : '');
   // Zargarlik buyumi — yorliqdagi to'rt qator
   const gold = goldShop();
+  const prof = profile();
+  // Tovarning O'Z birligi ro'yxatda bo'lmasa ham qoladi: do'kon turi
+  // keyin o'zgargan bo'lishi mumkin, eski tovarni ochib bo'lmay
+  // qolmasin
+  const unitList = prof.units.includes(normalizeUnit(product.unit))
+    ? prof.units
+    : [...prof.units, normalizeUnit(product.unit)];
   const [proba, setProba] = useState(product.proba ?? '585');
   const [weight, setWeight] = useState(product.weight_g != null ? String(product.weight_g) : '');
   const [size, setSize] = useState(product.size ?? '');
@@ -359,7 +377,7 @@ function ProductEdit({ product, onBack, onSaved }: { product: Product; onBack: (
       unit: form.unit,
       price_qty: basis.qty,
       stock: parseQty(form.stock, form.unit),
-      low_stock_threshold: parseQty(form.low_stock_threshold, form.unit) || 5,
+      low_stock_threshold: parseQty(form.low_stock_threshold, form.unit) || profile().lowStock,
       supplier_id: supplierId ? Number(supplierId) : null,
       discount_percent: discount,
       image: image ?? undefined,
@@ -465,7 +483,12 @@ function ProductEdit({ product, onBack, onSaved }: { product: Product; onBack: (
             Pomidor, go'sht, guruch kabi og'irlikda sotiladigan tovarlar
             uchun. Do'konchi bu raqamni tarozisiga kiritadi; shundan
             keyin tarozi bosgan yorliq kassada o'zi tanilib, og'irligi
-            bilan savatga tushadi — sotuvchi hech narsa yozmaydi. */}
+            bilan savatga tushadi — sotuvchi hech narsa yozmaydi.
+
+            Faqat tarozi ishlatadigan do'konda ko'rinadi: zargar uzuk
+            kartochkasida "tarozi raqami yasash" tugmasini ko'rmasin. */}
+        {prof.scale && (
+        <>
         <div className="section-title">{t('scaleTitle')}</div>
         {plu ? (
           <>
@@ -497,6 +520,8 @@ function ProductEdit({ product, onBack, onSaved }: { product: Product; onBack: (
             </button>
             <p className="field-note">{t('scaleWhy')}</p>
           </>
+        )}
+        </>
         )}
 
         {scanning && (
@@ -553,11 +578,11 @@ function ProductEdit({ product, onBack, onSaved }: { product: Product; onBack: (
             shunga qarab o'zgaradi ("Sotuv narxi (100 g)") */}
         <label>{t('unitLabel')}</label>
         <div className="chip-row">
-          {STOCK_UNITS.map((u) => (
+          {unitList.map((u) => (
             <button
               key={u}
               className={`chip ${form.unit === u ? 'on' : ''}`}
-              onClick={() => { if (u !== form.unit) pickBasis(priceBases(u)[0], u); }}
+              onClick={() => { if (u !== form.unit) pickBasis(priceBases(u)[0], normalizeUnit(u)); }}
             >
               {t(`unit_${u}`)}
             </button>
@@ -679,7 +704,10 @@ function ProductEdit({ product, onBack, onSaved }: { product: Product; onBack: (
         {/* Srok endi partiyaga tegishli: bir tovar ikki marta kelsa
             har birining o'z muddati bo'ladi. Ilgari yangi kirim
             eskisining srogini o'chirib yuborardi. */}
-        <Batches product={product} />
+        {/* Partiyalar — bir tovar bir necha marta kelganda. Yakka
+            buyumli do'konda (zargarlik, telefon) har buyum bir marta
+            keladi, ya'ni bu blok doim bitta qatordan iborat bo'lardi. */}
+        {!prof.unique && <Batches product={product} />}
 
         {/* Ta'minotchi — "Buyurtma" bo'limi shu bo'yicha guruhlaydi,
             shunda har bir ta'minotchiga alohida ro'yxat tayyorlanadi */}
@@ -846,6 +874,9 @@ function Batches({ product }: { product: Product }) {
   const [rows, setRows] = useState<Batch[] | null>(null);
   const [editing, setEditing] = useState<number | null>(null);
   const { t } = useT();
+  // Srogi yo'q do'konda partiya faqat "qachon va qancha keldi" —
+  // "Sroksiz" degan bo'sh ustun ko'rsatilmaydi
+  const withExpiry = profile().expiry;
 
   const load = () => api.productBatches(product.id!).then(setRows).catch(() => setRows([]));
   useEffect(() => {
@@ -867,16 +898,21 @@ function Batches({ product }: { product: Product }) {
               const color = days === null ? 'var(--muted)' : days < 0 ? 'var(--red)' : days <= 7 ? 'var(--yellow)' : 'var(--green)';
               return (
                 <div key={b.id}>
-                  <div className="batch-row" onClick={() => setEditing(editing === b.id ? null : b.id)}>
+                  <div
+                    className="batch-row"
+                    onClick={() => withExpiry && setEditing(editing === b.id ? null : b.id)}
+                  >
                     <div style={{ minWidth: 0 }}>
                       <div className="batch-qty">{qtyWithUnit(b.qty_left, product.unit)}</div>
                       <div className="batch-when">{fmtDay(b.created_at)} {t('batchCame')}</div>
                     </div>
-                    <div className="batch-exp" style={{ color }}>
-                      {b.expiry_date ? fmtDay(b.expiry_date) : t('batchNoExpiry')}
-                    </div>
+                    {withExpiry && (
+                      <div className="batch-exp" style={{ color }}>
+                        {b.expiry_date ? fmtDay(b.expiry_date) : t('batchNoExpiry')}
+                      </div>
+                    )}
                   </div>
-                  {editing === b.id && (
+                  {editing === b.id && withExpiry && (
                     <div style={{ padding: '0 13px 11px' }}>
                       <DateField
                         value={b.expiry_date ?? ''}
@@ -892,7 +928,9 @@ function Batches({ product }: { product: Product }) {
               );
             })}
           </div>
-          <p className="hint">{t('batchesHint')}</p>
+          {/* "Srogi erta tugaydigani birinchi sotiladi" — srok yo'q
+              do'konda bu va'da yolg'on bo'lardi */}
+          {withExpiry && <p className="hint">{t('batchesHint')}</p>}
         </>
       )}
     </>

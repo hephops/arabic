@@ -165,8 +165,9 @@ Kod va srok haqida:
 - Ikkalasi ham yo'q bo'lsa bo'sh qoldir — o'zingdan to'qima.
 
 Birlik va narx haqida:
-- Birlik: dona, kg, litr, quti, qop. Do'konchi "10 qop un" desa
-  birlik qop, miqdor 10.
+- Birlik: dona, kg, gramm, litr, ml, metr, quti, qop, rulon, m2, m3,
+  tonna, juft, komplekt. Do'konchi "10 qop un" desa birlik qop,
+  miqdor 10. Ro'yxatdan tashqari so'z yozma — u "dona" bo'lib qoladi.
 - Narx doim BIR BIRLIK uchun. "5 ta 100 ming" desa — bittasi 20 ming.
 - Kirim narxi (nechaga oldingiz) va sotuv narxi (nechaga sotasiz) —
   ikki xil narsa. Ikkalasini ham so'ra.

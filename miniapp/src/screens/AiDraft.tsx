@@ -4,10 +4,11 @@ import { Glyph } from '../icons';
 import { useT } from '../i18n';
 import { toast } from '../toast';
 import { haptic } from '../telegram';
-import { qtyText } from '../units';
+import { qtyText, normalizeUnit } from '../units';
 import { formatAmount, amountValue } from '../format';
 import { DateField } from '../ui';
 import Scanner from '../Scanner';
+import { profile } from '../shopTypes';
 
 // Rasmdan o'qilgan kirim taklifi.
 //
@@ -52,6 +53,10 @@ export default function AiDraft({
   onDone: (text: string) => void;
 }) {
   const { t } = useT();
+  // Ro'yxatda do'kon turining birliklari + taklifda uchragan boshqasi
+  const unitList = Array.from(
+    new Set([...profile().units, ...items.map((x) => normalizeUnit(x.birlik)).filter(Boolean)])
+  );
   const [rows, setRows] = useState<Row[]>(items);
   const [busy, setBusy] = useState(false);
   const [closed, setClosed] = useState<'done' | 'cancelled' | null>(null);
@@ -341,7 +346,10 @@ export default function AiDraft({
                   <span>{t('draftUnit')}</span>
                   <select className="birlik" value={r.birlik || ''} onChange={(e) => set(i, { birlik: e.target.value })}>
                     <option value="">—</option>
-                    {['dona', 'kg', 'litr', 'quti', 'qop', 'metr'].map((u) => (
+                    {/* Birliklar do'kon turidan: qurilishda qop va m²,
+                        zargarlikda gramm. Ilgari ro'yxat qat'iy edi va
+                        u yerdagi "quti"/"qop" serverga yetib bormasdi. */}
+                    {unitList.map((u) => (
                       <option key={u} value={u}>{u}</option>
                     ))}
                   </select>
@@ -428,10 +436,14 @@ export default function AiDraft({
                     </div>
                   )}
                 </label>
-                <label className="wide">
-                  <span>{t('expiry')} · {t('optional')}</span>
-                  <DateField value={r.srok || ''} onChange={(v) => set(i, { srok: v })} ariaLabel={t('expiry')} />
-                </label>
+                {/* Srok faqat srogi bor do'konda: zargarlik yoki telefon
+                    kartasida bu maydon bo'sh joy egallardi */}
+                {profile().expiry && (
+                  <label className="wide">
+                    <span>{t('expiry')} · {t('optional')}</span>
+                    <DateField value={r.srok || ''} onChange={(v) => set(i, { srok: v })} ariaLabel={t('expiry')} />
+                  </label>
+                )}
               </div>
             )}
           </div>

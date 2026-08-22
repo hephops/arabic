@@ -18,7 +18,7 @@ import { TrustWarning } from '../trust';
 import { GoalStrip } from '../goal';
 import { VoiceCartSheet } from '../voiceCart';
 import { priceAfter } from '../discount';
-import { goldShop, goldPrice, goldPrices, goldLine, shopInfo, PROBAS } from '../shopTypes';
+import { goldShop, goldPrice, goldPrices, goldLine, shopInfo, profile, PROBAS } from '../shopTypes';
 import { scanFail } from '../beep';
 import {
   STOCK_UNITS, isFractional, parseQty, qtyText, qtyWithUnit,
@@ -836,11 +836,13 @@ function IntakeMode({
   const [name, setName] = useState('');
   const [costPrice, setCostPrice] = useState('');
   const [sellPrice, setSellPrice] = useState('');
-  const [qty, setQty] = useState('');
+  // Yakka buyumli do'konda (zargarlik, telefon) miqdor deyarli har
+  // doim 1 — har safar qo'lda yozib o'tirmasin
+  const [qty, setQty] = useState(() => (profile().unique ? '1' : ''));
   // OMBOR birligi: tovar qanday kelgan va qanday hisobga olinadi.
   // Sabzi, semichka, go'sht — kilogrammda; ilgari hammasi "dona" bo'lib
   // qolardi va omborda "1.5 dona sabzi" kabi ma'nosiz yozuv chiqardi.
-  const [unit, setUnit] = useState<string>('dona');
+  const [unit, setUnit] = useState<string>(() => profile().units[0] ?? 'dona');
   // NARX birligi: narx qaysi miqdorga aytilgan. Bular ikki xil narsa —
   // "10 kg keldi, 100 grami 15 ming" degan gap eng oddiy holat. Ilgari
   // bittasi ikkinchisini ergashtirib ketardi va grammni tanlagan
@@ -860,6 +862,10 @@ function IntakeMode({
   // Zargarlik buyumi — yorliqdagi to'rt qator (Проба, Размер, Масса,
   // Вставка). Faqat oltin do'konida ko'rinadi.
   const gold = goldShop();
+  // Do'kon turi ekranni yig'adi: qaysi birliklar, srok kerakmi,
+  // har buyum yakkami. Bir joyda — shopTypes.ts dagi jadval.
+  const prof = profile();
+  const units = prof.units;
   const [proba, setProba] = useState('585');
   const [weight, setWeight] = useState('');
   const [size, setSize] = useState('');
@@ -1021,7 +1027,7 @@ function IntakeMode({
       // Birlik va narx asosi saqlanib qoladi: do'konchi odatda bir
       // turdagi tovarni ketma-ket kiritadi (bir necha xil sabzavot,
       // keyin ichimliklar)
-      setBarcode(''); setName(''); setCostPrice(''); setSellPrice(''); setTotalDraft(null); setQty(''); setExpiry(''); setImage(null); setFromCat(null);
+      setBarcode(''); setName(''); setCostPrice(''); setSellPrice(''); setTotalDraft(null); setQty(prof.unique ? '1' : ''); setExpiry(''); setImage(null); setFromCat(null);
       // Buyum maydonlari ham bo'shaydi: har bir zargarlik buyumi o'ziga
       // xos, oldingisining massasi yangisiga o'tib qolmasin
       setWeight(''); setSize(''); setStone('');
@@ -1250,16 +1256,21 @@ function IntakeMode({
           birligi). Semichka 10 kg kelib, 100 grami 15 000 bo'lishi —
           eng oddiy holat, ilgari buni kiritib bo'lmasdi. */}
       <div className="form-group">
-        <div className="unit-row">
-          <span className="unit-cap">{t('unitLabel')}</span>
-          <div className="unit-chips">
-            {STOCK_UNITS.map((u) => (
-              <button key={u} className={`chip sm ${unit === u ? 'on' : ''}`} onClick={() => pickUnit(u)}>
-                {t(`unit_${u}`)}
-              </button>
-            ))}
+        {/* Birlik tanlovi faqat TANLASH KERAK bo'lganda ko'rinadi.
+            Telefon do'konida hammasi donada — bitta tugmani ko'rsatib
+            turish ortiqcha. */}
+        {units.length > 1 && (
+          <div className="unit-row">
+            <span className="unit-cap">{t('unitLabel')}</span>
+            <div className="unit-chips">
+              {units.map((u) => (
+                <button key={u} className={`chip sm ${unit === u ? 'on' : ''}`} onClick={() => pickUnit(u)}>
+                  {t(`unit_${u}`)}
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
         <div className="row-2">
           <div className="form-row">
@@ -1271,12 +1282,16 @@ function IntakeMode({
               placeholder={isFractional(unit) ? '10' : '24'}
             />
           </div>
-          <div className="form-row">
-            <label>
-              {t('expiry')} <span className="tag">{t('optional')}</span>
-            </label>
-            <DateField value={expiry} onChange={setExpiry} ariaLabel={t('expiry')} />
-          </div>
+          {/* Srok faqat srogi bor tovarlarda: uzukning ham, telefonning
+              ham yaroqlilik muddati yo'q */}
+          {prof.expiry && (
+            <div className="form-row">
+              <label>
+                {t('expiry')} <span className="tag">{t('optional')}</span>
+              </label>
+              <DateField value={expiry} onChange={setExpiry} ariaLabel={t('expiry')} />
+            </div>
+          )}
         </div>
 
         {/* Narx qaysi miqdorga — faqat tanlov bo'lganda ko'rinadi.

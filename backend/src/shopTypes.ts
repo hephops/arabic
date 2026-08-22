@@ -28,6 +28,59 @@ export function normalizeShopType(raw: unknown): ShopType {
 export const isGold = (shop: { shop_type?: string | null } | null | undefined): boolean =>
   String(shop?.shop_type ?? '') === 'oltin';
 
+/* ─────────── Tur profili ───────────
+ *
+ * Ilova do'kon turiga QANDAY moslashishi — hammasi shu jadvalda.
+ * Ilgari har joyda alohida shart yozilardi va bittasi unutilib
+ * qolardi; endi bitta manba bor, ilova ham shuni /me orqali oladi.
+ */
+export interface ShopProfile {
+  /** Ombor birligi sifatida tanlanadigan ro'yxat */
+  units: string[];
+  /** Srok (yaroqlilik muddati) maydoni kerakmi */
+  expiry: boolean;
+  /** Tarozi raqami (PLU) kerakmi */
+  scale: boolean;
+  /** Har buyum o'ziga xosmi (uzuk, telefon) — bir nom bilan
+   *  birlashtirilmaydi, aks holda ikkinchisining ma'lumoti yo'qoladi */
+  unique: boolean;
+  /** "Kam qoldi" chegarasining standarti */
+  lowStock: number;
+}
+
+const P = (units: string[], o: Partial<ShopProfile> = {}): ShopProfile => ({
+  units,
+  expiry: false,
+  scale: false,
+  unique: false,
+  lowStock: 5,
+  ...o,
+});
+
+export const SHOP_PROFILES: Record<ShopType, ShopProfile> = {
+  // Oziq-ovqat — ilovaning asosiy holati: srok ham, tarozi ham bor
+  // 'metr' ham qoladi: hamma eski do'kon shu turda va ularda
+  // metrda yuritiladigan tovar bo'lishi mumkin
+  oziq: P(['dona', 'kg', 'litr', 'metr', 'quti', 'qop'], { expiry: true, scale: true }),
+  // Atir-upa: flakon donalab, "razliv" millilitrda. Srogi bor.
+  parfumeriya: P(['dona', 'ml', 'quti'], { expiry: true, lowStock: 3 }),
+  xoztovar: P(['dona', 'kg', 'litr', 'metr', 'quti', 'komplekt']),
+  // Har telefon yakka buyum: IMEI'si, rangi, xotirasi boshqa
+  telefon: P(['dona', 'komplekt'], { unique: true, lowStock: 1 }),
+  // Zargarlik: buyum donalab yuritiladi, lom esa grammda
+  oltin: P(['dona', 'gramm'], { unique: true, lowStock: 0 }),
+  kiyim: P(['dona', 'juft', 'komplekt', 'metr'], { lowStock: 2 }),
+  qurilish: P(['dona', 'kg', 'tonna', 'metr', 'm2', 'm3', 'qop', 'rulon', 'quti', 'litr']),
+  // Dorixonada srok eng muhimi
+  dorixona: P(['dona', 'quti'], { expiry: true }),
+  boshqa: P(['dona', 'kg', 'litr', 'metr', 'quti'], { expiry: true }),
+};
+
+export function shopProfile(shop: { shop_type?: string | null } | string | null | undefined): ShopProfile {
+  const type = typeof shop === 'string' ? shop : shop?.shop_type;
+  return SHOP_PROFILES[normalizeShopType(type)];
+}
+
 /* ─────────── Zargarlik: gramm narxi ─────────── */
 
 /** Standart probalar. Ro'yxat qat'iy emas — do'konchi o'ziniki qo'shsa

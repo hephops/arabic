@@ -9,8 +9,14 @@
 // "килограмм", uchinchisida "kilo" paydo bo'lardi va hisobot buzilardi.
 
 import { translate, fmt } from './i18n';
+import { profile } from './shopTypes';
 
-export const UNITS = ['dona', 'kg', 'gramm', 'litr', 'ml', 'metr'] as const;
+export const UNITS = [
+  'dona', 'kg', 'gramm', 'litr', 'ml', 'metr',
+  // Qadoq va o'lchov birliklari: quti/qop oziq-ovqatda, m2/m3/tonna
+  // qurilishda, juft/komplekt kiyimda ishlatiladi
+  'quti', 'qop', 'rulon', 'm2', 'm3', 'tonna', 'juft', 'komplekt',
+] as const;
 export type Unit = (typeof UNITS)[number];
 
 /**
@@ -21,11 +27,26 @@ export type Unit = (typeof UNITS)[number];
  */
 export const STOCK_UNITS = ['dona', 'kg', 'litr', 'metr'] as const;
 
+/**
+ * Shu do'kon turida tanlanadigan ombor birliklari.
+ *
+ * Zargarlikda kg yoki litr bo'lmaydi, qurilishda esa m2 va tonna
+ * kerak — ro'yxat hamma uchun bir xil bo'lsa, do'konchi keraksiz
+ * tugmalar orasidan o'zinikini qidiradi yoki umuman topmaydi.
+ */
+export function stockUnits(type?: string | null): string[] {
+  return profile(type).units;
+}
+
 /** Birlik nomi tanlangan tilda: 'kg' -> "кг" */
 export const unitName = (unit: string | null | undefined) => translate(`unit_${normalizeUnit(unit)}`);
 
-/** Kasrli miqdor mumkinmi. Donada yo'q — yarim dona non bo'lmaydi. */
-export const isFractional = (unit: string | null | undefined) => (unit ?? 'dona') !== 'dona';
+const FRACTIONAL: readonly string[] = ['kg', 'gramm', 'litr', 'ml', 'metr', 'm2', 'm3', 'tonna'];
+
+/** Kasrli miqdor mumkinmi. Donada ham, qadoqda ham yo'q: yarim quti
+ *  yoki yarim juft degani yo'q. Birlik avval normallashtiriladi —
+ *  eski yozuvdan "шт" kelsa "dona" deb tushunilsin. */
+export const isFractional = (unit: string | null | undefined) => FRACTIONAL.includes(normalizeUnit(unit));
 
 /** Notanish yoki bo'sh birlikni xavfsiz qiymatga keltiradi */
 export function normalizeUnit(value: string | null | undefined): Unit {
@@ -37,6 +58,14 @@ export function normalizeUnit(value: string | null | undefined): Unit {
   if (['l', 'litre', 'liter', 'л', 'литр'].includes(v)) return 'litr';
   if (['mililitr', 'мл', 'миллилитр'].includes(v)) return 'ml';
   if (['m', 'м', 'метр'].includes(v)) return 'metr';
+  if (['korobka', 'upakovka', 'коробка', 'упаковка', 'yashik', 'ящик'].includes(v)) return 'quti';
+  if (['meshok', 'мешок'].includes(v)) return 'qop';
+  if (['рулон'].includes(v)) return 'rulon';
+  if (['m²', 'м2', 'м²'].includes(v)) return 'm2';
+  if (['m³', 'м3', 'м³'].includes(v)) return 'm3';
+  if (['t', 'т', 'тонна'].includes(v)) return 'tonna';
+  if (['para', 'пара'].includes(v)) return 'juft';
+  if (['комплект', 'nabor', 'набор'].includes(v)) return 'komplekt';
   return 'dona';
 }
 
@@ -52,7 +81,7 @@ export function qtyText(qty: number): string {
 
 /** Miqdor va birlik birga: "1.5 kg" */
 export const qtyWithUnit = (qty: number, unit: string | null | undefined) =>
-  `${qtyText(qty)} ${normalizeUnit(unit)}`;
+  `${qtyText(qty)} ${unitName(unit)}`;
 
 // ---------- NARX QAYSI MIQDORGA ----------
 //
@@ -105,6 +134,13 @@ export function priceBases(unit: string | null | undefined): PriceBasis[] {
       { qty: 100, n: 100, unit: 'ml' },
       { qty: 500, n: 500, unit: 'ml' },
     ];
+  // Kabel, arqon, mato — narx 10 yoki 100 metrga aytilishi mumkin
+  if (u === 'metr')
+    return [
+      { qty: 1, n: 1, unit: 'metr' },
+      { qty: 10, n: 10, unit: 'metr' },
+      { qty: 100, n: 100, unit: 'metr' },
+    ];
   return ONE(u);
 }
 
@@ -139,7 +175,10 @@ export function priceParts(
   priceQty: number | null | undefined
 ): { value: number; per: string | null } {
   const b = basisOf(unit, priceQty);
-  const plain = normalizeUnit(unit) === 'dona' && b.qty === 1;
+  // Tanlov bo'lmagan birlikda asosni yozish ortiqcha: "5 000 / 1 quti"
+  // emas, shunchaki "5 000". Kilogrammda esa "/ 1 kg" kerak — u yerda
+  // narx 100 g uchun ham bo'lishi mumkin edi.
+  const plain = b.qty === 1 && priceBases(unit).length === 1;
   return { value: priceForBasis(unitPrice, b.qty), per: plain ? null : basisText(b) };
 }
 

@@ -50,7 +50,9 @@ export function purchasesText(customerId: number): string {
   const sales = db
     .prepare(
       `SELECT s.id, s.total, s.created_at, s.payment_type,
-              (SELECT GROUP_CONCAT(p.name || ' ×' || CAST(si.qty AS INTEGER), ', ')
+              (SELECT GROUP_CONCAT(p.name || ' ×' || CASE WHEN si.qty = CAST(si.qty AS INTEGER)
+                               THEN CAST(CAST(si.qty AS INTEGER) AS TEXT)
+                               ELSE CAST(si.qty AS TEXT) END, ', ')
                FROM sale_items si JOIN products p ON p.id = si.product_id WHERE si.sale_id = s.id) AS items
        FROM sales s WHERE s.customer_id = ? ORDER BY s.created_at DESC LIMIT 10`
     )

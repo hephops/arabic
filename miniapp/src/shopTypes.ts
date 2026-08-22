@@ -42,6 +42,48 @@ export const goldShop = (): boolean => isGold(CURRENT);
 export const isGold = (shop: { shop_type?: string | null } | null | undefined): boolean =>
   String(shop?.shop_type ?? '') === 'oltin';
 
+/* ─────────── Tur profili ───────────
+ *
+ * Serverdagi backend/src/shopTypes.ts bilan BIR XIL bo'lishi shart.
+ * Ilova ekranni shunga qarab yig'adi, server esa xuddi shu jadval
+ * bo'yicha tekshiradi — ikkovi ajralib qolsa, do'konchi ekranda
+ * ko'rgan narsa saqlanmay qoladi. */
+export interface ShopProfile {
+  units: string[];
+  expiry: boolean;
+  scale: boolean;
+  unique: boolean;
+  lowStock: number;
+}
+
+const P = (units: string[], o: Partial<ShopProfile> = {}): ShopProfile => ({
+  units,
+  expiry: false,
+  scale: false,
+  unique: false,
+  lowStock: 5,
+  ...o,
+});
+
+export const SHOP_PROFILES: Record<string, ShopProfile> = {
+  // 'metr' ham qoladi: hamma eski do'kon shu turda va ularda
+  // metrda yuritiladigan tovar bo'lishi mumkin
+  oziq: P(['dona', 'kg', 'litr', 'metr', 'quti', 'qop'], { expiry: true, scale: true }),
+  parfumeriya: P(['dona', 'ml', 'quti'], { expiry: true, lowStock: 3 }),
+  xoztovar: P(['dona', 'kg', 'litr', 'metr', 'quti', 'komplekt']),
+  telefon: P(['dona', 'komplekt'], { unique: true, lowStock: 1 }),
+  oltin: P(['dona', 'gramm'], { unique: true, lowStock: 0 }),
+  kiyim: P(['dona', 'juft', 'komplekt', 'metr'], { lowStock: 2 }),
+  qurilish: P(['dona', 'kg', 'tonna', 'metr', 'm2', 'm3', 'qop', 'rulon', 'quti', 'litr']),
+  dorixona: P(['dona', 'quti'], { expiry: true }),
+  boshqa: P(['dona', 'kg', 'litr', 'metr', 'quti'], { expiry: true }),
+};
+
+/** Joriy do'konning profili (tur noma'lum bo'lsa — oziq-ovqat) */
+export function profile(type?: string | null): ShopProfile {
+  return SHOP_PROFILES[String(type ?? CURRENT?.shop_type ?? 'oziq')] ?? SHOP_PROFILES.oziq;
+}
+
 /** Yorliqda uchraydigan probalar (tugma bo'lib chiqadi) */
 export const PROBAS = ['375', '585', '750', '916', '925', '999'];
 
@@ -79,13 +121,27 @@ export function goldPrice(
   return Math.round(w * gram);
 }
 
-/** "585 · 4.6 g" — ro'yxatlarda buyum tagida turadigan satr */
+/** "585 · 4.6 g · №18" — ro'yxatlarda buyum tagida turadigan satr.
+ *
+ *  Bir xil nomli o'nta uzukni faqat shu satr ajratadi, shuning uchun
+ *  do'konchi kiritgan hamma belgi (vstavka ham) shu yerga chiqadi. */
 export function goldLine(p: {
   proba?: string | null;
   weight_g?: number | null;
   size?: string | null;
+  stone?: string | null;
 }): string {
-  return [p.proba || '', p.weight_g ? `${p.weight_g} g` : '', p.size ? `№${p.size}` : '']
+  const clean = (v?: string | null) => {
+    const s = String(v ?? '').trim();
+    // "-" — do'konchi "yo'q" degani, uni ko'rsatish shovqin
+    return s && s !== '-' && s !== '—' ? s : '';
+  };
+  return [
+    clean(p.proba),
+    p.weight_g ? `${p.weight_g} g` : '',
+    clean(p.size) ? `№${clean(p.size)}` : '',
+    clean(p.stone),
+  ]
     .filter(Boolean)
     .join(' · ');
 }
