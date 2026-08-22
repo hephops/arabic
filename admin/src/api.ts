@@ -100,6 +100,9 @@ export const api = {
       body: '{}',
     }),
   settings: () => request<Record<string, string>>('/admin/settings'),
+  /** Qaysi turlar bor va qaysi sozlamani tur uchun alohida qo'yish mumkin */
+  settingsMeta: () =>
+    request<{ types: string[]; type_keys: string[]; defaults: Record<string, string> }>('/admin/settings/meta'),
   saveSettings: (data: Record<string, string>) =>
     request<Record<string, string>>('/admin/settings', { method: 'PATCH', body: JSON.stringify(data) }),
   referrals: () => request<{ code: string; invited: number; inviter: string | null }[]>('/admin/referrals'),

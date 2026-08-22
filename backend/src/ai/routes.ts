@@ -83,7 +83,10 @@ export function registerAiRoutes(app: FastifyInstance, opts: { requireAi: Guard;
   /** Holat: yoqilganmi, bugun nechta savol qolgan */
   app.get('/ai/status', { preHandler: opts.requireAi }, async (req) => {
     const s = spend(req.shopId!);
-    const limit = dailyLimit();
+    // Chegara va narx do'kon turiga qarab boshqacha bo'lishi mumkin —
+    // ekranda ham, yechishda ham AYNI raqam ko'rinsin
+    const stype = (db.prepare('SELECT shop_type FROM shops WHERE id = ?').get(req.shopId) as any)?.shop_type ?? null;
+    const limit = dailyLimit(stype);
     return {
       enabled: aiEnabled(),
       model: aiModel(),
@@ -93,7 +96,7 @@ export function registerAiRoutes(app: FastifyInstance, opts: { requireAi: Guard;
       // Bitta savol qancha turadi (0 — bepul). Ilova buni oldindan
       // ko'rsatadi: do'konchi bilib tursin, keyin "pulim qayoqqa
       // ketdi" degan savol tug'ilmasin.
-      price: questionPrice(),
+      price: questionPrice(stype),
     };
   });
 

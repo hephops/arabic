@@ -156,6 +156,9 @@ for (const sql of [
   'ALTER TABLE products ADD COLUMN weight_g REAL',
   'ALTER TABLE products ADD COLUMN size TEXT',
   'ALTER TABLE products ADD COLUMN stone TEXT',
+  // Taklif bonusi qachon to'langani. Bo'sh — hali to'lanmagan.
+  // Ustun bo'lmasa bonus har to'ldirishda qayta yozilib ketardi.
+  'ALTER TABLE shops ADD COLUMN referral_paid_at TEXT',
 ]) {
   try {
     db.exec(sql);

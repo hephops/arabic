@@ -19,7 +19,7 @@
 // Modelni almashtirmoqchi bo'lsangiz admin panel > Sozlamalar, yoki
 // .env orqali: AI_MODEL=claude-sonnet-5
 
-import { getSetting } from '../billing.js';
+import { getSetting, typeSetting } from '../billing.js';
 
 /** Kundalik savollar uchun */
 export const MODEL = process.env.AI_MODEL || 'claude-haiku-4-5';
@@ -109,8 +109,8 @@ export function model(): string {
  * o'zi qo'yadi: 0 (bepul), 100, 1000 — nima desa o'sha.
  * Admin panel > Sozlamalar dan belgilanadi.
  */
-export function questionPrice(): number {
-  const raw = getSetting('ai_question_price', '').trim();
+export function questionPrice(type?: string | null): number {
+  const raw = typeSetting(type, 'ai_question_price', '').trim();
   if (!raw) return 0;
   const n = Number(raw);
   return Number.isFinite(n) && n >= 0 ? Math.round(n) : 0;
@@ -124,8 +124,8 @@ export function questionPrice(): number {
  * to'ldirilmagan bo'lsa chegara jimgina olib tashlanardi va bitta
  * do'kon kuniga yuzlab savol berib pul yeyishi mumkin edi.
  */
-export function dailyLimit(): number {
-  const raw = getSetting('ai_daily_limit', '').trim();
+export function dailyLimit(type?: string | null): number {
+  const raw = typeSetting(type, 'ai_daily_limit', '').trim();
   if (!raw) return DAILY_LIMIT;
   const n = Number(raw);
   return Number.isFinite(n) && n >= 0 ? Math.round(n) : DAILY_LIMIT;

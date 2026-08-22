@@ -4,8 +4,20 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { db } from './db.js';
 import { rateState } from './ai/ratelimit.js';
 import { uzDayShift, uzToday } from './tz.js';
-import { dailyPrice, lowBalanceDays, serviceState, chargeShop, setSetting } from './billing.js';
+import {
+  dailyPrice,
+  lowBalanceDays,
+  serviceState,
+  chargeShop,
+  setSetting,
+  typeSetting,
+  parseTypeKey,
+  TYPE_SETTING_KEYS,
+  SETTING_DEFAULTS,
+  settingDefault,
+} from './billing.js';
 import { agentByPhone, linkAgent, agentBonus } from './agentcore.js';
+import { SHOP_TYPES } from './shopTypes.js';
 
 // Admin panel: alohida autentifikatsiya (login + parol) va boshqaruv API'si.
 // Do'konchi tokeni bilan admin API'ga kirib bo'lmaydi — token turi ajratilgan.
@@ -493,6 +505,47 @@ export function registerAdminRoutes(app: FastifyInstance) {
   });
 
   // Qo'lda to'lov kiritish (bank o'tkazmasi, naqd va h.k.)
+  /**
+   * Taklif qilgan do'konga bonus yozish.
+   *
+   * Faqat bir marta va faqat taklif qilingan do'kon haqiqiy pul
+   * to'lagandan keyin. Summa taklif QILINGAN do'kon turiga qarab
+   * olinadi: zargarlik do'konini olib kelish qimmatroq baholanishi
+   * mumkin.
+   *
+   * Bonus yozilmaydigan holatlar (jimgina o'tkazib yuboriladi):
+   *   - taklif kodi yo'q yoki noto'g'ri
+   *   - taklif qilgan do'kon o'chirilgan
+   *   - o'zini o'zi taklif qilgan
+   *   - sozlamada bonus 0
+   */
+  function payReferral(shop: any): { inviter_id: number; amount: number } | null {
+    if (!shop?.referred_by || shop.referral_paid_at) return null;
+    const m = /^ARABIC(\d+)$/.exec(String(shop.referred_by).trim().toUpperCase());
+    if (!m) return null;
+    const inviterId = Number(m[1]);
+    if (!inviterId || inviterId === shop.id) return null;
+    const inviter = db.prepare('SELECT id FROM shops WHERE id = ?').get(inviterId) as any;
+    if (!inviter) return null;
+    const amount = Math.round(Number(typeSetting(shop.shop_type, 'referral_bonus', settingDefault('referral_bonus'))));
+    if (!Number.isFinite(amount) || amount <= 0) {
+      // Bonus o'chirilgan bo'lsa ham do'kon "to'landi" deb belgilanadi:
+      // keyin sozlama yoqilganda eski do'konlarga birdan pul yozilmasin
+      db.prepare("UPDATE shops SET referral_paid_at = datetime('now') WHERE id = ?").run(shop.id);
+      return null;
+    }
+    db.transaction(() => {
+      db.prepare('UPDATE shops SET balance = balance + ? WHERE id = ?').run(amount, inviterId);
+      db.prepare(
+        "INSERT INTO balance_transactions (shop_id, type, amount, note) VALUES (?, 'referral', ?, ?)"
+      ).run(inviterId, amount, `Taklif bonusi — ${shop.name ?? "do'kon"} #${shop.id}`);
+      db.prepare("UPDATE shops SET referral_paid_at = datetime('now') WHERE id = ?").run(shop.id);
+    })();
+    // Bonus tushgach taklif qilgan do'konning xizmati ham yangilanadi
+    chargeShop(inviterId);
+    return { inviter_id: inviterId, amount };
+  }
+
   app.post<{
     Body: {
       shop_id: number;
@@ -578,11 +631,21 @@ export function registerAdminRoutes(app: FastifyInstance) {
       }
     }
 
+    // Taklif bonusi. Sozlamada 'referral_bonus' turgan, admin panelda
+    // ko'rinardi — lekin uni HECH KIM to'lamasdi: taklif qilgan
+    // do'konchi hech qachon pul olmagan.
+    //
+    // Bonus ro'yxatdan o'tishda emas, BIRINCHI HAQIQIY to'lovda
+    // beriladi: aks holda bir kishi o'nta soxta do'kon ochib, o'ziga
+    // pul yozib olardi. Bir do'kon uchun bir marta (referral_paid_at).
+    const referral = signed > 0 ? payReferral(shop) : null;
+
     // Pul tushgan bo'lsa — to'xtab turgan xizmat darhol qayta ochiladi
     if (signed > 0) chargeShop(shop.id);
     log(req.admin!.id, 'add_payment', `shop:${shop.id}`, String(signed));
     const row = db.prepare('SELECT * FROM balance_transactions WHERE id = ?').get(id) as any;
-    return { ...row, agent_linked: linked };
+    if (referral) log(req.admin!.id, 'referral_bonus', `shop:${referral.inviter_id}`, String(referral.amount));
+    return { ...row, agent_linked: linked, referral };
   });
 
   // To'lovni o'chirish (xato kiritilgan bo'lsa) — balans qaytariladi
@@ -677,7 +740,8 @@ export function registerAdminRoutes(app: FastifyInstance) {
           .prepare("SELECT id, name FROM admins WHERE id = ? AND role = 'agent'")
           .get(Number(b.agent_id)) as any;
         if (!agent) return reply.code(404).send({ error: 'agent_not_found' });
-        const bonus = b.agent_bonus === undefined ? (shop.agent_bonus ?? agentBonus()) : Math.round(Number(b.agent_bonus));
+        const bonus =
+          b.agent_bonus === undefined ? (shop.agent_bonus ?? agentBonus(shop.shop_type)) : Math.round(Number(b.agent_bonus));
         if (!Number.isFinite(bonus) || bonus < 0) return reply.code(400).send({ error: 'bonus_invalid' });
         db.prepare(
           "UPDATE shops SET agent_id = ?, agent_bonus = ?, agent_linked_at = COALESCE(agent_linked_at, datetime('now')) WHERE id = ?"
@@ -856,7 +920,32 @@ export function registerAdminRoutes(app: FastifyInstance) {
 
   app.get('/admin/settings', { preHandler: requireAdmin }, async () => publicSettings());
 
-  app.patch<{ Body: Record<string, string> }>('/admin/settings', { preHandler: requireAdmin }, async (req) => {
+  /**
+   * Sozlamalar haqida ma'lumot: qaysi do'kon turlari bor va ulardan
+   * qaysi sozlamani ALOHIDA qo'yish mumkin.
+   *
+   * Ro'yxat serverdan olinadi — admin panelga qo'lda ko'chirilsa,
+   * server yangi tur qo'shganda panel eskisini ko'rsatib turardi.
+   */
+  app.get('/admin/settings/meta', { preHandler: requireAdmin }, async () => ({
+    types: SHOP_TYPES,
+    type_keys: TYPE_SETTING_KEYS,
+    // Sozlama umuman qo'yilmagan bo'lsa ishlaydigan qiymatlar — panel
+    // bo'sh maydonni "—" emas, haqiqatda ishlayotgan raqam bilan
+    // ko'rsatsin
+    defaults: SETTING_DEFAULTS,
+  }));
+
+  app.patch<{ Body: Record<string, string> }>('/admin/settings', { preHandler: requireAdmin }, async (req, reply) => {
+    // Tur uchun qo'yiladigan ustama sozlama kaliti to'g'ri yozilganmi.
+    // Xato yozilsa (masalan 't_oltinn_daily_price') hech qanday xato
+    // chiqmasdan jimgina saqlanib ketardi va admin "nega ishlamayapti"
+    // deb o'tirardi — shuning uchun oldindan rad etamiz.
+    for (const key of Object.keys(req.body ?? {})) {
+      if (key.startsWith('t_') && !parseTypeKey(key)) {
+        return reply.code(400).send({ error: 'bad_setting_key', key });
+      }
+    }
     for (const [key, value] of Object.entries(req.body ?? {})) {
       const secret = SECRET_SETTINGS.has(key);
       const clean = String(value).trim();

@@ -1,19 +1,8 @@
 import { useEffect, useState } from 'react';
 import { api, fmt, fmtNum, fmtPhone, type Agent, type Shop, type ShopDetail, type ShopsSummary } from '../api';
 import { AppIcon, Glyph } from '../icons';
+import { SHOP_TYPE_LABEL } from '../shopTypes';
 
-// Do'kon turlari — ilovadagi ro'yxat bilan bir xil (miniapp/shopTypes.ts)
-const SHOP_TYPE_LABEL: Record<string, string> = {
-  oziq: '🛒 Oziq-ovqat',
-  parfumeriya: '🧴 Parfumeriya',
-  xoztovar: '🧹 Xo\'jalik',
-  telefon: '📱 Telefon',
-  oltin: '💍 Zargarlik',
-  kiyim: '👕 Kiyim',
-  qurilish: '🧱 Qurilish',
-  dorixona: '💊 Dorixona',
-  boshqa: '🏪 Boshqa',
-};
 
 const PAGE_SIZES = [10, 25, 50, 100];
 

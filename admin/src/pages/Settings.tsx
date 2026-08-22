@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, fmt, fmtNum, type AdminAiStatus } from '../api';
 import AnnounceModal, { parseAnnounce, type AnnounceCfg } from './Announce';
+import { SHOP_TYPES, typeKey } from '../shopTypes';
 
 type Field = {
   key: string;
@@ -34,6 +35,14 @@ const GROUPS: Group[] = [
       { key: 'ai_question_price', label: 'AI: bitta savol', money: true, hint: "Har savolda yechiladi. 0 — bepul, kunlik haqqa kiradi" },
       { key: 'sms_price', label: '1 ta SMS', money: true, hint: 'Mijozga eslatma yuborilganda' },
       { key: 'call_price', label: "1 ta AI qo'ng'iroq", money: true, hint: "Qarzdorga qo'ng'iroq qilinganda" },
+      // Chegara ham shu yerda: AI bilan bog'liq raqamlar bir joyda
+      // tursin, ilgari u faqat AI panelida edi va tur tanlanganda
+      // umuman ko'rinmasdi
+      {
+        key: 'ai_daily_limit',
+        label: 'AI: kuniga savol chegarasi',
+        hint: "Bitta do'kon uchun. 0 — cheksiz (tavsiya etilmaydi)",
+      },
     ],
   },
   {
@@ -85,6 +94,34 @@ const GROUPS: Group[] = [
   },
 ];
 
+/** Server javob bermasa ishlaydigan zaxira ro'yxat.
+ *  backend/src/billing.ts:TYPE_SETTING_KEYS bilan bir xil. */
+const DEFAULT_TYPE_KEYS = [
+  'daily_price',
+  'ai_question_price',
+  'ai_daily_limit',
+  'sms_price',
+  'call_price',
+  'trial_days',
+  'low_balance_days',
+  'block_on_empty',
+  'min_topup_amount',
+  'referral_bonus',
+  'agent_bonus',
+];
+
+/* ─────────── Har tur uchun alohida sozlama ───────────
+ *
+ * Umumiy sozlama hamma do'konga tegishli. Lekin zargarlik do'koni
+ * bilan non do'koni bir xil pul to'lashi shart emas — shuning uchun
+ * tepadagi tugmalardan turni tanlab, o'sha tur uchun boshqa raqam
+ * qo'yish mumkin.
+ *
+ * Maydon BO'SH qoldirilsa "ustama yo'q" degani: o'sha tur umumiy
+ * qiymat bilan ishlaydi. Nol esa haqiqiy nol — "bu turdan pul
+ * olinmaydi".
+ */
+
 export default function Settings() {
   const [ai, setAi] = useState<AdminAiStatus | null>(null);
   const [testing, setTesting] = useState(false);
@@ -95,18 +132,61 @@ export default function Settings() {
   const [msg, setMsg] = useState('');
   const [err, setErr] = useState('');
   const [saving, setSaving] = useState(false);
+  /** '' — umumiy sozlama, aks holda tanlangan do'kon turi */
+  const [stype, setStype] = useState('');
+  /** Qaysi sozlamani tur uchun alohida qo'yish mumkin.
+   *  Serverdan olinadi; so'rov muvaffaqiyatsiz bo'lsa quyidagi
+   *  zaxira ro'yxat ishlaydi — aks holda tur tanlangan holda yozilgan
+   *  qiymat jimgina UMUMIY sozlamaga tushib ketardi. */
+  const [typeKeys, setTypeKeys] = useState<string[]>(DEFAULT_TYPE_KEYS);
+  /** Sozlama umuman qo'yilmagan bo'lsa ishlaydigan qiymatlar (serverdan) */
+  const [defs, setDefs] = useState<Record<string, string>>({});
 
   useEffect(() => {
     api.settings().then(setData).catch((e) => setErr(e.message));
     api.aiStatus().then(setAi).catch(() => {});
+    // Ro'yxat serverdan olinadi: panelga qo'lda ko'chirilsa, server
+    // yangi sozlama qo'shganda panel eskisini ko'rsatib turardi
+    api.settingsMeta()
+      .then((m) => {
+        setTypeKeys(m.type_keys?.length ? m.type_keys : DEFAULT_TYPE_KEYS);
+        setDefs(m.defaults ?? {});
+      })
+      .catch(() => {});
   }, []);
 
-  const value = (k: string) => dirty[k] ?? data[k] ?? '';
+  /** Turga alohida qo'yish mumkin bo'lgan sozlamami */
+  const perType = (k: string) => typeKeys.includes(k);
+  /** Tanlangan turdagi to'liq kalit: 'daily_price' -> 't_oltin_daily_price'.
+   *  Turga bo'linmaydigan sozlama (karta raqami, AI kaliti) har doim
+   *  umumiy bo'lib qoladi. */
+  const full = (k: string) => (stype && perType(k) ? typeKey(stype, k) : k);
+
+  const value = (k: string) => dirty[full(k)] ?? data[full(k)] ?? '';
+  /** Umumiy qiymat — tur tanlanganda "ustama qo'yilmasa shu ishlaydi".
+   *
+   *  Umumiy sozlama ham qo'yilmagan bo'lsa serverning standart qiymati
+   *  ko'rsatiladi: bo'sh maydonni "—" deb ko'rsatish yolg'on bo'lardi,
+   *  chunki amalda o'sha standart raqam ishlab turadi. */
+  const base = (k: string) => {
+    const v = dirty[k] ?? data[k] ?? '';
+    return String(v).trim() !== '' ? v : (defs[k] ?? '');
+  };
   const changed = Object.keys(dirty).length > 0;
+
+  /** Shu tur uchun nechta ustama qo'yilgan — tugmada ko'rsatiladi */
+  function overrides(t: string): number {
+    let n = 0;
+    for (const k of typeKeys) {
+      const v = dirty[typeKey(t, k)] ?? data[typeKey(t, k)] ?? '';
+      if (String(v).trim() !== '') n++;
+    }
+    return n;
+  }
 
   function set(k: string, v: string) {
     setMsg('');
-    setDirty((d) => ({ ...d, [k]: v }));
+    setDirty((d) => ({ ...d, [full(k)]: v }));
   }
 
   /**
@@ -161,11 +241,49 @@ export default function Settings() {
     }
   }
 
+  const typeInfo = SHOP_TYPES.find((x) => x.id === stype);
+
   return (
     <>
+      {/* Qaysi do'konlar uchun sozlanyapti.
+          "Umumiy" — hammasi uchun. Tur tanlansa faqat o'sha turdagi
+          do'konlarga tegadigan qiymatlar ko'rinadi. */}
+      <div className="panel">
+        <h3>Kimga tegishli</h3>
+        <div className="muted" style={{ marginTop: -6, marginBottom: 12, fontSize: 13 }}>
+          Umumiy sozlama hamma do'konga tegishli. Turni tanlab, faqat o'sha turdagi
+          do'konlar uchun boshqacha qiymat qo'yish mumkin
+        </div>
+        <div className="stype-tabs">
+          <button className={`stype-tab ${stype === '' ? 'on' : ''}`} onClick={() => setStype('')}>
+            ⚙️ Umumiy
+          </button>
+          {SHOP_TYPES.map((t) => {
+            const n = overrides(t.id);
+            return (
+              <button
+                key={t.id}
+                className={`stype-tab ${stype === t.id ? 'on' : ''}`}
+                onClick={() => setStype(t.id)}
+              >
+                {t.emoji} {t.label}
+                {n > 0 && <i className="stype-badge">{n}</i>}
+              </button>
+            );
+          })}
+        </div>
+        {stype && (
+          <div className="stype-note">
+            <b>{typeInfo?.emoji} {typeInfo?.label}</b> do'konlari uchun sozlanyapti.
+            Maydon bo'sh qoldirilsa — umumiy qiymat ishlaydi.
+          </div>
+        )}
+      </div>
+
       {/* Yuguruvchi e'lon — do'konchilarga umumiy xabar. Alohida oynada
           sozlanadi, chunki rang/o'lcham/tezlik ko'p va ular sozlamalar
           ro'yxatiga sig'masdi. */}
+      {!stype && (
       <div className="panel">
         <h3>Yuguruvchi e'lon</h3>
         <div className="muted" style={{ marginTop: -6, marginBottom: 12, fontSize: 13 }}>
@@ -193,6 +311,7 @@ export default function Settings() {
           <button className="btn" onClick={() => setAnnOpen(true)}>Sozlash</button>
         </div>
       </div>
+      )}
 
       {annOpen && (
         <AnnounceModal value={ann} onClose={() => setAnnOpen(false)} onSave={saveAnnounce} />
@@ -204,7 +323,7 @@ export default function Settings() {
           faqat oxirgi 4 belgi keladi, jurnalga esa "qo'yildi/o'chirildi"
           yoziladi. Yozib saqlash bilan darhol ishlaydi, qayta ishga
           tushirish kerak emas. */}
-      {ai && (
+      {ai && !stype && (
         <div className="panel">
           <h3>AI yordamchi</h3>
           <div className="muted" style={{ marginTop: -6, marginBottom: 12, fontSize: 13 }}>
@@ -272,18 +391,13 @@ export default function Settings() {
               <div className="set-hint">Yuqoridagi «Yechimlar» bo'limida o'zgartiriladi</div>
             </div>
 
+            {/* Chegara ham "Yechimlar" bo'limiga ko'chdi: u yerda uni
+                har bir do'kon turi uchun alohida qo'yish mumkin.
+                Bu yerda faqat hozirgi holati ko'rinib tursin. */}
             <div className="set-field">
-              <label>Kuniga savol chegarasi (bitta do'kon uchun)</label>
-              <input
-                type="number"
-                min={0}
-                placeholder={String(ai.daily_limit)}
-                value={value('ai_daily_limit')}
-                onChange={(e) => set('ai_daily_limit', e.target.value)}
-              />
-              <div className="set-hint">
-                0 — cheksiz (tavsiya etilmaydi). Hozir: {ai.daily_limit} ta
-              </div>
+              <label>Kuniga savol chegarasi</label>
+              <div className="set-static">{ai.daily_limit > 0 ? `${ai.daily_limit} ta` : 'Cheksiz'}</div>
+              <div className="set-hint">Yuqoridagi «Yechimlar» bo'limida o'zgartiriladi</div>
             </div>
           </div>
 
@@ -298,41 +412,83 @@ export default function Settings() {
 
       {/* Maydonlar ustunma-ustun joylashadi — ilgari har biri butun
           kenglikni egallab, sahifa cho'zilib ketardi */}
-      {GROUPS.map((g) => (
+      {GROUPS.map((g) => {
+        // Tur tanlanganda faqat o'sha turga qo'yish mumkin bo'lgan
+        // maydonlar qoladi. Karta raqami yoki qo'llab-quvvatlash
+        // telefonini turga bo'lish ma'nosiz — ular kompaniyaniki.
+        const fields = stype ? g.fields.filter((f) => perType(f.key)) : g.fields;
+        if (!fields.length) return null;
+        return (
         <div className="panel" key={g.title}>
           <h3>{g.title}</h3>
           {g.sub && <div className="muted" style={{ marginTop: -6, marginBottom: 12, fontSize: 13 }}>{g.sub}</div>}
           <div className="set-grid">
-            {g.fields.map((f) => (
-              <div className={`set-field ${f.wide ? 'wide' : ''}`} key={f.key}>
+            {fields.map((f) => {
+              const v = value(f.key);
+              const inherited = stype && String(v).trim() === '';
+              return (
+              <div className={`set-field ${f.wide ? 'wide' : ''} ${inherited ? 'inherited' : ''}`} key={f.key}>
                 <label>{f.label}</label>
                 {f.toggle ? (
-                  <button
-                    className={`toggle ${value(f.key) === '1' ? 'on' : ''}`}
-                    onClick={() => set(f.key, value(f.key) === '1' ? '0' : '1')}
-                  >
-                    <span />
-                    <b>{value(f.key) === '1' ? 'Yoqilgan' : "O'chiq"}</b>
-                  </button>
+                  // Turda uch holat bo'ladi: umumiy (bo'sh), yoqilgan, o'chiq.
+                  // Shuning uchun tur tanlanganda tugma emas, ro'yxat —
+                  // aks holda "umumiy" holatiga qaytib bo'lmasdi.
+                  stype ? (
+                    <select value={v} onChange={(e) => set(f.key, e.target.value)}>
+                      <option value="">Umumiy ({base(f.key) === '1' ? 'yoqilgan' : "o'chiq"})</option>
+                      <option value="1">Yoqilgan</option>
+                      <option value="0">O'chiq</option>
+                    </select>
+                  ) : (
+                    <button
+                      className={`toggle ${v === '1' ? 'on' : ''}`}
+                      onClick={() => set(f.key, v === '1' ? '0' : '1')}
+                    >
+                      <span />
+                      <b>{v === '1' ? 'Yoqilgan' : "O'chiq"}</b>
+                    </button>
+                  )
                 ) : (
                   <>
-                    <input value={value(f.key)} onChange={(e) => set(f.key, e.target.value)} placeholder="—" />
-                    {f.money && value(f.key) !== '' && !Number.isNaN(Number(value(f.key))) && (
-                      <div className="set-note">
-                        {fmt(Number(value(f.key)))}
-                        {f.perMonth && Number(value(f.key)) > 0 && (
-                          <> · oyiga ~{fmt(Number(value(f.key)) * 30)} · yiliga ~{fmt(Number(value(f.key)) * 365)}</>
-                        )}
+                    <input
+                      value={v}
+                      onChange={(e) => set(f.key, e.target.value)}
+                      placeholder={(stype ? base(f.key) : defs[f.key]) || '—'}
+                    />
+                    {inherited ? (
+                      <div className="set-note muted">
+                        Umumiy: <b>{f.money && base(f.key) !== '' && !Number.isNaN(Number(base(f.key)))
+                          ? fmt(Number(base(f.key)))
+                          : (base(f.key) || '—')}</b>
                       </div>
+                    ) : !stype && String(v).trim() === '' && (defs[f.key] ?? '') !== '' ? (
+                      // Umumiy sozlama ham bo'sh — amalda serverning
+                      // standart qiymati ishlaydi, shuni aytib turamiz
+                      <div className="set-note muted">
+                        Standart: <b>{f.money && !Number.isNaN(Number(defs[f.key]))
+                          ? fmt(Number(defs[f.key]))
+                          : defs[f.key]}</b>
+                      </div>
+                    ) : (
+                      f.money && v !== '' && !Number.isNaN(Number(v)) && (
+                        <div className="set-note">
+                          {fmt(Number(v))}
+                          {f.perMonth && Number(v) > 0 && (
+                            <> · oyiga ~{fmt(Number(v) * 30)} · yiliga ~{fmt(Number(v) * 365)}</>
+                          )}
+                        </div>
+                      )
                     )}
                   </>
                 )}
                 {f.hint && <div className="set-hint">{f.hint}</div>}
               </div>
-            ))}
+              );
+            })}
           </div>
         </div>
-      ))}
+        );
+      })}
 
       <div className="save-bar">
         <button className="btn" disabled={!changed || saving} onClick={save}>

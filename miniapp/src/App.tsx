@@ -98,11 +98,15 @@ export default function App() {
 
   const refresh = () => setRefreshKey((k) => k + 1);
 
+  // E'lon kimga ko'rinadi. 'type:oltin' — faqat o'sha turdagi do'konga:
+  // zargarga tegishli xabar non do'koniga chiqmasin.
   const showAnnounce =
     announce?.enabled &&
     (announce.audience === 'all' ||
       (announce.audience === 'stopped' && shop?.service && !shop.service.active) ||
-      (announce.audience === 'active' && shop?.service?.active));
+      (announce.audience === 'active' && shop?.service?.active) ||
+      (String(announce.audience ?? '').startsWith('type:') &&
+        String(announce.audience).slice(5) === String(shop?.shop_type ?? '')));
 
   const TITLES: Record<Tab, string> = {
     home: t('tabHome'),

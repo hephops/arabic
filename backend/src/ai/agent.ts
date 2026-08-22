@@ -552,7 +552,11 @@ async function run(opts: AskOptions, emit?: (e: AiEvent) => void): Promise<AskRe
   if (question.length > 2000) throw new AiError('too_long', 'Savol juda uzun');
   const asked = question || PHOTO_ASK;
 
-  const limit = dailyLimit();
+  // Chegara ham, narx ham do'kon TURIGA qarab qo'yilishi mumkin
+  const shop = db.prepare('SELECT balance, shop_type FROM shops WHERE id = ?').get(opts.shopId) as any;
+  const shopType: string | null = shop?.shop_type ?? null;
+
+  const limit = dailyLimit(shopType);
   if (limit > 0 && askedToday(opts.shopId) >= limit) {
     throw new AiError('daily_limit', `Bugungi savol chegarasi tugadi (${limit} ta)`);
   }
@@ -560,9 +564,8 @@ async function run(opts: AskOptions, emit?: (e: AiEvent) => void): Promise<AskRe
   // Savol pullik bo'lsa — balansda yetarli pul bormi. Tekshiruv
   // SO'ROVDAN OLDIN: modelga so'rov ketib, keyin "puling yetmadi"
   // deyish do'konchining pulini bekorga sarflagan bo'lardi.
-  const price = questionPrice();
+  const price = questionPrice(shopType);
   if (price > 0) {
-    const shop = db.prepare('SELECT balance FROM shops WHERE id = ?').get(opts.shopId) as any;
     if ((shop?.balance ?? 0) < price) {
       throw new AiError('no_balance', `Savol uchun ${price} so'm kerak. Balansni to'ldiring.`);
     }

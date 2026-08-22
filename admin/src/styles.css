@@ -752,3 +752,31 @@ tr.picked { background: rgba(0, 122, 255, 0.06); }
   padding: 1px 7px; border-radius: 7px; margin-left: 6px;
   background: var(--bg); color: var(--muted); white-space: nowrap;
 }
+
+/* ── Sozlamalar: do'kon turi tanlagichi ───────────────────────── */
+/* "Umumiy" va to'qqizta tur. Tanlangan turda faqat o'sha turga
+   qo'yiladigan qiymatlar ko'rinadi, qolgani yashiriladi. */
+.stype-tabs { display: flex; flex-wrap: wrap; gap: 8px; }
+.stype-tab {
+  position: relative;
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 13px; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--line); background: var(--card);
+  font-size: 13.5px; font-weight: 600; color: var(--muted);
+}
+.stype-tab:hover { color: var(--text); border-color: var(--muted); }
+.stype-tab.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+/* Shu turda nechta ustama qo'yilgani — tugmadagi kichik son */
+.stype-badge {
+  min-width: 18px; padding: 0 5px; border-radius: 9px; font-style: normal;
+  background: var(--accent); color: #fff; font-size: 11px; font-weight: 700;
+  text-align: center;
+}
+.stype-tab.on .stype-badge { background: rgba(255, 255, 255, 0.3); }
+.stype-note {
+  margin-top: 12px; padding: 10px 12px; border-radius: 10px;
+  background: rgba(62, 151, 247, 0.09); color: var(--text); font-size: 13px;
+}
+/* Ustama qo'yilmagan maydon — umumiydan olinyapti degani */
+.set-field.inherited input { border-style: dashed; color: var(--muted); }
+.set-note.muted { color: var(--muted); }

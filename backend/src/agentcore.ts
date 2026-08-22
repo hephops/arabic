@@ -13,7 +13,7 @@
 // narx keyin o'zgarsa, allaqachon ulangan do'konlarning hisobi buzilmasin.
 
 import { db } from './db.js';
-import { getSetting } from './billing.js';
+import { typeSetting, settingDefault } from './billing.js';
 
 /** Raqamlarni solishtirish uchun bir ko'rinishga keltirish.
  *
@@ -36,9 +36,12 @@ export function agentByPhone(phone: string): { id: number; name: string; usernam
   return hit ? { id: Number(hit.id), name: String(hit.name ?? ''), username: String(hit.username) } : null;
 }
 
-/** Sozlamadagi mukofot (bitta do'kon uchun) */
-export function agentBonus(): number {
-  const n = Math.round(Number(getSetting('agent_bonus', '100000')));
+/** Sozlamadagi mukofot (bitta do'kon uchun).
+ *
+ *  Do'kon turi berilsa — o'sha tur uchun qo'yilgan summa. Zargarlik
+ *  do'konini ulash oson emas, uni qimmatroq baholash mumkin. */
+export function agentBonus(type?: string | null): number {
+  const n = Math.round(Number(typeSetting(type, 'agent_bonus', settingDefault('agent_bonus'))));
   return Number.isFinite(n) && n >= 0 ? n : 100000;
 }
 
@@ -50,11 +53,11 @@ export function agentBonus(): number {
  * yana 100 mingdan yozilaverardi.
  */
 export function linkAgent(shopId: number, agentId: number, bonus?: number): boolean {
-  const shop = db.prepare('SELECT id, agent_id FROM shops WHERE id = ?').get(shopId) as any;
+  const shop = db.prepare('SELECT id, agent_id, shop_type FROM shops WHERE id = ?').get(shopId) as any;
   if (!shop || shop.agent_id) return false;
   db.prepare("UPDATE shops SET agent_id = ?, agent_bonus = ?, agent_linked_at = datetime('now') WHERE id = ?").run(
     agentId,
-    bonus ?? agentBonus(),
+    bonus ?? agentBonus(shop.shop_type),
     shopId
   );
   return true;

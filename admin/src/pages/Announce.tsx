@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { SHOP_TYPES } from '../shopTypes';
 
 // Yuguruvchi e'lon sozlamasi.
 //
@@ -16,7 +17,10 @@ export interface AnnounceCfg {
   weight: 'normal' | 'medium' | 'bold';
   /** to'liq aylanish necha soniyada — kichik son = tezroq */
   speed: number;
-  audience: 'all' | 'active' | 'stopped';
+  /** 'all' | 'active' | 'stopped' yoki 'type:oltin' — bitta do'kon turi.
+   *  Tur bo'yicha yo'naltirish kerak bo'ladi: masalan faqat zargarlarga
+   *  yangi birka haqida xabar berish. */
+  audience: string;
 }
 
 export const BOSH: AnnounceCfg = {
@@ -44,6 +48,8 @@ const KIMGA = [
   { id: 'all', label: 'Hamma do‘konlarga' },
   { id: 'active', label: 'Faqat faol do‘konlarga' },
   { id: 'stopped', label: 'Faqat to‘xtaganlarga (balans tugagan)' },
+  // Bitta do'kon turiga — masalan faqat zargarlarga
+  ...SHOP_TYPES.map((t) => ({ id: `type:${t.id}`, label: `Faqat: ${t.emoji} ${t.label}` })),
 ];
 
 const SHRIFT = [
@@ -80,7 +86,7 @@ export default function AnnounceModal({
 
         <div className="set-field">
           <label>Kimga ko‘rinsin</label>
-          <select value={v.audience} onChange={(e) => set('audience', e.target.value as AnnounceCfg['audience'])}>
+          <select value={v.audience} onChange={(e) => set('audience', e.target.value)}>
             {KIMGA.map((k) => (
               <option key={k.id} value={k.id}>{k.label}</option>
             ))}

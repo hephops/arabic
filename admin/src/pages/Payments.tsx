@@ -13,6 +13,8 @@ const TYPE_LABEL: Record<string, string> = {
   withdraw: 'Yechim',
   refund: 'Qaytarilgan',
   grant: 'Bepul kun',
+  // Taklif qilgan do'konga yozilgan bonus
+  referral: 'Taklif bonusi',
 };
 
 const METHODS = [
@@ -165,6 +167,7 @@ export default function Payments() {
               <option value="daily">Kunlik to'lov</option>
               <option value="refund">Qaytarilgan</option>
               <option value="grant">Sovg'a</option>
+              <option value="referral">Taklif bonusi</option>
             </select>
           </div>
           <div className="f">

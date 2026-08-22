@@ -15,6 +15,7 @@
 
 import { db } from './db.js';
 import { uzToday, uzDayShift } from './tz.js';
+import { SHOP_TYPES } from './shopTypes.js';
 
 /** Bir marta yechishda ko'pi bilan shuncha kun — cheksiz sikl bo'lmasin */
 const MAX_CATCHUP_DAYS = 60;
@@ -31,6 +32,126 @@ export function setSetting(key: string, value: string): void {
   );
 }
 
+/* ─────────── Do'kon turiga qarab sozlama ───────────
+ *
+ * Zargarlik do'koni bilan non do'koni bir xil pul to'lashi shart emas:
+ * biriga kuniga 3 300, ikkinchisiga 10 000 bo'lishi mumkin. Shuning
+ * uchun umumiy sozlamaning ustidan har tur uchun alohida qiymat
+ * qo'yish mumkin.
+ *
+ * Saqlanishi: o'sha settings jadvalida, kaliti oldiga tur qo'shiladi —
+ * 'daily_price' umumiy, 't_oltin_daily_price' esa faqat zargarlik
+ * uchun. Yangi jadval kerak emas, eski sozlamalar joyida qoladi.
+ *
+ * BO'SH qiymat "ustama yo'q" degani (umumiysi ishlaydi), '0' esa
+ * HAQIQIY nol — "bu turdan pul olinmaydi". Shuning uchun ular
+ * farqlanadi: bo'sh satr tekshiriladi, Number() emas.
+ */
+const TYPE_PREFIX = 't_';
+
+/** Tur uchun qo'yilgan ustama sozlama kaliti */
+export const typeKey = (type: string, key: string): string => `${TYPE_PREFIX}${type}_${key}`;
+
+/** Har bir tur uchun ALOHIDA qo'yilishi mumkin bo'lgan sozlamalar.
+ *
+ *  Bu ro'yxatda yo'q kalitlar (karta raqami, qo'llab-quvvatlash
+ *  telefoni) butun kompaniya uchun bitta — ularni turga bo'lish
+ *  ma'nosiz va faqat chalkashtirardi. */
+export const TYPE_SETTING_KEYS = [
+  'daily_price',
+  'ai_question_price',
+  'ai_daily_limit',
+  'sms_price',
+  'call_price',
+  'trial_days',
+  'low_balance_days',
+  'block_on_empty',
+  'min_topup_amount',
+  'referral_bonus',
+  'agent_bonus',
+] as const;
+
+const TYPE_KEY_SET: ReadonlySet<string> = new Set(TYPE_SETTING_KEYS);
+
+/**
+ * Sozlama umuman qo'yilmagan bo'lsa ishlaydigan qiymatlar.
+ *
+ * Ilgari bu raqamlar kodning o'nta joyida alohida yozilgan edi
+ * (getSetting('sms_price', '150') ...). Bittasi o'zgartirilsa
+ * qolgani eski qiymat bilan qolib ketardi, admin panel esa umuman
+ * bilmasdi va bo'sh maydonni "—" deb ko'rsatardi — do'kon egasi
+ * haqiqatda qaysi raqam ishlayotganini ko'ra olmasdi.
+ */
+export const SETTING_DEFAULTS: Record<string, string> = {
+  daily_price: '3300',
+  ai_question_price: '0',
+  ai_daily_limit: '',
+  sms_price: '150',
+  call_price: '900',
+  trial_days: '14',
+  low_balance_days: '5',
+  block_on_empty: '0',
+  min_topup_amount: '10000',
+  referral_bonus: '20000',
+  agent_bonus: '100000',
+};
+
+/** Kalitning standart qiymati (ro'yxatda bo'lmasa — berilgani) */
+export const settingDefault = (key: string, fallback = ''): string => SETTING_DEFAULTS[key] ?? fallback;
+
+export function isTypeSettingKey(key: string): boolean {
+  return TYPE_KEY_SET.has(key);
+}
+
+/** 't_oltin_daily_price' -> { type: 'oltin', key: 'daily_price' }.
+ *  Tur nomida ham, kalitda ham pastki chiziq bo'lishi mumkin, shuning
+ *  uchun tur ro'yxati bo'yicha solishtiriladi — bo'lib tashlash emas. */
+export function parseTypeKey(full: string): { type: string; key: string } | null {
+  if (!full.startsWith(TYPE_PREFIX)) return null;
+  const rest = full.slice(TYPE_PREFIX.length);
+  for (const t of SHOP_TYPES) {
+    if (rest.startsWith(`${t}_`)) {
+      const key = rest.slice(t.length + 1);
+      return isTypeSettingKey(key) ? { type: t, key } : null;
+    }
+  }
+  return null;
+}
+
+/**
+ * Sozlama qiymati: avval turning O'ZI uchun qo'yilgani, bo'lmasa umumiy.
+ */
+export function typeSetting(type: string | null | undefined, key: string, fallback: string): string {
+  const t = String(type ?? '').trim();
+  if (t && isTypeSettingKey(key)) {
+    const own = getSetting(typeKey(t, key), '').trim();
+    if (own !== '') return own;
+  }
+  return getSetting(key, fallback);
+}
+
+/** Do'kon yozuvi bo'yicha (shop_type ustunidan oladi) */
+export function shopSetting(
+  shop: { shop_type?: string | null } | null | undefined,
+  key: string,
+  fallback: string
+): string {
+  return typeSetting(shop?.shop_type, key, fallback);
+}
+
+/** Sozlamani son qilib olish. Buzuq yozuv butun hisobni buzmasin. */
+export function shopNumber(
+  shop: { shop_type?: string | null } | null | undefined,
+  key: string,
+  fallback?: number,
+  min = 0
+): number {
+  // Zaxira qiymat berilmasa — umumiy jadvaldan
+  const def = fallback === undefined ? Number(settingDefault(key, '0')) || 0 : fallback;
+  const n = Math.round(Number(shopSetting(shop, key, String(def))));
+  return Number.isFinite(n) && n >= min ? n : def;
+}
+
 /**
  * Bir kunlik xizmat narxi.
  *
@@ -42,25 +163,26 @@ export function setSetting(key: string, value: string): void {
  * 0 ham HAQIQIY qiymat: "bu do'kondan pul olinmaydi" degani. Shuning
  * uchun NULL bilan 0 farqlanadi — null bo'lsagina umumiyga o'tiladi.
  */
-export function dailyPrice(shop?: { daily_price?: number | null } | null): number {
+export function dailyPrice(shop?: { daily_price?: number | null; shop_type?: string | null } | null): number {
   const own = shop?.daily_price;
   if (own !== null && own !== undefined && Number.isFinite(Number(own))) {
     const v = Math.round(Number(own));
     return v > 0 ? v : 0;
   }
-  const n = Math.round(Number(getSetting('daily_price', '3300')));
+  // Keyingi pog'ona — do'kon TURI uchun qo'yilgan narx, undan keyin umumiy
+  const n = Math.round(Number(shopSetting(shop, 'daily_price', settingDefault('daily_price'))));
   return Number.isFinite(n) && n > 0 ? n : 0;
 }
 
 /** Yangi do'konga beriladigan bepul kunlar */
-export function trialDays(): number {
-  const n = Math.round(Number(getSetting('trial_days', '14')));
+export function trialDays(type?: string | null): number {
+  const n = Math.round(Number(typeSetting(type, 'trial_days', settingDefault('trial_days'))));
   return Number.isFinite(n) && n > 0 ? n : 0;
 }
 
 /** Necha kun qolganda "balans tugayapti" deb ogohlantiramiz */
-export function lowBalanceDays(): number {
-  const n = Math.round(Number(getSetting('low_balance_days', '5')));
+export function lowBalanceDays(shop?: { shop_type?: string | null } | null): number {
+  const n = Math.round(Number(shopSetting(shop, 'low_balance_days', settingDefault('low_balance_days'))));
   return Number.isFinite(n) && n >= 0 ? n : 5;
 }
 
@@ -102,7 +224,7 @@ export interface ServiceState {
  */
 export function chargeShop(shopId: number, at = new Date()): void {
   const shop = db
-    .prepare('SELECT id, balance, charged_through, is_blocked, daily_price FROM shops WHERE id = ?')
+    .prepare('SELECT id, balance, charged_through, is_blocked, daily_price, shop_type FROM shops WHERE id = ?')
     .get(shopId) as any;
   if (!shop) return;
   // Narx do'konning o'zinikiga qarab olinadi
@@ -177,13 +299,13 @@ export function serviceState(shop: any, at = new Date()): ServiceState {
     // Xizmat ishlaydigan oxirgi kun
     runs_out_on: addDays(today, Math.max(0, daysLeft - 1)),
     on_trial: onTrial,
-    low: daysLeft <= lowBalanceDays(),
+    low: daysLeft <= lowBalanceDays(shop),
   };
 }
 
 /** Yangi do'kon uchun bepul kunlar bilan boshlang'ich sana */
-export function trialThrough(at = new Date()): { charged_through: string; trial_ends_at: string | null } {
-  const days = trialDays();
+export function trialThrough(at = new Date(), type?: string | null): { charged_through: string; trial_ends_at: string | null } {
+  const days = trialDays(type);
   if (days <= 0) return { charged_through: uzDayShift(-1, at), trial_ends_at: null };
   // Bugun ham bepul kunlardan biri: 14 kunlik sinov bugundan boshlab
   // 14 kun ishlaydi, 15 emas

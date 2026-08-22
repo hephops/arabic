@@ -37,6 +37,9 @@ CREATE TABLE IF NOT EXISTS shops (
   shop_type TEXT NOT NULL DEFAULT 'oziq',
   -- Zargarlik uchun gramm narxlari: {"585": 1100000, "750": 1450000}
   gold_prices TEXT,
+  -- Taklif bonusi qachon to'langani (bo'sh — hali to'lanmagan).
+  -- Bonus faqat BIR MARTA beriladi, shuning uchun shu yerda belgilanadi.
+  referral_paid_at TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 

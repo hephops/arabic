@@ -27,7 +27,17 @@ import { agentByPhone } from './agentcore.js';
 import { noteEmployeeLogin, notifyPinAttempts, recentLogins } from './staffAlert.js';
 import { addBatch, consume, restore, setTotal, batchesOf, syncProduct } from './batches.js';
 import { normalizeUnit, normalizePriceQty, normalizeQty } from './units.js';
-import { chargeShop, chargeAllShops, serviceState, getSetting, dailyPrice, trialThrough } from './billing.js';
+import {
+  chargeShop,
+  chargeAllShops,
+  serviceState,
+  getSetting,
+  shopSetting,
+  shopNumber,
+  settingDefault,
+  dailyPrice,
+  trialThrough,
+} from './billing.js';
 import { issueCode, checkCode, clearCode } from './otp.js';
 import { dailyFigures, reportText, sendDailyReport, startDailyReportScheduler } from './dailyReport.js';
 import { customerCode, receiptText } from './customerLink.js';
@@ -66,12 +76,16 @@ const OPEN_PATHS = /^\/(auth|public|balance|me|telegram|health)/;
 app.addHook('preHandler', async (req, reply) => {
   if (req.method === 'GET' || req.method === 'OPTIONS') return;
   if (OPEN_PATHS.test(req.url)) return;
-  if (getSetting('block_on_empty', '0') !== '1') return;
   const header = req.headers.authorization;
   const session = header?.startsWith('Bearer ') ? verifyToken(header.slice(7)) : null;
   if (!session) return; // avtorizatsiyani o'z joyidagi tekshiruv hal qiladi
-  const shop = db.prepare('SELECT balance, charged_through, trial_ends_at FROM shops WHERE id = ?').get(session.shopId) as any;
+  const shop = db
+    .prepare('SELECT balance, charged_through, trial_ends_at, daily_price, shop_type FROM shops WHERE id = ?')
+    .get(session.shopId) as any;
   if (!shop) return;
+  // To'xtatish qoidasi do'kon TURIGA qarab ham qo'yilishi mumkin:
+  // zargarlik to'xtatilsin, oziq-ovqat esa ishlayversin
+  if (shopSetting(shop, 'block_on_empty', '0') !== '1') return;
   if (!serviceState(shop).active) {
     reply.code(402).send({ error: 'balance_empty' });
     return reply;
@@ -314,6 +328,30 @@ app.patch<{ Body: Record<string, unknown> }>('/me', { preHandler: requirePerm('s
       db.prepare(`UPDATE shops SET ${key} = ? WHERE id = ?`).run(value, req.shopId);
     }
   }
+  // Bepul kunlar do'kon TURIGA qarab boshqacha bo'lishi mumkin
+  // (zargarlikka 30, oziq-ovqatga 14). Tur esa ro'yxatdan o'tgandan
+  // KEYIN, sozlash oynasida tanlanadi — o'sha paytda muddat umumiy
+  // qoida bo'yicha allaqachon qo'yilgan bo'ladi. Shuning uchun tur
+  // birinchi marta tanlanganda muddat qayta hisoblanadi.
+  //
+  // Faqat hali TEGILMAGAN do'konda: sinov davri davom etayotgan va
+  // balansda birorta harakat bo'lmagan bo'lsa. Aks holda pul to'lagan
+  // do'konning hisobini o'zgartirib yuborardik.
+  if ('shop_type' in req.body) {
+    const sh = db.prepare('SELECT shop_type, trial_ends_at, charged_through FROM shops WHERE id = ?').get(req.shopId) as any;
+    const used = (db
+      .prepare('SELECT COUNT(*) AS c FROM balance_transactions WHERE shop_id = ?')
+      .get(req.shopId) as any).c as number;
+    if (!used && sh?.trial_ends_at && sh.trial_ends_at >= uzToday()) {
+      const start = trialThrough(new Date(), sh.shop_type);
+      db.prepare('UPDATE shops SET charged_through = ?, trial_ends_at = ? WHERE id = ?').run(
+        start.charged_through,
+        start.trial_ends_at,
+        req.shopId
+      );
+    }
+  }
+
   // Til o'zgarsa botdagi xabarlar ham o'sha tilga o'tsin — do'konchi
   // ilovada ruschani tanlab, botdan o'zbekcha xabar olmasin
   if ('language' in req.body) {
@@ -376,9 +414,9 @@ app.get('/balance', { preHandler: requireOwner }, async (req) => {
            FROM payment_receipts WHERE shop_id = ? ORDER BY id DESC LIMIT 20`
       )
       .all(req.shopId),
-    min_topup: Number(getSetting('min_topup_amount', '10000')),
+    min_topup: shopNumber(shop, 'min_topup_amount'),
     // Tez to'ldirish tugmalari: do'konchi summani terib o'tirmasin
-    presets: topupPresets(),
+    presets: topupPresets(shop),
     // To'lov kartasi — do'konchi shu yerga pul o'tkazadi
     card: getSetting('topup_card', ''),
     card_holder: getSetting('topup_card_holder', ''),
@@ -387,8 +425,8 @@ app.get('/balance', { preHandler: requireOwner }, async (req) => {
 
 /** Tez to'ldirish summalari — kunlik narxdan kelib chiqadi, shunda
  *  har biri "necha kunga yetadi" degan tushunarli ma'noga ega bo'ladi */
-function topupPresets(): { amount: number; days: number }[] {
-  const price = dailyPrice();
+function topupPresets(shop?: { daily_price?: number | null; shop_type?: string | null } | null): { amount: number; days: number }[] {
+  const price = dailyPrice(shop);
   if (price <= 0) return [];
   return [30, 60, 90, 180, 365].map((days) => ({
     // 1000 so'mgacha yaxlitlanadi — "99 000" ko'rinishi "98 700" dan yaxshi
@@ -413,7 +451,8 @@ app.post<{ Body: { amount: number } }>('/balance/topup', { preHandler: requireOw
   if (process.env.ALLOW_SELF_TOPUP !== '1') return reply.code(404).send({ error: 'not_found' });
   const amount = Math.round(req.body.amount);
   if (!amount || amount <= 0) return reply.code(400).send({ error: 'amount_required' });
-  const minTopup = Number(getSetting('min_topup_amount', '10000'));
+  const topupShop = db.prepare('SELECT shop_type FROM shops WHERE id = ?').get(req.shopId) as any;
+  const minTopup = shopNumber(topupShop, 'min_topup_amount');
   if (amount < minTopup) return reply.code(400).send({ error: 'below_minimum', min: minTopup });
   db.prepare('UPDATE shops SET balance = balance + ? WHERE id = ?').run(amount, req.shopId);
   db.prepare("INSERT INTO balance_transactions (shop_id, type, amount, note) VALUES (?, 'topup', ?, ?)").run(
@@ -708,7 +747,7 @@ app.post<{ Body: { name: string; phone?: string; language?: string; note?: strin
       .prepare('SELECT id, name FROM customers WHERE shop_id = ? AND phone = ?')
       .get(req.shopId, phone) as any;
     if (dup) return reply.code(409).send({ error: 'phone_taken', customer: dup });
-    const shop = db.prepare('SELECT default_reminder_mode FROM shops WHERE id = ?').get(req.shopId) as any;
+    const shop = db.prepare('SELECT default_reminder_mode, shop_type FROM shops WHERE id = ?').get(req.shopId) as any;
     const info = db
       .prepare(
         'INSERT INTO customers (shop_id, name, phone, language, note, reminder_mode) VALUES (?, ?, ?, ?, ?, ?)'
@@ -851,7 +890,7 @@ app.get<{ Querystring: { limit?: string } }>('/reminders', { preHandler: require
        WHERE r.shop_id = ? ORDER BY r.created_at DESC, r.id DESC LIMIT ?`
     )
     .all(req.shopId, limit);
-  const shop = db.prepare('SELECT default_reminder_mode FROM shops WHERE id = ?').get(req.shopId) as any;
+  const shop = db.prepare('SELECT default_reminder_mode, shop_type FROM shops WHERE id = ?').get(req.shopId) as any;
   const stats = db
     .prepare(
       `SELECT COUNT(*) AS total,
@@ -871,8 +910,9 @@ app.get<{ Querystring: { limit?: string } }>('/reminders', { preHandler: require
        WHERE shop_id = ? AND status = 'sent' AND created_at >= ?`
     )
     .get(req.shopId, uzMonthStartUtc()) as any;
-  const smsPrice = Number(getSetting('sms_price', '150'));
-  const callPrice = Number(getSetting('call_price', '900'));
+  // Narxlar do'kon turiga qarab boshqacha bo'lishi mumkin
+  const smsPrice = shopNumber(shop, 'sms_price');
+  const callPrice = shopNumber(shop, 'call_price');
   const cost = {
     sms_count: month.sms ?? 0,
     call_count: month.calls ?? 0,
@@ -928,7 +968,7 @@ app.post<{ Body: { customer_id?: number; customer_name?: string; customer_phone?
       } else {
         // Yangi qarzdor — telefonsiz bo'lmaydi: eslatma va qo'ng'iroq shu raqamga boradi
         if (!phone) return reply.code(400).send({ error: 'customer_phone_required' });
-        const shop = db.prepare('SELECT default_reminder_mode FROM shops WHERE id = ?').get(req.shopId) as any;
+        const shop = db.prepare('SELECT default_reminder_mode, shop_type FROM shops WHERE id = ?').get(req.shopId) as any;
         cid = Number(
           db
             .prepare('INSERT INTO customers (shop_id, name, phone, reminder_mode) VALUES (?, ?, ?, ?)')
@@ -1349,11 +1389,23 @@ app.delete<{ Params: { id: string } }>('/employees/:id', { preHandler: requireOw
 // ---------- REFERAL ----------
 app.get('/referral', { preHandler: requireOwner }, async (req) => {
   const code = `ARABIC${req.shopId}`;
-  const invited = db.prepare("SELECT COUNT(*) AS c FROM shops WHERE referred_by = ?").get(code) as any;
+  const invited = db.prepare('SELECT COUNT(*) AS c FROM shops WHERE referred_by = ?').get(code) as any;
+  // Haqiqatda to'langan bonuslar — "nechta odam chaqirdim" emas,
+  // "qancha pul oldim". Ilgari bu yerda "1 oy bepul obuna" deb
+  // yozilardi, holbuki hech qanday obuna berilmasdi.
+  const paid = db
+    .prepare("SELECT COALESCE(SUM(amount), 0) AS s FROM balance_transactions WHERE shop_id = ? AND type = 'referral'")
+    .get(req.shopId) as any;
+  const me = db.prepare('SELECT shop_type FROM shops WHERE id = ?').get(req.shopId) as any;
+  const bonus = Math.round(Number(shopSetting(me, 'referral_bonus', settingDefault('referral_bonus')))) || 0;
   return {
     code,
     invited_count: invited.c,
-    reward_text: "Har ulangan do'kon uchun ikkalangizga 1 oy bepul obuna",
+    bonus,
+    earned: Number(paid.s) || 0,
+    reward_text: bonus > 0
+      ? `Chaqirgan do'koningiz to'lov qilsa — balansingizga ${bonus.toLocaleString('ru-RU').replace(/\u00a0/g, ' ')} so'm`
+      : "Do'stingizni taklif qiling",
   };
 });
 
@@ -2186,7 +2238,7 @@ app.post<{ Body: { items: { product_id: number; qty: number }[]; payment_type: '
               db.prepare('UPDATE customers SET phone = ? WHERE id = ?').run(debtPhone, existing.id);
             }
           } else {
-            const shop = db.prepare('SELECT default_reminder_mode FROM shops WHERE id = ?').get(req.shopId) as any;
+            const shop = db.prepare('SELECT default_reminder_mode, shop_type FROM shops WHERE id = ?').get(req.shopId) as any;
             cid = Number(
               db
                 .prepare('INSERT INTO customers (shop_id, name, phone, reminder_mode) VALUES (?, ?, ?, ?)')
