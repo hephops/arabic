@@ -264,6 +264,8 @@ export interface Shop {
   card_number?: string | null;
   address?: string | null;
   language?: string;
+  /** do'kon turi: oziq | oltin | parfumeriya ... */
+  shop_type?: string;
   /** do'konni ulagan targ'ovchi xodim */
   agent_id?: number | null;
   agent_name?: string | null;

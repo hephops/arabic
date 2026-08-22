@@ -4,6 +4,7 @@ import { Glyph, Logo, Wordmark } from '../icons';
 import { useT, LANG_NAMES, type Lang } from '../i18n';
 import { inTelegram, initData, haptic, openBot } from '../telegram';
 import { formatPhone, phoneE164, isPhoneComplete, phoneDigits, formatCard, cardDigits } from '../format';
+import { SHOP_TYPES, type ShopType } from '../shopTypes';
 
 // Ro'yxatdan o'tish: telefon → SMS-kod → (yangi do'kon bo'lsa) profilni to'ldirish.
 // Har bir bosqich alohida ekran: bitta ish, bitta tugma.
@@ -379,6 +380,7 @@ function EmployeeLogin({ onDone, onBack }: { onDone: () => void; onBack: () => v
 
 function Setup({ onDone }: { onDone: () => void }) {
   const [shopName, setShopName] = useState('');
+  const [shopType, setShopType] = useState<ShopType>('oziq');
   const [ownerName, setOwnerName] = useState('');
   const [card, setCard] = useState('');
   const [language, setLanguage] = useState<Lang>('uz');
@@ -403,6 +405,7 @@ function Setup({ onDone }: { onDone: () => void }) {
     try {
       await api.updateMe({
         name: shopName.trim(),
+        shop_type: shopType,
         owner_name: ownerName.trim() || undefined,
         card_number: cardLen === 16 ? formatCard(card) : undefined,
         language,
@@ -434,6 +437,29 @@ function Setup({ onDone }: { onDone: () => void }) {
             <label>{t('setupOwner')}</label>
             <input value={ownerName} onChange={(e) => setOwnerName(e.target.value)} placeholder="Akbar aka" />
           </div>
+        </div>
+
+        {/* Do'kon turi. Zargarlikda buyum kartochkasi butunlay
+            boshqacha (proba, massa, gramm narxi) — shuning uchun
+            tur boshidayoq so'raladi, keyin ham o'zgartirsa bo'ladi. */}
+        <div className="form-group">
+          <div className="form-row" style={{ paddingBottom: 4 }}>
+            <label>{t('shopTypeLabel')}</label>
+          </div>
+          <div className="stype-grid">
+            {SHOP_TYPES.map((x) => (
+              <button
+                key={x.id}
+                className={`stype ${shopType === x.id ? 'on' : ''}`}
+                onClick={() => setShopType(x.id)}
+                type="button"
+              >
+                <span className="stype-emoji">{x.emoji}</span>
+                <span className="stype-name">{t(`stype_${x.id}`)}</span>
+              </button>
+            ))}
+          </div>
+          <p className="form-note">{t('shopTypeHint')}</p>
         </div>
 
         <div className="form-group">

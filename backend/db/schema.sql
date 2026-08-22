@@ -31,6 +31,12 @@ CREATE TABLE IF NOT EXISTS shops (
   agent_id INTEGER REFERENCES admins(id),
   agent_bonus INTEGER,
   agent_linked_at TEXT,
+  -- Do'kon turi: oziq | parfumeriya | xoztovar | telefon | oltin |
+  -- kiyim | qurilish | dorixona | boshqa. Ilova shunga qarab
+  -- o'zgaradi — zargarlikda buyum probasi va og'irligi bilan yuritiladi.
+  shop_type TEXT NOT NULL DEFAULT 'oziq',
+  -- Zargarlik uchun gramm narxlari: {"585": 1100000, "750": 1450000}
+  gold_prices TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -188,6 +194,12 @@ CREATE TABLE IF NOT EXISTS products (
   stock REAL NOT NULL DEFAULT 0,                 -- qoldiq
   low_stock_threshold REAL NOT NULL DEFAULT 5,
   expiry_date TEXT,                              -- srok (ixtiyoriy), oxirgi partiya
+  -- Zargarlik buyumi maydonlari (faqat oltin do'konida to'ladi).
+  -- Yorliqdagi to'rt qator: Проба, Размер, Масса, Вставка.
+  proba TEXT,                                    -- 585, 750, 925...
+  weight_g REAL,                                 -- massa, gramm
+  size TEXT,                                     -- o'lcham (uzuk raqami, zanjir uzunligi)
+  stone TEXT,                                    -- vstavka: qanday tosh qo'yilgan
   discount_percent INTEGER NOT NULL DEFAULT 0,   -- chegirma foizi (0-90)
   plu TEXT,                                      -- tarozi raqami (og'irlikda sotiladigan tovar)
   image_url TEXT,                                -- mahsulot rasmi (/uploads/...)

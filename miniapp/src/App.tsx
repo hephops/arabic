@@ -25,6 +25,7 @@ import { translate } from './i18n';
 import { useT } from './i18n';
 import { setBackButton, haptic } from './telegram';
 import { setPerms, can, isOwner } from './perms';
+import { setShopInfo } from './shopTypes';
 
 export type Tab = 'home' | 'customers' | 'add' | 'kassa' | 'profile';
 export type SubScreen = 'suppliers' | 'reports' | 'inventory' | 'reminders' | 'expenses' | 'orders' | 'returns' | 'catalog' | 'ai' | null;
@@ -66,6 +67,9 @@ export default function App() {
           // Ruxsatlar har ochilishda serverdan olinadi — ega ularni
           // o'zgartirsa xodim ilovani qayta ochishi bilan kuchga kiradi
           setPerms(s.employee ? s.employee.permissions : null);
+          // Do'kon turi: kirim va ombor ekranlari shunga qarab
+          // zargarlik maydonlarini ko'rsatadi
+          setShopInfo(s);
           if (s.language && s.language !== lang) setLang(s.language as any);
         })
         .catch(() => {});

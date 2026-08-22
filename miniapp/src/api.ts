@@ -141,7 +141,7 @@ export const api = {
     const qs = new URLSearchParams(params as Record<string, string>).toString();
     return request<Product[]>(`/products${qs ? `?${qs}` : ''}`);
   },
-  intake: (data: { barcode?: string; name: string; unit?: string; price_qty?: number; cost_price?: number; sell_price?: number; qty?: number; expiry_date?: string; image?: string; category?: string; catalog_id?: number }) =>
+  intake: (data: { barcode?: string; name: string; unit?: string; price_qty?: number; cost_price?: number; sell_price?: number; qty?: number; expiry_date?: string; image?: string; category?: string; catalog_id?: number; proba?: string; weight_g?: number; size?: string; stone?: string }) =>
     request<Product>('/products/intake', { method: 'POST', body: JSON.stringify(data) }),
   createSale: (data: { items: { product_id: number; qty: number }[]; payment_type: 'cash' | 'card' | 'debt'; customer_id?: number; customer_name?: string; customer_phone?: string; due_date?: string; allow_negative?: boolean }) =>
     request<Sale>('/sales', { method: 'POST', body: JSON.stringify(data) }),
@@ -394,7 +394,7 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify({ default_reminder_mode: mode, apply_to_all: applyToAll }),
     }),
-  updateMe: (data: Partial<Pick<Shop, 'name' | 'owner_name' | 'address' | 'language' | 'card_number' | 'daily_goal' | 'report_enabled' | 'report_hour' | 'allow_negative_stock' | 'staff_notify'>>) =>
+  updateMe: (data: Partial<Pick<Shop, 'name' | 'owner_name' | 'address' | 'language' | 'card_number' | 'daily_goal' | 'report_enabled' | 'report_hour' | 'allow_negative_stock' | 'staff_notify' | 'shop_type' | 'gold_prices'>>) =>
     request<Shop>('/me', { method: 'PATCH', body: JSON.stringify(data) }),
   balance: () => request<BalanceInfo>('/balance'),
   topup: (amount: number) =>
@@ -442,6 +442,10 @@ export interface Shop {
   allow_negative_stock?: number;
   /** xodim kirganda Telegram'ga xabar (1 — yoqilgan) */
   staff_notify?: number;
+  /** do'kon turi: oziq | parfumeriya | oltin ... (shopTypes.ts) */
+  shop_type?: string;
+  /** zargarlik uchun gramm narxlari, JSON: {"585": 1100000} */
+  gold_prices?: string | null;
 }
 
 /** Xizmat holati: tarif yo'q, balansdan har kuni bir kunlik narx yechiladi */
@@ -718,6 +722,11 @@ export interface Product {
   supplier_id?: number | null;
   supplier_name?: string | null;
   from_catalog?: boolean;
+  /* Zargarlik buyumi — yorliqdagi to'rt qator (faqat oltin do'konida) */
+  proba?: string | null;
+  weight_g?: number | null;
+  size?: string | null;
+  stone?: string | null;
 }
 
 /** Xodim samaradorligi: kim qancha sotdi va qancha foyda keltirdi */

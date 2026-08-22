@@ -2,6 +2,19 @@ import { useEffect, useState } from 'react';
 import { api, fmt, fmtNum, fmtPhone, type Agent, type Shop, type ShopDetail, type ShopsSummary } from '../api';
 import { AppIcon, Glyph } from '../icons';
 
+// Do'kon turlari — ilovadagi ro'yxat bilan bir xil (miniapp/shopTypes.ts)
+const SHOP_TYPE_LABEL: Record<string, string> = {
+  oziq: '🛒 Oziq-ovqat',
+  parfumeriya: '🧴 Parfumeriya',
+  xoztovar: '🧹 Xo\'jalik',
+  telefon: '📱 Telefon',
+  oltin: '💍 Zargarlik',
+  kiyim: '👕 Kiyim',
+  qurilish: '🧱 Qurilish',
+  dorixona: '💊 Dorixona',
+  boshqa: '🏪 Boshqa',
+};
+
 const PAGE_SIZES = [10, 25, 50, 100];
 
 /** Do'kon holati — kunlik to'lov bo'yicha */
@@ -147,8 +160,13 @@ export default function Shops() {
             {shown.map((s) => (
               <tr key={s.id} className="clickable" onClick={async () => setSelected(await api.shop(s.id))}>
                 <td>
-                  <div className="cell-main">{s.name}</div>
-                  <div className="cell-sub">{s.owner_name ?? '—'}</div>
+                  <div className="cell-main">
+                    {s.name} <span className="stype-tag">{SHOP_TYPE_LABEL[s.shop_type ?? 'oziq'] ?? s.shop_type}</span>
+                  </div>
+                  <div className="cell-sub">
+                    {s.owner_name ?? '—'}
+                    {s.agent_name && <> · xodim: {s.agent_name}</>}
+                  </div>
                 </td>
                 <td className="muted">{fmtPhone(s.phone)}</td>
                 {/* Balans + u NIMA UCHUN shunday ekani. Sinov muddatidagi

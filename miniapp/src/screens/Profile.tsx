@@ -8,6 +8,7 @@ import { formatCard, cardDigits, formatPhone, maskCard, formatAmount, amountValu
 import { toast, loadFailed } from '../toast';
 import { scanSoundOn, setScanSound, beepOk, scanVibeOn, setScanVibe, vibrate } from '../beep';
 import { shrink } from '../photo';
+import { SHOP_TYPES, PROBAS, goldPrices } from '../shopTypes';
 
 // iOS Sozlamalar uslubidagi kabinet: asosiy ekranda qatorlar,
 // har biri o'z ichki ekraniga ochiladi.
@@ -564,6 +565,17 @@ function ShopView({ shop, onBack, reload }: { shop: Shop; onBack: () => void; re
     card_number: shop.card_number ?? '',
     address: shop.address ?? '',
   });
+  const [stype, setStype] = useState<string>(shop.shop_type || 'oziq');
+  // Zargarlik: har probaning 1 gramm narxi. Buyum narxi shundan
+  // hisoblanadi, shuning uchun do'kon sozlamasida turadi — narx
+  // o'zgarganda bitta joyni tuzatish kifoya.
+  const [grams, setGrams] = useState<Record<string, string>>(() => {
+    const src = goldPrices(shop);
+    const out: Record<string, string> = {};
+    for (const p of PROBAS) out[p] = src[p] ? String(src[p]) : '';
+    for (const [k, v] of Object.entries(src)) if (!(k in out)) out[k] = String(v);
+    return out;
+  });
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const { t } = useT();
@@ -571,7 +583,17 @@ function ShopView({ shop, onBack, reload }: { shop: Shop; onBack: () => void; re
   async function save() {
     setError('');
     try {
-      await api.updateMe(form);
+      const gold: Record<string, number> = {};
+      for (const [proba, v] of Object.entries(grams)) {
+        const n = amountValue(v);
+        if (n > 0) gold[proba] = n;
+      }
+      await api.updateMe({
+        ...form,
+        shop_type: stype,
+        // Gramm narxlari faqat zargarlik do'konida ma'noga ega
+        ...(stype === 'oltin' ? { gold_prices: JSON.stringify(gold) } : {}),
+      });
       toast.success(t('saved'));
       reload();
     } catch (e: any) {
@@ -623,6 +645,45 @@ function ShopView({ shop, onBack, reload }: { shop: Shop; onBack: () => void; re
         </div>
         <p className="form-note">{t('setupCardHint')}</p>
       </div>
+
+      {/* Do'kon turi — ilova ko'rinishini shu belgilaydi */}
+      <div className="section-title">{t('shopTypeLabel')}</div>
+      <div className="card">
+        <div className="stype-grid">
+          {SHOP_TYPES.map((x) => (
+            <button
+              key={x.id}
+              className={`stype ${stype === x.id ? 'on' : ''}`}
+              onClick={() => setStype(x.id)}
+              type="button"
+            >
+              <span className="stype-emoji">{x.emoji}</span>
+              <span className="stype-name">{t(`stype_${x.id}`)}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Zargarlik: gramm narxlari. Buyum narxi massa × shu narx. */}
+      {stype === 'oltin' && (
+        <>
+          <div className="section-title">{t('goldPriceTitle')}</div>
+          <div className="card">
+            {PROBAS.map((p) => (
+              <div className="gram-row" key={p}>
+                <span className="proba">{p}</span>
+                <input
+                  inputMode="numeric"
+                  value={formatAmount(grams[p] ?? '')}
+                  onChange={(e) => setGrams({ ...grams, [p]: e.target.value })}
+                  placeholder="0"
+                />
+              </div>
+            ))}
+            <p className="hint" style={{ marginTop: 4 }}>{t('goldGramHint')}</p>
+          </div>
+        </>
+      )}
 
       <div className="form-group">
         <div className="form-row">

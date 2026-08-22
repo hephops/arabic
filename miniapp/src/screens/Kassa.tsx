@@ -18,6 +18,7 @@ import { TrustWarning } from '../trust';
 import { GoalStrip } from '../goal';
 import { VoiceCartSheet } from '../voiceCart';
 import { priceAfter } from '../discount';
+import { goldShop, goldPrice, goldPrices, goldLine, shopInfo, PROBAS } from '../shopTypes';
 import { scanFail } from '../beep';
 import {
   STOCK_UNITS, isFractional, parseQty, qtyText, qtyWithUnit,
@@ -658,6 +659,9 @@ function SaleMode({ onDone, autoScan = 0 }: { onDone: () => void; autoScan?: num
                   <ProductThumb product={p} />
                   <div>
                     <div className="name">{p.name}</div>
+                    {/* Zargarlikda buyumning o'zi muhim: proba va massa
+                        nomdan ham ko'proq narsa aytadi */}
+                    {goldLine(p) && <div className="sub">{goldLine(p)}</div>}
                     <div className="sub" style={p.stock <= 0 ? { color: 'var(--red)' } : undefined}>
                       {t('stock')}: {qtyWithUnit(p.stock, p.unit)}
                     </div>
@@ -693,6 +697,7 @@ function SaleMode({ onDone, autoScan = 0 }: { onDone: () => void; autoScan?: num
                     <ProductThumb product={l.product} size={38} />
                     <div style={{ minWidth: 0 }}>
                       <div className="name">{l.product.name}</div>
+                      {goldLine(l.product) && <div className="sub">{goldLine(l.product)}</div>}
                       <div className="sub">
                         {fmt(linePrice(l.product) * l.qty)}
                         {(l.product.discount_percent ?? 0) > 0 && (
@@ -852,6 +857,13 @@ function IntakeMode({
   const [image, setImage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [scanning, setScanning] = useState(false);
+  // Zargarlik buyumi — yorliqdagi to'rt qator (Проба, Размер, Масса,
+  // Вставка). Faqat oltin do'konida ko'rinadi.
+  const gold = goldShop();
+  const [proba, setProba] = useState('585');
+  const [weight, setWeight] = useState('');
+  const [size, setSize] = useState('');
+  const [stone, setStone] = useState('');
 
   const [voice, setVoice] = useState(false);
   const [codeWarning, setCodeWarning] = useState('');
@@ -991,6 +1003,15 @@ function IntakeMode({
         category: category.trim() || undefined,
         image: image ?? undefined,
         catalog_id: fromCat?.id,
+        // Zargarlik: yorliqdan ko'chirilgan ma'lumot
+        ...(gold
+          ? {
+              proba,
+              weight_g: Number(String(weight).replace(',', '.')) || undefined,
+              size: size.trim() || undefined,
+              stone: stone.trim() || undefined,
+            }
+          : {}),
       });
       toast.success(
         t('toastIntakeSaved'),
@@ -1001,6 +1022,9 @@ function IntakeMode({
       // turdagi tovarni ketma-ket kiritadi (bir necha xil sabzavot,
       // keyin ichimliklar)
       setBarcode(''); setName(''); setCostPrice(''); setSellPrice(''); setTotalDraft(null); setQty(''); setExpiry(''); setImage(null); setFromCat(null);
+      // Buyum maydonlari ham bo'shaydi: har bir zargarlik buyumi o'ziga
+      // xos, oldingisining massasi yangisiga o'tib qolmasin
+      setWeight(''); setSize(''); setStone('');
       api.categories().then(setCats).catch(() => {});
       onDone();
     } catch (e: any) {
@@ -1022,6 +1046,11 @@ function IntakeMode({
   const basisMargin = basisSell && basisCost ? basisSell - basisCost : 0;
   const margin = unitSell && unitCost ? unitSell - unitCost : 0;
   const bases = priceBases(unit);
+  // Buyum narxi: massa × probasining gramm narxi. Do'konchi qo'lda
+  // boshqa narx yozsa (ishlov haqi qo'shilgan bo'lishi mumkin) —
+  // o'shanisi qoladi, bu faqat taklif.
+  const gramPrice = gold ? goldPrices(shopInfo())[proba] ?? 0 : 0;
+  const goldSum = gold ? goldPrice(shopInfo(), proba, Number(String(weight).replace(',', '.'))) : null;
   // "Jami" maydoni: yozilayotgan bo'lsa o'sha matn, aks holda hisoblangani
   const totalShown =
     totalDraft ?? (qtyNum > 0 && unitCost > 0 ? String(Math.round(unitCost * qtyNum)) : '');
@@ -1036,6 +1065,19 @@ function IntakeMode({
     setCostPrice(conv(costPrice));
     setSellPrice(conv(sellPrice));
     setBasis(next);
+  }
+
+  /** Massa yoki proba o'zgarsa sotuv narxi qayta hisoblanadi.
+   *  Do'konchi narxni QO'LDA yozgan bo'lsa tegilmaydi. */
+  function setGold(next: { proba?: string; weight?: string }) {
+    const p = next.proba ?? proba;
+    const w = next.weight ?? weight;
+    if (next.proba !== undefined) setProba(p);
+    if (next.weight !== undefined) setWeight(w.replace(/[^\d.,]/g, ''));
+    const auto = goldPrice(shopInfo(), p, Number(String(w).replace(',', '.')));
+    // Avvalgi taklif turgan bo'lsa yoki maydon bo'sh bo'lsa yangilaymiz
+    const prev = goldPrice(shopInfo(), proba, Number(String(weight).replace(',', '.')));
+    if (auto && (!sellPrice || amountValue(sellPrice) === prev)) setSellPrice(String(auto));
   }
 
   /** Ombor birligi almashsa narx asosi ham unga mos ro'yxatdan olinadi */
@@ -1144,6 +1186,63 @@ function IntakeMode({
           </div>
         </div>
       </div>
+
+      {/* Zargarlik buyumi: yorliqdagi to'rt qator.
+          Har bir buyum o'ziga xos — massasi va probasi bo'yicha
+          narxi ham har xil, shuning uchun narx shu yerdan hisoblanadi. */}
+      {gold && (
+        <div className="form-group">
+          {/* Alohida klass: ".unit-row" ombor birligi qatorini
+              bildiradi, bu esa proba. Ikkalasi bir nom bilan yursa,
+              birlik qatorini tartib bo'yicha topadigan kod adashadi. */}
+          <div className="proba-row">
+            <span className="unit-cap">{t('goldProba')}</span>
+            <div className="unit-chips">
+              {PROBAS.map((p) => (
+                <button
+                  key={p}
+                  className={`chip sm ${proba === p ? 'on' : ''}`}
+                  onClick={() => setGold({ proba: p })}
+                >
+                  {p}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="row-2">
+            <div className="form-row">
+              <label>{t('goldWeight')}</label>
+              <input
+                value={weight}
+                onChange={(e) => setGold({ weight: e.target.value })}
+                inputMode="decimal"
+                placeholder="4.6"
+              />
+            </div>
+            <div className="form-row">
+              <label>
+                {t('goldSize')} <span className="tag">{t('optional')}</span>
+              </label>
+              <input value={size} onChange={(e) => setSize(e.target.value)} placeholder="18" />
+            </div>
+          </div>
+          <div className="form-row">
+            <label>
+              {t('goldStone')} <span className="tag">{t('optional')}</span>
+            </label>
+            <input value={stone} onChange={(e) => setStone(e.target.value)} placeholder="—" />
+          </div>
+          {/* Narx qanday chiqqani ochiq turadi: do'konchi gramm narxini
+              o'zgartirsa nima bo'lishini oldindan ko'radi */}
+          {goldSum ? (
+            <p className="form-note">
+              {t('goldAuto', { w: weight, p: fmt(gramPrice), s: fmt(goldSum) })}
+            </p>
+          ) : (
+            weight.trim() !== '' && <p className="form-note" style={{ color: 'var(--yellow)' }}>{t('goldNoGram')}</p>
+          )}
+        </div>
+      )}
 
       {/* Miqdor va narx.
           Ikki savol alohida so'raladi, chunki javoblari ham alohida:

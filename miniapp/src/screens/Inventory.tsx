@@ -14,6 +14,7 @@ import {
 } from '../units';
 import { ean13Svg, isEan13, scaleBarcode } from '../ean13';
 import { scanFail } from '../beep';
+import { goldShop, goldPrice, goldLine, shopInfo, PROBAS } from '../shopTypes';
 
 // Ombor: mahsulotlar ro'yxati, tahrirlash va inventarizatsiya
 
@@ -142,6 +143,9 @@ export default function Inventory({ onBack }: { onBack: () => void }) {
                       {p.name}
                       {(p.discount_percent ?? 0) > 0 && <span className="badge sale">−{p.discount_percent}%</span>}
                     </div>
+                    {/* Zargarlikda proba va massa buyumni nomdan ham
+                        yaxshiroq ajratadi (bir xil nomli uzuk ko'p bo'ladi) */}
+                    {goldLine(p) && <div className="sub">{goldLine(p)}</div>}
                     <div className="sub">
                       {/* Chegirma bo'lsa eski narx chizilgan holda qoladi */}
                       {(p.discount_percent ?? 0) > 0 ? (
@@ -225,6 +229,12 @@ function ProductEdit({ product, onBack, onSaved }: { product: Product; onBack: (
   });
   // Buyurtma shu bo'yicha guruhlanadi
   const [supplierId, setSupplierId] = useState<string>(product.supplier_id ? String(product.supplier_id) : '');
+  // Zargarlik buyumi — yorliqdagi to'rt qator
+  const gold = goldShop();
+  const [proba, setProba] = useState(product.proba ?? '585');
+  const [weight, setWeight] = useState(product.weight_g != null ? String(product.weight_g) : '');
+  const [size, setSize] = useState(product.size ?? '');
+  const [stone, setStone] = useState(product.stone ?? '');
   const [discount, setDiscount] = useState<number>(product.discount_percent ?? 0);
   // Tarozi raqami va uning namunaviy kodi (1 kg uchun)
   const [plu, setPlu] = useState<string | null>(product.plu ?? null);
@@ -353,6 +363,14 @@ function ProductEdit({ product, onBack, onSaved }: { product: Product; onBack: (
       supplier_id: supplierId ? Number(supplierId) : null,
       discount_percent: discount,
       image: image ?? undefined,
+      ...(gold
+        ? {
+            proba,
+            weight_g: Number(String(weight).replace(',', '.')) || null,
+            size: size.trim(),
+            stone: stone.trim(),
+          }
+        : {}),
     } as any);
     toast.success(t('toastProductSaved'), form.name.trim());
     onSaved();
@@ -561,6 +579,51 @@ function ProductEdit({ product, onBack, onSaved }: { product: Product; onBack: (
             </div>
           </>
         )}
+        {/* Zargarlik buyumi: yorliqdagi qatorlar. Narx massa × gramm
+            narxidan chiqadi, lekin qo'lda ham yozsa bo'ladi. */}
+        {gold && (
+          <>
+            <label>{t('goldProba')}</label>
+            <div className="chip-row wrap">
+              {PROBAS.map((x) => (
+                <button
+                  key={x}
+                  className={`chip ${proba === x ? 'on' : ''}`}
+                  onClick={() => {
+                    setProba(x);
+                    const auto = goldPrice(shopInfo(), x, Number(String(weight).replace(',', '.')));
+                    if (auto) setForm((f) => ({ ...f, sell_price: String(auto) }));
+                  }}
+                >
+                  {x}
+                </button>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <div style={{ flex: 1 }}>
+                <label>{t('goldWeight')}</label>
+                <input
+                  value={weight}
+                  onChange={(e) => {
+                    const v = e.target.value.replace(/[^\d.,]/g, '');
+                    setWeight(v);
+                    const auto = goldPrice(shopInfo(), proba, Number(v.replace(',', '.')));
+                    if (auto) setForm((f) => ({ ...f, sell_price: String(auto) }));
+                  }}
+                  inputMode="decimal"
+                  placeholder="4.6"
+                />
+              </div>
+              <div style={{ flex: 1 }}>
+                <label>{t('goldSize')}</label>
+                <input value={size} onChange={(e) => setSize(e.target.value)} placeholder="18" />
+              </div>
+            </div>
+            <label>{t('goldStone')}</label>
+            <input value={stone} onChange={(e) => setStone(e.target.value)} placeholder="—" />
+          </>
+        )}
+
         <div style={{ display: 'flex', gap: 10 }}>
           <div style={{ flex: 1 }}>
             <label>{t('costPrice')} ({basisText(basis)})</label>

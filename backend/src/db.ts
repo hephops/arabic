@@ -148,6 +148,14 @@ for (const sql of [
   // Admin chekni nega rad etgani. Do'konchining o'z izohi (note)
   // o'chirilmasin — u chekni nima uchun yuborganini aytadi.
   'ALTER TABLE payment_receipts ADD COLUMN review_note TEXT',
+  // Do'kon turi va zargarlik do'koni uchun gramm narxlari
+  "ALTER TABLE shops ADD COLUMN shop_type TEXT NOT NULL DEFAULT 'oziq'",
+  'ALTER TABLE shops ADD COLUMN gold_prices TEXT',
+  // Zargarlik buyumi: yorliqdagi Проба / Размер / Масса / Вставка
+  'ALTER TABLE products ADD COLUMN proba TEXT',
+  'ALTER TABLE products ADD COLUMN weight_g REAL',
+  'ALTER TABLE products ADD COLUMN size TEXT',
+  'ALTER TABLE products ADD COLUMN stone TEXT',
 ]) {
   try {
     db.exec(sql);

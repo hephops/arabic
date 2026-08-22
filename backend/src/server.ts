@@ -22,6 +22,7 @@ import { registerAiRoutes, startAiCleanup } from './ai/routes.js';
 import { seedCatalog } from './catalogSeed.js';
 import { normalizeBarcode, barcodeVariants, checkGtin, makeInStoreEan13, parseScaleBarcode, makeScaleBarcode, scaleQty } from './barcodes.js';
 import { normalizePhone } from './phone.js';
+import { normalizeShopType, cleanGoldPrices, goldPrice, isGold } from './shopTypes.js';
 import { agentByPhone } from './agentcore.js';
 import { noteEmployeeLogin, notifyPinAttempts, recentLogins } from './staffAlert.js';
 import { addBatch, consume, restore, setTotal, batchesOf, syncProduct } from './batches.js';
@@ -297,7 +298,7 @@ app.get('/me', { preHandler: requireAuth }, async (req) => {
 });
 
 app.patch<{ Body: Record<string, unknown> }>('/me', { preHandler: requirePerm('settings') }, async (req) => {
-  const allowed = ['name', 'owner_name', 'address', 'language', 'card_number', 'daily_goal', 'report_enabled', 'report_hour', 'allow_negative_stock', 'staff_notify'];
+  const allowed = ['name', 'owner_name', 'address', 'language', 'card_number', 'daily_goal', 'report_enabled', 'report_hour', 'allow_negative_stock', 'staff_notify', 'shop_type', 'gold_prices'];
   // Karta raqami — do'konga pul tushadigan joy. Sozlamalar ruxsati
   // berilgan xodim ham unga tegmaydi: bitta raqam almashtirilsa
   // to'lovlar begona kartaga ketib qolardi.
@@ -305,7 +306,12 @@ app.patch<{ Body: Record<string, unknown> }>('/me', { preHandler: requirePerm('s
   for (const key of allowed) {
     if (forbidden.includes(key)) continue;
     if (key in req.body) {
-      db.prepare(`UPDATE shops SET ${key} = ? WHERE id = ?`).run(req.body[key], req.shopId);
+      // Tur ro'yxatdan tashqariga chiqmasin, gramm narxlari esa buzuq
+      // JSON bo'lib qolmasin — ikkovi ham ilova ko'rinishini boshqaradi
+      let value: any = req.body[key];
+      if (key === 'shop_type') value = normalizeShopType(value);
+      if (key === 'gold_prices') value = cleanGoldPrices(value);
+      db.prepare(`UPDATE shops SET ${key} = ? WHERE id = ?`).run(value, req.shopId);
     }
   }
   // Til o'zgarsa botdagi xabarlar ham o'sha tilga o'tsin — do'konchi
@@ -1499,11 +1505,38 @@ app.get<{ Querystring: { code?: string } }>('/barcodes/lookup', { preHandler: re
   return { code, valid: checkGtin(code), product, catalog };
 });
 
-app.post<{ Body: { barcode?: string; name: string; unit?: string; price_qty?: number; cost_price?: number; sell_price?: number; qty?: number; expiry_date?: string; image?: string; category?: string; catalog_id?: number } }>(
+app.post<{
+  Body: {
+    barcode?: string; name: string; unit?: string; price_qty?: number; cost_price?: number;
+    sell_price?: number; qty?: number; expiry_date?: string; image?: string; category?: string;
+    catalog_id?: number;
+    /* zargarlik buyumi — yorliqdagi to'rt qator */
+    proba?: string; weight_g?: number; size?: string; stone?: string;
+  };
+}>(
   '/products/intake',
   { preHandler: requirePerm('intake') },
   async (req, reply) => {
-    const { name, cost_price, sell_price, qty, expiry_date, image, category } = req.body as any;
+    const { name, cost_price, qty, expiry_date, image, category } = req.body as any;
+    let sell_price = (req.body as any).sell_price;
+
+    // ── Zargarlik buyumi.
+    //
+    // Yorliqdan ko'chiriladigan to'rt qator: proba, massa, o'lcham,
+    // vstavka. Narx yozilmagan bo'lsa massa × probasining gramm
+    // narxidan hisoblanadi (do'kon sozlamasidagi gold_prices).
+    // Do'konchi o'zi narx qo'ysa — o'shanisi qoladi: ishlov haqi
+    // qo'shilgan bo'lishi mumkin.
+    const shopRow = db.prepare('SELECT shop_type, gold_prices FROM shops WHERE id = ?').get(req.shopId) as any;
+    const proba = String(req.body?.proba ?? '').replace(/\D/g, '').slice(0, 4) || null;
+    const weightRaw = Number(String(req.body?.weight_g ?? '').replace(',', '.'));
+    const weight = Number.isFinite(weightRaw) && weightRaw > 0 ? weightRaw : null;
+    const size = String(req.body?.size ?? '').trim().slice(0, 40) || null;
+    const stone = String(req.body?.stone ?? '').trim().slice(0, 40) || null;
+    if (isGold(shopRow) && !sell_price) {
+      const auto = goldPrice(shopRow, proba, weight);
+      if (auto) sell_price = auto;
+    }
     // Katalogdan olingan bo'lsa — qaysi yozuvdan. Bu tovarning rasmi va
     // to'liq nomi keyin ham katalogdan yangilanib turishi uchun kerak.
     const catalogId = Number(req.body?.catalog_id) || null;
@@ -1541,17 +1574,27 @@ app.post<{ Body: { barcode?: string; name: string; unit?: string; price_qty?: nu
       }
       const info = db
         .prepare(
-          'INSERT INTO products (shop_id, barcode, name, unit, price_qty, cost_price, sell_price, stock, expiry_date, category, catalog_id) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)'
+          `INSERT INTO products
+             (shop_id, barcode, name, unit, price_qty, cost_price, sell_price, stock, expiry_date, category, catalog_id, proba, weight_g, size, stone)
+           VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?)`
         )
         .run(
           req.shopId, barcode || null, name.trim(), unit, priceQty,
           cost_price ?? 0, sell_price ?? 0, expiry_date ?? null, category?.trim() || null,
-          catalogId
+          catalogId, proba, weight, size, stone
         );
       product = db.prepare('SELECT * FROM products WHERE id = ?').get(info.lastInsertRowid);
     } else if (category?.trim() && !product.category) {
       db.prepare('UPDATE products SET category = ? WHERE id = ?').run(category.trim(), product.id);
       product.category = category.trim();
+    }
+    // Yorliqdan kelgan ma'lumot mavjud kartochkaga ham yoziladi
+    // (ilgari kodsiz kiritilgan buyum keyin yorliq bilan kelishi mumkin)
+    for (const [key, value] of [['proba', proba], ['weight_g', weight], ['size', size], ['stone', stone]] as const) {
+      if (value != null && product && product[key] == null) {
+        db.prepare(`UPDATE products SET ${key} = ? WHERE id = ?`).run(value as any, product.id);
+        product[key] = value;
+      }
     }
     if (product && barcode && !product.barcode) {
       // ilgari kodsiz yozilgan tovarga endi kod berildi
@@ -1855,7 +1898,7 @@ app.patch<{ Params: { id: string }; Body: Record<string, unknown> }>(
     if (priceKeys.some((k) => k in req.body) && !can(req, 'price_edit')) {
       return reply.code(403).send({ error: 'no_permission', permission: 'price_edit' });
     }
-    for (const key of ['name', 'barcode', 'unit', 'price_qty', 'cost_price', 'sell_price', 'low_stock_threshold', 'stock', 'category', 'supplier_id', 'discount_percent']) {
+    for (const key of ['name', 'barcode', 'unit', 'price_qty', 'cost_price', 'sell_price', 'low_stock_threshold', 'stock', 'category', 'supplier_id', 'discount_percent', 'proba', 'weight_g', 'size', 'stone']) {
       if (key in req.body) {
         let value = key === 'barcode' ? normalizeBarcode(req.body[key] as string) || null : (req.body[key] as any);
         if (key === 'unit') value = normalizeUnit(value);
@@ -1868,6 +1911,13 @@ app.patch<{ Params: { id: string }; Body: Record<string, unknown> }>(
           // 0..90 oralig'ida — 100% chegirma "tekin berish" bo'lardi
           value = Math.min(90, Math.max(0, Math.round(Number(value) || 0)));
         }
+        // Zargarlik maydonlari: yorliqdan ko'chiriladi
+        if (key === 'proba') value = String(value ?? '').replace(/\D/g, '').slice(0, 4) || null;
+        if (key === 'weight_g') {
+          const w = Number(String(value).replace(',', '.'));
+          value = Number.isFinite(w) && w > 0 ? w : null;
+        }
+        if (key === 'size' || key === 'stone') value = String(value ?? '').trim().slice(0, 40) || null;
         if (key === 'supplier_id') {
           // Begona do'konning ta'minotchisi biriktirilmasin
           value = value
