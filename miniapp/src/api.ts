@@ -71,6 +71,48 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   return res.json();
 }
 
+/* ─────────── Taklif kodi ───────────
+ *
+ * Do'konchi taklif havolasidan kirsa, kim chaqirgani shu yerda
+ * ushlanadi. Ilgari server 'ref' ni qabul qilardi, lekin ilova uni
+ * HECH QACHON yubormasdi — ya'ni taklif tizimi butunlay ishlamasdi:
+ * hech kim hech kimga biriktirilmasdi.
+ *
+ * Ikki yo'l bilan keladi:
+ *   Telegram ichida — startapp parametri (initDataUnsafe.start_param)
+ *   Brauzerda       — ?ref=ARABIC12
+ *
+ * Kod localStorage ga yoziladi: do'konchi havolani bosib, keyin kod
+ * kutib turib, ekranni yangilashi mumkin — o'shanda ham yo'qolmasin.
+ */
+const REF_KEY = 'ref_code';
+
+function takeRef(): string | undefined {
+  try {
+    const tg = (window as any).Telegram?.WebApp;
+    const raw =
+      String(tg?.initDataUnsafe?.start_param ?? '') ||
+      new URLSearchParams(location.search).get('ref') ||
+      localStorage.getItem(REF_KEY) ||
+      '';
+    // 'ref12' ham, 'ARABIC12' ham qabul qilinadi
+    const m = /^(?:ref|ARABIC)(\d{1,9})$/i.exec(raw.trim());
+    return m ? `ARABIC${m[1]}` : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Havoladan kelgan taklif kodini saqlab qo'yish (ilova ochilganda) */
+export function rememberRef(): void {
+  try {
+    const code = takeRef();
+    if (code) localStorage.setItem(REF_KEY, code);
+  } catch {
+    /* localStorage yopiq bo'lishi mumkin */
+  }
+}
+
 export const api = {
   // Yordam kontaktlari (kirish shart emas)
   support: () => request<{ phone: string; telegram: string }>('/public/support'),
@@ -114,7 +156,9 @@ export const api = {
   verify: (phone: string, code: string, shop_name?: string, init_data?: string) =>
     request<{ token: string; shop: Shop }>('/auth/verify', {
       method: 'POST',
-      body: JSON.stringify({ phone, code, shop_name, init_data }),
+      // Taklif kodi ham ketadi: kim chaqirgani faqat RO'YXATDAN
+      // O'TISHDA yoziladi, keyin bilib bo'lmaydi
+      body: JSON.stringify({ phone, code, shop_name, init_data, ref: takeRef() }),
     }),
   telegramAuth: (init_data: string) =>
     request<{ token: string; shop: Shop }>('/auth/telegram', {
@@ -212,7 +256,18 @@ export const api = {
     request<Employee>('/employees', { method: 'POST', body: JSON.stringify(data) }),
   updateEmployee: (id: number, data: { is_active?: number; name?: string; pin?: string; permissions?: PermKey[] }) =>
     request<Employee>(`/employees/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
-  referral: () => request<{ code: string; invited_count: number; reward_text: string }>('/referral'),
+  referral: () =>
+    request<{
+      code: string;
+      invited_count: number;
+      reward_text: string;
+      /** bitta do'kon uchun beriladigan bonus */
+      bonus?: number;
+      /** shu paytgacha haqiqatda tushgan pul */
+      earned?: number;
+      /** taklif havolasi — bot nomi serverdan keladi */
+      link?: string;
+    }>('/referral'),
 
   /* ── AI yordamchi ── */
   aiStatus: () => request<AiStatus>('/ai/status'),

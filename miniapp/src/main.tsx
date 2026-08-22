@@ -5,9 +5,14 @@ import { I18nProvider } from './i18n';
 import './styles.css';
 
 import { initTelegram } from './telegram';
+import { rememberRef } from './api';
 
 // Telegram Mini App muhitida ekranni to'liq ochamiz va mavzuga moslashamiz
 initTelegram();
+
+// Taklif havolasidan kelgan kodni darhol saqlab qo'yamiz: do'konchi
+// kod kutib turib ekranni yangilasa ham yo'qolmasin
+rememberRef();
 
 // PWA: ilova qobig'ini keshlaydigan service worker.
 //

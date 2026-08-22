@@ -133,6 +133,19 @@ app.post<{ Body: { phone: string } }>('/auth/request-otp', async (req, reply) =>
   };
 });
 
+/**
+ * Taklif kodi: 'ARABIC12' yoki 'ref12'. Faqat mavjud do'konning
+ * kodi qabul qilinadi — yo'q do'kon yozilsa bonus hech qachon
+ * to'lanmaydi va sabab ham ko'rinmaydi.
+ */
+function cleanRefCode(raw: unknown): string | null {
+  const m = /^(?:ref|ARABIC)(\d{1,9})$/i.exec(String(raw ?? '').trim());
+  if (!m) return null;
+  const id = Number(m[1]);
+  const exists = db.prepare('SELECT 1 FROM shops WHERE id = ?').get(id);
+  return exists ? `ARABIC${id}` : null;
+}
+
 app.post<{ Body: { phone: string; code: string; shop_name?: string; ref?: string; init_data?: string } }>(
   '/auth/verify',
   async (req, reply) => {
@@ -151,12 +164,15 @@ app.post<{ Body: { phone: string; code: string; shop_name?: string; ref?: string
     // Yangi do'kon bepul kunlar bilan boshlaydi: shu muddatda balansdan
     // hech narsa yechilmaydi, do'konchi hammasini ko'rib chiqadi
     const start = trialThrough();
+    // Taklif kodi tozalanadi: ilova yuborgan matn to'g'ridan-to'g'ri
+    // bazaga tushmasin va mavjud bo'lmagan do'kon yozilib qolmasin
+    const refCode = cleanRefCode(ref);
     const info = db
       .prepare(
         `INSERT INTO shops (phone, name, referred_by, charged_through, trial_ends_at)
          VALUES (?, ?, ?, ?, ?)`
       )
-      .run(phone, shop_name ?? 'Mening do‘konim', ref ?? null, start.charged_through, start.trial_ends_at);
+      .run(phone, shop_name ?? 'Mening do‘konim', refCode, start.charged_through, start.trial_ends_at);
     shop = db.prepare('SELECT * FROM shops WHERE id = ?').get(info.lastInsertRowid);
     // Botga allaqachon ulangan bo'lsa — yangi do'konga ham bog'laymiz,
     // shunda kechki hisobot va eslatmalar shu chatga boradi
@@ -1399,11 +1415,19 @@ app.get('/referral', { preHandler: requireOwner }, async (req) => {
     .get(req.shopId) as any;
   const me = db.prepare('SELECT shop_type FROM shops WHERE id = ?').get(req.shopId) as any;
   const bonus = Math.round(Number(shopSetting(me, 'referral_bonus', settingDefault('referral_bonus')))) || 0;
+  // Taklif havolasi — ULANGAN botning nomidan. Ilgari ilovada bot nomi
+  // qo'lda yozib qo'yilgan edi ('ArabicOneBot') va bot nomi
+  // o'zgarganda taklif qilingan odam yo'q botga tushardi.
+  const bot = botUsername();
   return {
     code,
     invited_count: invited.c,
     bonus,
     earned: Number(paid.s) || 0,
+    bot: bot || undefined,
+    // startapp — mini-ilovani ochadi va kodni ilovaga uzatadi
+    // (start bo'lsa faqat bot suhbati ochilardi)
+    link: bot ? `https://t.me/${bot}?startapp=ref${req.shopId}` : undefined,
     reward_text: bonus > 0
       ? `Chaqirgan do'koningiz to'lov qilsa — balansingizga ${bonus.toLocaleString('ru-RU').replace(/\u00a0/g, ' ')} so'm`
       : "Do'stingizni taklif qiling",

@@ -1099,7 +1099,7 @@ function PermissionEditor({ employee, onSaved }: { employee: Employee; onSaved: 
 }
 
 function ReferralView({ onBack }: { onBack: () => void }) {
-  const [data, setData] = useState<{ code: string; invited_count: number; reward_text: string } | null>(null);
+  const [data, setData] = useState<Awaited<ReturnType<typeof api.referral>> | null>(null);
   const { t } = useT();
   const [copied, setCopied] = useState(false);
 
@@ -1109,6 +1109,10 @@ function ReferralView({ onBack }: { onBack: () => void }) {
 
   if (!data) return <div className="screen empty">{t('loading')}</div>;
 
+  // Havola serverdan keladi: bot nomi u yerda turadi. Ilgari bu yerga
+  // bot nomi qo'lda yozilgan edi va nomi o'zgargach taklif qilingan
+  // odam yo'q botga tushardi.
+  const link = data.link ?? '';
   const shareText = `BuySale — Savdo, ombor, foyda ilovasiga qo'shiling! Promo-kodim: ${data.code}. ${data.reward_text}.`;
 
   return (
@@ -1123,12 +1127,14 @@ function ReferralView({ onBack }: { onBack: () => void }) {
         <button
           className="btn-primary"
           onClick={() => {
-            navigator.clipboard?.writeText(shareText);
+            navigator.clipboard?.writeText(link ? `${shareText}\n${link}` : shareText);
             setCopied(true);
             const tg = (window as any).Telegram?.WebApp;
-            tg?.openTelegramLink?.(
-              `https://t.me/share/url?url=${encodeURIComponent('https://t.me/ArabicOneBot')}&text=${encodeURIComponent(shareText)}`
-            );
+            if (link) {
+              tg?.openTelegramLink?.(
+                `https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(shareText)}`
+              );
+            }
           }}
         >
           {copied ? t('copied') : t('share')}
@@ -1137,6 +1143,13 @@ function ReferralView({ onBack }: { onBack: () => void }) {
       <div className="card center">
         <div className="hint">{t('invitedCount')}</div>
         <div style={{ fontSize: 26, fontWeight: 800 }}>{data.invited_count} {t('shops')}</div>
+        {/* Nechta odam chaqirganidan ko'ra "qancha pul tushdi" muhimroq:
+            bonus faqat chaqirilgan do'kon to'lov qilganda beriladi */}
+        {(data.earned ?? 0) > 0 && (
+          <div style={{ marginTop: 10, color: 'var(--green)', fontWeight: 700 }}>
+            +{fmt(data.earned ?? 0)}
+          </div>
+        )}
       </div>
       </div>
     </>
