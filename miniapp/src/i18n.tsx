@@ -1869,16 +1869,34 @@ const RU: Record<string, string> = {
 
 /* ─────────── Lotin → Kirill o'girgichi ─────────── */
 
+// "ye" dan chiqqan "е" ni vaqtincha shu belgi bilan yuritamiz: so'z
+// boshidagi "е" → "э" qoidasi unga TEGMASLIGI kerak. Aks holda
+// "yerga" → "ерга" → "эрга", "yetadi" → "этади" bo'lib ketardi.
+const YE = '\u0001';
+const YE_BOSH = '\u0002';
+
 const DIGRAPHS: [RegExp, string][] = [
-  [/o['’ʻ`]/g, 'ў'], [/O['’ʻ`]/g, 'Ў'],
-  [/g['’ʻ`]/g, 'ғ'], [/G['’ʻ`]/g, 'Ғ'],
+  // Apostrof to'rt xil belgi bilan yozilishi mumkin: ' ’ ʻ ‘ va `.
+  // Ilgari ‘ (U+2018) ro'yxatda yo'q edi va "qo‘ng‘iroq" kirillchada
+  // "қо‘нг‘ироқ" bo'lib chiqardi — ya'ni ў va ғ o'rniga lotin harfi
+  // apostrof bilan qolib ketardi.
+  [/o['’ʻ‘`]/g, 'ў'], [/O['’ʻ‘`]/g, 'Ў'],
+  [/g['’ʻ‘`]/g, 'ғ'], [/G['’ʻ‘`]/g, 'Ғ'],
   [/sh/g, 'ш'], [/Sh/g, 'Ш'], [/SH/g, 'Ш'],
   [/ch/g, 'ч'], [/Ch/g, 'Ч'], [/CH/g, 'Ч'],
+  // "ts" HAR DOIM "ц" emas: o'zbekchada u ko'pincha ikki bo'g'in
+  // chegarasi — "ketsa" (кетса, "кеца" emas), "xarajatsiz"
+  // (харажатсиз), "aytsin" (айтсин). "ц" faqat o'zlashgan
+  // "-tsiya" / "-tsion" qo'shimchasida bo'ladi.
+  //
+  // Bu qatorlar "ya" dan OLDIN turishi shart: aks holda "tsiya"
+  // ichidagi "ya" avval olinib, qoida umuman ishlamay qolardi.
+  [/tsiya/g, 'ция'], [/Tsiya/g, 'Ция'],
+  [/tsion/g, 'цион'], [/Tsion/g, 'Цион'],
   [/yo/g, 'ё'], [/Yo/g, 'Ё'],
   [/yu/g, 'ю'], [/Yu/g, 'Ю'],
   [/ya/g, 'я'], [/Ya/g, 'Я'],
-  [/ye/g, 'е'], [/Ye/g, 'Е'],
-  [/ts/g, 'ц'],
+  [/ye/g, YE], [/Ye/g, YE_BOSH],
 ];
 
 const LETTERS: Record<string, string> = {
@@ -1890,8 +1908,13 @@ const LETTERS: Record<string, string> = {
   T: 'Т', U: 'У', V: 'В', X: 'Х', Y: 'Й', Z: 'З',
 };
 
-// Kirillchada o'girilmaydigan atamalar
-const KEEP = ['AI', 'SMS', 'PIN', 'POS', 'BuySale', 'Payme', 'Click', 'Uzum', 'Telegram', 'DEV'];
+// Kirillchada o'girilmaydigan atamalar: xalqaro nomlar, fayl
+// turlari va tovar markalari. Ular o'girilsa lotin harfi kirill
+// ichida qolib, "Cоcа-Cола" kabi aralash yozuv chiqardi.
+const KEEP = [
+  'AI', 'SMS', 'PIN', 'POS', 'BuySale', 'Payme', 'Click', 'Uzum', 'Telegram', 'DEV',
+  'Excel', 'CSV', 'PDF', 'QR', 'IMEI', 'PLU', 'Coca-Cola', 'iPhone', 'Samsung',
+];
 
 export function toCyrillic(text: string): string {
   let out = text;
@@ -1903,10 +1926,33 @@ export function toCyrillic(text: string): string {
       out = out.split(w).join(`\u0000${i}\u0000`);
     }
   });
+  // {days}, {date} kabi o'rin egallovchilar HAM o'girilmaydi.
+  //
+  // Ilgari ular ham harfma-harf o'girilardi: "{days}" → "{дайс}".
+  // Keyin .replace('{days}', son) hech narsani topa olmasdi va
+  // ekranda raqam o'rniga "{дайс}" turardi — bu do'konchi ko'radigan
+  // eng ko'zga tashlanadigan xatolardan biri edi.
+  const slots: string[] = [];
+  out = out.replace(/\{[a-zA-Z_][a-zA-Z0-9_]*\}/g, (m) => {
+    slots.push(m);
+    return `\u0003${slots.length - 1}\u0003`;
+  });
   for (const [re, rep] of DIGRAPHS) out = out.replace(re, rep);
   out = out.replace(/[a-zA-Z]/g, (ch) => LETTERS[ch] ?? ch);
-  // so'z boshidagi "е" → "э" (o'zbek imlosi)
+  // so'z boshidagi "е" → "э" (o'zbek imlosi). "ye" dan chiqqani
+  // hozircha alohida belgi bo'lib turibdi, ya'ni bu qoidaga tushmaydi.
   out = out.replace(/(^|[\s(«"'])е/g, '$1э').replace(/(^|[\s(«"'])Е/g, '$1Э');
+  out = out.split(YE).join('е').split(YE_BOSH).join('Е');
+  // Tutuq belgisi: "ma'lumot" → "маълумот", "ta'minotchi" → "таъминотчи".
+  //
+  // o' va g' allaqachon ў/ғ ga o'tgan, ya'ni qolgan apostrof — tutuq
+  // belgisi. Ilgari u shundayligicha qolardi va kirill matn ichida
+  // lotincha tirnoq bo'lib turardi: "ма'лумот".
+  //
+  // Faqat IKKI HARF ORASIDAGI apostrof almashtiriladi — matndagi
+  // tirnoq belgilariga tegilmaydi.
+  out = out.replace(/([а-яёқғҳўА-ЯЁҚҒҲЎ])['’ʻ‘`]([а-яёқғҳўА-ЯЁҚҒҲЎ])/g, '$1ъ$2');
+  out = out.replace(/\u0003(\d+)\u0003/g, (_, i) => slots[Number(i)] ?? '');
   kept.forEach((w, i) => {
     if (w) out = out.split(`\u0000${i}\u0000`).join(w);
   });
