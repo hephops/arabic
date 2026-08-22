@@ -31,6 +31,10 @@ export default function Dashboard({
   if (error) return <div className="screen error">{t('error')}: {error}</div>;
   if (!data) return <div className="screen empty">{t('loading')}</div>;
 
+  // Server "Qarzlarni ko'rish" ruxsatini hisobga olib javob beradi.
+  // Eski serverda bu maydon yo'q — o'shanda avvalgidek ko'rsatiladi.
+  const qarzKorinsin = data.debts_visible !== false;
+
   const maxRev = Math.max(...data.week.map((w) => w.revenue), 1);
   const weekTotal = data.week.reduce((a, w) => a + w.revenue, 0);
   const today = uzToday();
@@ -117,14 +121,20 @@ export default function Dashboard({
         onSet={can('settings') ? () => setGoalSheet(true) : undefined}
       />
 
-      {/* Uchta asosiy ko'rsatkich */}
+      {/* Uchta asosiy ko'rsatkich.
+          Qarz raqamlari "Qarzlarni ko'rish" ruxsatiga bog'liq: server
+          ularni bermasa (debts_visible: false) ekranda ham
+          ko'rsatilmaydi — aks holda nol turib, do'konchi "qarzdorim
+          yo'q ekan" deb o'ylab qolardi. */}
       <div className="stat-row">
+        {qarzKorinsin && (
         <div className="stat-card" onClick={() => onNavigate('reminders')} style={{ cursor: 'pointer' }}>
           <div className="k">
             <Glyph name="arrowDown" size={13} color="var(--green)" /> {t('statOwed')}
           </div>
           <div className="v" style={{ color: 'var(--green)' }}>{fmtShort(data.owed_to_me)}</div>
         </div>
+        )}
         <div className="stat-card" onClick={() => onNavigate('suppliers')} style={{ cursor: 'pointer' }}>
           <div className="k">
             <Glyph name="arrowUp" size={13} color="var(--red)" /> {t('statOwe')}
@@ -177,7 +187,7 @@ export default function Dashboard({
 
       <div className="home-cols">
         <div>
-      {data.overdue.length > 0 && (
+      {qarzKorinsin && data.overdue.length > 0 && (
         <>
           <div className="section-title">{t('overdueDebts')}</div>
           <div className="list-group">
@@ -196,7 +206,7 @@ export default function Dashboard({
         </>
       )}
 
-      {data.due_today.length > 0 && (
+      {qarzKorinsin && data.due_today.length > 0 && (
         <>
           <div className="section-title">{t('dueToday')}</div>
           <div className="list-group">

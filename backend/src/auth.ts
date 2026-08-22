@@ -114,6 +114,24 @@ export async function requireAuth(req: FastifyRequest, reply: FastifyReply) {
   }
   req.shopId = session.shopId;
   req.employeeId = session.employeeId;
+
+  // Do'kon bloklangan bo'lsa — tokeni bo'lsa ham ishlamaydi.
+  //
+  // Ilgari is_blocked FAQAT kirish paytida tekshirilardi (/auth/verify
+  // va /auth/employee). Token esa 30 kun amal qiladi: admin panelda
+  // "Bloklash" bosilgandan keyin ham ilovasi ochiq turgan do'konchi
+  // sotuvni davom ettiraverardi, qarz yozardi, tovar qo'shardi — blok
+  // faqat u chiqib qayta kirganda sezilardi.
+  const shop = db.prepare('SELECT is_blocked, blocked_reason FROM shops WHERE id = ?').get(session.shopId) as any;
+  if (!shop) {
+    reply.code(401).send({ error: 'unauthorized' });
+    return reply;
+  }
+  if (shop.is_blocked) {
+    reply.code(403).send({ error: 'blocked', reason: shop.blocked_reason ?? null });
+    return reply;
+  }
+
   req.perms = session.employeeId ? loadPerms(session.employeeId) : null;
   // Ega xodimni bloklagan bo'lsa — tokeni bo'lsa ham kirmaydi
   if (session.employeeId && req.perms!.length === 0) {

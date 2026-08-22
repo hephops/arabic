@@ -537,24 +537,34 @@ app.get('/dashboard', { preHandler: requireAuth }, async (req) => {
   // Bugungi kun chegaralari — UTC'da, indeks ishlashi uchun
   const dayFrom = uzDayStartUtc(0);
   const dayTo = uzDayStartUtc(1);
+  // "Qarzlarni ko'rish" ruxsati. Ilgari bu kalit ro'yxatda bor edi,
+  // ilovada "Qarzlarni ko'rish" degan tugma bo'lib chiqardi, LEKIN uni
+  // hech kim tekshirmasdi: o'chirilgan bo'lsa ham xodim bosh sahifada
+  // butun qarz daftarini ko'raverardi. Ishlamaydigan tugma esa
+  // do'kon egasini "himoyalanganman" deb aldab qo'yardi.
+  const qarzKorsin = can(req, 'debts');
   const owedToMe = db
     .prepare(`SELECT COALESCE(SUM(amount - paid_amount), 0) AS s FROM debts WHERE shop_id = ? AND status != 'paid'`)
     .get(req.shopId) as any;
   const iOwe = db
     .prepare(`SELECT COALESCE(SUM(amount - paid_amount), 0) AS s FROM supplier_debts WHERE shop_id = ? AND status != 'paid'`)
     .get(req.shopId) as any;
-  const dueToday = db
-    .prepare(
-      `SELECT d.*, c.name AS customer_name FROM debts d JOIN customers c ON c.id = d.customer_id
-       WHERE d.shop_id = ? AND d.status != 'paid' AND d.due_date = date('now', '+5 hours') ORDER BY d.amount DESC`
-    )
-    .all(req.shopId);
-  const overdue = db
-    .prepare(
-      `SELECT d.*, c.name AS customer_name FROM debts d JOIN customers c ON c.id = d.customer_id
-       WHERE d.shop_id = ? AND d.status = 'overdue' ORDER BY d.due_date ASC`
-    )
-    .all(req.shopId);
+  const dueToday = qarzKorsin
+    ? db
+        .prepare(
+          `SELECT d.*, c.name AS customer_name FROM debts d JOIN customers c ON c.id = d.customer_id
+           WHERE d.shop_id = ? AND d.status != 'paid' AND d.due_date = date('now', '+5 hours') ORDER BY d.amount DESC`
+        )
+        .all(req.shopId)
+    : [];
+  const overdue = qarzKorsin
+    ? db
+        .prepare(
+          `SELECT d.*, c.name AS customer_name FROM debts d JOIN customers c ON c.id = d.customer_id
+           WHERE d.shop_id = ? AND d.status = 'overdue' ORDER BY d.due_date ASC`
+        )
+        .all(req.shopId)
+    : [];
   const shopRow = db.prepare('SELECT shop_type FROM shops WHERE id = ?').get(req.shopId) as any;
   // hideCost: `SELECT *` kirim narxini ham olib keladi. Bosh sahifa
   // ruxsat talab qilmaydi (requireAuth), ya'ni cost_view'siz xodim
@@ -666,9 +676,11 @@ app.get('/dashboard', { preHandler: requireAuth }, async (req) => {
   };
 
   return {
-    owed_to_me: owedToMe.s,
-    i_owe: iOwe.s,
-    net: owedToMe.s - iOwe.s,
+    // Qarz summalari ham "Qarzlarni ko'rish" ruxsatiga bog'liq
+    owed_to_me: qarzKorsin ? owedToMe.s : 0,
+    i_owe: qarzKorsin ? iOwe.s : 0,
+    net: qarzKorsin ? owedToMe.s - iOwe.s : 0,
+    debts_visible: qarzKorsin,
     today,
     // Kunlik maqsad — bosh sahifada va kassada progress bo'lib ko'rinadi
     daily_goal: (db.prepare('SELECT daily_goal FROM shops WHERE id = ?').get(req.shopId) as any)?.daily_goal ?? 0,
@@ -763,6 +775,11 @@ app.get('/customers', { preHandler: requirePerm('customers') }, async (req) => {
        WHERE c.shop_id = ? GROUP BY c.id ORDER BY balance DESC`
     )
     .all(req.shopId) as any[];
+  // Qarz qoldig'i va ishonch reytingi qarz tarixidan chiqadi —
+  // "Qarzlarni ko'rish" ruxsati yo'q xodimga ular ko'rsatilmaydi
+  if (!can(req, 'debts')) {
+    return rows.map((c) => ({ ...c, balance: 0, last_activity: null, trust: null }));
+  }
   const trust = trustMap(req.shopId);
   return rows.map((c) => ({ ...c, trust: trust.get(c.id) ?? null }));
 });
@@ -845,6 +862,10 @@ app.get<{ Params: { id: string } }>('/customers/:id', { preHandler: requirePerm(
     .prepare('SELECT * FROM customers WHERE id = ? AND shop_id = ?')
     .get(req.params.id, req.shopId);
   if (!customer) return reply.code(404).send({ error: 'not_found' });
+  // Qarz tarixi "Qarzlarni ko'rish" ruxsatiga bog'liq: mijozlar
+  // ro'yxatiga kira oladigan xodim uning qarz daftarini ko'rishi
+  // shart emas
+  if (!can(req, 'debts')) return { ...customer, debts: [], balance: 0, trust: null };
   const debts = db
     .prepare('SELECT * FROM debts WHERE customer_id = ? ORDER BY created_at DESC')
     .all(req.params.id) as any[];
@@ -1047,6 +1068,15 @@ app.post<{ Params: { id: string }; Body: { amount: number } }>(
     if (!debt) return reply.code(404).send({ error: 'not_found' });
     const amount = Math.round(req.body.amount);
     if (!amount || amount <= 0) return reply.code(400).send({ error: 'amount_required' });
+    // Qolgan qarzdan ortiq to'lov qabul qilinmaydi. Ilgari qabul
+    // qilinardi va ortiqchasi hech qayerda ko'rinmasdi: mijoz ortiqcha
+    // bergan pul jimgina yo'qolardi, do'konchi esa "to'landi" degan
+    // yozuvni ko'rib qo'yaverardi.
+    const qoldiq = Math.max(0, Number(debt.amount) - Number(debt.paid_amount));
+    if (qoldiq <= 0) return reply.code(409).send({ error: 'already_paid' });
+    if (amount > qoldiq) {
+      return reply.code(400).send({ error: 'amount_too_big', details: { left: qoldiq } });
+    }
     db.prepare('INSERT INTO debt_payments (debt_id, amount) VALUES (?, ?)').run(debt.id, amount);
     const newPaid = debt.paid_amount + amount;
     const status = newPaid >= debt.amount ? 'paid' : debt.status;
@@ -1115,6 +1145,13 @@ app.post<{ Body: { supplier_id?: number; supplier_name?: string; amount: number;
           );
     }
     if (!sid) return reply.code(400).send({ error: 'supplier_required' });
+    // Ta'minotchi SHU do'konnikimi. Ilgari supplier_id tekshirilmasdi:
+    // begona do'konning ta'minotchisi raqamini yozib yuborgan odam
+    // o'sha do'konning hisobiga qarz qo'shib qo'yishi mumkin edi
+    // (yozuv shop_id bilan tushardi, lekin ta'minotchi begona bo'lardi
+    // va ikkala do'konning hisoboti ham buzilardi).
+    const own = db.prepare('SELECT id FROM suppliers WHERE id = ? AND shop_id = ?').get(sid, req.shopId) as any;
+    if (!own) return reply.code(404).send({ error: 'supplier_not_found' });
     const info = db
       .prepare('INSERT INTO supplier_debts (shop_id, supplier_id, amount, note, due_date) VALUES (?, ?, ?, ?, ?)')
       .run(req.shopId, sid, Math.round(amount), note ?? null, due_date ?? null);
@@ -1167,6 +1204,12 @@ app.post<{ Params: { id: string }; Body: { amount: number } }>(
     if (!debt) return reply.code(404).send({ error: 'not_found' });
     const amount = Math.round(req.body.amount);
     if (!amount || amount <= 0) return reply.code(400).send({ error: 'amount_required' });
+    // Qolgan qarzdan ortiq to'lov qabul qilinmaydi (mijoz qarzida ham shunday)
+    const qoldiq = Math.max(0, Number(debt.amount) - Number(debt.paid_amount));
+    if (qoldiq <= 0) return reply.code(409).send({ error: 'already_paid' });
+    if (amount > qoldiq) {
+      return reply.code(400).send({ error: 'amount_too_big', details: { left: qoldiq } });
+    }
     const newPaid = debt.paid_amount + amount;
     const status = newPaid >= debt.amount ? 'paid' : debt.status;
     db.prepare('UPDATE supplier_debts SET paid_amount = ?, status = ? WHERE id = ?').run(newPaid, status, debt.id);

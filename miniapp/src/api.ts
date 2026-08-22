@@ -66,6 +66,21 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     const err: any = new Error(msg);
     err.status = res.status;
     err.details = body;          // masalan: qoldig'i yetmagan tovarlar ro'yxati
+    // Do'kon bloklangan bo'lsa har so'rov 403 qaytaradi. Ekranda
+    // "HTTP 403" degan yozuv do'konchiga hech narsa anglatmaydi va u
+    // nima bo'lganini tushunmasdan qolardi — sababini aytib, hisobdan
+    // chiqaramiz, keyingi kirishda esa server o'zi to'xtatadi.
+    if (res.status === 403 && body?.error === 'blocked') {
+      err.blocked = true;
+      err.message = body?.reason
+        ? `${translate('shopBlocked')}: ${body.reason}`
+        : translate('shopBlocked');
+      try {
+        localStorage.removeItem('token');
+      } catch {
+        /* localStorage yopiq bo'lishi mumkin */
+      }
+    }
     throw err;
   }
   return res.json();
@@ -1001,6 +1016,8 @@ export interface SupplierDue {
 
 export interface Dashboard {
   owed_to_me: number;
+  /** "Qarzlarni ko'rish" ruxsati bormi (server hal qiladi) */
+  debts_visible?: boolean;
   i_owe: number;
   net: number;
   today: {
