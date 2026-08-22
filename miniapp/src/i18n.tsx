@@ -482,6 +482,11 @@ const UZ: Record<string, string> = {
   /* Qaysi ombordagi tovarga mos kelgani — nomi bilan. Nomsiz do'konchi
      mosligning to'g'ri-noto'g'riligini tekshira olmaydi. */
   draftMatched: 'mos keldi: {n}',
+  draftRowTotal: 'Qator summasi',
+  /* Ustama — sotuv va kirim narxi orasidagi farq foizda. Do'konchi
+     kalkulyator qidirmasin: nakladnoydan kelgan narx bilan o'zi
+     qo'ygan narx orasidagi foyda shu yerda darrov ko'rinadi. */
+  draftMarkup: 'Ustama',
   draftRemoveAsk: "'{n}' qatori ro'yxatdan olib tashlansinmi?",
   aiTooLong: "Javob juda uzoq davom etdi. Savolni qisqaroq qilib qayta yozing.",
   aiNetLost: "Aloqa uzildi. Qaytadan yuboring.",
@@ -1317,6 +1322,8 @@ const RU: Record<string, string> = {
   draftOldPrice: 'старая цена продажи {p}',
   draftUnitDiff: 'на складе ведётся в {u} — остаток может перепутаться',
   draftMatched: 'совпало: {n}',
+  draftRowTotal: 'Сумма строки',
+  draftMarkup: 'Наценка',
   draftRemoveAsk: "Убрать строку '{n}' из списка?",
   aiTooLong: 'Ответ занял слишком много времени. Задайте вопрос короче.',
   aiNetLost: 'Связь прервалась. Отправьте ещё раз.',

@@ -5,6 +5,7 @@ import { useT } from '../i18n';
 import { toast } from '../toast';
 import { haptic } from '../telegram';
 import { qtyText } from '../units';
+import { formatAmount, amountValue } from '../format';
 import { DateField } from '../ui';
 import Scanner from '../Scanner';
 
@@ -176,6 +177,15 @@ export default function AiDraft({
         // moslik esa BEGONA tovarning qoldig'ini oshirib yuboradi, shuning
         // uchun ombordagi tovarning o'z nomini ko'rsatamiz. Nomlar bir xil
         // bo'lsa yozuv ortiqcha — kartani behuda uzaytirmaymiz.
+        // Qator bo'yicha hisob: jami kirim summasi, ustama foizi va
+        // bir birlikdan tushadigan foyda
+        const kn = Number(r.kirim_narxi) || 0;
+        const sn = Number(r.sotuv_narxi) || 0;
+        const hisob = {
+          jami: (Number(r.miqdor) || 0) * kn,
+          ustama: kn > 0 && sn > 0 ? Math.round(((sn - kn) / kn) * 100) : null,
+          foyda: kn > 0 && sn > 0 ? sn - kn : null,
+        };
         const eskiNom = r.eski_nom?.trim() || '';
         const matched =
           eskiNom && eskiNom.toLowerCase() !== (r.nom || '').trim().toLowerCase()
@@ -272,13 +282,16 @@ export default function AiDraft({
                     ))}
                   </select>
                 </label>
+                {/* Narx ilovaning qolgan joylaridagi kabi ajratib
+                    yoziladi (7 000), aks holda nol sanab o'tirishga
+                    to'g'ri kelardi */}
                 <label>
                   <span>{t('draftCost')}</span>
                   <input
                     className="kirim"
                     inputMode="numeric"
-                    value={String(r.kirim_narxi || '')}
-                    onChange={(e) => set(i, { kirim_narxi: Number(e.target.value.replace(/\D/g, '')) || 0 })}
+                    value={formatAmount(String(r.kirim_narxi || ''))}
+                    onChange={(e) => set(i, { kirim_narxi: amountValue(e.target.value) })}
                   />
                 </label>
                 <label>
@@ -286,10 +299,30 @@ export default function AiDraft({
                   <input
                     className="sotuv"
                     inputMode="numeric"
-                    value={String(r.sotuv_narxi || '')}
-                    onChange={(e) => set(i, { sotuv_narxi: Number(e.target.value.replace(/\D/g, '')) || 0 })}
+                    value={formatAmount(String(r.sotuv_narxi || ''))}
+                    onChange={(e) => set(i, { sotuv_narxi: amountValue(e.target.value) })}
                   />
                 </label>
+                {/* Qator hisobi — do'konchi kalkulyator qidirmasin.
+                    Ustama foizi eng muhimi: nakladnoydan kelgan kirim
+                    narxi bilan o'zi qo'ygan sotuv narxi orasidagi farq
+                    shu yerda darrov ko'rinadi. */}
+                {(hisob.jami > 0 || hisob.ustama !== null) && (
+                  <div className="ai-draft-calc wide">
+                    {hisob.jami > 0 && (
+                      <span>
+                        {t('draftRowTotal')}: <b>{fmt(hisob.jami)}</b>
+                      </span>
+                    )}
+                    {hisob.ustama !== null && (
+                      <span className={hisob.ustama < 0 ? 'red' : 'green'}>
+                        {t('draftMarkup')}: <b>{hisob.ustama > 0 ? '+' : ''}{hisob.ustama}%</b>
+                        {hisob.foyda !== null ? ` · ${fmt(hisob.foyda)}` : ''}
+                      </span>
+                    )}
+                  </div>
+                )}
+
                 <label className="wide">
                   <span>{t('barcodeLabel')} · {t('optional')}</span>
                   <div className="ai-draft-code">
