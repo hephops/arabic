@@ -41,6 +41,7 @@ import {
 import { issueCode, checkCode, clearCode } from './otp.js';
 import { dailyFigures, reportText, sendDailyReport, startDailyReportScheduler } from './dailyReport.js';
 import { runLowBalanceWarnings, startLowBalanceScheduler } from './lowBalance.js';
+import { xavflarniKorsat } from './safety.js';
 import { customerCode, receiptText } from './customerLink.js';
 import { uzToday, uzDayShift, uzDayStartUtc, uzPeriodStartUtc, uzMonthStartUtc } from './tz.js';
 
@@ -3054,4 +3055,6 @@ app.listen({ port, host: '0.0.0.0' }).then(() => {
     );
   }
   console.log(`BuySale backend :${port}`);
+  // Xavfli sozlamalar ochiq qolgan bo'lsa — ko'zga tashlansin
+  xavflarniKorsat();
 });
