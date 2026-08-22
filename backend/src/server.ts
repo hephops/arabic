@@ -1878,6 +1878,16 @@ app.post<{ Body: { items: { product_id: number; qty: number }[]; payment_type: '
     const { items, payment_type, customer_id, customer_name, due_date } = req.body;
     if (!items?.length) return reply.code(400).send({ error: 'items_required' });
 
+    // QARZGA SOTISH alohida ruxsat.
+    //
+    // Ilgari u faqat ekranda yashirilardi: xodimga tugma ko'rsatilmasdi,
+    // lekin so'rovni to'g'ridan-to'g'ri yuborsa qarz baribir yozilaverardi.
+    // Ya'ni do'kon egasi "qarzga sotmasin" deb belgilagani hech narsani
+    // to'smasdi — bu esa uning pulига tegadi.
+    if (payment_type === 'debt' && !can(req, 'pos_debt')) {
+      return reply.code(403).send({ error: 'no_permission', permission: 'pos_debt' });
+    }
+
     // Qoldiqdan ko'p sotishga yo'l qo'yilmaydi: ombor minusga tushib ketmasin.
     // Do'konchi baribir sotmoqchi bo'lsa (qoldiq noto'g'ri kiritilgan bo'lishi mumkin),
     // ilova tasdiqlatib, allow_negative bilan qayta yuboradi.

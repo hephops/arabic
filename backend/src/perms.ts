@@ -15,7 +15,7 @@
 
 export type PermKey =
   // Kassa
-  | 'pos' | 'pos_debt' | 'pos_discount' | 'pos_return'
+  | 'pos' | 'pos_debt' | 'pos_return'
   // Qarz daftari
   | 'debts' | 'debt_add' | 'debt_pay'
   // Mijozlar
@@ -30,7 +30,11 @@ export type PermKey =
 
 /** Ro'yxat tartibi ilovadagi ko'rinish tartibi bilan bir xil */
 export const PERM_GROUPS: { group: string; keys: PermKey[] }[] = [
-  { group: 'kassa', keys: ['pos', 'pos_debt', 'pos_discount', 'pos_return'] },
+  // pos_discount YO'Q: kassada narxni server o'zi hisoblaydi, ya'ni
+  // sotuvchi chegirma bera olmaydi. Chegirma tovarga qo'yiladi va u
+  // 'price_edit' ruxsatiga bog'liq. Ishlamaydigan tugma ko'rsatilsa,
+  // do'kon egasi o'zini himoyalangan deb o'ylab qolardi.
+  { group: 'kassa', keys: ['pos', 'pos_debt', 'pos_return'] },
   { group: 'debts', keys: ['debts', 'debt_add', 'debt_pay'] },
   { group: 'customers', keys: ['customers', 'customer_add', 'customer_edit', 'customer_del'] },
   { group: 'stock', keys: ['stock', 'product_add', 'product_edit', 'product_del', 'price_edit', 'cost_view', 'intake', 'inventory'] },
@@ -59,7 +63,7 @@ export const PRESETS: Record<string, PermKey[]> = {
   ],
   cashier: ['pos', 'pos_debt', 'debts', 'debt_add', 'debt_pay', 'customers', 'customer_add', 'stock'],
   senior: [
-    'pos', 'pos_debt', 'pos_discount', 'pos_return',
+    'pos', 'pos_debt', 'pos_return',
     'debts', 'debt_add', 'debt_pay',
     'customers', 'customer_add', 'customer_edit',
     'stock', 'product_add', 'product_edit', 'intake', 'inventory',
@@ -89,7 +93,7 @@ export function cleanPerms(list: unknown): PermKey[] {
   if (set.has('customer_add') || set.has('customer_edit') || set.has('customer_del')) set.add('customers');
   if (set.has('product_add') || set.has('product_edit') || set.has('product_del') ||
       set.has('price_edit') || set.has('intake') || set.has('inventory')) set.add('stock');
-  if (set.has('pos_debt') || set.has('pos_discount') || set.has('pos_return')) set.add('pos');
+  if (set.has('pos_debt') || set.has('pos_return')) set.add('pos');
   if (set.has('pos_debt')) { set.add('debts'); set.add('debt_add'); }
   if (set.has('orders')) set.add('suppliers');
   // AI orqali o'zgartirish — AI ning o'zisiz ma'nosiz

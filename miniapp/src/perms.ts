@@ -5,7 +5,7 @@
 // Ya'ni bu himoya emas, xushmuomalalik. Himoya serverda (auth.ts).
 
 export type PermKey =
-  | 'pos' | 'pos_debt' | 'pos_discount' | 'pos_return'
+  | 'pos' | 'pos_debt' | 'pos_return'
   | 'debts' | 'debt_add' | 'debt_pay'
   | 'customers' | 'customer_add' | 'customer_edit' | 'customer_del'
   | 'stock' | 'product_add' | 'product_edit' | 'product_del'
