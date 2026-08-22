@@ -7,7 +7,7 @@ import { can } from '../auth.js';
 import { ask, askStream, AiError, spend, purgeOld, dropChat, type AiEvent } from './agent.js';
 import { KEEP_DAYS, aiEnabled, aiKey, model as aiModel, dailyLimit, questionPrice } from './config.js';
 import { cleanBarcode, simpleName } from './tools.js';
-import { normalizeBarcode } from '../barcodes.js';
+import { normalizeBarcode, barcodeVariants } from '../barcodes.js';
 
 type Guard = (req: FastifyRequest, reply: FastifyReply) => Promise<unknown>;
 
@@ -690,8 +690,37 @@ export function registerAiRoutes(app: FastifyInstance, opts: { requireAi: Guard;
         // Code-128 ni ham o'qiydi), shuning uchun ilovaning boshqa
         // joylaridagi kabi o'zgarishsiz ketadi.
         const rawCode = String(r?.shtrix_kod ?? '').replace(/[^0-9A-Za-z]/g, '').slice(0, 32);
-        const barcode =
+        let barcode =
           (aiCodes && !aiCodes.has(rawCode) ? normalizeBarcode(rawCode) : cleanBarcode(rawCode)) || undefined;
+
+        // Kod BOSHQA tovarga biriktirilgan bo'lsa.
+        //
+        // /products/intake tovarni avval KOD bo'yicha qidiradi — ya'ni
+        // begona kod bilan yuborilsa, kirim shu qatorning nomiga emas,
+        // kod egasining kartochkasiga tushib ketardi va do'konchi buni
+        // bilmay ham qolardi.
+        //
+        // Endi kartada ogohlantirish chiqadi (AiDraft.tsx): do'konchi
+        // "o'tkazilsin" desa qator kod_kochir bilan keladi va kod eski
+        // egasidan olinadi; demasa kod umuman yuborilmaydi va qator
+        // o'z nomi bilan ketaveradi. Bu mantiq faqat shu yerda —
+        // ilovaning boshqa joylarida band kod 409 bo'lib qaytadi.
+        if (barcode) {
+          // Qator qaysi kartochkaga tushishi: mosligi saqlangan bo'lsa
+          // o'sha, bo'lmasa /products/intake dagidek nom bo'yicha
+          const targetId = kept && stock
+            ? Number(stock.id)
+            : Number(
+                (db
+                  .prepare('SELECT id FROM products WHERE shop_id = ? AND name = ? COLLATE NOCASE')
+                  .get(req.shopId, name) as any)?.id ?? 0
+              );
+          const owner = barcodeOwner(req.shopId!, barcode);
+          if (owner && owner.id !== targetId) {
+            if (r?.kod_kochir) detachBarcode(req.shopId!, barcode);
+            else barcode = undefined;
+          }
+        }
 
         const res = await app.inject({
           method: 'POST',
@@ -729,6 +758,60 @@ export function registerAiRoutes(app: FastifyInstance, opts: { requireAi: Guard;
       return { ok: done.length > 0, done, failed };
     }
   );
+
+  /** Shtrix-kod shu do'konda kimga biriktirilgan.
+   *
+   *  server.ts dagi findByBarcode bilan bir xil qidiradi (asosiy kod ham,
+   *  qo'shimcha kodlar jadvali ham, kodning barcha teng ko'rinishlari
+   *  bilan) — u yerdagisi eksport qilinmagan, shuning uchun bu yerda
+   *  faqat kerakli ustunlar bilan takrorlangan. */
+  function barcodeOwner(shopId: number, code: string): { id: number; name: string } | null {
+    const variants = barcodeVariants(code);
+    if (!variants.length) return null;
+    const marks = variants.map(() => '?').join(',');
+    const row = db
+      .prepare(
+        `SELECT p.id, p.name FROM products p
+         WHERE p.shop_id = ? AND (
+           REPLACE(REPLACE(UPPER(TRIM(p.barcode)), ' ', ''), '-', '') IN (${marks})
+           OR p.id IN (SELECT product_id FROM product_barcodes WHERE shop_id = ? AND barcode IN (${marks}))
+         )
+         LIMIT 1`
+      )
+      .get(shopId, ...variants, shopId, ...variants) as any;
+    return row ? { id: Number(row.id), name: String(row.name ?? '') } : null;
+  }
+
+  /** Kodni eski egasidan olib tashlash.
+   *
+   *  FAQAT kirim kartasidan chaqiriladi va faqat do'konchi ekrandagi
+   *  ogohlantirishni ko'rib "o'tkazilsin" deganda. Ilovaning boshqa
+   *  joylari band kodni jimgina ko'chirmaydi — /products/:id/barcodes
+   *  409 "barcode_taken" qaytaradi.
+   *
+   *  Bitta kod bir necha tovarga tegib qolgan bo'lishi mumkin (eski
+   *  yozuvlar), shuning uchun egasi qolmaguncha aylanadi. */
+  function detachBarcode(shopId: number, code: string): void {
+    const variants = barcodeVariants(code);
+    if (!variants.length) return;
+    const marks = variants.map(() => '?').join(',');
+    for (let i = 0; i < 10; i++) {
+      const owner = barcodeOwner(shopId, code);
+      if (!owner) return;
+      db.prepare(
+        `DELETE FROM product_barcodes WHERE shop_id = ? AND product_id = ? AND barcode IN (${marks})`
+      ).run(shopId, owner.id, ...variants);
+      // Asosiy kod ham shu bo'lsa — qolgan kodlaridan biri asosiy bo'ladi,
+      // bo'lmasa tovar kodsiz qoladi (server.ts dagi o'chirish ham shunday)
+      const rest = db
+        .prepare('SELECT barcode FROM product_barcodes WHERE shop_id = ? AND product_id = ? ORDER BY id LIMIT 1')
+        .get(shopId, owner.id) as any;
+      db.prepare(
+        `UPDATE products SET barcode = ? WHERE id = ? AND shop_id = ?
+           AND REPLACE(REPLACE(UPPER(TRIM(barcode)), ' ', ''), '-', '') IN (${marks})`
+      ).run(rest?.barcode ?? null, owner.id, shopId, ...variants);
+    }
+  }
 
   /** Taklifni bekor qilish */
   app.post<{ Body: { draft_id?: number } }>(

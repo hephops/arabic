@@ -556,6 +556,10 @@ export interface AiDraftItem {
   eski_qoldiq?: number | null;
   /** sotuv narxi nakladnoydan emas, ombordan olinganmi */
   sotuv_narxi_ombordan?: boolean;
+  /** Kod boshqa tovarga biriktirilgan bo'lsa, do'konchi kartadagi
+      ogohlantirishni ko'rib "o'tkazilsin" degani. Faqat shunda server
+      kodni eski egasidan olib bu tovarga biriktiradi. */
+  kod_kochir?: boolean;
 }
 
 /** Tasdiqlanmagan taklif — ekrandan chiqilsa ham bazada turaveradi */

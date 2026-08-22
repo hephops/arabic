@@ -488,6 +488,15 @@ const UZ: Record<string, string> = {
      qo'ygan narx orasidagi foyda shu yerda darrov ko'rinadi. */
   draftMarkup: 'Ustama',
   draftRemoveAsk: "'{n}' qatori ro'yxatdan olib tashlansinmi?",
+  /* Band shtrix-kod. Kirim kartasida kod xato bo'lsa qoldiq BEGONA
+     tovarga qo'shilib ketadi, shuning uchun ogohlantirish ekran
+     o'rtasida chiqadi va do'konchining o'zi hal qiladi. */
+  draftCodeTaken: 'Bu shtrix-kod band',
+  draftCodeTakenBy: "{c} — «{n}» mahsulotiga biriktirilgan.",
+  draftCodeMoveAsk: "Kod «{o}» dan olinib «{n}» ga o'tkazilsinmi?",
+  draftCodeMove: "Ha, bunga o'tkazilsin",
+  draftCodeDrop: "Yo'q, qo'shilmasin",
+  draftCodeMoving: "kod «{n}» dan olinadi",
   aiTooLong: "Javob juda uzoq davom etdi. Savolni qisqaroq qilib qayta yozing.",
   aiNetLost: "Aloqa uzildi. Qaytadan yuboring.",
   aiPhoto: 'Rasm yuborish',
@@ -1325,6 +1334,12 @@ const RU: Record<string, string> = {
   draftRowTotal: 'Сумма строки',
   draftMarkup: 'Наценка',
   draftRemoveAsk: "Убрать строку '{n}' из списка?",
+  draftCodeTaken: 'Этот штрих-код занят',
+  draftCodeTakenBy: '{c} — привязан к товару «{n}».',
+  draftCodeMoveAsk: 'Перенести код с «{o}» на «{n}»?',
+  draftCodeMove: 'Да, перенести сюда',
+  draftCodeDrop: 'Нет, не добавлять',
+  draftCodeMoving: 'код будет снят с «{n}»',
   aiTooLong: 'Ответ занял слишком много времени. Задайте вопрос короче.',
   aiNetLost: 'Связь прервалась. Отправьте ещё раз.',
   aiPhoto: 'Отправить фото',

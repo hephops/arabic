@@ -1687,7 +1687,7 @@ button.link { background: none; color: var(--accent); font-size: 15px; font-weig
 .ol-qty button:disabled { opacity: 0.4; }
 .ol-qty input {
   width: 46px; padding: 5px 2px; text-align: center; background: transparent;
-  font-size: 15px; font-weight: 600; border-radius: 0;
+  font-size: 16px; font-weight: 600; border-radius: 0;
 }
 
 /* Yuboriladigan matn — chek kabi ko'rinsin, do'konchi nima ketishini ko'rib tursin */
@@ -2246,7 +2246,7 @@ button.link { background: none; color: var(--accent); font-size: 15px; font-weig
    olib tashlanadi — u nomni satr o'rtasidan yuqoriga surib qo'yardi. */
 .ai-draft-top .nom {
   flex: 1; min-width: 0; height: 36px; border: 0; background: none; padding: 0; margin: 0;
-  font-family: inherit; font-size: 14.5px; font-weight: 600; color: var(--text);
+  font-family: inherit; font-size: 16px; font-weight: 600; color: var(--text);
 }
 /* O'chirish tugmasi ochish tugmasidan uzoqroq va o'zi kattaroq bo'lsin:
    ilgari ular 6px berida edi va barmoq bilan bosganda qator so'ramasdan
@@ -2262,10 +2262,13 @@ button.link { background: none; color: var(--accent); font-size: 15px; font-weig
 .ai-draft-fields { display: grid; grid-template-columns: repeat(2, 1fr); gap: 7px 9px; margin-top: 8px; }
 .ai-draft-fields label { display: block; min-width: 0; }
 .ai-draft-fields span { display: block; font-size: 11px; color: var(--muted); margin-bottom: 3px; }
+/* Shrift 16px dan kichik bo'lsa iPhone maydonga bosilganda ekranni
+   kattalashtirib yuboradi. Shuning uchun kirim kartasidagi hamma
+   maydon 16px — boshqa ekranlardagi kabi. */
 .ai-draft-fields input, .ai-draft-fields select {
-  width: 100%; height: 34px; padding: 0 9px; border-radius: 8px;
+  width: 100%; height: 36px; padding: 0 9px; border-radius: 8px;
   border: 0.5px solid var(--separator); background: var(--bg);
-  font-family: inherit; font-size: 14px; color: var(--text);
+  font-family: inherit; font-size: 16px; color: var(--text);
 }
 /* Yopiq qator: nom, miqdor va narx bitta satrda. Qatorda oltita maydon
    bor — 30-40 qatorli nakladnoyda hammasi ochiq tursa karta bir necha
@@ -2317,7 +2320,7 @@ button.link { background: none; color: var(--accent); font-size: 15px; font-weig
 .ai-draft-code { display: flex; gap: 6px; }
 .ai-draft-code input { min-width: 0; }
 .ai-draft-scan {
-  flex-shrink: 0; width: 40px; height: 34px; border-radius: 8px;
+  flex-shrink: 0; width: 40px; height: 36px; border-radius: 8px;
   border: 0.5px solid var(--separator); background: var(--bg);
   display: flex; align-items: center; justify-content: center; cursor: pointer;
 }
@@ -2420,6 +2423,35 @@ button.link { background: none; color: var(--accent); font-size: 15px; font-weig
 @media (prefers-reduced-motion: reduce) {
   .announce-run { animation: none; padding-left: 0; }
 }
+
+/* Band shtrix-kod ogohlantirishi — pastdan chiqadigan oynadan farqli
+   o'laroq ekranning O'RTASIDA turadi: bu qarorni sezmay o'tib ketib
+   bo'lmaydi, chunki rozi bo'linsa kod boshqa tovardan olinadi. */
+.kod-warn-wrap {
+  position: fixed; inset: 0; z-index: 95;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px;
+  animation: sheetFade 0.18s ease-out;
+}
+.kod-warn {
+  width: 100%; max-width: 340px; text-align: center;
+  background: var(--card); border-radius: 20px;
+  padding: 20px 20px 16px;
+  box-shadow: 0 12px 44px rgba(0, 0, 0, 0.24);
+  animation: sheetPop 0.2s cubic-bezier(0.32, 0.72, 0, 1);
+}
+.kod-warn-title {
+  display: block; font-size: 18px; font-weight: 700;
+  letter-spacing: -0.3px; margin: 8px 0 6px;
+}
+.kod-warn-text {
+  font-size: 14px; color: var(--muted); line-height: 1.4; margin: 0 0 8px;
+  overflow-wrap: anywhere;
+}
+.kod-warn .btn-primary { width: 100%; margin-top: 6px; }
+.kod-warn .btn-ghost { width: 100%; margin-top: 2px; }
 
 /* Kirim kartasidagi qator hisobi — jami summa va ustama foizi */
 .ai-draft-calc {

@@ -36,6 +36,10 @@ type Row = AiDraftItem & {
   eski_nom?: string | null;
   eski_sotuv_narxi?: number | null;
   eski_qoldiq?: number | null;
+  /** Kod boshqa tovardan ko'chirilsinmi — do'konchi tasdiqlagan bo'lsa */
+  kod_kochir?: boolean;
+  /** kod kimdan olinishi — kartada ko'rinib tursin */
+  kod_eski?: string;
 };
 
 export default function AiDraft({
@@ -57,6 +61,9 @@ export default function AiDraft({
   // Do'konchi o'zi ochgan/yopgan qatorlar. Tegilmagani ro'yxatda yo'q —
   // u holda qatorning to'liqligi hal qiladi (ochiq() ga qara).
   const [open, setOpen] = useState<Record<number, boolean>>({});
+  // Band shtrix-kod haqidagi ogohlantirish: qaysi qator, qaysi kod va
+  // kod hozir kimda turgani. null — ogohlantirish yo'q.
+  const [warn, setWarn] = useState<{ row: number; code: string; owner: string } | null>(null);
 
   // Bitta ekranda bir nechta saqlangan taklif turishi mumkin. React
   // ro'yxatni qayta chizganda shu komponentni boshqa taklif uchun ishlatib
@@ -67,6 +74,7 @@ export default function AiDraft({
     setOpen({});
     setScanFor(null);
     setClosed(null);
+    setWarn(null);
   }, [draftId]);
 
   const set = (i: number, patch: Partial<Row>) => {
@@ -78,6 +86,43 @@ export default function AiDraft({
     // to'ldirib bo'lmasdi.
     setOpen((o) => (o[i] === undefined ? { ...o, [i]: true } : o));
   };
+
+  /**
+   * Kod omborda bandmi.
+   *
+   * Bu tekshiruv FAQAT shu kartada bor: kirim kartasida kod yozilishi
+   * bilan tovarning qoldig'i o'zgaradi, ya'ni xato kod qoldiqni
+   * BEGONA tovarga qo'shib yuboradi (server tovarni avval kod bo'yicha
+   * qidiradi). Ilovaning boshqa joylarida band kod shunchaki rad
+   * etiladi, ko'chirilmaydi.
+   */
+  async function checkCode(i: number, code: string, mavjudId?: number | null) {
+    const clean = code.trim();
+    if (!clean) return;
+    const res = await api.lookupBarcode(clean).catch(() => null);
+    const owner = res?.product;
+    // Egasi yo'q yoki egasi shu qatorning O'Z tovari — hammasi joyida
+    if (!owner || owner.id === mavjudId) return;
+    haptic.error();
+    setWarn({ row: i, code: clean, owner: owner.name });
+  }
+
+  /** "O'tkazilsin" — kod eski tovardan olinib shunga biriktiriladi */
+  function moveCode() {
+    if (!warn) return;
+    haptic.select();
+    set(warn.row, { shtrix_kod: warn.code, kod_kochir: true, kod_eski: warn.owner });
+    setWarn(null);
+  }
+
+  /** "Qo'shilmasin" — kod maydondan olib tashlanadi, qator o'z nomi
+      bilan ketadi va begona tovarga tegmaydi */
+  function dropCode() {
+    if (!warn) return;
+    haptic.select();
+    set(warn.row, { shtrix_kod: '', kod_kochir: false, kod_eski: undefined });
+    setWarn(null);
+  }
 
   // Birligi yoki kirim narxi yo'q qator — do'konchining qo'li tegishi shart
   const toFill = (r: Row) => !r.birlik || !r.kirim_narxi;
@@ -121,6 +166,25 @@ export default function AiDraft({
     setBusy(true);
     haptic.select();
     try {
+      // Tasdiqlashdan OLDIN hamma kod yana bir bor tekshiriladi.
+      //
+      // Maydonga qo'l tegmagan bo'lishi ham mumkin: kod rasmdan
+      // o'qilgan bo'lsa do'konchi uni ochib ham ko'rmaydi. Kod esa
+      // band bo'lsa qoldiq begona tovarga tushib ketardi — shuning
+      // uchun band kod topilsa tasdiqlash TO'XTAYDI va do'konchi
+      // o'zi hal qiladi (qayta bosadi).
+      for (let i = 0; i < rows.length; i++) {
+        const r = rows[i];
+        const code = (r.shtrix_kod ?? '').trim();
+        if (!code || r.kod_kochir) continue;
+        const res = await api.lookupBarcode(code).catch(() => null);
+        const owner = res?.product;
+        if (!owner || owner.id === r.mavjud_id) continue;
+        haptic.error();
+        setWarn({ row: i, code, owner: owner.name });
+        setBusy(false);
+        return;
+      }
       const r = await api.aiIntakeConfirm(draftId, rows);
       setClosed('done');
       toast.success(t('draftDone'), `${r.done.length} ${t('draftItems')}`);
@@ -337,12 +401,32 @@ export default function AiDraft({
                       autoCorrect="off"
                       spellCheck={false}
                       value={r.shtrix_kod ?? ''}
-                      onChange={(e) => set(i, { shtrix_kod: e.target.value.replace(/[^0-9A-Za-z]/g, '') })}
+                      onChange={(e) =>
+                        set(i, {
+                          shtrix_kod: e.target.value.replace(/[^0-9A-Za-z]/g, ''),
+                          // kod qo'lda o'zgardi — eski ruxsat kuchini yo'qotadi
+                          kod_kochir: false,
+                          kod_eski: undefined,
+                        })
+                      }
+                      // Yozib bo'lgandan keyin tekshiramiz: har harfda
+                      // so'rov yuborsak, yarim yozilgan kod "band emas"
+                      // bo'lib chiqaverardi
+                      onBlur={(e) => checkCode(i, e.target.value, r.mavjud_id)}
                     />
                     <button className="ai-draft-scan" onClick={() => setScanFor(i)} aria-label={t('scanner')}>
                       <Glyph name="scan" size={17} color="var(--accent)" />
                     </button>
                   </div>
+                  {/* Kod ko'chirilishi tasdiqlangan bo'lsa — kartada
+                      ko'rinib tursin, do'konchi tugmani bosishdan oldin
+                      yana bir bor o'ylab ko'radi */}
+                  {r.kod_kochir && r.kod_eski && (
+                    <div className="ai-draft-stock warn">
+                      <Glyph name="warning" size={12} color="var(--yellow)" />
+                      <span>{t('draftCodeMoving', { n: r.kod_eski })}</span>
+                    </div>
+                  )}
                 </label>
                 <label className="wide">
                   <span>{t('expiry')} · {t('optional')}</span>
@@ -369,11 +453,37 @@ export default function AiDraft({
         </button>
       </div>
 
+      {/* Band kod haqidagi ogohlantirish — ekranning O'RTASIDA, chunki
+          bu qarorni sezmay o'tib ketib bo'lmaydi: rozi bo'linsa kod
+          boshqa tovardan olinadi. */}
+      {warn && (
+        <div className="kod-warn-wrap" onClick={dropCode}>
+          <div className="kod-warn" onClick={(e) => e.stopPropagation()}>
+            <Glyph name="warning" size={28} color="var(--yellow)" />
+            <b className="kod-warn-title">{t('draftCodeTaken')}</b>
+            <p className="kod-warn-text">
+              {t('draftCodeTakenBy', { c: warn.code, n: warn.owner })}
+            </p>
+            <p className="kod-warn-text">
+              {t('draftCodeMoveAsk', { n: rows[warn.row]?.nom || t('name'), o: warn.owner })}
+            </p>
+            <button className="btn-primary" onClick={moveCode}>
+              {t('draftCodeMove')}
+            </button>
+            <button className="btn-ghost" onClick={dropCode}>
+              {t('draftCodeDrop')}
+            </button>
+          </div>
+        </div>
+      )}
+
       {scanRow !== null && (
         <Scanner
           onScan={(code) => {
-            set(scanRow, { shtrix_kod: code });
+            set(scanRow, { shtrix_kod: code, kod_kochir: false, kod_eski: undefined });
             setScanFor(null);
+            // Skaner o'qigan kod omborda bormi — darrov tekshiramiz
+            checkCode(scanRow, code, rows[scanRow]?.mavjud_id);
           }}
           onClose={() => setScanFor(null)}
         />
