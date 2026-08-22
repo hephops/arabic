@@ -18,7 +18,7 @@ import { TrustWarning } from '../trust';
 import { GoalStrip } from '../goal';
 import { VoiceCartSheet } from '../voiceCart';
 import { priceAfter } from '../discount';
-import { goldShop, goldPrice, goldPrices, goldLine, shopInfo, profile, PROBAS } from '../shopTypes';
+import { goldShop, goldPrice, goldPrices, goldLine, shopInfo, profile, examples, exampleText, PROBAS } from '../shopTypes';
 import { scanFail } from '../beep';
 import {
   STOCK_UNITS, isFractional, parseQty, qtyText, qtyWithUnit,
@@ -866,6 +866,14 @@ function IntakeMode({
   // har buyum yakkami. Bir joyda — shopTypes.ts dagi jadval.
   const prof = profile();
   const units = prof.units;
+  // Bo'sh maydondagi kulrang namunalar ham turga qarab: zargarlik
+  // do'konchisi "Coca-Cola 1.5L" degan namunani ko'rmasin
+  const exNum = examples();
+  const ex = {
+    ...exNum,
+    // "Jami to'landi" — miqdor × kirim narxi
+    total: formatAmount(String((Number(exNum.qty.replace(/\D/g, '')) || 1) * (Number(exNum.cost.replace(/\D/g, '')) || 0))),
+  };
   const [proba, setProba] = useState('585');
   const [weight, setWeight] = useState('');
   const [size, setSize] = useState('');
@@ -949,7 +957,9 @@ function IntakeMode({
     const res = await api.lookupBarcode(code.trim()).catch(() => null);
     if (!res) return;
     // Qo'lda terilgan kodda xato bo'lsa — nazorat raqami buni ushlaydi
-    if (res.valid === false) setCodeWarning(t('barcodeInvalid'));
+    // Zargarlik birkasidagi raqam zavod GTIN'i emas — nazorat raqami
+    // to'g'ri kelmagani xato emas, shuning uchun ogohlantirmaymiz
+    if (res.valid === false && !gold) setCodeWarning(t('barcodeInvalid'));
     const known = res.product ?? res.catalog;
     if (known) setName(known.name);
     if (res.product) {
@@ -1130,7 +1140,7 @@ function IntakeMode({
                   setPicked(null);
                   if (fromCat && e.target.value !== fromCat.name_uz) setFromCat(null);
                 }}
-                placeholder="Coca-Cola 1.5L"
+                placeholder={exampleText('Name')}
               />
               {matches.length > 0 && (
                 <div className="name-matches">
@@ -1159,7 +1169,7 @@ function IntakeMode({
             </div>
             <div className="form-row">
               <label>
-                {t('barcodeLabel')} <span className="tag">{t('optional')}</span>
+                {gold ? t('tagLabel') : t('barcodeLabel')} <span className="tag">{t('optional')}</span>
               </label>
               <div className="inline-scan">
                 <input
@@ -1167,7 +1177,7 @@ function IntakeMode({
                   value={barcode}
                   onChange={(e) => lookupBarcode(e.target.value)}
                   inputMode="numeric"
-                  placeholder="4780000123456"
+                  placeholder={ex.code}
                 />
                 <button onClick={() => setScanning(true)} aria-label={t('scanner')}>
                   <Glyph name="scan" size={19} color="var(--accent)" />
@@ -1182,7 +1192,7 @@ function IntakeMode({
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
                 list="cat-list"
-                placeholder={t('categoryPlaceholder')}
+                placeholder={exampleText('Cat')}
               />
               <datalist id="cat-list">
                 {cats.map((c) => <option key={c.name} value={c.name} />)}
@@ -1279,7 +1289,7 @@ function IntakeMode({
               value={qty}
               onChange={(e) => { setQty(e.target.value.replace(/[^\d.,]/g, '')); setTotalDraft(null); }}
               inputMode="decimal"
-              placeholder={isFractional(unit) ? '10' : '24'}
+              placeholder={isFractional(unit) ? '10' : ex.qty}
             />
           </div>
           {/* Srok faqat srogi bor tovarlarda: uzukning ham, telefonning
@@ -1320,7 +1330,7 @@ function IntakeMode({
               value={formatAmount(costPrice)}
               onChange={(e) => { setCostPrice(e.target.value); setTotalDraft(null); }}
               inputMode="numeric"
-              placeholder="14 000"
+              placeholder={ex.cost}
             />
           </div>
           <div className="form-row">
@@ -1335,7 +1345,7 @@ function IntakeMode({
                 }
               }}
               inputMode="numeric"
-              placeholder="1 400 000"
+              placeholder={ex.total}
             />
           </div>
         </div>
@@ -1343,7 +1353,7 @@ function IntakeMode({
         <div className="row-2">
           <div className="form-row">
             <label>{t('sellPrice')} ({basisText(basis)})</label>
-            <input value={formatAmount(sellPrice)} onChange={(e) => setSellPrice(e.target.value)} inputMode="numeric" placeholder="15 000" />
+            <input value={formatAmount(sellPrice)} onChange={(e) => setSellPrice(e.target.value)} inputMode="numeric" placeholder={ex.sell} />
           </div>
           <div className="form-row" />
         </div>

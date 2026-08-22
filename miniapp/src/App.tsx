@@ -76,6 +76,21 @@ export default function App() {
     }
   }, [authed]);
 
+  // Yuguruvchi e'lon. Kimga ko'rinishi serverda emas, shu yerda hal
+  // qilinadi: "faqat balansi tugaganlarga" degani do'konning holatiga
+  // bog'liq, u esa /me dan keladi.
+  //
+  // DIQQAT: bu ikkovi HAMMA useState/useEffect qatorida, "chiqish"
+  // shartidan OLDIN turishi shart. Ilgari ular pastda edi va do'konchi
+  // kabinetdan chiqqanda React kamroq hook ko'rib butun ekranni
+  // tashlab yuborardi (error #300) — ekran oppoq bo'lib qolar, faqat
+  // sahifani yangilagandan keyin o'ziga kelardi.
+  const [announce, setAnnounce] = useState<Announce | null>(null);
+  useEffect(() => {
+    if (!authed) return;
+    api.announce().then(setAnnounce).catch(() => {});
+  }, [authed]);
+
   if (!authed) return <Login onLogin={() => setAuthed(true)} />;
 
   // Xodim sessiyasida narx, hisobot va sozlamalar bo'limlari ko'rinmaydi
@@ -83,13 +98,6 @@ export default function App() {
 
   const refresh = () => setRefreshKey((k) => k + 1);
 
-  // Yuguruvchi e'lon. Kimga ko'rinishi serverda emas, shu yerda hal
-  // qilinadi: "faqat balansi tugaganlarga" degani do'konning holatiga
-  // bog'liq, u esa /me dan keladi.
-  const [announce, setAnnounce] = useState<Announce | null>(null);
-  useEffect(() => {
-    api.announce().then(setAnnounce).catch(() => {});
-  }, []);
   const showAnnounce =
     announce?.enabled &&
     (announce.audience === 'all' ||

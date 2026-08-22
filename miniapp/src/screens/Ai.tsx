@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { shrink } from '../photo';
+import { profile } from '../shopTypes';
 import { api, fmt, BASE, AiMessage, AiStatus, AiDraftItem } from '../api';
 import AiDraft from './AiDraft';
 import { AppIcon, Glyph } from '../icons';
@@ -23,13 +24,16 @@ type DraftCard = { at: number; id: number; items: AiDraftItem[] };
 // kerak — tovar hali omborga tushmagan.
 const TAIL = Number.MAX_SAFE_INTEGER;
 
+/** Tayyor savollar. "expiry" belgilangani faqat srogi bor do'konda
+ *  chiqadi: zargarlik do'konchisiga "srogi yaqin tovarlar" degan savol
+ *  har doim bo'sh javob berardi. */
 const SUGGESTIONS = [
   { key: 'aiQ1', q: "Bugungi savdo va foyda qancha?" },
-  { key: 'aiQ2', q: "Qaysi tovarlarning srogi yaqin?" },
+  { key: 'aiQ2', q: "Qaysi tovarlarning srogi yaqin?", expiry: true },
   { key: 'aiQ3', q: "Kim qarzdor va kim kechiktiryapti?" },
   { key: 'aiQ4', q: "Nima tugayapti, nima buyurtma qilay?" },
   { key: 'aiQ5', q: "Qaysi tovar ombordagi pulni bog'lab yotibdi?" },
-  { key: 'aiQ6', q: "Srogi yaqin tovarlarni telegramga yubor" },
+  { key: 'aiQ6', q: "Srogi yaqin tovarlarni telegramga yubor", expiry: true },
 ];
 
 
@@ -337,7 +341,7 @@ export default function Ai({ onBack }: { onBack: () => void }) {
         {/* Tayyor savollar — birinchi marta kirganda nima so'rashni bilsin */}
         {!busy && (
           <div className="chip-row wrap ai-sugg">
-            {SUGGESTIONS.map((s) => (
+            {SUGGESTIONS.filter((s) => !s.expiry || profile().expiry).map((s) => (
               <button key={s.key} className="chip" onClick={() => send(s.q)}>
                 {t(s.key)}
               </button>

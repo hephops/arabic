@@ -1,5 +1,7 @@
 // Xodim huquqlari — ilova tomoni.
 //
+import { shopInfo } from './shopTypes';
+
 // Server har so'rovda qaytadan tekshiradi, bu yerdagisi faqat
 // ko'rinish uchun: bosib bo'lmaydigan tugmani ko'rsatib qo'ymaymiz.
 // Ya'ni bu himoya emas, xushmuomalalik. Himoya serverda (auth.ts).
@@ -58,8 +60,18 @@ export const NAV_PERM: Record<string, PermKey | 'owner' | null> = {
   navSettings: null,
 };
 
+/** Do'kon turiga to'g'ri kelmaydigan bo'limlar.
+ *
+ *  Markaziy katalog — zavod shtrix-kodlari bazasi (Coca-Cola, choy,
+ *  yuvish kukuni). Zargarlik do'konida u yerdan hech narsa topilmaydi,
+ *  ya'ni menyuda turgani faqat chalg'itadi. */
+const TYPE_HIDDEN: Record<string, string[]> = {
+  oltin: ['navCatalog'],
+};
+
 /** Shu menyu bandi ko'rinsinmi */
 export function navAllowed(key: string): boolean {
+  if ((TYPE_HIDDEN[String(shopInfo()?.shop_type ?? '')] ?? []).includes(key)) return false;
   const need = NAV_PERM[key];
   if (need == null) return true;
   if (need === 'owner') return isOwner();

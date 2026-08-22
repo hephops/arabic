@@ -475,7 +475,7 @@ const UZ: Record<string, string> = {
   // AI yordamchi
   aiTitle: 'AI yordamchi',
   aiHello: "Do'kon haqida so'rang",
-  aiHint: "Savdo, foyda, qarzlar, srogi yaqin tovarlar — hammasini bilaman. O'zbekcha yoki ruscha yozing.",
+  aiHint: "Savdo, foyda, qarzlar, ombor — hammasini bilaman. O'zbekcha yoki ruscha yozing.",
   aiPlaceholder: 'Savolingizni yozing...',
   aiOff: "AI yordamchi hali yoqilmagan. Yordam uchun murojaat qiling.",
   aiClear: 'Suhbatni tozalash',
@@ -645,6 +645,30 @@ const UZ: Record<string, string> = {
   category: 'Kategoriya',
   categoryAll: 'Barcha kategoriya',
   categoryPlaceholder: "Ichimliklar, non, sut...",
+  /* Namunalar — do'kon turiga qarab. Zargarlik do'konida "Coca-Cola
+     1.5L" degan namuna ilovani boshqa do'kon uchun yozilgandek
+     ko'rsatadi, do'konchi esa nima yozishini tushunmaydi. */
+  /* Zargarlikda buyumda zavod shtrix-kodi bo'lmaydi — birkasining
+     o'z raqami bo'ladi */
+  tagLabel: 'Birka raqami',
+  exName_oziq: "Coca-Cola 1.5L",
+  exName_parfumeriya: "Dior Sauvage 100 ml",
+  exName_xoztovar: "Idish yuvish vositasi",
+  exName_telefon: "iPhone 13 128GB",
+  exName_oltin: "Uzuk 585",
+  exName_kiyim: "Ko'ylak, oq",
+  exName_qurilish: "Sement M400",
+  exName_dorixona: "Analgin 500 mg",
+  exName_boshqa: "Mahsulot nomi",
+  exCat_oziq: "Ichimliklar, non, sut...",
+  exCat_parfumeriya: "Atir, krem, shampun...",
+  exCat_xoztovar: "Yuvish, idish, tozalash...",
+  exCat_telefon: "Telefon, quloqchin, g'ilof...",
+  exCat_oltin: "Uzuk, zanjir, sirg'a...",
+  exCat_kiyim: "Ko'ylak, shim, kurtka...",
+  exCat_qurilish: "Sement, bo'yoq, kafel...",
+  exCat_dorixona: "Dori, vitamin, bint...",
+  exCat_boshqa: "Bo'lim nomi",
 
   // Xarajatlar
   tileExpenses: 'Xarajatlar',
@@ -1371,7 +1395,7 @@ const RU: Record<string, string> = {
   // ИИ-помощник
   aiTitle: 'ИИ-помощник',
   aiHello: 'Спросите о магазине',
-  aiHint: 'Продажи, прибыль, долги, сроки годности — я всё знаю. Пишите по-узбекски или по-русски.',
+  aiHint: 'Продажи, прибыль, долги, склад — я всё знаю. Пишите по-узбекски или по-русски.',
   aiPlaceholder: 'Напишите вопрос...',
   aiOff: 'ИИ-помощник пока не включён. Обратитесь в поддержку.',
   aiClear: 'Очистить переписку',
@@ -1533,6 +1557,25 @@ const RU: Record<string, string> = {
   category: 'Категория',
   categoryAll: 'Все категории',
   categoryPlaceholder: 'Напитки, хлеб, молоко...',
+  tagLabel: 'Номер бирки',
+  exName_oziq: 'Coca-Cola 1.5L',
+  exName_parfumeriya: 'Dior Sauvage 100 мл',
+  exName_xoztovar: 'Средство для мытья посуды',
+  exName_telefon: 'iPhone 13 128GB',
+  exName_oltin: 'Кольцо 585',
+  exName_kiyim: 'Рубашка, белая',
+  exName_qurilish: 'Цемент М400',
+  exName_dorixona: 'Анальгин 500 мг',
+  exName_boshqa: 'Название товара',
+  exCat_oziq: 'Напитки, хлеб, молоко...',
+  exCat_parfumeriya: 'Духи, крем, шампунь...',
+  exCat_xoztovar: 'Мытьё, посуда, уборка...',
+  exCat_telefon: 'Телефон, наушники, чехол...',
+  exCat_oltin: 'Кольцо, цепочка, серьги...',
+  exCat_kiyim: 'Рубашка, брюки, куртка...',
+  exCat_qurilish: 'Цемент, краска, плитка...',
+  exCat_dorixona: 'Лекарство, витамины, бинт...',
+  exCat_boshqa: 'Название раздела',
 
   // Расходы
   tileExpenses: 'Расходы',

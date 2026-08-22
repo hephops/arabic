@@ -5,6 +5,8 @@
 // Qolgan turlar ayni paytda faqat "kim ekanini" bildiradi — hisobot
 // va keyingi sozlamalar shunga tayanadi.
 
+import { translate } from './i18n';
+
 export const SHOP_TYPES = [
   { id: 'oziq', emoji: '🛒' },
   { id: 'parfumeriya', emoji: '🧴' },
@@ -82,6 +84,54 @@ export const SHOP_PROFILES: Record<string, ShopProfile> = {
 /** Joriy do'konning profili (tur noma'lum bo'lsa — oziq-ovqat) */
 export function profile(type?: string | null): ShopProfile {
   return SHOP_PROFILES[String(type ?? CURRENT?.shop_type ?? 'oziq')] ?? SHOP_PROFILES.oziq;
+}
+
+/* ─────────── Namunalar (placeholder) ───────────
+ *
+ * Bo'sh maydonda turadigan kulrang yozuv shunchaki bezak emas: u
+ * do'konchiga "bu yerga nima yoziladi" ni ko'rsatadi. Zargarlik
+ * do'konida "Coca-Cola 1.5L" degan namuna esa aksincha — ilova boshqa
+ * do'kon uchun yozilgandek tuyuladi.
+ *
+ * Nom va bo'lim tarjima qilinadi (i18n: exName_*, exCat_*), raqamlar
+ * esa shu yerda: ular tilga bog'liq emas.
+ */
+interface Examples {
+  /** shtrix-kod / birka raqami namunasi */
+  code: string;
+  /** nechta keldi */
+  qty: string;
+  /** kirim narxi */
+  cost: string;
+  /** sotuv narxi */
+  sell: string;
+}
+
+const EXAMPLES: Record<string, Examples> = {
+  oziq: { code: '4780000123456', qty: '24', cost: '14 000', sell: '15 000' },
+  parfumeriya: { code: '3348901250146', qty: '6', cost: '450 000', sell: '620 000' },
+  xoztovar: { code: '4780000123456', qty: '12', cost: '18 000', sell: '24 000' },
+  telefon: { code: '194252707371', qty: '1', cost: '8 500 000', sell: '9 200 000' },
+  // Zargarlikda birkadagi raqam zavod kodi emas — o'z raqami
+  oltin: { code: '4211704576488789', qty: '1', cost: '3 000 000', sell: '5 060 000' },
+  kiyim: { code: '2000000000015', qty: '10', cost: '90 000', sell: '150 000' },
+  qurilish: { code: '4780000123456', qty: '50', cost: '48 000', sell: '55 000' },
+  dorixona: { code: '4780000123456', qty: '30', cost: '6 500', sell: '9 000' },
+  boshqa: { code: '4780000123456', qty: '10', cost: '10 000', sell: '15 000' },
+};
+
+/** Shu do'kon turi uchun namuna raqamlar */
+export function examples(type?: string | null): Examples {
+  return EXAMPLES[String(type ?? CURRENT?.shop_type ?? 'oziq')] ?? EXAMPLES.oziq;
+}
+
+/** Namuna nom yoki bo'lim — tarjimasi bilan */
+export function exampleText(kind: 'Name' | 'Cat', type?: string | null): string {
+  const t = String(type ?? CURRENT?.shop_type ?? 'oziq');
+  const key = `ex${kind}_${t}`;
+  const text = translate(key);
+  // Kalit topilmasa translate kalitning o'zini qaytaradi — oziq-ovqatga qaytamiz
+  return text === key ? translate(`ex${kind}_oziq`) : text;
 }
 
 /** Yorliqda uchraydigan probalar (tugma bo'lib chiqadi) */
