@@ -8,6 +8,7 @@ import { fmtDateTime, fmtWhen, formatPhoneSoft } from '../format';
 import { toast, loadFailed } from '../toast';
 import { PrintSheet, Receipt } from '../print';
 import { EmptyState, Summary } from '../ui';
+import { useEscape } from '../useEscape';
 
 // Sotuvlar tarixi, cheklar va qaytarish.
 //
@@ -23,6 +24,7 @@ export function HistoryMode({ autoScan = false }: { autoScan?: boolean }) {
   const [sales, setSales] = useState<SaleRow[]>([]);
   const [detail, setDetail] = useState<SaleDetail | null>(null);
   const [returning, setReturning] = useState(false);
+  useEscape(() => setReturning(false), returning);
   // Qaytariladigan miqdorlar: sale_item_id → matn (do'konchi tahrirlaydi)
   const [retQty, setRetQty] = useState<Record<number, string>>({});
   const [reason, setReason] = useState('');

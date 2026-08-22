@@ -10,6 +10,7 @@ import { haptic } from '../telegram';
 import { scanFail } from '../beep';
 import { fmtWhen } from '../format';
 import { ReturnsList } from './History';
+import { useEscape } from '../useEscape';
 
 // Qaytarish — bitta skanerlash bilan.
 //
@@ -35,6 +36,7 @@ export default function Returns({ onBack, autoScan = false }: { onBack: () => vo
   const [found, setFound] = useState<ReturnLookup | null>(null);
   const [pick, setPick] = useState<ReturnCandidate | null>(null);
   const [choosing, setChoosing] = useState(false);
+  useEscape(() => setChoosing(false), choosing);
   const [qty, setQty] = useState('1');
   const [reason, setReason] = useState('');
   const [refund, setRefund] = useState<'cash' | 'card' | 'debt'>('cash');

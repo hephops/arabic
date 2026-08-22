@@ -9,6 +9,7 @@ import { toast, loadFailed } from '../toast';
 import { scanSoundOn, setScanSound, beepOk, scanVibeOn, setScanVibe, vibrate } from '../beep';
 import { shrink } from '../photo';
 import { SHOP_TYPES, PROBAS, goldPrices } from '../shopTypes';
+import { useEscape } from '../useEscape';
 
 // iOS Sozlamalar uslubidagi kabinet: asosiy ekranda qatorlar,
 // har biri o'z ichki ekraniga ochiladi.
@@ -278,6 +279,8 @@ function BalanceView({ balance, onBack, reload }: { balance: BalanceInfo; onBack
   // Chek yuborish oynasi. null — yopiq.
   const [chek, setChek] = useState<{ amount: string; phone: string; note: string; image: string } | null>(null);
   const [sending, setSending] = useState(false);
+  // Chek yuborilayotganda yopilmasin — fon bosilganda ham shunday
+  useEscape(() => setChek(null), !!chek && !sending);
 
   async function pickPhoto(f: File | undefined) {
     if (!f) return;

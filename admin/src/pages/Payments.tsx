@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api, fmt, fmtNum, fmtPhone, type Payment, type PaymentsPage, type Shop } from '../api';
 import { AppIcon, Glyph } from '../icons';
+import { useEscape } from '../useEscape';
 
 // Balans bo'limi: kirim/chiqim ko'rsatkichlari, filtrlar, jadval va
 // qo'lda to'lov kiritish oynasi (bank o'tkazmasi, naqd va h.k.).
@@ -416,6 +417,9 @@ export function PaymentModal({
       setBusy(false);
     }
   }
+
+  // Escape bosilsa yopilsin — panel klaviatura bilan ishlanadi
+  useEscape(onClose);
 
   return (
     <div className="modal-wrap" onClick={onClose}>

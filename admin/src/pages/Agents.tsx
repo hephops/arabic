@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, fmt, fmtNum, fmtPhone, type Admin, type Agent, type AgentDetail } from '../api';
 import { AppIcon, Glyph } from '../icons';
+import { useEscape } from '../useEscape';
 
 // Xodimlar — BuySale'ning targ'ovchi agentlari.
 //
@@ -191,6 +192,9 @@ function AgentModal({
   }
 
   const a = data?.agent;
+  // Escape bosilsa yopilsin — panel klaviatura bilan ishlanadi
+  useEscape(onClose);
+
   return (
     <div className="modal-wrap" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
@@ -369,6 +373,9 @@ function AgentForm({ agent, onClose, onSaved }: { agent: Agent | null; onClose: 
     }
   }
 
+  // Escape bosilsa yopilsin — panel klaviatura bilan ishlanadi
+  useEscape(onClose);
+
   return (
     <div className="modal-wrap" onClick={onClose}>
       <div className="modal sm" onClick={(e) => e.stopPropagation()}>
@@ -449,6 +456,9 @@ function DeleteAgent({ agent, onClose, onDone }: { agent: Agent; onClose: () => 
       setBusy(false);
     }
   }
+
+  // Escape bosilsa yopilsin — panel klaviatura bilan ishlanadi
+  useEscape(onClose);
 
   return (
     <div className="modal-wrap" onClick={onClose}>

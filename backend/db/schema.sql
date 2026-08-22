@@ -40,6 +40,9 @@ CREATE TABLE IF NOT EXISTS shops (
   -- Taklif bonusi qachon to'langani (bo'sh — hali to'lanmagan).
   -- Bonus faqat BIR MARTA beriladi, shuning uchun shu yerda belgilanadi.
   referral_paid_at TEXT,
+  -- "Balans tugayapti" ogohlantirishi qaysi kuni yuborilgani.
+  -- Kuniga bir martadan ko'p bezovta qilmaslik uchun.
+  low_notified_on TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 

@@ -16,6 +16,7 @@ import { ean13Svg, isEan13, scaleBarcode } from '../ean13';
 import { qrSvg } from '../qr';
 import { scanFail } from '../beep';
 import { goldShop, goldPrice, goldLine, shopInfo, profile, PROBAS } from '../shopTypes';
+import { useEscape } from '../useEscape';
 
 /** Shu tovar uchun "kam qoldi" chegarasi: o'zinikini bo'lsa o'shanisi,
  *  bo'lmasa do'kon turining standarti (oltin/telefonda 0-1, oziqda 5) */
@@ -266,6 +267,7 @@ function ProductEdit({ product, onBack, onSaved }: { product: Product; onBack: (
   const [scanning, setScanning] = useState(false);
   const [busy, setBusy] = useState(false);
   const [labels, setLabels] = useState(false);
+  useEscape(() => setLabels(false), labels);
   // Zargarlikda har buyum yakka — bitta birka yetadi
   const [labelQty, setLabelQty] = useState(goldShop() ? 1 : 8);
   const [printingLabels, setPrintingLabels] = useState(false);

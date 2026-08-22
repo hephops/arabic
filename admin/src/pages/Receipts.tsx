@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { api, fmt, fmtNum, fmtPhone, BASE, type Receipt, type ReceiptsPage, type Shop } from '../api';
 import { AppIcon, Glyph } from '../icons';
 import { PaymentModal, type PaymentPreset } from './Payments';
+import { useEscape } from '../useEscape';
 
 // Cheklar: do'konchi kartaga pul o'tkazgach chekning suratini yuboradi.
 //
@@ -32,6 +33,8 @@ export default function Receipts() {
   const [preset, setPreset] = useState<PaymentPreset | null>(null);
   const [reject, setReject] = useState<Receipt | null>(null);
   const [zoom, setZoom] = useState<string | null>(null);
+  // Kattalashtirilgan rasm ham Escape bilan yopiladi
+  useEscape(() => setZoom(null), !!zoom);
 
   function load() {
     api.receipts(tab).then(setData).catch(() => {});
@@ -193,6 +196,9 @@ function RejectModal({ receipt, onClose, onDone }: { receipt: Receipt; onClose: 
       setBusy(false);
     }
   }
+
+  // Escape bosilsa yopilsin — panel klaviatura bilan ishlanadi
+  useEscape(onClose);
 
   return (
     <div className="modal-wrap" onClick={onClose}>

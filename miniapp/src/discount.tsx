@@ -3,6 +3,7 @@ import { api, fmt, Product } from './api';
 import { Glyph } from './icons';
 import { translate } from './i18n';
 import { toast } from './toast';
+import { useEscape } from './useEscape';
 
 // Srogi yaqin tovarlarga chegirma qo'yish varag'i.
 //
@@ -61,6 +62,9 @@ export function DiscountSheet({
   }
 
   const anyDiscounted = items.some((i) => (i.discount_percent ?? 0) > 0);
+
+  // Kompyuterda Escape bilan ham yopilsin
+  useEscape(onClose);
 
   return (
     <div className="sheet-wrap" onClick={onClose}>

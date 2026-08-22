@@ -7,6 +7,7 @@ import { MODES } from './Reminders';
 import { formatAmount, formatPhoneSoft, phoneStore, formatPhone, phoneDigits, phoneE164, isPhoneComplete } from '../format';
 import { toast, loadFailed } from '../toast';
 import { TrustCard, TrustDot, TrustWarning } from '../trust';
+import { useEscape } from '../useEscape';
 
 export default function Customers() {
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -511,6 +512,9 @@ function CustomerTelegramSheet({
   }
 
   const shareText = info?.link ? `${t('tgInviteText')}\n${info.link}` : '';
+
+  // Kompyuterda Escape bilan ham yopilsin
+  useEscape(onClose);
 
   return (
     <div className="sheet-wrap" onClick={onClose}>

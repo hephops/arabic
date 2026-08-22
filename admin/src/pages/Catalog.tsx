@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { api, BASE, type CatalogCategory, type CatalogProduct, type CatalogStats } from '../api';
 import { AppIcon, Glyph } from '../icons';
+import { useEscape } from '../useEscape';
 
 // Markaziy katalog — bu yerda to'ldiriladi.
 //
@@ -40,6 +41,9 @@ export default function Catalog() {
   const [q, setQ] = useState('');
   const [draft, setDraft] = useState<any | null>(null);
   const [catDraft, setCatDraft] = useState<any | null>(null);
+  // Escape bosilsa ochiq oyna yopilsin (yuqoridagisi birinchi)
+  useEscape(() => setDraft(null), !!draft);
+  useEscape(() => setCatDraft(null), !!catDraft);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [imgUrl, setImgUrl] = useState('');

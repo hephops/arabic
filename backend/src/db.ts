@@ -159,6 +159,8 @@ for (const sql of [
   // Taklif bonusi qachon to'langani. Bo'sh — hali to'lanmagan.
   // Ustun bo'lmasa bonus har to'ldirishda qayta yozilib ketardi.
   'ALTER TABLE shops ADD COLUMN referral_paid_at TEXT',
+  // Balans ogohlantirishi qaysi kuni yuborilgani — kuniga bir marta
+  'ALTER TABLE shops ADD COLUMN low_notified_on TEXT',
 ]) {
   try {
     db.exec(sql);

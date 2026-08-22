@@ -40,6 +40,7 @@ import {
 } from './billing.js';
 import { issueCode, checkCode, clearCode } from './otp.js';
 import { dailyFigures, reportText, sendDailyReport, startDailyReportScheduler } from './dailyReport.js';
+import { runLowBalanceWarnings, startLowBalanceScheduler } from './lowBalance.js';
 import { customerCode, receiptText } from './customerLink.js';
 import { uzToday, uzDayShift, uzDayStartUtc, uzPeriodStartUtc, uzMonthStartUtc } from './tz.js';
 
@@ -2941,6 +2942,9 @@ app.post('/reports/daily/send', { preHandler: requirePerm('reports') }, async (r
 });
 
 /** Xabar qanday ko'rinishini ilovada ko'rsatish uchun (yuborilmaydi) */
+/** Balans ogohlantirishini hozir hisoblab chiqish (qo'lda tekshirish uchun) */
+app.post('/reminders/low-balance', { preHandler: requireOwner }, async () => runLowBalanceWarnings());
+
 app.get('/reports/daily/preview', { preHandler: requirePerm('reports') }, async (req) => {
   const shop = db.prepare('SELECT name FROM shops WHERE id = ?').get(req.shopId) as any;
   const figures = dailyFigures(req.shopId!);
@@ -3019,6 +3023,7 @@ app.listen({ port, host: '0.0.0.0' }).then(() => {
   runReminders();
   startReminderScheduler();
   startDailyReportScheduler();
+  startLowBalanceScheduler();
   if (telegramEnabled() && process.env.PUBLIC_URL) {
     setWebhook(process.env.PUBLIC_URL).then((r: any) =>
       console.log('[telegram] webhook:', r.ok ? 'ulandi' : r.description ?? r.error)

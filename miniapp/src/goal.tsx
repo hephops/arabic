@@ -4,6 +4,7 @@ import { fmtShort, group, translate } from './i18n';
 import { Glyph } from './icons';
 import { formatAmount } from './format';
 import { toast } from './toast';
+import { useEscape } from './useEscape';
 
 // "Bugungi maqsad" — kun davomidagi savdo maqsadga qancha yetganini
 // ko'rsatuvchi chiziq.
@@ -128,6 +129,9 @@ export function GoalSheet({
       setBusy(false);
     }
   }
+
+  // Kompyuterda Escape bilan ham yopilsin
+  useEscape(onClose);
 
   return (
     <div className="sheet-wrap" onClick={onClose}>

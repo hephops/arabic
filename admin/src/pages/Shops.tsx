@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { api, fmt, fmtNum, fmtPhone, type Agent, type Shop, type ShopDetail, type ShopsSummary } from '../api';
 import { AppIcon, Glyph } from '../icons';
 import { SHOP_TYPE_LABEL } from '../shopTypes';
+import { useEscape } from '../useEscape';
 
 
 const PAGE_SIZES = [10, 25, 50, 100];
@@ -364,6 +365,9 @@ function ShopModal({
   const kirim = data.transactions.filter((t) => t.amount > 0).reduce((a, t) => a + t.amount, 0);
   const chiqim = -data.transactions.filter((t) => t.amount < 0).reduce((a, t) => a + t.amount, 0);
 
+  // Escape bosilsa yopilsin — panel klaviatura bilan ishlanadi
+  useEscape(onClose);
+
   return (
     <div className="modal-wrap" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
@@ -704,6 +708,9 @@ function EditShop({ shop, onClose, onSaved }: { shop: Shop; onClose: () => void;
     }
   }
 
+  // Escape bosilsa yopilsin — panel klaviatura bilan ishlanadi
+  useEscape(onClose);
+
   return (
     <div className="modal-wrap" onClick={onClose}>
       <div className="modal sm" onClick={(e) => e.stopPropagation()}>
@@ -762,6 +769,9 @@ function DeleteShop({ shop, onClose, onDone }: { shop: Shop; onClose: () => void
       setBusy(false);
     }
   }
+
+  // Escape bosilsa yopilsin — panel klaviatura bilan ishlanadi
+  useEscape(onClose);
 
   return (
     <div className="modal-wrap" onClick={onClose}>

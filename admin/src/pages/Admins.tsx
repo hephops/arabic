@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api, type Admin } from '../api';
+import { useEscape } from '../useEscape';
 
 export default function Admins({ me }: { me: Admin }) {
   const [rows, setRows] = useState<Admin[]>([]);
@@ -121,6 +122,9 @@ function AddAdmin({ onClose, onDone }: { onClose: () => void; onDone: () => void
     }
   }
 
+  // Escape bosilsa yopilsin — panel klaviatura bilan ishlanadi
+  useEscape(onClose);
+
   return (
     <div className="modal-wrap" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
@@ -167,6 +171,9 @@ function AddAdmin({ onClose, onDone }: { onClose: () => void; onDone: () => void
 function ResetPassword({ admin, onClose, onDone }: { admin: Admin; onClose: () => void; onDone: () => void }) {
   const [password, setPassword] = useState('');
   const [err, setErr] = useState('');
+
+  // Escape bosilsa yopilsin — panel klaviatura bilan ishlanadi
+  useEscape(onClose);
 
   return (
     <div className="modal-wrap" onClick={onClose}>

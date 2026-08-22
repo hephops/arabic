@@ -7,6 +7,7 @@ import { formatAmount, amountValue, uzToday } from '../format';
 import { EXPENSE_CATS as CATS, expenseCatLabel, expenseCatIcon } from '../expenseCats';
 import { toast } from '../toast';
 import { haptic } from '../telegram';
+import { useEscape } from '../useEscape';
 
 // Do'kon xarajatlari: ijara, svet, ish haqi, transport...
 // Bularsiz "foyda" faqat tovar ustamasi bo'lib qoladi — shuning uchun
@@ -48,6 +49,8 @@ export default function Expenses({ onBack }: { onBack: () => void }) {
   const [filter, setFilter] = useState<string>('');
   const [data, setData] = useState<ExpensesInfo | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
+  // Kompyuterda Escape bilan ham yopilsin
+  useEscape(() => setDraft(null), !!draft);
   const [busy, setBusy] = useState(false);
   const { t } = useT();
 

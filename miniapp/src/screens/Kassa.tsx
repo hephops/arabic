@@ -26,6 +26,7 @@ import {
   STOCK_UNITS, isFractional, parseQty, qtyText, qtyWithUnit,
   priceBases, basisOf, basisText, priceForBasis, priceLabel, PriceBasis,
 } from '../units';
+import { useEscape } from '../useEscape';
 
 export type KassaMode = 'sale' | 'intake' | 'history';
 
@@ -91,6 +92,7 @@ function SaleMode({ onDone, autoScan = 0 }: { onDone: () => void; autoScan?: num
   const [state, setState] = useState(loadCarts);
   const { carts, activeId } = state;
   const [renaming, setRenaming] = useState(false);
+  useEscape(() => setRenaming(false), renaming);
   const [payment, setPaymentRaw] = useState<'cash' | 'card' | 'debt'>('cash');
   // Raqam to'liq kiritilganda mijozni tanib olamiz: ismi o'zi to'ladi,
   // to'lov odati esa sotuvchiga darhol ko'rinadi
@@ -106,6 +108,7 @@ function SaleMode({ onDone, autoScan = 0 }: { onDone: () => void; autoScan?: num
   const [busy, setBusy] = useState(false);
   // Endigina yakunlangan sotuv — "chek chiqaraymi?" deb so'raymiz
   const [justSold, setJustSold] = useState<SaleDetail | null>(null);
+  useEscape(() => setJustSold(null), !!justSold);
   const [printing, setPrinting] = useState(false);
   // Bugungi savdo va maqsad — har sotuvdan keyin yangilanadi
   const [today, setToday] = useState({ revenue: 0, goal: 0 });
@@ -879,6 +882,7 @@ function IntakeMode({
   const [proba, setProba] = useState('585');
   // Yorliq oynasi: qaysi tovar uchun, nechta nusxa va chop etish
   const [labelFor, setLabelFor] = useState<Product | null>(null);
+  useEscape(() => setLabelFor(null), !!labelFor);
   const [labelQty, setLabelQty] = useState(gold ? 1 : 8);
   const [printing, setPrinting] = useState(false);
   const [weight, setWeight] = useState('');

@@ -5,6 +5,7 @@ import { useT } from './i18n';
 import { useSpeech } from './speech';
 import { toast } from './toast';
 import { haptic } from './telegram';
+import { useEscape } from './useEscape';
 
 // "Uch dona non, bitta sut" deb aytish bilan savat to'ladi.
 //
@@ -80,6 +81,9 @@ export function VoiceCartSheet({
 
   const ready = (lines ?? []).filter((l) => l.product && l.qty > 0);
   const missing = (lines ?? []).filter((l) => !l.product);
+
+  // Kompyuterda Escape bilan ham yopilsin
+  useEscape(onClose);
 
   return (
     <div className="sheet-wrap" onClick={onClose}>

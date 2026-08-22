@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, fmtNum, fmtPhone, type ReminderLog } from '../api';
 import { AppIcon } from '../icons';
+import { useEscape } from '../useEscape';
 
 const CHANNEL_LABEL: Record<string, string> = {
   sms: 'SMS',
@@ -31,6 +32,7 @@ export default function Reminders() {
   const [stats, setStats] = useState<{ channel: string; c: number }[]>([]);
   const [channel, setChannel] = useState('all');
   const [open, setOpen] = useState<ReminderLog | null>(null);
+  useEscape(() => setOpen(null), !!open);
 
   useEffect(() => {
     api

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { SHOP_TYPES } from '../shopTypes';
+import { useEscape } from '../useEscape';
 
 // Yuguruvchi e'lon sozlamasi.
 //
@@ -72,6 +73,9 @@ export default function AnnounceModal({
   const set = <K extends keyof AnnounceCfg>(k: K, x: AnnounceCfg[K]) => setV((p) => ({ ...p, [k]: x }));
 
   const preview = v.text.trim() || 'Matn shu yerda ko‘rinadi';
+
+  // Escape bosilsa yopilsin — panel klaviatura bilan ishlanadi
+  useEscape(onClose);
 
   return (
     <div className="modal-wrap" onClick={onClose}>

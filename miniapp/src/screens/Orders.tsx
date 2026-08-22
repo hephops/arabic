@@ -7,6 +7,7 @@ import { toast, loadFailed } from '../toast';
 import { copyText } from '../clipboard';
 import { PrintSheet, OrderPrint, type OrderSheetLine } from '../print';
 import { fmtDateTime, fmtWhen, fmtDay } from '../format';
+import { useEscape } from '../useEscape';
 
 // "Ta'minotchiga buyurtma" — kam qolgan tovarlardan tayyor ro'yxat.
 //
@@ -494,6 +495,9 @@ function TelegramSheet({
           : '';
   const invite = r.invite ?? '';
   const inviteText = `${t('orderTgInviteText')}\n${invite}`;
+
+  // Kompyuterda Escape bilan ham yopilsin
+  useEscape(onClose);
 
   return (
     <div className="sheet-wrap" onClick={onClose}>
