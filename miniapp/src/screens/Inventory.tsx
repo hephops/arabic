@@ -3,6 +3,7 @@ import { api, fmt, Batch, Product, StocktakeRow, Supplier, BASE } from '../api';
 import { AppIcon, Glyph } from '../icons';
 import { NavBar, Summary, EmptyState, Segmented, DateField } from '../ui';
 import { useT } from '../i18n';
+import { can } from '../perms';
 import Scanner from '../Scanner';
 import { formatAmount, fmtDay } from '../format';
 import { toast, loadFailed } from '../toast';
@@ -85,7 +86,13 @@ export default function Inventory({ onBack }: { onBack: () => void }) {
     return true;
   });
 
-  const totalValue = products.reduce((s, p) => s + p.stock * p.cost_price, 0);
+  // Ombordagi pul — kirim narxi bo'yicha. Ruxsati yo'q xodimga
+  // cost_price umuman yuborilmaydi (server yashiradi), shuning uchun
+  // ko'paytmа NaN bo'lib, ekran tepasida "NaN so'm" turardi.
+  const costHidden = !can('cost_view');
+  const totalValue = costHidden
+    ? null
+    : products.reduce((s, p) => s + p.stock * (Number(p.cost_price) || 0), 0);
 
   return (
     <>
@@ -102,7 +109,7 @@ export default function Inventory({ onBack }: { onBack: () => void }) {
         <Summary
           icon="boxes"
           label={`${products.length} ${t('productsCount')}`}
-          value={fmt(totalValue)}
+          value={totalValue === null ? '—' : fmt(totalValue)}
         />
 
         <div className="search-row">
@@ -378,16 +385,26 @@ function ProductEdit({ product, onBack, onSaved }: { product: Product; onBack: (
 
   async function save() {
     setError('');
+    // Narx maydonlari FAQAT huquqi bo'lganda yuboriladi.
+    //
+    // Ikki xato shu yerdan chiqardi:
+    //  1) price_edit yo'q xodim tovarni umuman saqlay olmasdi — server
+    //     narx kalitini ko'rib 403 qaytarardi, ekranda esa sabab
+    //     ko'rinmasdi (nom o'zgartirmoqchi bo'lgan xodim "ishlamayapti"
+    //     deb qolardi);
+    //  2) cost_view yo'q xodimga tannarx yuborilmaydi, ya'ni maydon
+    //     doim bo'sh — saqlaganda do'konning tannarxi nolga tushardi.
+    const narxlar = can('price_edit')
+      ? { sell_price: unitSell, discount_percent: discount, ...(can('cost_view') ? { cost_price: unitCost } : {}) }
+      : {};
     await api.updateProduct(product.id!, {
       name: form.name.trim(),
-      cost_price: unitCost,
-      sell_price: unitSell,
+      ...narxlar,
       unit: form.unit,
       price_qty: basis.qty,
       stock: parseQty(form.stock, form.unit),
       low_stock_threshold: parseQty(form.low_stock_threshold, form.unit) || profile().lowStock,
       supplier_id: supplierId ? Number(supplierId) : null,
-      discount_percent: discount,
       image: image ?? undefined,
       ...(gold
         ? {

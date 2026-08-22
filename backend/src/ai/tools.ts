@@ -21,10 +21,34 @@ export interface ToolDef {
     required: string[];
     additionalProperties: false;
   };
-  /** shopId serverda qo'yiladi — modeldan kelmaydi */
-  run: (shopId: number, input: any) => unknown | Promise<unknown>;
+  /** shopId serverda qo'yiladi — modeldan kelmaydi.
+   *  ctx — so'ragan odamning huquqi: kirim narxini ko'ra oladimi. */
+  run: (shopId: number, input: any, ctx: ToolCtx) => unknown | Promise<unknown>;
   /** Bu vosita ma'lumot o'qimaydi, ISH qiladi (masalan xabar yuboradi) */
   action?: boolean;
+}
+
+/**
+ * Vositani kim chaqirayotgani.
+ *
+ * AI yordamchisi oddiy yo'l tekshiruvidan o'tmaydi: u vositani o'zi
+ * chaqiradi. Shuning uchun ruxsat shu yerdan uzatiladi — aks holda
+ * kirim narxini ko'rish huquqi yo'q xodim ham "foyda qancha?" deb
+ * so'rab, tannarxni bilib olardi.
+ */
+export interface ToolCtx {
+  /** kirim narxi va foydani ko'rsa bo'ladimi (cost_view) */
+  costView: boolean;
+}
+
+/** Kirim narxi bilan bog'liq maydonlarni javobdan olib tashlash */
+function stripCost<T>(rows: T[], ctx: ToolCtx): T[] {
+  if (ctx.costView) return rows;
+  return rows.map((r: any) => {
+    if (!r || typeof r !== 'object') return r;
+    const { kirim_narxi, foyda, boglangan_pul, tannarx, ...qolgani } = r;
+    return qolgani;
+  }) as T[];
 }
 
 /** Uzbekistan vaqti bilan kun boshlanishi (UTC'da saqlanadi) */
@@ -92,7 +116,7 @@ export const TOOLS: ToolDef[] = [
       required: ['filtr', 'limit'],
       additionalProperties: false,
     },
-    run: (shopId, i) => {
+    run: (shopId, i, ctx) => {
       const limit = num(i.limit, 20, 1, 50);
       const where =
         i.filtr === 'kam_qolgan'
@@ -100,15 +124,18 @@ export const TOOLS: ToolDef[] = [
           : i.filtr === 'tugagan'
             ? 'AND p.stock <= 0'
             : '';
-      return db
-        .prepare(
-          `SELECT p.name AS tovar, p.stock AS qoldiq, p.unit AS birlik,
-                  p.sell_price AS narx, p.cost_price AS kirim_narxi,
-                  p.category AS kategoriya
-           FROM products p WHERE p.shop_id = ? ${where}
-           ORDER BY p.stock ASC LIMIT ?`
-        )
-        .all(shopId, limit);
+      return stripCost(
+        db
+          .prepare(
+            `SELECT p.name AS tovar, p.stock AS qoldiq, p.unit AS birlik,
+                    p.sell_price AS narx, p.cost_price AS kirim_narxi,
+                    p.category AS kategoriya
+             FROM products p WHERE p.shop_id = ? ${where}
+             ORDER BY p.stock ASC LIMIT ?`
+          )
+          .all(shopId, limit) as any[],
+        ctx
+      );
     },
   },
   {
@@ -122,21 +149,24 @@ export const TOOLS: ToolDef[] = [
       required: ['kunlar'],
       additionalProperties: false,
     },
-    run: (shopId, i) => {
+    run: (shopId, i, ctx) => {
       const days = num(i.kunlar, 14, 1, 90);
-      return db
-        .prepare(
-          `SELECT p.name AS tovar, b.qty_left AS qolgan, p.unit AS birlik,
-                  b.expiry_date AS srok,
-                  CAST(julianday(b.expiry_date) - julianday(${dayExpr}) AS INTEGER) AS kun_qoldi,
-                  b.cost_price AS kirim_narxi,
-                  CAST(b.qty_left * b.cost_price AS INTEGER) AS boglangan_pul
-           FROM product_batches b JOIN products p ON p.id = b.product_id
-           WHERE b.shop_id = ? AND b.qty_left > 0 AND b.expiry_date IS NOT NULL
-             AND julianday(b.expiry_date) - julianday(${dayExpr}) <= ?
-           ORDER BY b.expiry_date LIMIT 50`
-        )
-        .all(shopId, days);
+      return stripCost(
+        db
+          .prepare(
+            `SELECT p.name AS tovar, b.qty_left AS qolgan, p.unit AS birlik,
+                    b.expiry_date AS srok,
+                    CAST(julianday(b.expiry_date) - julianday(${dayExpr}) AS INTEGER) AS kun_qoldi,
+                    b.cost_price AS kirim_narxi,
+                    CAST(b.qty_left * b.cost_price AS INTEGER) AS boglangan_pul
+             FROM product_batches b JOIN products p ON p.id = b.product_id
+             WHERE b.shop_id = ? AND b.qty_left > 0 AND b.expiry_date IS NOT NULL
+               AND julianday(b.expiry_date) - julianday(${dayExpr}) <= ?
+             ORDER BY b.expiry_date LIMIT 50`
+          )
+          .all(shopId, days) as any[],
+        ctx
+      );
     },
   },
   {
@@ -150,7 +180,7 @@ export const TOOLS: ToolDef[] = [
       required: [...PERIOD_REQUIRED],
       additionalProperties: false,
     },
-    run: (shopId, i) => {
+    run: (shopId, i, ctx) => {
       const { from, to, label } = period(i);
       const sales = db
         .prepare(
@@ -187,7 +217,9 @@ export const TOOLS: ToolDef[] = [
       return {
         davr: label,
         savdo: sales.savdo,
-        foyda: profit.foyda,
+        // Foyda kirim narxidan kelib chiqadi — huquqi yo'q xodimga
+        // aytilmaydi (aks holda tannarxni oson hisoblab olardi)
+        ...(ctx.costView ? { foyda: profit.foyda } : {}),
         qaytarilgan: rets.qaytarilgan,
         chek_soni: sales.chek_soni,
         ortacha_chek: avg,
@@ -210,24 +242,34 @@ export const TOOLS: ToolDef[] = [
       required: [...PERIOD_REQUIRED, 'tartib', 'limit'],
       additionalProperties: false,
     },
-    run: (shopId, i) => {
+    run: (shopId, i, ctx) => {
       const { from, to } = period(i);
-      const order =
-        i.tartib === 'foyda' ? 'foyda' : i.tartib === 'miqdor' ? 'miqdor' : 'savdo';
-      return db
-        .prepare(
-          `SELECT p.name AS tovar, p.unit AS birlik,
-                  COALESCE(SUM(si.qty), 0) AS miqdor,
-                  CAST(COALESCE(SUM(si.price * si.qty), 0) AS INTEGER) AS savdo,
-                  CAST(COALESCE(SUM((si.price - p.cost_price) * si.qty), 0) AS INTEGER) AS foyda
-           FROM sale_items si
-           JOIN sales s ON s.id = si.sale_id
-           JOIN products p ON p.id = si.product_id
-           WHERE s.shop_id = ?
-             AND date(s.created_at, '+5 hours') BETWEEN ${from} AND ${to}
-           GROUP BY p.id ORDER BY ${order} DESC LIMIT ?`
-        )
-        .all(shopId, num(i.limit, 10, 1, 20));
+      // Foyda bo'yicha saralash ham kirim narxini oshkor qiladi:
+      // huquqi yo'q xodimga savdo bo'yicha saralanadi
+      const order = !ctx.costView
+        ? 'savdo'
+        : i.tartib === 'foyda'
+          ? 'foyda'
+          : i.tartib === 'miqdor'
+            ? 'miqdor'
+            : 'savdo';
+      return stripCost(
+        db
+          .prepare(
+            `SELECT p.name AS tovar, p.unit AS birlik,
+                    COALESCE(SUM(si.qty), 0) AS miqdor,
+                    CAST(COALESCE(SUM(si.price * si.qty), 0) AS INTEGER) AS savdo,
+                    CAST(COALESCE(SUM((si.price - p.cost_price) * si.qty), 0) AS INTEGER) AS foyda
+             FROM sale_items si
+             JOIN sales s ON s.id = si.sale_id
+             JOIN products p ON p.id = si.product_id
+             WHERE s.shop_id = ?
+               AND date(s.created_at, '+5 hours') BETWEEN ${from} AND ${to}
+             GROUP BY p.id ORDER BY ${order} DESC LIMIT ?`
+          )
+          .all(shopId, num(i.limit, 10, 1, 20)) as any[],
+        ctx
+      );
     },
   },
   {
@@ -241,9 +283,9 @@ export const TOOLS: ToolDef[] = [
       required: ['kunlar'],
       additionalProperties: false,
     },
-    run: (shopId, i) => {
+    run: (shopId, i, ctx) => {
       const days = num(i.kunlar, 30, 7, 180);
-      return db
+      return stripCost(db
         .prepare(
           `SELECT p.name AS tovar, p.stock AS qoldiq, p.unit AS birlik,
                   CAST(p.stock * p.cost_price AS INTEGER) AS boglangan_pul,
@@ -259,7 +301,7 @@ export const TOOLS: ToolDef[] = [
                  ) < julianday('now') - ?
            ORDER BY boglangan_pul DESC LIMIT 30`
         )
-        .all(shopId, days);
+        .all(shopId, days) as any[], ctx);
     },
   },
   {

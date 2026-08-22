@@ -18,6 +18,7 @@ import { db } from '../db.js';
 import { gate, BusyError } from './gate.js';
 import { readRateHeaders } from './ratelimit.js';
 import { TOOL_BY_NAME, toolSchemas, ACTION_TOOLS } from './tools.js';
+import { employeeCan } from '../auth.js';
 import { MODEL_DEEP, MAX_STEPS, costUzs, aiEnabled, aiKey, model as aiModel, dailyLimit, questionPrice } from './config.js';
 
 // Suratlar server.ts dagi bir xil jildga tushadi — /uploads/:file
@@ -556,6 +557,10 @@ async function run(opts: AskOptions, emit?: (e: AiEvent) => void): Promise<AskRe
   const shop = db.prepare('SELECT balance, shop_type FROM shops WHERE id = ?').get(opts.shopId) as any;
   const shopType: string | null = shop?.shop_type ?? null;
 
+  // Vositalar uchun huquq: kirim narxi va foydani ko'rsa bo'ladimi.
+  // AI oddiy yo'l tekshiruvidan o'tmaydi — ruxsat shu yerdan uzatiladi.
+  const toolCtx = { costView: employeeCan(opts.employeeId, 'cost_view') };
+
   const limit = dailyLimit(shopType);
   if (limit > 0 && askedToday(opts.shopId) >= limit) {
     throw new AiError('daily_limit', `Bugungi savol chegarasi tugadi (${limit} ta)`);
@@ -752,7 +757,7 @@ async function run(opts: AskOptions, emit?: (e: AiEvent) => void): Promise<AskRe
       try {
         // DIQQAT: shopId shu yerda qo'yiladi. Model qanday kiritma
         // yuborsa ham begona do'konga o'tolmaydi.
-        const data: any = await tool.run(opts.shopId, c.input ?? {});
+        const data: any = await tool.run(opts.shopId, c.input ?? {}, toolCtx);
         // Kirim taklifi ilovaga alohida yuboriladi: u matn emas,
         // tasdiqlanadigan karta bo'lib ko'rinishi kerak
         if (c.name === 'kirim_taklif' && data?.taklif_id) {

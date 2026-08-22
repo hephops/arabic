@@ -555,10 +555,16 @@ app.get('/dashboard', { preHandler: requireAuth }, async (req) => {
        WHERE d.shop_id = ? AND d.status = 'overdue' ORDER BY d.due_date ASC`
     )
     .all(req.shopId);
-  const lowStock = db
-    .prepare(`SELECT * FROM products WHERE shop_id = ? AND stock <= low_stock_threshold ORDER BY stock ASC LIMIT 10`)
-    .all(req.shopId);
-  const expiringSoon = (
+  // hideCost: `SELECT *` kirim narxini ham olib keladi. Bosh sahifa
+  // ruxsat talab qilmaydi (requireAuth), ya'ni cost_view'siz xodim
+  // ham ochadi — tannarx shu yerdan sizib chiqardi.
+  const lowStock = hideCost(
+    req,
+    db
+      .prepare(`SELECT * FROM products WHERE shop_id = ? AND stock <= low_stock_threshold ORDER BY stock ASC LIMIT 10`)
+      .all(req.shopId) as any[]
+  );
+  const expiringSoon = hideCost(req, (
     db
       .prepare(
         `SELECT *, CAST(julianday(expiry_date) - julianday(date('now', '+5 hours')) AS INTEGER) AS days_left
@@ -566,7 +572,7 @@ app.get('/dashboard', { preHandler: requireAuth }, async (req) => {
          AND expiry_date <= date('now', '+5 hours', '+7 days') ORDER BY expiry_date ASC LIMIT 10`
       )
       .all(req.shopId) as any[]
-  ).map((p) => ({ ...p, price_after_discount: priceWithDiscount(p) }));
+  ).map((p) => ({ ...p, price_after_discount: priceWithDiscount(p) })));
   // Oxirgi sotuvlar — mahsulot nomlari bilan
   const recentSales = db
     .prepare(
@@ -1213,7 +1219,9 @@ app.get('/orders/suggest', { preHandler: requirePerm('orders') }, async (req) =>
        ORDER BY (p.stock - p.low_stock_threshold) ASC, p.name`
     )
     .all(uzDayStartUtc(-29), req.shopId) as any[];
-  return rows.map((r) => ({ ...r, suggest_qty: suggestQty(r) }));
+  // Tavsiya miqdori tannarxsiz ham hisoblanadi — kirim narxi esa
+  // ruxsati yo'q xodimga chiqmasin
+  return hideCost(req, rows.map((r) => ({ ...r, suggest_qty: suggestQty(r) })));
 });
 
 /** Saqlangan buyurtmalar — do'konchi o'tgan safargisini takrorlaydi */
@@ -1457,6 +1465,33 @@ function hideCost(req: FastifyRequest, row: any): any {
   return Array.isArray(row) ? row.map(strip) : strip(row);
 }
 
+
+/**
+ * Kirimda narx maydoni BO'SH qoldirilgan bo'lsa eskisi saqlanadi.
+ *
+ * Ilova bo'sh maydonni 0 qilib yuboradi, `??` esa faqat null/undefined
+ * da eskisiga qaytadi — natijada mavjud tovarga qayta kirim qilinganda
+ * tannarx JIMGINA NOLGA tushib qolardi. Undan keyin foyda hisoboti
+ * butun sotuv summasini foyda deb ko'rsatardi.
+ *
+ * Ayniqsa yomoni xodim uchun: cost_view ruxsati yo'q xodimga tannarx
+ * umuman yuborilmaydi, ya'ni maydon doim bo'sh — har kirimida
+ * do'konning tannarxi o'chib ketardi.
+ *
+ * `req` berilsa, ruxsatsiz xodimning yuborgan narxi umuman inobatga
+ * olinmaydi.
+ */
+function keepPrice(
+  yangi: number | null | undefined,
+  eski: number | null | undefined,
+  req?: FastifyRequest
+): number | null {
+  if (req && !can(req, 'cost_view')) return eski ?? null;
+  const n = Number(yangi);
+  // 0 va bo'sh — "kiritilmagan" degani
+  if (!Number.isFinite(n) || n <= 0) return eski ?? null;
+  return Math.round(n);
+}
 
 // Shtrix-kod bo'yicha qidirish: kodning barcha teng ko'rinishlari bo'yicha,
 // ham products.barcode, ham qo'shimcha kodlar jadvalidan.
@@ -1755,8 +1790,8 @@ app.post<{
       // (eng erta tugaydigani), shuning uchun bu yerda tegilmaydi.
       db.prepare('UPDATE products SET stock = stock + ?, cost_price = ?, sell_price = ?, price_qty = ? WHERE id = ?').run(
         addQty,
-        cost_price ?? product.cost_price,
-        sell_price ?? product.sell_price,
+        keepPrice(cost_price, product.cost_price, req),
+        keepPrice(sell_price, product.sell_price),
         normalizePriceQty(req.body.price_qty ?? product.price_qty ?? 1, product.unit ?? unit),
         product.id
       );
@@ -1765,7 +1800,7 @@ app.post<{
         req.shopId!,
         product.id,
         addQty,
-        cost_price ?? product.cost_price ?? 0,
+        keepPrice(cost_price, product.cost_price, req) ?? 0,
         expiry_date ?? null,
         req.employeeId ?? null
       );
@@ -1781,7 +1816,7 @@ app.post<{
       const url = saveImage(image, product.id);
       if (url) db.prepare('UPDATE products SET image_url = ? WHERE id = ?').run(url, product.id);
     }
-    return db.prepare('SELECT * FROM products WHERE id = ?').get(product.id);
+    return hideCost(req, db.prepare('SELECT * FROM products WHERE id = ?').get(product.id));
   }
 );
 
@@ -1825,7 +1860,7 @@ app.post<{ Params: { id: string }; Body: { image: string } }>(
     const url = saveImage(req.body.image, product.id);
     if (!url) return reply.code(400).send({ error: 'invalid_image' });
     db.prepare('UPDATE products SET image_url = ? WHERE id = ?').run(url, product.id);
-    return db.prepare('SELECT * FROM products WHERE id = ?').get(product.id);
+    return hideCost(req, db.prepare('SELECT * FROM products WHERE id = ?').get(product.id));
   }
 );
 
@@ -1854,7 +1889,7 @@ app.patch<{ Params: { id: string; batchId: string }; Body: { expiry_date?: strin
       req.params.batchId
     );
     syncProduct(Number(req.params.id));
-    return batchesOf(req.shopId!, Number(req.params.id));
+    return hideCost(req, batchesOf(req.shopId!, Number(req.params.id)) as any[]);
   }
 );
 
@@ -1890,7 +1925,7 @@ app.post<{ Params: { id: string } }>('/products/:id/barcode', { preHandler: requ
 
   attachBarcode(req.shopId!, product.id, code);
   if (!product.barcode) db.prepare('UPDATE products SET barcode = ? WHERE id = ?').run(code, product.id);
-  return { barcode: code, product: db.prepare('SELECT * FROM products WHERE id = ?').get(product.id) };
+  return { barcode: code, product: hideCost(req, db.prepare('SELECT * FROM products WHERE id = ?').get(product.id)) };
 });
 
 app.post<{ Params: { id: string }; Body: { barcode: string } }>(
@@ -1921,7 +1956,7 @@ app.post<{ Params: { id: string }; Body: { barcode: string } }>(
         req.shopId
       );
     }
-    return db.prepare('SELECT * FROM products WHERE id = ?').get(product.id);
+    return hideCost(req, db.prepare('SELECT * FROM products WHERE id = ?').get(product.id));
   }
 );
 
@@ -1994,7 +2029,7 @@ app.post<{ Params: { id: string }; Body: { plu?: string } }>(
     }
 
     db.prepare('UPDATE products SET plu = ? WHERE id = ?').run(plu, product.id);
-    const fresh = db.prepare('SELECT * FROM products WHERE id = ?').get(product.id) as any;
+    const fresh = hideCost(req, db.prepare('SELECT * FROM products WHERE id = ?').get(product.id)) as any;
     return {
       ...fresh,
       // Tarozini sozlashda ko'rsatiladigan namuna: 1 kg uchun qanday kod chiqadi
@@ -2019,6 +2054,13 @@ app.patch<{ Params: { id: string }; Body: Record<string, unknown> }>(
       .prepare('SELECT * FROM products WHERE id = ? AND shop_id = ?')
       .get(req.params.id, req.shopId) as any;
     if (!product) return reply.code(404).send({ error: 'not_found' });
+    // Kirim narxini KO'RA olmaydigan xodim uni o'zgartira ham olmaydi.
+    // Bu shunchaki qoida emas: unga tannarx yuborilmaydi, ya'ni ilovada
+    // maydon doim bo'sh turadi va saqlaganda do'konning tannarxi
+    // JIMGINA NOLGA tushib qolardi. Shuning uchun rad etilmaydi —
+    // shunchaki e'tiborga olinmaydi, qolgan o'zgarishlar saqlanadi.
+    if (!can(req, 'cost_view')) delete (req.body as any).cost_price;
+
     // Narx alohida ruxsat. Xodim tovar nomini to'g'rilashi mumkin, lekin
     // sotuv narxini o'zgartirish — do'kon foydasiga tegish demak.
     const priceKeys = ['cost_price', 'sell_price', 'discount_percent'];
@@ -2083,7 +2125,7 @@ app.patch<{ Params: { id: string }; Body: Record<string, unknown> }>(
       const url = saveImage(req.body.image, product.id);
       if (url) db.prepare('UPDATE products SET image_url = ? WHERE id = ?').run(url, product.id);
     }
-    return db.prepare('SELECT * FROM products WHERE id = ?').get(product.id);
+    return hideCost(req, db.prepare('SELECT * FROM products WHERE id = ?').get(product.id));
   }
 );
 
@@ -2533,10 +2575,17 @@ app.get<{ Querystring: { code?: string } }>('/returns/lookup', { preHandler: req
   const code = normalizeBarcode(req.query.code);
   if (!code) return { code: '', product: null, scale: null, candidates: [] };
 
-  const scale = parseScaleBarcode(code);
-  const product = scale
-    ? ((db.prepare('SELECT * FROM products WHERE shop_id = ? AND plu = ?').get(req.shopId, scale.plu) as any) ?? null)
-    : (findByBarcode(req.shopId, code) ?? null);
+  // Tarozi kodi faqat tarozili do'konda o'qiladi — /barcodes/lookup da
+  // shunday, bu yerda esa unutilgan edi va zargarlik do'konidagi 13
+  // xonali kod tasodifan "tarozi yorlig'i" bo'lib talqin qilinardi
+  const scaleShop = shopProfile(db.prepare('SELECT shop_type FROM shops WHERE id = ?').get(req.shopId) as any).scale;
+  const scale = scaleShop ? parseScaleBarcode(code) : null;
+  const product = hideCost(
+    req,
+    (scale
+      ? ((db.prepare('SELECT * FROM products WHERE shop_id = ? AND plu = ?').get(req.shopId, scale.plu) as any) ?? null)
+      : (findByBarcode(req.shopId, code) ?? null)) as any
+  );
   if (!product) {
     return { code, product: null, scale: scale ? { ...scale, qty: 0 } : null, candidates: [] };
   }

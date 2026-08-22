@@ -63,6 +63,20 @@ declare module 'fastify' {
  * qo'yganda xodim keyingi bosishdayoq to'xtashi kerak. Tokenga yozilsa
  * u 30 kun davomida eski huquq bilan yuraverardi.
  */
+/**
+ * Xodimda shu ruxsat bormi — so'rov (req) siz.
+ *
+ * AI yordamchisi uchun kerak: u vositalarni o'zi chaqiradi va oddiy
+ * yo'l tekshiruvidan o'tmaydi. Ilgari shu sabab "foyda qancha?" degan
+ * savolga kirim narxini ko'rish huquqi yo'q xodim ham javob olardi.
+ *
+ * employeeId bo'lmasa — do'kon egasi, hamma narsa ochiq.
+ */
+export function employeeCan(employeeId: number | null | undefined, key: PermKey): boolean {
+  if (!employeeId) return true;
+  return (loadPerms(employeeId) ?? []).includes(key);
+}
+
 function loadPerms(employeeId: number): PermKey[] | null {
   const row = db.prepare('SELECT permissions, is_active FROM employees WHERE id = ?').get(employeeId) as any;
   if (!row || !row.is_active) return [];
