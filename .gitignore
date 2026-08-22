@@ -1,5 +1,7 @@
 node_modules/
 dist/
+# Sinov uchun yasalgan vaqtinchalik yig'malar
+dist-*/
 *.db
 *.db-wal
 *.db-shm
