@@ -271,6 +271,40 @@ function ShopModal({
   const changed =
     eName !== (data.name ?? '') || eOwner !== (data.owner_name ?? '') || ePhone !== (data.phone ?? '');
 
+  // Xizmat sozlamalari — do'kon holatidan boshlab to'ldiriladi
+  const [sBal, setSBal] = useState(String(shop.balance ?? 0));
+  const [sPrice, setSPrice] = useState(shop.daily_price == null ? '' : String(shop.daily_price));
+  const [sThrough, setSThrough] = useState(shop.charged_through ?? '');
+  const [savingSvc, setSavingSvc] = useState(false);
+  const [svcErr, setSvcErr] = useState('');
+  const svcChanged =
+    Number(sBal || 0) !== Number(data.balance || 0) ||
+    (sPrice === '' ? data.daily_price != null : Number(sPrice) !== Number(data.daily_price)) ||
+    (sThrough || '') !== (data.charged_through ?? '');
+
+  async function saveService() {
+    setSavingSvc(true);
+    setSvcErr('');
+    try {
+      // Bo'sh narx — "umumiy sozlamaga qayt" degani, 0 esa "pul
+      // olinmaydi". Ikkalasi boshqa-boshqa, shuning uchun null yuboriladi.
+      await api.shopService(data.id, {
+        balance: Number(sBal || 0),
+        daily_price: sPrice === '' ? null : Number(sPrice),
+        charged_through: sThrough || null,
+      });
+      setMsg('Xizmat sozlamalari saqlandi');
+      await reload();
+    } catch (e: any) {
+      const c = e?.details?.error ?? e?.message ?? '';
+      setSvcErr(
+        c === 'price_invalid' ? "Narx noto'g'ri" : c === 'date_invalid' ? "Sana noto'g'ri" : String(c)
+      );
+    } finally {
+      setSavingSvc(false);
+    }
+  }
+
   async function saveInfo() {
     setSavingInfo(true);
     setInfoErr('');
@@ -295,7 +329,13 @@ function ShopModal({
   const [reason, setReason] = useState('');
 
   async function reload() {
-    setData(await api.shop(shop.id));
+    const fresh = await api.shop(shop.id);
+    setData(fresh);
+    // Maydonlar yangi holatga tenglashadi — aks holda saqlagandan
+    // keyin ham "o'zgarish bor" bo'lib turardi
+    setSBal(String(fresh.balance ?? 0));
+    setSPrice(fresh.daily_price == null ? '' : String(fresh.daily_price));
+    setSThrough(fresh.charged_through ?? '');
     onChanged();
   }
 
@@ -381,34 +421,59 @@ function ShopModal({
           </div>
         </div>
 
-        {/* Balans va xizmat — o'qish uchun, lekin har biri alohida
-            katakda: ilgari hammasi bitta yozuv bo'lib yotardi va
-            kerakli raqamni ko'z bilan ajratib bo'lmasdi. */}
+        {/* Balans va xizmat — HAMMASI shu yerda o'zgartiriladi.
+            Ilgari uchalasi ham qulflangan edi: balansga faqat "qo'shish",
+            kunga faqat "bepul kun berish", narx esa umumiy sozlamada
+            turardi va uni o'zgartirish hamma do'konga tegib ketardi. */}
         <div className="panel" style={{ marginBottom: 12 }}>
           <div className="panel-title">Balans va xizmat</div>
           <div className="field-grid">
             <div className="set-field">
-              <label>Balans</label>
-              <div className={`set-static ${data.balance < 0 ? 'red' : ''}`}>{fmt(data.balance)}</div>
+              <label>Balans (so'm)</label>
+              <input
+                type="number"
+                value={sBal}
+                onChange={(e) => setSBal(e.target.value)}
+                style={{ color: Number(sBal) < 0 ? 'var(--red)' : undefined, fontWeight: 600 }}
+              />
+              <div className="set-hint">Aniq qiymat qo'yiladi, farqi tarixga yoziladi</div>
             </div>
             <div className="set-field">
-              <label>Kunlik haq</label>
-              <div className="set-static">{fmt(data.service.daily_price)}</div>
-            </div>
-            <div className="set-field">
-              <label>Qolgan kun</label>
-              <div className={`set-static ${data.service.days_left <= 3 ? 'red' : ''}`}>
-                {data.service.active ? `${data.service.days_left} kun` : '—'}
+              <label>Kunlik haq (so'm)</label>
+              <input
+                type="number"
+                min={0}
+                value={sPrice}
+                onChange={(e) => setSPrice(e.target.value)}
+                placeholder={String(data.service.daily_price)}
+              />
+              <div className="set-hint">
+                {sPrice === ''
+                  ? `Bo'sh — umumiy narx (${fmt(data.service.daily_price)})`
+                  : Number(sPrice) === 0
+                    ? 'Bu do\'kondan pul olinmaydi'
+                    : "Faqat shu do'kon uchun"}
               </div>
             </div>
             <div className="set-field">
-              <label>Holat</label>
+              <label>Xizmat to'langan sana</label>
+              <input type="date" value={sThrough} onChange={(e) => setSThrough(e.target.value)} />
+              <div className="set-hint">Shu kungacha to'langan hisoblanadi</div>
+            </div>
+            <div className="set-field">
+              <label>Hozirgi holat</label>
               <div className={`set-static ${data.service.active ? 'green' : 'red'}`}>
                 {data.service.active
-                  ? `${data.service.runs_out_on} gacha${data.service.on_trial ? ' · sinov' : ''}`
+                  ? `${data.service.days_left} kun · ${data.service.runs_out_on} gacha${data.service.on_trial ? ' · sinov' : ''}`
                   : "balans tugagan — to'xtagan"}
               </div>
             </div>
+          </div>
+          {svcErr && <div className="err-msg">{svcErr}</div>}
+          <div className="toolbar">
+            <button className="btn sm" onClick={saveService} disabled={savingSvc || !svcChanged}>
+              {savingSvc ? 'Saqlanyapti…' : svcChanged ? 'Saqlash' : "O'zgarish yo'q"}
+            </button>
           </div>
 
           <div className="toolbar">

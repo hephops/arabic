@@ -31,8 +31,23 @@ export function setSetting(key: string, value: string): void {
   );
 }
 
-/** Bir kunlik xizmat narxi */
-export function dailyPrice(): number {
+/**
+ * Bir kunlik xizmat narxi.
+ *
+ * Do'kon berilsa va uning O'Z narxi qo'yilgan bo'lsa — o'shanisi.
+ * Aks holda umumiy sozlamadagi narx. Har do'kon bilan kelishuv
+ * boshqacha bo'lishi mumkin, umumiy narxni o'zgartirish esa hammaga
+ * tegib ketardi.
+ *
+ * 0 ham HAQIQIY qiymat: "bu do'kondan pul olinmaydi" degani. Shuning
+ * uchun NULL bilan 0 farqlanadi — null bo'lsagina umumiyga o'tiladi.
+ */
+export function dailyPrice(shop?: { daily_price?: number | null } | null): number {
+  const own = shop?.daily_price;
+  if (own !== null && own !== undefined && Number.isFinite(Number(own))) {
+    const v = Math.round(Number(own));
+    return v > 0 ? v : 0;
+  }
   const n = Math.round(Number(getSetting('daily_price', '3300')));
   return Number.isFinite(n) && n > 0 ? n : 0;
 }
@@ -86,12 +101,13 @@ export interface ServiceState {
  * aks holda ro'yxat kundalik mayda yozuvlar bilan to'lib ketardi.
  */
 export function chargeShop(shopId: number, at = new Date()): void {
-  const price = dailyPrice();
-  if (price <= 0) return;
   const shop = db
-    .prepare('SELECT id, balance, charged_through, is_blocked FROM shops WHERE id = ?')
+    .prepare('SELECT id, balance, charged_through, is_blocked, daily_price FROM shops WHERE id = ?')
     .get(shopId) as any;
   if (!shop) return;
+  // Narx do'konning o'zinikiga qarab olinadi
+  const price = dailyPrice(shop);
+  if (price <= 0) return;
 
   const today = uzToday(at);
   let through: string = shop.charged_through ?? today;
@@ -140,7 +156,7 @@ export function chargeAllShops(at = new Date()): number {
 
 /** Do'konning xizmat holati — ilova va admin panel shuni ko'rsatadi */
 export function serviceState(shop: any, at = new Date()): ServiceState {
-  const price = dailyPrice();
+  const price = dailyPrice(shop);
   const today = uzToday(at);
   const through: string =
     shop?.charged_through && /^\d{4}-\d{2}-\d{2}$/.test(shop.charged_through) ? shop.charged_through : today;

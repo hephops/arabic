@@ -56,6 +56,11 @@ export const api = {
   /** Do'kon ma'lumotini tahrirlash */
   shopEdit: (id: number, data: { name?: string; owner_name?: string; phone?: string }) =>
     request<Shop>(`/admin/shops/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  /** Xizmat sozlamalari: kunlik narx, balans va to'langan sana */
+  shopService: (
+    id: number,
+    data: { daily_price?: number | null; balance?: number; charged_through?: string | null }
+  ) => request<Shop>(`/admin/shops/${id}/service`, { method: 'PATCH', body: JSON.stringify(data) }),
   /** Do'konni butunlay o'chirish. confirm — do'kon nomi aynan takrorlanishi shart */
   shopDelete: (id: number, confirm: string) =>
     request<{ ok: true }>(`/admin/shops/${id}`, { method: 'DELETE', body: JSON.stringify({ confirm }) }),
@@ -212,6 +217,8 @@ export interface Shop {
   balance: number;
   /** xizmat qaysi kungacha to'langan */
   charged_through: string | null;
+  /** do'konning O'Z kunlik narxi (null = umumiy sozlamadagi narx) */
+  daily_price?: number | null;
   trial_ends_at?: string | null;
   is_blocked: number;
   blocked_reason: string | null;

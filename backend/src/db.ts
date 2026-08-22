@@ -130,6 +130,10 @@ for (const sql of [
   // Xodimning shaxsiy ruxsatlari. Eski xodimlarda NULL qoladi va
   // "sotuvchi" to'plami sifatida o'qiladi — ishlari buzilmaydi.
   'ALTER TABLE employees ADD COLUMN permissions TEXT',
+  // Do'konning O'Z kunlik narxi. NULL — umumiy sozlamadagi narx
+  // ishlatiladi. Kelishuv har do'kon bilan boshqacha bo'lishi mumkin,
+  // umumiy narxni o'zgartirish esa hammaga tegib ketardi.
+  'ALTER TABLE shops ADD COLUMN daily_price INTEGER',
   // AI suhbatiga yuborilgan surat qaysi faylda. Ilgari faqat matnga
   // "🖼" qo'yilardi va do'konchi o'zi nima yuborganini ko'ra olmasdi.
   'ALTER TABLE ai_messages ADD COLUMN image_url TEXT',

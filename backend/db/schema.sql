@@ -22,6 +22,9 @@ CREATE TABLE IF NOT EXISTS shops (
   report_enabled INTEGER NOT NULL DEFAULT 1,     -- kechki avtomatik hisobot
   report_hour INTEGER NOT NULL DEFAULT 22,       -- qaysi soatda (O'zbekiston vaqti)
   last_report_date TEXT,                         -- oxirgi yuborilgan kun
+  -- Do'konning O'Z kunlik narxi. NULL — umumiy sozlamadagi narx
+  -- ishlatiladi; 0 esa "bu do'kondan pul olinmaydi" degani.
+  daily_price INTEGER,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 

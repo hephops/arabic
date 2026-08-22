@@ -529,6 +529,70 @@ export function registerAdminRoutes(app: FastifyInstance) {
   });
 
   // Do'konlar bo'yicha umumiy ko'rsatkichlar (ro'yxat tepasidagi kartochkalar)
+  /**
+   * Xizmat sozlamalarini QO'LDA qo'yish: kunlik narx, balans va
+   * xizmat to'langan sana.
+   *
+   * Ilgari bularning uchalasi ham qulflangan edi — balansga faqat
+   * "qo'shish", kunga faqat "bepul kun berish" mumkin edi, narx esa
+   * umumiy sozlamada turardi va uni o'zgartirish HAMMA do'konga
+   * tegib ketardi. Kelishuv esa har do'kon bilan boshqacha bo'ladi.
+   *
+   * Balans ANIQ QIYMATGA qo'yiladi, farqi esa tranzaksiya bo'lib
+   * yoziladi: hisob tarixsiz o'zgarmasin, keyin "bu pul qayerdan
+   * kelgan" degan savolga javob bo'lsin.
+   */
+  app.patch<{
+    Params: { id: string };
+    Body: { daily_price?: number | null; balance?: number; charged_through?: string | null };
+  }>('/admin/shops/:id/service', { preHandler: requireAdmin }, async (req, reply) => {
+    const shop = db.prepare('SELECT * FROM shops WHERE id = ?').get(req.params.id) as any;
+    if (!shop) return reply.code(404).send({ error: 'not_found' });
+    const b = req.body ?? {};
+
+    // ── Kunlik narx. null — "umumiy sozlamaga qayt", 0 — "bu do'kondan
+    // pul olinmaydi". Ikkalasi boshqa-boshqa ma'no, shuning uchun
+    // undefined dan farqlanadi.
+    if ('daily_price' in b) {
+      if (b.daily_price === null) {
+        db.prepare('UPDATE shops SET daily_price = NULL WHERE id = ?').run(shop.id);
+      } else {
+        const v = Math.round(Number(b.daily_price));
+        if (!Number.isFinite(v) || v < 0) return reply.code(400).send({ error: 'price_invalid' });
+        db.prepare('UPDATE shops SET daily_price = ? WHERE id = ?').run(v, shop.id);
+      }
+      log(req.admin!.id, 'shop_price', String(shop.id), String(b.daily_price));
+    }
+
+    // ── Xizmat to'langan sana
+    if ('charged_through' in b) {
+      const d = b.charged_through;
+      if (d === null || d === '') {
+        db.prepare('UPDATE shops SET charged_through = NULL WHERE id = ?').run(shop.id);
+      } else {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(String(d))) return reply.code(400).send({ error: 'date_invalid' });
+        db.prepare('UPDATE shops SET charged_through = ? WHERE id = ?').run(String(d), shop.id);
+      }
+      log(req.admin!.id, 'shop_through', String(shop.id), String(d));
+    }
+
+    // ── Balansni aniq qiymatga qo'yish
+    if (b.balance !== undefined) {
+      const want = Math.round(Number(b.balance));
+      if (!Number.isFinite(want)) return reply.code(400).send({ error: 'balance_invalid' });
+      const farq = want - (Number(shop.balance) || 0);
+      if (farq !== 0) {
+        db.prepare('UPDATE shops SET balance = ? WHERE id = ?').run(want, shop.id);
+        db.prepare(
+          "INSERT INTO balance_transactions (shop_id, type, amount, note, admin_id) VALUES (?, ?, ?, ?, ?)"
+        ).run(shop.id, farq > 0 ? 'topup' : 'withdraw', farq, 'Admin balansni qo\'lda qo\'ydi', req.admin!.id);
+        log(req.admin!.id, 'shop_balance_set', String(shop.id), `${shop.balance} -> ${want}`);
+      }
+    }
+
+    return db.prepare('SELECT * FROM shops WHERE id = ?').get(shop.id);
+  });
+
   /** Do'kon ma'lumotini tahrirlash — nomi, egasi, telefoni */
   app.patch<{ Params: { id: string }; Body: { name?: string; owner_name?: string; phone?: string } }>(
     '/admin/shops/:id',
