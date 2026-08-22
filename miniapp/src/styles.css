@@ -1462,9 +1462,19 @@ button.link { background: none; color: var(--accent); font-size: 15px; font-weig
   .stat-card { padding: 14px 16px; }
   .stat-card .k { font-size: 12.5px; }
   .stat-card .v { font-size: 20px; }
-  /* Kompyuterda joy ko'p — hammasi bitta qatorga sig'adi */
-  .tile-row { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; margin: 14px 0 4px; }
-  .tile { padding: 16px 8px 14px; }
+  /* Kompyuterda joy ko'p — hammasi bitta qatorga sig'adi.
+     Ilgari ustun soni 5 ta qilib yozilgan edi, plitka esa oltita:
+     oxirgisi ("AI yordamchi") yolg'iz o'zi pastki qatorga tushib
+     qolardi. Plitka soni huquqlarga qarab o'zgaradi (4 ta ham, 6 ta
+     ham bo'lishi mumkin), shuning uchun qat'iy son emas — ustunlar
+     nechta plitka bo'lsa shuncha yasaladi va teng bo'linadi. */
+  .tile-row {
+    grid-template-columns: none;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+    gap: 14px; margin: 14px 0 4px;
+  }
+  .tile { padding: 16px 6px 14px; }
   .hero { padding: 20px 22px 18px; }
   .hero-value { font-size: 34px; }
   .spark .track { height: 46px; }
