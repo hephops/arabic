@@ -519,6 +519,8 @@ export interface ServiceState {
   on_trial: boolean;
   /** kam qoldi — ogohlantirish ko'rsatiladi */
   low: boolean;
+  /** kunlik narx 0 — do'kondan pul olinmaydi */
+  free?: boolean;
 }
 
 /** Yuborilgan to'lov cheki */

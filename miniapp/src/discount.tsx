@@ -14,11 +14,17 @@ import { useEscape } from './useEscape';
 
 const PERCENTS = [10, 20, 30, 50];
 
-/** Chegirmadan keyingi narx — serverdagi hisob bilan bir xil bo'lishi shart */
+/** Chegirmadan keyingi narx — serverdagi hisob bilan bir xil bo'lishi shart
+ *  (backend/src/server.ts: priceWithDiscount va roundPrice) */
 export function priceAfter(sellPrice: number, percent: number): number {
   const pct = Math.min(90, Math.max(0, percent));
   if (!pct) return sellPrice;
-  return Math.round((sellPrice * (100 - pct)) / 100 / 100) * 100;
+  const v = (sellPrice * (100 - pct)) / 100;
+  // Yaxlitlash qadami narxga qarab: kichik birlik narxida (ml, gramm)
+  // 100 so'mlik qadam chegirmani foizdan katta qilib yuborardi, eng
+  // arzon tovarda esa narxni umuman nolga tushirardi
+  const step = v >= 10000 ? 100 : v >= 1000 ? 10 : 1;
+  return Math.round(v / step) * step;
 }
 
 export function DiscountSheet({

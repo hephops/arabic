@@ -57,10 +57,18 @@ export function dailyFigures(shopId: number): DailyFigures {
        WHERE s.shop_id = ? AND s.created_at >= ? AND s.created_at < ?`
     )
     .get(shopId, from, to) as any;
+  // Qaytarishlar: jami, tannarxi va qanday qaytarilgani (naqd/karta/qarz).
+  // To'lov turlari bo'yicha ham ayirish uchun kerak — aks holda
+  // "naqd 500 000" deb yozilgan xabar kassadagi haqiqiy puldan
+  // ko'p bo'lib chiqardi.
   const ret = db
     .prepare(
       `SELECT COALESCE(SUM(ri.price * ri.qty), 0) AS total,
-              COALESCE(SUM(p.cost_price * ri.qty), 0) AS cost
+              COALESCE(SUM(p.cost_price * ri.qty), 0) AS cost,
+              COALESCE(SUM(CASE WHEN r.refund_type = 'card' THEN ri.price * ri.qty END), 0) AS card,
+              COALESCE(SUM(CASE WHEN r.refund_type = 'debt' THEN ri.price * ri.qty END), 0) AS debt,
+              COALESCE(SUM(CASE WHEN r.refund_type NOT IN ('card', 'debt') OR r.refund_type IS NULL
+                                THEN ri.price * ri.qty END), 0) AS cash
        FROM return_items ri JOIN returns r ON r.id = ri.return_id
        JOIN products p ON p.id = ri.product_id
        WHERE r.shop_id = ? AND r.created_at >= ? AND r.created_at < ?`
@@ -97,12 +105,17 @@ export function dailyFigures(shopId: number): DailyFigures {
 
   const revenue = Number(sales.revenue) - Number(ret.total);
   const grossProfit = Number(profit.profit) - (Number(ret.total) - Number(ret.cost));
+  // Har to'lov turidan o'sha turda qaytarilgani ayiriladi.
+  // Ilgari faqat umumiy tushumdan ayirilardi: xabardagi "naqd + karta +
+  // qarz" yig'indisi tushumdan katta bo'lib chiqardi va do'konchi
+  // kassani solishtirganda farq topolmasdi.
+  const musbat = (n: number) => Math.max(0, Math.round(n));
   return {
     revenue,
     count: Number(sales.count),
-    cash: Number(sales.cash),
-    card: Number(sales.card),
-    debt: Number(sales.debt),
+    cash: musbat(Number(sales.cash) - Number(ret.cash)),
+    card: musbat(Number(sales.card) - Number(ret.card)),
+    debt: musbat(Number(sales.debt) - Number(ret.debt)),
     profit: grossProfit,
     expenses: Number(expenses.s),
     net_profit: grossProfit - Number(expenses.s),

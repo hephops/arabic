@@ -1542,8 +1542,27 @@ function attachBarcode(shopId: number, productId: number, raw: string) {
 export function priceWithDiscount(product: { sell_price: number; discount_percent?: number }): number {
   const pct = Math.min(90, Math.max(0, Number(product.discount_percent) || 0));
   if (!pct) return product.sell_price;
-  // 100 so'mgacha yaxlitlaymiz — kassada chaqa bilan ovora bo'lmaslik uchun
-  return Math.round((product.sell_price * (100 - pct)) / 100 / 100) * 100;
+  return roundPrice((product.sell_price * (100 - pct)) / 100);
+}
+
+/**
+ * Chegirmadan keyingi narxni yaxlitlash.
+ *
+ * Kassada chaqa bilan ovora bo'lmaslik uchun 100 so'mgacha yaxlitlanadi
+ * — LEKIN bu faqat narx katta bo'lganda to'g'ri. Narx BIR OMBOR
+ * BIRLIGI uchun saqlanadi: millilitr, gramm yoki metrda yuritiladigan
+ * tovarda u juda kichik bo'lishi mumkin.
+ *
+ * Ilgari qadam har doim 100 edi va shu sabab:
+ *   250 so'm/g dan 10% chegirma -> 225 -> 200, ya'ni amalda 20%
+ *   40 so'm/ml dan 10% chegirma -> 36  -> 0,   ya'ni TEKIN
+ *
+ * Endi qadam narxga qarab tanlanadi va hech qachon narxning 1% idan
+ * oshmaydi — chegirma do'konchi qo'ygan foizdan sezilarli farq qilmaydi.
+ */
+function roundPrice(v: number): number {
+  const step = v >= 10000 ? 100 : v >= 1000 ? 10 : 1;
+  return Math.round(v / step) * step;
 }
 
 app.get<{ Querystring: { q?: string; barcode?: string; category?: string } }>(
@@ -2553,20 +2572,40 @@ app.post<{
       ).run(req.shopId, row.product_id, 'return', qty, req.employeeId);
     }
 
-    // Qarzdan ayirish: qarz summasi kamayadi, lekin to'langanidan pastga tushmaydi
+    // Qarzdan ayirish.
+    //
+    // Qarz faqat TO'LANMAGAN qismi qadar kamaytiriladi. Ilgari shart
+    // `max(paid_amount, amount - total)` edi va bu jimgina pul yeb
+    // qo'yardi: mijoz qarzini to'lab bo'lgan bo'lsa (paid = amount),
+    // tovarni qaytarganda qarz ham kamaymasdi, naqd pul ham
+    // berilmasdi — ya'ni mijoz tovarni qaytarib, hech narsa olmasdi.
+    //
+    // Endi qarz qancha "yuta olsa" shuncha ayiriladi, qolgani esa
+    // NAQD qaytariladi va javobda aniq ko'rsatiladi — kassir qancha
+    // pul berishni bilib tursin.
+    let debtPart = 0;
     if (refundType === 'debt' && debt) {
-      const newAmount = Math.max(debt.paid_amount, debt.amount - total);
-      const status = newAmount <= debt.paid_amount ? 'paid' : debt.status === 'paid' ? 'active' : debt.status;
-      db.prepare('UPDATE debts SET amount = ?, status = ? WHERE id = ?').run(newAmount, status, debt.id);
+      const qoldiq = Math.max(0, Number(debt.amount) - Number(debt.paid_amount));
+      debtPart = Math.min(total, qoldiq);
+      if (debtPart > 0) {
+        const newAmount = Number(debt.amount) - debtPart;
+        const status = newAmount <= Number(debt.paid_amount) ? 'paid' : debt.status === 'paid' ? 'active' : debt.status;
+        db.prepare('UPDATE debts SET amount = ?, status = ? WHERE id = ?').run(newAmount, status, debt.id);
+      }
+      // Qarz hech narsani yuta olmasa — bu naqd qaytarish
+      if (debtPart === 0) {
+        db.prepare("UPDATE returns SET refund_type = 'cash' WHERE id = ?").run(returnId);
+      }
     }
-    return returnId;
+    return { returnId, debtPart, total };
   });
 
   try {
-    const returnId = tx();
+    const { returnId, debtPart, total } = tx();
     const created = db.prepare('SELECT * FROM returns WHERE id = ?').get(returnId) as any;
     const items = db.prepare('SELECT * FROM return_items WHERE return_id = ?').all(returnId);
-    return { ...created, items };
+    // Kassir qancha naqd pul berishi kerak
+    return { ...created, items, debt_refund: debtPart, cash_refund: total - debtPart };
   } catch (e: any) {
     return reply.code(400).send({ error: e.message });
   }
@@ -2955,13 +2994,18 @@ app.get<{ Querystring: { period?: string } }>('/reports/employees', { preHandler
     )
     .all(req.shopId, periodFrom) as any[];
 
-  // Qaytarishlar ham xodimga tegishli — sotuvchining haqiqiy natijasi shu
+  // Qaytarishlar ham xodimga tegishli — sotuvchining haqiqiy natijasi shu.
+  // Tannarx ham olinadi: foydadan qaytarilgan tovarning USTAMASI
+  // ayirilishi kerak, sotuv summasi emas (pastdagi izohga qara).
   const returnRows = db
     .prepare(
       `SELECT r.created_by AS employee_id,
               COALESCE(SUM(ri.price * ri.qty), 0) AS returned,
+              COALESCE(SUM(p.cost_price * ri.qty), 0) AS returned_cost,
               COUNT(DISTINCT r.id) AS returns_count
-       FROM return_items ri JOIN returns r ON r.id = ri.return_id
+       FROM return_items ri
+       JOIN returns r ON r.id = ri.return_id
+       JOIN products p ON p.id = ri.product_id
        WHERE r.shop_id = ? AND r.created_at >= ?
        GROUP BY r.created_by`
     )
@@ -2975,6 +3019,14 @@ app.get<{ Querystring: { period?: string } }>('/reports/employees', { preHandler
     const p = byId(profitRows, id);
     const ret = byId(returnRows, id);
     const returned = Number(ret?.returned ?? 0);
+    // Qaytarilgan tovarning USTAMASI foydadan ayiriladi.
+    //
+    // Ilgari sotuv summasining O'ZI ayirilardi va tannarx ikki marta
+    // hisobdan chiqardi: 15 000 ga sotilgan, tannarxi 12 000 bo'lgan
+    // tovar qaytarilsa foyda 3 000 emas, 15 000 ga kamayardi —
+    // sotuvchining natijasi minusga ketardi. Umumiy hisobotda
+    // (/reports/summary) bu allaqachon to'g'ri qilingan edi.
+    const returnedMargin = returned - Number(ret?.returned_cost ?? 0);
     return {
       employee_id: id,
       name: r.name || null, // bo'sh bo'lsa — do'kon egasi
@@ -2986,7 +3038,7 @@ app.get<{ Querystring: { period?: string } }>('/reports/employees', { preHandler
       returns_count: Number(ret?.returns_count ?? 0),
       debt_revenue: Number(r.debt_revenue),
       items: Number(p?.items ?? 0),
-      profit: Number(p?.profit ?? 0) - returned,
+      profit: Number(p?.profit ?? 0) - returnedMargin,
       avg_check: r.sales_count > 0 ? Math.round(Number(r.revenue) / Number(r.sales_count)) : 0,
     };
   });

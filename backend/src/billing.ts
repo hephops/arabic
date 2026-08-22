@@ -215,6 +215,8 @@ export interface ServiceState {
   on_trial: boolean;
   /** ogohlantirish chegarasi */
   low: boolean;
+  /** kunlik narx 0 — do'kondan pul olinmaydi, xizmat cheksiz ochiq */
+  free?: boolean;
 }
 
 /**
@@ -229,11 +231,24 @@ export function chargeShop(shopId: number, at = new Date()): void {
     .prepare('SELECT id, balance, charged_through, is_blocked, daily_price, shop_type FROM shops WHERE id = ?')
     .get(shopId) as any;
   if (!shop) return;
+  const today = uzToday(at);
   // Narx do'konning o'zinikiga qarab olinadi
   const price = dailyPrice(shop);
-  if (price <= 0) return;
+  if (price <= 0) {
+    // Narx 0 — "bu do'kondan pul olinmaydi" degani (sovg'a, sinov,
+    // hamkor do'kon). Ilgari shu yerdan qaytib ketilardi va
+    // charged_through joyida qotib qolardi: ertasi kuni do'kon
+    // "to'xtagan" bo'lib ko'rinardi, ilovada esa "balansni to'ldiring"
+    // degan qizil tasma chiqardi. Bepul do'kon uchun sana oldinga
+    // suriladi, balansdan esa hech narsa yechilmaydi.
+    const ct = String(shop.charged_through ?? '');
+    const yaroqli = /^\d{4}-\d{2}-\d{2}$/.test(ct);
+    if (!yaroqli || dayDiff(today, ct) > 0) {
+      db.prepare('UPDATE shops SET charged_through = ? WHERE id = ?').run(today, shopId);
+    }
+    return;
+  }
 
-  const today = uzToday(at);
   let through: string = shop.charged_through ?? today;
   // Sana buzuq bo'lsa bugundan boshlaymiz — hisob orqaga ketmasin
   if (!/^\d{4}-\d{2}-\d{2}$/.test(through)) through = today;
@@ -281,6 +296,24 @@ export function chargeAllShops(at = new Date()): number {
 /** Do'konning xizmat holati — ilova va admin panel shuni ko'rsatadi */
 export function serviceState(shop: any, at = new Date()): ServiceState {
   const price = dailyPrice(shop);
+  // Narx 0 — do'kondan pul olinmaydi. Bunda "yana necha kun yetadi"
+  // degan savolning ma'nosi yo'q: xizmat cheksiz ochiq. Ilgari
+  // days_left 1 chiqib, do'konchi har kuni "balans tugayapti" degan
+  // sariq ogohlantirishni ko'rardi.
+  if (price <= 0) {
+    const bugun = uzToday(at);
+    return {
+      balance: Number(shop?.balance) || 0,
+      charged_through: bugun,
+      active: true,
+      daily_price: 0,
+      days_left: 0,
+      runs_out_on: bugun,
+      on_trial: !!shop?.trial_ends_at && shop.trial_ends_at >= bugun,
+      low: false,
+      free: true,
+    };
+  }
   const today = uzToday(at);
   const through: string =
     shop?.charged_through && /^\d{4}-\d{2}-\d{2}$/.test(shop.charged_through) ? shop.charged_through : today;

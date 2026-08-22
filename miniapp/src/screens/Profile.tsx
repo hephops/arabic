@@ -346,11 +346,15 @@ function BalanceView({ balance, onBack, reload }: { balance: BalanceInfo; onBack
           <div className="bal-cap">{t('balanceNow')}</div>
           <div className="bal-sum">{fmt(balance.balance)}</div>
           <div className="bal-days">
-            {balance.active
-              ? t('balanceDaysLeft').replace('{days}', String(balance.days_left))
-              : t('balanceEmpty')}
+            {/* Kunlik narx 0 bo'lsa "yana N kun" degan savolning ma'nosi
+                yo'q: do'kondan pul olinmaydi, xizmat ochiq turaveradi */}
+            {balance.free
+              ? t('balanceFree')
+              : balance.active
+                ? t('balanceDaysLeft').replace('{days}', String(balance.days_left))
+                : t('balanceEmpty')}
           </div>
-          {balance.active && balance.days_left > 0 && (
+          {balance.active && !balance.free && balance.days_left > 0 && (
             <div className="bal-until">{t('balanceUntil').replace('{date}', fmtDay(balance.runs_out_on))}</div>
           )}
         </div>

@@ -43,7 +43,20 @@ export function parseDebtText(text: string): ParsedDebt | null {
   const thousandMatch = afterMillion.match(/(\d+(?:[.,]\d+)?)\s*(ming|минг|тыс)/);
   if (thousandMatch) amount += Math.round(num(thousandMatch[1]) * 1_000);
   if (!amount) {
-    const plainMatch = lower.replace(/\s/g, ' ').match(/(\d[\d\s]{3,})\s*(so'm|сум|som)?/);
+    // Telefon raqami summa bo'lib o'qilmasin.
+    //
+    // Naqsh ochko'z: "Karimga 998 90 123 45 67 raqamiga 50 ming" degan
+    // matnda raqam bo'lagini butunlay yutib, 99890123456700 so'mlik
+    // qarz yozib qo'yardi. Shuning uchun avval telefonga o'xshash
+    // bo'laklar olib tashlanadi: +998..., 998 bilan boshlanadigan
+    // uzun raqam va 7 xonadan uzun bo'laklar.
+    const tozalangan = lower
+      .replace(/\s/g, ' ')
+      .replace(/\+?998[\d\s-]{7,}/g, ' ')
+      .replace(/\b\d(?:[\d\s-]*\d){7,}\b/g, ' ');
+    // Avval "so'm" bilan aytilganini qidiramiz — u aniq summa
+    const withUnit = tozalangan.match(/(\d[\d\s]{2,})\s*(so'm|сум|som)/);
+    const plainMatch = withUnit ?? tozalangan.match(/(\d[\d\s]{3,})/);
     if (plainMatch) amount = parseInt(plainMatch[1].replace(/\s/g, ''), 10);
   }
   if (!amount || amount <= 0) return null;
