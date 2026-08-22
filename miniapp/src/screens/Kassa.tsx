@@ -20,7 +20,7 @@ import { TrustWarning } from '../trust';
 import { GoalStrip } from '../goal';
 import { VoiceCartSheet } from '../voiceCart';
 import { priceAfter } from '../discount';
-import { goldShop, goldPrice, goldPrices, goldLine, shopInfo, profile, examples, exampleText, PROBAS } from '../shopTypes';
+import { goldShop, goldPrice, goldFieldPrice, goldPrices, goldLine, shopInfo, profile, examples, exampleText, PROBAS } from '../shopTypes';
 import { scanFail } from '../beep';
 import {
   STOCK_UNITS, isFractional, parseQty, qtyText, qtyWithUnit,
@@ -931,7 +931,12 @@ function IntakeMode({
   // har harfda so'rov yubormaslik uchun kutib turamiz.
   useEffect(() => {
     const q = name.trim();
-    if (picked?.name === q || q.length < 2) {
+    // Yakka buyumli do'konda (zargarlik, telefon) nom bo'yicha taklif
+    // ZARARLI: ikkita "Uzuk" — biri 4.6 g 585, ikkinchisi 3.1 g 750 —
+    // butunlay boshqa buyum. Ro'yxatdan tanlansa eski buyumning
+    // birkasi ham ko'chirilardi va server o'sha kod bo'yicha birlashtirib,
+    // yangi buyumning probasi bilan massasini yo'qotardi.
+    if (prof.unique || picked?.name === q || q.length < 2) {
       setMatches([]);
       return;
     }
@@ -1123,9 +1128,11 @@ function IntakeMode({
     const w = next.weight ?? weight;
     if (next.proba !== undefined) setProba(p);
     if (next.weight !== undefined) setWeight(w.replace(/[^\d.,]/g, ''));
-    const auto = goldPrice(shopInfo(), p, Number(String(w).replace(',', '.')));
+    // Narx maydoni ombor birligiga bog'liq: 'gramm' da u "1 gramm
+    // qancha" degani, 'dona' da esa butun buyum narxi
+    const auto = goldFieldPrice(shopInfo(), p, Number(String(w).replace(',', '.')), unit);
     // Avvalgi taklif turgan bo'lsa yoki maydon bo'sh bo'lsa yangilaymiz
-    const prev = goldPrice(shopInfo(), proba, Number(String(weight).replace(',', '.')));
+    const prev = goldFieldPrice(shopInfo(), proba, Number(String(weight).replace(',', '.')), unit);
     if (auto && (!sellPrice || amountValue(sellPrice) === prev)) setSellPrice(String(auto));
   }
 

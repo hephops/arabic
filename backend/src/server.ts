@@ -22,7 +22,7 @@ import { registerAiRoutes, startAiCleanup } from './ai/routes.js';
 import { seedCatalog } from './catalogSeed.js';
 import { normalizeBarcode, barcodeVariants, checkGtin, makeInStoreEan13, parseScaleBarcode, makeScaleBarcode, scaleQty } from './barcodes.js';
 import { normalizePhone } from './phone.js';
-import { normalizeShopType, cleanGoldPrices, goldPrice, isGold, shopProfile } from './shopTypes.js';
+import { normalizeShopType, cleanGoldPrices, goldPrice, isGold, shopProfile, lowStockApplies } from './shopTypes.js';
 import { agentByPhone } from './agentcore.js';
 import { noteEmployeeLogin, notifyPinAttempts, recentLogins } from './staffAlert.js';
 import { addBatch, consume, restore, setTotal, batchesOf, syncProduct } from './batches.js';
@@ -555,15 +555,24 @@ app.get('/dashboard', { preHandler: requireAuth }, async (req) => {
        WHERE d.shop_id = ? AND d.status = 'overdue' ORDER BY d.due_date ASC`
     )
     .all(req.shopId);
+  const shopRow = db.prepare('SELECT shop_type FROM shops WHERE id = ?').get(req.shopId) as any;
   // hideCost: `SELECT *` kirim narxini ham olib keladi. Bosh sahifa
   // ruxsat talab qilmaydi (requireAuth), ya'ni cost_view'siz xodim
   // ham ochadi — tannarx shu yerdan sizib chiqardi.
-  const lowStock = hideCost(
-    req,
-    db
-      .prepare(`SELECT * FROM products WHERE shop_id = ? AND stock <= low_stock_threshold ORDER BY stock ASC LIMIT 10`)
-      .all(req.shopId) as any[]
-  );
+  //
+  // Yakka buyumli do'konda (telefon, zargarlik) "kam qoldi" ma'nosiz:
+  // har kartochka bitta buyum, chegara bilan solishtirish esa butun
+  // omborni ro'yxatga chiqarardi.
+  const lowStock = lowStockApplies(shopRow)
+    ? hideCost(
+        req,
+        db
+          .prepare(
+            `SELECT * FROM products WHERE shop_id = ? AND stock <= low_stock_threshold ORDER BY stock ASC LIMIT 10`
+          )
+          .all(req.shopId) as any[]
+      )
+    : [];
   const expiringSoon = hideCost(req, (
     db
       .prepare(
@@ -1206,6 +1215,9 @@ function suggestQty(row: { stock: number; low_stock_threshold: number; sold30: n
 
 /** Buyurtma taklifi: kam qolgan tovarlar + tavsiya etilgan miqdor */
 app.get('/orders/suggest', { preHandler: requirePerm('orders') }, async (req) => {
+  // Yakka buyumli do'konda taklif ma'nosiz: aynan o'sha uzuk yoki
+  // aynan o'sha IMEI qaytib kelmaydi
+  if (!lowStockApplies(db.prepare('SELECT shop_type FROM shops WHERE id = ?').get(req.shopId) as any)) return [];
   const rows = db
     .prepare(
       `SELECT p.id, p.name, p.unit, p.stock, p.low_stock_threshold, p.cost_price,

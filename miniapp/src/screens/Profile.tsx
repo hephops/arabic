@@ -8,7 +8,7 @@ import { formatCard, cardDigits, formatPhone, maskCard, formatAmount, amountValu
 import { toast, loadFailed } from '../toast';
 import { scanSoundOn, setScanSound, beepOk, scanVibeOn, setScanVibe, vibrate } from '../beep';
 import { shrink } from '../photo';
-import { SHOP_TYPES, PROBAS, goldPrices } from '../shopTypes';
+import { setShopInfo, SHOP_TYPES, PROBAS, goldPrices } from '../shopTypes';
 import { useEscape } from '../useEscape';
 
 // iOS Sozlamalar uslubidagi kabinet: asosiy ekranda qatorlar,
@@ -73,6 +73,13 @@ export default function Profile({
   async function load() {
     const me = await api.me();
     setShop(me);
+    // Do'kon turi va gramm narxlari modul darajasidagi keshda turadi
+    // (shopTypes.ts). Ilgari u FAQAT kirish paytida to'ldirilardi:
+    // do'konchi sozlamalarda turni zargarlikka o'zgartirsa, kirim
+    // ekrani hamon eski turda ochilardi — proba va massa maydonlari
+    // chiqmasdi, birliklar eskicha qolardi. Ilovani butunlay yopib
+    // ochmaguncha to'g'rilanmasdi.
+    setShopInfo(me);
     // Balans va tarif — faqat do'kon egasida
     if (!me.employee) setBalance(await api.balance());
   }

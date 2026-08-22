@@ -15,6 +15,7 @@ import { sendMessage, telegramEnabled } from './telegram.js';
 // Vaqt hisobi bitta joyda — tz.ts. Bu yerdan ham eksport qilinadi,
 // chunki hisobot jadvali uni shu modul nomi bilan ishlatib kelgan.
 import { uzNow, uzDayStartUtc } from './tz.js';
+import { lowStockApplies } from './shopTypes.js';
 export { uzNow };
 
 export interface DailyFigures {
@@ -81,6 +82,8 @@ export function dailyFigures(shopId: number): DailyFigures {
        WHERE d.shop_id = ? AND dp.created_at >= ? AND dp.created_at < ?`
     )
     .get(shopId, from, to) as any;
+  // Yakka buyumli do'konda "kam qoldi" ma'nosiz (shopTypes.ts ga qara)
+  const lowOk = lowStockApplies(db.prepare('SELECT shop_type FROM shops WHERE id = ?').get(shopId) as any);
   const low = db
     .prepare('SELECT COUNT(*) AS c FROM products WHERE shop_id = ? AND stock <= low_stock_threshold')
     .get(shopId) as any;
@@ -106,7 +109,7 @@ export function dailyFigures(shopId: number): DailyFigures {
     debt_added: Number(debts.s),
     debt_count: Number(debts.c),
     paid_in: Number(paid.s),
-    low_stock: Number(low.c),
+    low_stock: lowOk ? Number(low.c) : 0,
     expiring: Number(expiring.c),
     goal: Number(shop?.daily_goal ?? 0),
   };

@@ -171,6 +171,30 @@ export function goldPrice(
   return Math.round(w * gram);
 }
 
+/**
+ * Ekrandagi narx maydoniga qanday son yozilishi kerak.
+ *
+ * `goldPrice()` BUTUN buyum narxini beradi (massa × gramm narxi).
+ * Lekin ombor birligi 'gramm' bo'lsa narx maydoni "1 gramm qancha"
+ * degan ma'noni bildiradi — u yerga butun buyum narxi yozilsa,
+ * buyum narxi og'irligiga yana bir marta ko'paytirilib ketardi
+ * (4.6 g uzuk 5 060 000 emas, 23 276 000 so'm bo'lib qolardi).
+ *
+ * Shuning uchun birlik 'gramm' bo'lsa gramm narxining o'zi qaytadi.
+ */
+export function goldFieldPrice(
+  shop: { gold_prices?: string | null } | null | undefined,
+  proba: string | null | undefined,
+  weight: number | null | undefined,
+  unit: string
+): number | null {
+  if (unit === 'gramm' || unit === 'g') {
+    const gram = goldPrices(shop)[String(proba ?? '').replace(/\D/g, '')];
+    return gram || null;
+  }
+  return goldPrice(shop, proba, weight);
+}
+
 /** "585 · 4.6 g · №18" — ro'yxatlarda buyum tagida turadigan satr.
  *
  *  Bir xil nomli o'nta uzukni faqat shu satr ajratadi, shuning uchun

@@ -76,6 +76,22 @@ export const SHOP_PROFILES: Record<ShopType, ShopProfile> = {
   boshqa: P(['dona', 'kg', 'litr', 'metr', 'quti'], { expiry: true }),
 };
 
+/**
+ * "Kam qoldi" tushunchasi shu do'konda ma'noga egami.
+ *
+ * Yakka buyumli do'konda (telefon, zargarlik) har kartochka BITTA
+ * buyum: qoldig'i 1 dan 0 ga tushadi va yana kelmaydi. Chegara bilan
+ * solishtirish esa telefon do'konida HAR BIR telefonni "tugayapti"
+ * deb ko'rsatardi (qoldiq 1, chegara 1 — shart doim rost), zargarlikda
+ * esa sotilgan buyum "kam qolgan" ro'yxatida osilib qolardi.
+ *
+ * Bunday do'konda "yana buyurtma qilish" ham ma'nosiz: aynan o'sha
+ * uzuk yoki aynan o'sha IMEI qaytib kelmaydi.
+ */
+export function lowStockApplies(shop: { shop_type?: string | null } | string | null | undefined): boolean {
+  return !shopProfile(shop).unique;
+}
+
 export function shopProfile(shop: { shop_type?: string | null } | string | null | undefined): ShopProfile {
   const type = typeof shop === 'string' ? shop : shop?.shop_type;
   return SHOP_PROFILES[normalizeShopType(type)];

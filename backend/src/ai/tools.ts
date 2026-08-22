@@ -11,6 +11,7 @@
 import { db } from '../db.js';
 import { dailyPrice } from '../billing.js';
 import { barcodeVariants, normalizeBarcode, checkGtin } from '../barcodes.js';
+import { lowStockApplies } from '../shopTypes.js';
 
 export interface ToolDef {
   name: string;
@@ -118,9 +119,14 @@ export const TOOLS: ToolDef[] = [
     },
     run: (shopId, i, ctx) => {
       const limit = num(i.limit, 20, 1, 50);
+      // Yakka buyumli do'konda "kam qolgan" ro'yxati butun omborni
+      // qamrab olardi (shopTypes.ts:lowStockApplies ga qara)
+      const lowOk = lowStockApplies(db.prepare('SELECT shop_type FROM shops WHERE id = ?').get(shopId) as any);
       const where =
         i.filtr === 'kam_qolgan'
-          ? 'AND p.stock <= COALESCE(p.low_stock_threshold, 5) AND p.stock > 0'
+          ? lowOk
+            ? 'AND p.stock <= COALESCE(p.low_stock_threshold, 5) AND p.stock > 0'
+            : 'AND 0'
           : i.filtr === 'tugagan'
             ? 'AND p.stock <= 0'
             : '';

@@ -5,7 +5,7 @@ import { NavBar, Summary, EmptyState, Segmented, DateField } from '../ui';
 import { useT } from '../i18n';
 import { can } from '../perms';
 import Scanner from '../Scanner';
-import { formatAmount, fmtDay } from '../format';
+import { formatAmount, amountValue, fmtDay } from '../format';
 import { toast, loadFailed } from '../toast';
 import { DiscountSheet, priceAfter } from '../discount';
 import { PrintSheet, Labels } from '../print';
@@ -16,7 +16,7 @@ import {
 import { ean13Svg, isEan13, scaleBarcode } from '../ean13';
 import { qrSvg } from '../qr';
 import { scanFail } from '../beep';
-import { goldShop, goldPrice, goldLine, shopInfo, profile, PROBAS } from '../shopTypes';
+import { goldShop, goldPrice, goldFieldPrice, goldLine, shopInfo, profile, PROBAS } from '../shopTypes';
 import { useEscape } from '../useEscape';
 
 /** Shu tovar uchun "kam qoldi" chegarasi: o'zinikini bo'lsa o'shanisi,
@@ -132,7 +132,9 @@ export default function Inventory({ onBack }: { onBack: () => void }) {
           onChange={setFilter}
           items={[
             { id: 'all', label: t('filterAll') },
-            { id: 'low', label: t('filterLow') },
+            // Yakka buyumli do'konda (telefon, zargarlik) "kam qoldi"
+            // ma'nosiz: har kartochka bitta buyum
+            ...(profile().unique ? [] : [{ id: 'low' as const, label: t('filterLow') }]),
             ...(profile().expiry ? [{ id: 'expiry' as const, label: t('filterExpiry') }] : []),
           ]}
         />
@@ -381,6 +383,29 @@ function ProductEdit({ product, onBack, onSaved }: { product: Product; onBack: (
     };
     setForm((f) => ({ ...f, unit, cost_price: conv(f.cost_price), sell_price: conv(f.sell_price) }));
     setBasis(next);
+  }
+
+  /**
+   * Proba yoki massa o'zgarsa sotuv narxini qayta hisoblash.
+   *
+   * Ikki narsa hisobga olinadi:
+   *  - Do'konchi narxni QO'LDA yozgan bo'lsa tegilmaydi. Ilgari har
+   *    tegishda ustidan yozib yuborilardi va ishlov haqi qo'shilgan
+   *    narx jimgina yo'qolardi.
+   *  - Narx maydoni ombor birligiga bog'liq: 'gramm' da u "1 gramm
+   *    qancha" degani, butun buyum narxi emas.
+   */
+  function setGoldAuto(p: string, w: string) {
+    const num = (v: string) => Number(String(v).replace(',', '.'));
+    const auto = goldFieldPrice(shopInfo(), p, num(w), form.unit);
+    if (!auto) return;
+    const prev = goldFieldPrice(shopInfo(), proba, num(weight), form.unit);
+    setForm((f) => {
+      const hozir = amountValue(f.sell_price);
+      // Bo'sh yoki oldingi taklif turgan bo'lsa — yangilaymiz
+      if (f.sell_price && hozir !== prev) return f;
+      return { ...f, sell_price: String(auto) };
+    });
   }
 
   async function save() {
@@ -652,8 +677,7 @@ function ProductEdit({ product, onBack, onSaved }: { product: Product; onBack: (
                   className={`chip ${proba === x ? 'on' : ''}`}
                   onClick={() => {
                     setProba(x);
-                    const auto = goldPrice(shopInfo(), x, Number(String(weight).replace(',', '.')));
-                    if (auto) setForm((f) => ({ ...f, sell_price: String(auto) }));
+                    setGoldAuto(x, weight);
                   }}
                 >
                   {x}
@@ -668,8 +692,7 @@ function ProductEdit({ product, onBack, onSaved }: { product: Product; onBack: (
                   onChange={(e) => {
                     const v = e.target.value.replace(/[^\d.,]/g, '');
                     setWeight(v);
-                    const auto = goldPrice(shopInfo(), proba, Number(v.replace(',', '.')));
-                    if (auto) setForm((f) => ({ ...f, sell_price: String(auto) }));
+                    setGoldAuto(proba, v);
                   }}
                   inputMode="decimal"
                   placeholder="4.6"
