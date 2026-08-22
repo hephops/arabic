@@ -13,6 +13,7 @@ import {
   priceBases, basisOf, basisText, priceForBasis, priceLabel, PriceBasis,
 } from '../units';
 import { ean13Svg, isEan13, scaleBarcode } from '../ean13';
+import { qrSvg } from '../qr';
 import { scanFail } from '../beep';
 import { goldShop, goldPrice, goldLine, shopInfo, profile, PROBAS } from '../shopTypes';
 
@@ -265,11 +266,16 @@ function ProductEdit({ product, onBack, onSaved }: { product: Product; onBack: (
   const [scanning, setScanning] = useState(false);
   const [busy, setBusy] = useState(false);
   const [labels, setLabels] = useState(false);
-  const [labelQty, setLabelQty] = useState(8);
+  // Zargarlikda har buyum yakka — bitta birka yetadi
+  const [labelQty, setLabelQty] = useState(goldShop() ? 1 : 8);
   const [printingLabels, setPrintingLabels] = useState(false);
 
-  // Yorliqqa faqat EAN-13 chizib bo'ladi — shunga yaraydigan birinchi kod
-  const labelCode = codes.map((c) => c.barcode).find((c) => isEan13(c)) ?? null;
+  // Yorliqqa chiziqli kod faqat EAN-13 bo'lsa chiziladi. Zargarlikda
+  // esa QR ishlatiladi — u har qanday raqamni ko'taradi, ya'ni
+  // birkadagi 16 xonali raqam ham bo'laveradi.
+  const labelCode = gold
+    ? codes[0]?.barcode ?? product.barcode ?? null
+    : codes.map((c) => c.barcode).find((c) => isEan13(c)) ?? null;
 
   /** Do'konning o'z kodini yasash — zavod kodi yo'q tovar uchun */
   async function makeCode() {
@@ -543,7 +549,12 @@ function ProductEdit({ product, onBack, onSaved }: { product: Product; onBack: (
               <div className="sheet-sub">{form.name || product.name} · {labelCode}</div>
               <div
                 className="label-preview"
-                dangerouslySetInnerHTML={{ __html: ean13Svg(labelCode, { moduleWidth: 2, height: 52 }) ?? '' }}
+                dangerouslySetInnerHTML={{
+                  __html:
+                    (gold
+                      ? qrSvg(labelCode, { module: 4 })
+                      : ean13Svg(labelCode, { moduleWidth: 2, height: 52 })) ?? '',
+                }}
               />
               <label className="sheet-label">{t('labelCount')}</label>
               <div className="chip-row wrap">
@@ -564,11 +575,17 @@ function ProductEdit({ product, onBack, onSaved }: { product: Product; onBack: (
           <PrintSheet onDone={() => setPrintingLabels(false)}>
             <Labels
               t={t}
+              gold={gold}
               items={Array.from({ length: labelQty }, () => ({
                 name: form.name || product.name,
                 // Yorliqdagi narx 1 birlik uchun — kod ham shunday o'qiladi
                 price: unitSell || product.sell_price,
                 barcode: labelCode,
+                // Zargarlik birkasi buyumning o'z belgilari bilan chiqadi
+                proba,
+                weight_g: Number(String(weight).replace(',', '.')) || null,
+                size,
+                stone,
               }))}
             />
           </PrintSheet>

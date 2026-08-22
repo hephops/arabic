@@ -1636,6 +1636,39 @@ button.link { background: none; color: var(--accent); font-size: 15px; font-weig
 .l-code svg { max-width: 100%; height: auto; }
 .l-code-text { font-family: monospace; font-size: 10px; letter-spacing: 1px; }
 
+/* Kirim ekranidagi ikki tugma: saqlash va "saqlab yorliq chiqarish" */
+.intake-actions { display: flex; flex-direction: column; gap: 6px; }
+
+/* ── Zargarlik birkasi ──
+   Haqiqiy birka tor va uzun: buyumga ip bilan bog'lanadi. Chap
+   tomonida to'rt qator yozuv, o'ng tomonida QR, tagida esa mayda
+   raqam turadi (do'konlardagi birkalar aynan shunday). */
+.gold-tag {
+  width: 54mm;
+  border: 1px dashed #999;
+  border-radius: 1.5mm;
+  padding: 1.5mm 2mm 1mm;
+  color: #000;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-areas: 'rows qr' 'code code';
+  align-items: center;
+  gap: 0 2mm;
+  page-break-inside: avoid;
+  break-inside: avoid;
+}
+.gt-rows { grid-area: rows; font-family: 'Courier New', monospace; font-size: 9.5px; line-height: 1.35; }
+.gt-rows > div { display: flex; gap: 2mm; }
+.gt-rows span { min-width: 15mm; }
+.gt-rows b { font-weight: 700; }
+.gt-qr { grid-area: qr; line-height: 0; }
+.gt-qr svg { width: 14mm; height: 14mm; }
+/* Raqam birkaning eng tagida, mayda — buyumni tekshirishda kerak */
+.gt-code {
+  grid-area: code; font-family: 'Courier New', monospace;
+  font-size: 7px; letter-spacing: 0.4px; margin-top: 0.5mm;
+}
+
 /* Qaytariladigan miqdor maydoni */
 .ret-qty {
   width: 62px; text-align: center; margin: 0; padding: 8px 6px;

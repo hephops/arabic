@@ -321,6 +321,10 @@ const UZ: Record<string, string> = {
   qty: 'Soni',
   expiry: 'Srok',
   saveIntake: 'Kirimni saqlash',
+  /* Kirim ekranidan yorliq: kod yasaladi va darhol chop etiladi —
+     do'konchi tovarni javonga qo'yishdan oldin belgilab oladi */
+  saveAndLabel: 'Saqlash va yorliq',
+  noCode: 'kodsiz',
   productNameRequired: 'Mahsulot nomi majburiy',
   qtyRequired: "Miqdorni kiriting — aks holda ombor qoldig'i o'zgarmaydi",
   scanHint: 'Shtrix-kodni ramka ichiga keltiring',
@@ -1246,6 +1250,8 @@ const RU: Record<string, string> = {
   qty: 'Количество',
   expiry: 'Срок годности',
   saveIntake: 'Сохранить приход',
+  saveAndLabel: 'Сохранить и этикетка',
+  noCode: 'без кода',
   productNameRequired: 'Название товара обязательно',
   qtyRequired: 'Введите количество — иначе остаток на складе не изменится',
   scanHint: 'Наведите штрих-код в рамку',

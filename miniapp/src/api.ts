@@ -76,6 +76,8 @@ export const api = {
   support: () => request<{ phone: string; telegram: string }>('/public/support'),
   // Xodim (sotuvchi) kirishi: do'kon telefoni + 4 xonali PIN
   // Shtrix-kod bo'yicha to'liq javob: tovar bormi, katalogda bormi, kod to'g'rimi
+  /** Kirim ekranida yorliq chop etish uchun bo'sh ichki kod */
+  newBarcode: () => request<{ barcode: string }>('/barcodes/new'),
   lookupBarcode: (code: string) =>
     request<BarcodeLookup>(`/barcodes/lookup?code=${encodeURIComponent(code)}`),
   attachBarcode: (productId: number, barcode: string) =>

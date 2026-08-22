@@ -11,7 +11,9 @@ import { toast, loadFailed } from '../toast';
 import {
   Cart, MAX_CARTS, cartTotal, linePrice, loadCarts, newCart, nextNo, saveCarts,
 } from '../carts';
-import { PrintSheet, Receipt } from '../print';
+import { PrintSheet, Receipt, Labels } from '../print';
+import { ean13Svg } from '../ean13';
+import { qrSvg } from '../qr';
 import { HistoryMode } from './History';
 import { ProductThumb, EmptyState, Summary, DateField } from '../ui';
 import { TrustWarning } from '../trust';
@@ -875,6 +877,10 @@ function IntakeMode({
     total: formatAmount(String((Number(exNum.qty.replace(/\D/g, '')) || 1) * (Number(exNum.cost.replace(/\D/g, '')) || 0))),
   };
   const [proba, setProba] = useState('585');
+  // Yorliq oynasi: qaysi tovar uchun, nechta nusxa va chop etish
+  const [labelFor, setLabelFor] = useState<Product | null>(null);
+  const [labelQty, setLabelQty] = useState(gold ? 1 : 8);
+  const [printing, setPrinting] = useState(false);
   const [weight, setWeight] = useState('');
   const [size, setSize] = useState('');
   const [stone, setStone] = useState('');
@@ -995,7 +1001,26 @@ function IntakeMode({
     img.src = URL.createObjectURL(file);
   }
 
-  async function save() {
+  /** Bo'sh ichki kod olib, maydonga qo'yadi */
+  async function makeCode() {
+    try {
+      const r = await api.newBarcode();
+      setBarcode(r.barcode);
+      setCodeWarning('');
+      haptic.select();
+    } catch (e: any) {
+      toast.error(t('error'), e.details?.message ?? e.message);
+    }
+  }
+
+  /**
+   * Kirimni saqlash.
+   *
+   * `withLabel` — saqlangandan keyin yorliq oynasi ochiladi. Yorliq
+   * uchun kod kerak, kod esa tovar saqlanganda biriktiriladi; shuning
+   * uchun avval saqlanadi, keyin chop etiladi.
+   */
+  async function save(withLabel = false) {
     if (!name.trim()) {
       toast.error(t('productNameRequired'));
       return;
@@ -1033,6 +1058,10 @@ function IntakeMode({
         t('toastIntakeSaved'),
         `${product.name} · ${t('toastStockLeft')}: ${qtyWithUnit(product.stock, product.unit)} · ${priceLabel(product.sell_price, product.unit, product.price_qty)}`
       );
+      // Yorliq so'ralgan bo'lsa — saqlangan tovarning O'ZI bilan
+      // ochamiz: kod, narx va (zargarlikda) proba/massa serverdan
+      // qaytgan yozuvdan olinadi
+      if (withLabel) setLabelFor(product);
       // forma yopilmaydi — keyingi tovarga tayyor turadi
       // Birlik va narx asosi saqlanib qoladi: do'konchi odatda bir
       // turdagi tovarni ketma-ket kiritadi (bir necha xil sabzavot,
@@ -1182,6 +1211,15 @@ function IntakeMode({
                 <button onClick={() => setScanning(true)} aria-label={t('scanner')}>
                   <Glyph name="scan" size={19} color="var(--accent)" />
                 </button>
+                {/* Zavod kodi yo'q tovar (zargarlik buyumi, uy
+                    mahsuloti) — do'konning o'z kodi yasaladi va shu
+                    zahoti yorliq chop etsa bo'ladi. Kodni server
+                    beradi: bo'shligini u tekshiradi. */}
+                {!barcode.trim() && (
+                  <button onClick={makeCode} aria-label={t('makeBarcode')} title={t('makeBarcode')}>
+                    <Glyph name="plus" size={19} color="var(--accent)" />
+                  </button>
+                )}
               </div>
             </div>
             <div className="form-row">
@@ -1380,9 +1418,73 @@ function IntakeMode({
         )}
       </div>
 
-      <button className="btn-primary btn-lg" onClick={save} disabled={busy || !name.trim()}>
-        <Glyph name="check" size={19} color="#fff" /> {t('saveIntake')}
-      </button>
+      <div className="intake-actions">
+        <button className="btn-primary btn-lg" onClick={() => save(false)} disabled={busy || !name.trim()}>
+          <Glyph name="check" size={19} color="#fff" /> {t('saveIntake')}
+        </button>
+        {/* Saqlab, darhol yorliq chiqarish. Zargarlikda bu asosiy yo'l:
+            har buyumga o'z birkasi bosiladi. */}
+        <button className="btn-ghost" onClick={() => save(true)} disabled={busy || !name.trim()}>
+          <Glyph name="scan" size={17} color="var(--accent)" /> {t('saveAndLabel')}
+        </button>
+      </div>
+
+      {/* Yorliq oynasi — ombordagi kartochkadagi bilan bir xil */}
+      {labelFor && (
+        <div className="sheet-wrap" onClick={() => setLabelFor(null)}>
+          <div className="sheet" onClick={(e) => e.stopPropagation()}>
+            <div className="sheet-grip" />
+            <div className="sheet-title">{t('labelPrint')}</div>
+            <div className="sheet-sub">
+              {labelFor.name} · {labelFor.barcode || t('noCode')}
+            </div>
+            {labelFor.barcode ? (
+              <div className="label-preview">
+                {gold ? (
+                  <div dangerouslySetInnerHTML={{ __html: qrSvg(labelFor.barcode, { module: 4 }) ?? '' }} />
+                ) : (
+                  <div dangerouslySetInnerHTML={{ __html: ean13Svg(labelFor.barcode, { moduleWidth: 2, height: 52 }) ?? '' }} />
+                )}
+              </div>
+            ) : (
+              <p className="hint">{t('noCodeForLabel')}</p>
+            )}
+            <div className="section-title sm">{t('labelCount')}</div>
+            <div className="chip-row">
+              {[1, 4, 8, 12, 24].map((n) => (
+                <button key={n} className={`chip ${labelQty === n ? 'on' : ''}`} onClick={() => setLabelQty(n)}>
+                  {n}
+                </button>
+              ))}
+            </div>
+            <button
+              className="btn-primary btn-lg"
+              disabled={!labelFor.barcode}
+              onClick={() => { setPrinting(true); }}
+            >
+              <Glyph name="check" size={19} color="#fff" /> {t('labelPrint')}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {printing && labelFor?.barcode && (
+        <PrintSheet onDone={() => { setPrinting(false); setLabelFor(null); }}>
+          <Labels
+            t={t}
+            gold={gold}
+            items={Array.from({ length: labelQty }, () => ({
+              name: labelFor.name,
+              price: labelFor.sell_price,
+              barcode: labelFor.barcode!,
+              proba: labelFor.proba,
+              weight_g: labelFor.weight_g,
+              size: labelFor.size,
+              stone: labelFor.stone,
+            }))}
+          />
+        </PrintSheet>
+      )}
     </>
   );
 }

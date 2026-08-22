@@ -1513,6 +1513,26 @@ app.get<{ Querystring: { code?: string } }>('/barcodes/lookup', { preHandler: re
   return { code, valid: checkGtin(code), product, catalog };
 });
 
+/**
+ * Do'kon uchun bo'sh ichki kod.
+ *
+ * Kirim ekranida tovar hali saqlanmagan bo'ladi, ya'ni unga kod
+ * biriktirib bo'lmaydi — lekin yorliq chop etish uchun kod KERAK.
+ * Shuning uchun bu yerda faqat "hech kimga tegishli bo'lmagan" kod
+ * beriladi; u bazaga tovar saqlanganda yoziladi.
+ *
+ * "20" bilan boshlanadi — bu oraliq korxona ichida erkin ishlatish
+ * uchun ajratilgan, ya'ni zavod kodi bilan urishmaydi.
+ */
+app.get('/barcodes/new', { preHandler: requirePerm('intake') }, async (req, reply) => {
+  for (let attempt = 0; attempt < 60; attempt++) {
+    // Tasodifiy qism: ketma-ket kirimlar bir xil kod olib qolmasin
+    const candidate = makeInStoreEan13(req.shopId!, Math.floor(Math.random() * 900000) + 100000, attempt);
+    if (!findByBarcode(req.shopId, candidate)) return { barcode: candidate };
+  }
+  return reply.code(409).send({ error: 'no_free_code' });
+});
+
 app.post<{
   Body: {
     barcode?: string; name: string; unit?: string; price_qty?: number; cost_price?: number;

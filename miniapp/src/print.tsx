@@ -1,6 +1,7 @@
 import { useLayoutEffect, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { ean13Svg } from './ean13';
+import { qrSvg } from './qr';
 import { group } from './i18n';
 import { fmtDateTime } from './format';
 import { qtyText } from './units';
@@ -68,11 +69,20 @@ export function PrintSheet({ children, onDone }: { children: ReactNode; onDone: 
       if (printing && Date.now() - printStartedAt > FOCUS_GRACE_MS) finish();
     };
 
+    // Zaxira taymer. E'LON QILINISHI shu yerda: `cleanup` uni tozalaydi,
+    // `window.print()` esa ba'zi brauzerlarda darhol `afterprint` beradi —
+    // ya'ni cleanup taymer yaratilishidan OLDIN chaqirilishi mumkin.
+    // Ilgari u pastda `const` bilan e'lon qilingan edi va shunday
+    // holatda "Cannot access 'guardTimer' before initialization" xatosi
+    // chiqib, onDone() umuman ishlamasdi — chop etish qatlami ekranda
+    // osilib qolardi.
+    let guardTimer: ReturnType<typeof setTimeout> | undefined;
+
     const cleanup = () => {
       window.removeEventListener('afterprint', onAfterPrint);
       window.removeEventListener('focus', onFocus);
       mql?.removeEventListener?.('change', onMedia);
-      clearTimeout(guardTimer);
+      if (guardTimer) clearTimeout(guardTimer);
     };
 
     window.addEventListener('afterprint', onAfterPrint);
@@ -91,9 +101,9 @@ export function PrintSheet({ children, onDone }: { children: ReactNode; onDone: 
       finish();
     }
 
-    // Zaxira: hech qanday hodisa kelmasa ham ilova chop etish holatida
-    // qotib qolmaydi (do'konchi keyingi chekni chiqara olsin)
-    const guardTimer = setTimeout(finish, 120_000);
+    // Hech qanday hodisa kelmasa ham ilova chop etish holatida qotib
+    // qolmaydi (do'konchi keyingi chekni chiqara olsin)
+    guardTimer = setTimeout(finish, 120_000);
 
     return cleanup;
   }, []);
@@ -202,10 +212,40 @@ export interface LabelItem {
   name: string;
   price: number;
   barcode: string;
+  /* Zargarlik birkasi uchun — buyumning o'z belgilari */
+  proba?: string | null;
+  weight_g?: number | null;
+  size?: string | null;
+  stone?: string | null;
 }
 
-/** Javon yorlig'i: nomi, narxi va shtrix-kod. Bir varaqqa bir nechtasi sig'adi. */
-export function Labels({ items, t }: { items: LabelItem[]; t: (k: string) => string }) {
+/**
+ * Javon yorlig'i: nomi, narxi va shtrix-kod. Bir varaqqa bir nechtasi
+ * sig'adi.
+ *
+ * Zargarlikda birka butunlay boshqacha: u tor va uzun bo'lib buyumga
+ * ip bilan bog'lanadi, ustida esa nom emas — PROBA, RAZMER, MASSA va
+ * VSTAVKA turadi. Kod ham chiziqli emas, QR: birkaning eni chiziqli
+ * kodga yetmaydi. Shuning uchun `gold` bo'lsa boshqa shakl chiziladi.
+ */
+export function Labels({
+  items,
+  t,
+  gold = false,
+}: {
+  items: LabelItem[];
+  t: (k: string) => string;
+  gold?: boolean;
+}) {
+  if (gold) {
+    return (
+      <div className="labels">
+        {items.map((item, n) => (
+          <GoldTag key={n} item={item} />
+        ))}
+      </div>
+    );
+  }
   return (
     <div className="labels">
       {items.map((item, n) => {
@@ -224,6 +264,30 @@ export function Labels({ items, t }: { items: LabelItem[]; t: (k: string) => str
           </div>
         );
       })}
+    </div>
+  );
+}
+
+/** Zargarlik birkasi — do'konlarda ishlatiladigan ko'rinishda.
+ *
+ *  Yozuvlar ataylab ruscha: O'zbekistondagi zargarlik birkalari shu
+ *  ko'rinishda chiqadi va tekshiruvchi ham shunga qaraydi. */
+function GoldTag({ item }: { item: LabelItem }) {
+  const dash = (v?: string | null) => {
+    const s = String(v ?? '').trim();
+    return s && s !== '—' ? s : '-';
+  };
+  const qr = qrSvg(item.barcode, { module: 3 });
+  return (
+    <div className="gold-tag">
+      <div className="gt-rows">
+        <div><span>Проба</span><b>{dash(item.proba)}</b></div>
+        <div><span>Размер</span><b>{dash(item.size)}</b></div>
+        <div><span>Масса</span><b>{item.weight_g ? String(item.weight_g) : '-'}</b></div>
+        <div><span>Вставка</span><b>{dash(item.stone)}</b></div>
+      </div>
+      {qr && <div className="gt-qr" dangerouslySetInnerHTML={{ __html: qr }} />}
+      <div className="gt-code">{item.barcode}</div>
     </div>
   );
 }
