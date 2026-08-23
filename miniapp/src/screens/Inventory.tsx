@@ -51,6 +51,9 @@ export default function Inventory({ onBack }: { onBack: () => void }) {
   // Ommaviy chegirma oynasi uchun tanlangan tovarlar
   const [discountFor, setDiscountFor] = useState<Product[] | null>(null);
   const [category, setCategory] = useState('');
+  // Zargarlikda proba bo'yicha saralash: "585 lar qancha" degan savol
+  // do'konchida kuniga o'n marta tug'iladi
+  const [proba, setProba] = useState('');
   const [editing, setEditing] = useState<Product | null>(null);
   const [counting, setCounting] = useState(false);
   const { t } = useT();
@@ -75,10 +78,13 @@ export default function Inventory({ onBack }: { onBack: () => void }) {
 
   // Do'kondagi kategoriyalar — mahsulotlardan yig'iladi
   const categories = [...new Set(products.map((p) => p.category).filter(Boolean))] as string[];
+  const gold = goldShop();
+  // Bazadagi proba matn: "585". Yozilmagan buyumlar alohida guruh.
+  const probaOf = (p: Product) => String((p as any).proba ?? '').trim();
 
-  const filtered = products.filter((p) => {
+  // Qidiruv va tepadagi filtr — qolgan hammasining asosi
+  const base = products.filter((p) => {
     if (query && !p.name.toLowerCase().includes(query.toLowerCase())) return false;
-    if (category && p.category !== category) return false;
     // Tovarning O'Z chegarasi bo'yicha. Ilgari hamma joyda qat'iy 5
     // turardi: zargarlik va telefon do'konida har buyum yakka (qoldiq
     // 1-2) va BUTUN ombor doim "kam qolgan" bo'lib yonib turardi.
@@ -86,6 +92,20 @@ export default function Inventory({ onBack }: { onBack: () => void }) {
     if (filter === 'expiry') return p.expiry_date !== null && daysTo(p.expiry_date) <= 7;
     return true;
   });
+  const catOk = (p: Product) => !category || p.category === category;
+  const probaOk = (p: Product) => !proba || probaOf(p) === (proba === '—' ? '' : proba);
+
+  // Ombordagi probalar — buyumlardan yig'iladi, tartibi standart
+  // ro'yxat bo'yicha (375, 585, 750 ...), begonasi oxirida
+  const probalar = [...new Set(base.map(probaOf))].sort((a, b) => {
+    const i = PROBAS.indexOf(a), j = PROBAS.indexOf(b);
+    return (i < 0 ? 99 : i) - (j < 0 ? 99 : j);
+  });
+  // Har chip yonidagi son: "bossam nechta chiqadi" degani
+  const probaSoni = (v: string) => base.filter((p) => catOk(p) && probaOf(p) === (v === '—' ? '' : v)).length;
+  const katSoni = (c: string) => base.filter((p) => probaOk(p) && p.category === c).length;
+
+  const filtered = base.filter((p) => catOk(p) && probaOk(p));
 
   // Ombordagi pul — kirim narxi bo'yicha. Ruxsati yo'q xodimga
   // cost_price umuman yuborilmaydi (server yashiradi), shuning uchun
@@ -140,15 +160,33 @@ export default function Inventory({ onBack }: { onBack: () => void }) {
           ]}
         />
 
+        {/* Probalar — zargarlik do'konida eng ko'p so'raladigan kesim:
+            "585 lar qancha, 750 lar qancha". Yonida soni turadi. */}
+        {gold && probalar.length > 1 && (
+          <div className="chip-row">
+            <button className={`chip ${proba === '' ? 'on' : ''}`} onClick={() => setProba('')}>
+              {t('probaAll')} <span className="chip-n">{base.filter(catOk).length}</span>
+            </button>
+            {probalar.map((v) => {
+              const id = v || '—';
+              return (
+                <button key={id} className={`chip ${proba === id ? 'on' : ''}`} onClick={() => setProba(proba === id ? '' : id)}>
+                  {v || t('probaNone')} <span className="chip-n">{probaSoni(id)}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
         {/* Kategoriyalar — ko'p tovarli do'konda kerakli guruhni tez topish uchun */}
         {categories.length > 0 && (
           <div className="chip-row">
             <button className={`chip ${category === '' ? 'on' : ''}`} onClick={() => setCategory('')}>
-              {t('categoryAll')}
+              {t('categoryAll')} <span className="chip-n">{base.filter(probaOk).length}</span>
             </button>
             {categories.map((c) => (
-              <button key={c} className={`chip ${category === c ? 'on' : ''}`} onClick={() => setCategory(c)}>
-                {c}
+              <button key={c} className={`chip ${category === c ? 'on' : ''}`} onClick={() => setCategory(category === c ? '' : c)}>
+                {c} <span className="chip-n">{katSoni(c)}</span>
               </button>
             ))}
           </div>

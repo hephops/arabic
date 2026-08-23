@@ -654,6 +654,12 @@ button.link { background: none; color: var(--accent); font-size: 15px; font-weig
 .chip:active { opacity: 0.7; }
 /* Ko'p chip bo'lgan joyda (oynadagi kategoriyalar) qatorga sig'masa pastga o'tadi */
 .chip-row.wrap { flex-wrap: wrap; overflow-x: visible; }
+/* Chip yonidagi son: "585 — 12 ta". Tanlanganda oq fonda o'qilsin */
+.chip-n {
+  margin-left: 5px; font-size: 12px; font-weight: 650;
+  color: var(--muted); font-variant-numeric: tabular-nums;
+}
+.chip.on .chip-n, .chip.selected .chip-n { color: rgba(255, 255, 255, 0.85); }
 
 /* ═══════════ Xarajatlar ═══════════ */
 
