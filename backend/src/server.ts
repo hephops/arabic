@@ -1725,13 +1725,20 @@ app.get<{ Querystring: { code?: string } }>('/barcodes/lookup', { preHandler: re
  * "20" bilan boshlanadi — bu oraliq korxona ichida erkin ishlatish
  * uchun ajratilgan, ya'ni zavod kodi bilan urishmaydi.
  */
-app.get('/barcodes/new', { preHandler: requirePerm('intake') }, async (req, reply) => {
+/** Do'konda hali band bo'lmagan ichki kod (topilmasa — null) */
+function freeBarcode(shopId: number): string | null {
   for (let attempt = 0; attempt < 60; attempt++) {
     // Tasodifiy qism: ketma-ket kirimlar bir xil kod olib qolmasin
-    const candidate = makeInStoreEan13(req.shopId!, Math.floor(Math.random() * 900000) + 100000, attempt);
-    if (!findByBarcode(req.shopId, candidate)) return { barcode: candidate };
+    const candidate = makeInStoreEan13(shopId, Math.floor(Math.random() * 900000) + 100000, attempt);
+    if (!findByBarcode(shopId, candidate)) return candidate;
   }
-  return reply.code(409).send({ error: 'no_free_code' });
+  return null;
+}
+
+app.get('/barcodes/new', { preHandler: requirePerm('intake') }, async (req, reply) => {
+  const code = freeBarcode(req.shopId!);
+  if (!code) return reply.code(409).send({ error: 'no_free_code' });
+  return { barcode: code };
 });
 
 app.post<{
@@ -1787,19 +1794,43 @@ app.post<{
     // uchun bunday do'konda faqat KOD bo'yicha topiladi: bir birka
     // bir buyum degani.
     const unique = shopProfile(shopRow).unique;
-    let product = (barcode ? findByBarcode(req.shopId, barcode) : undefined) as any;
-    if (!product && !unique) {
-      product = db
-        .prepare('SELECT * FROM products WHERE shop_id = ? AND name = ? COLLATE NOCASE')
-        .get(req.shopId, name.trim()) as any;
-    }
 
-    // Katalogdan kelgan bo'lsa — o'sha yozuvga bog'langan tovarni ham
-    // qidiramiz: do'konchi nomini o'zgartirgan bo'lsa ham topilsin
-    if (!product && catalogId && !unique) {
-      product = db
-        .prepare('SELECT * FROM products WHERE shop_id = ? AND catalog_id = ?')
-        .get(req.shopId, catalogId) as any;
+    // ── Yakka buyumli do'konda HAR KIRIM — ALOHIDA buyum.
+    //
+    // Zargarlik birkasidagi raqam zavodniki: bir partiyadagi o'nta
+    // uzukda bir xil raqam turishi mumkin, do'konchi esa uni qo'lda
+    // ko'chiradi va adashishi ham mumkin. Ilgari shu raqam bo'yicha
+    // topilgan kartochkaga qo'shib yuborilardi: ikki xil uzuk bitta
+    // qatorda "2 dona" bo'lib turardi, ikkinchisining massasi ham,
+    // o'lchami ham, narxi ham yo'qolardi.
+    //
+    // Endi bunday do'konda mavjud kartochkaga HECH QACHON
+    // qo'shilmaydi. Kod band bo'lsa — yangi buyumga do'konning o'z
+    // ichki kodi beriladi: har kod bitta buyumni ko'rsatib tursin,
+    // aks holda kassada qaysi uzuk sotilayotgani noaniq bo'lardi.
+    let code = barcode;
+    let codeReplaced = false;
+    let product: any;
+    if (unique) {
+      if (code && findByBarcode(req.shopId!, code)) {
+        code = freeBarcode(req.shopId!) ?? '';
+        codeReplaced = true;
+      }
+    } else {
+      product = (code ? findByBarcode(req.shopId, code) : undefined) as any;
+      if (!product) {
+        product = db
+          .prepare('SELECT * FROM products WHERE shop_id = ? AND name = ? COLLATE NOCASE')
+          .get(req.shopId, name.trim()) as any;
+      }
+
+      // Katalogdan kelgan bo'lsa — o'sha yozuvga bog'langan tovarni ham
+      // qidiramiz: do'konchi nomini o'zgartirgan bo'lsa ham topilsin
+      if (!product && catalogId) {
+        product = db
+          .prepare('SELECT * FROM products WHERE shop_id = ? AND catalog_id = ?')
+          .get(req.shopId, catalogId) as any;
+      }
     }
 
     if (!product) {
@@ -1821,7 +1852,7 @@ app.post<{
            VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?)`
         )
         .run(
-          req.shopId, barcode || null, name.trim(), unit, priceQty,
+          req.shopId, code || null, name.trim(), unit, priceQty,
           cost_price ?? 0, sell_price ?? 0, lowDefault, expiry_date ?? null, category?.trim() || null,
           catalogId, proba, weight, size, stone
         );
@@ -1838,28 +1869,28 @@ app.post<{
         product[key] = value;
       }
     }
-    if (product && barcode && !product.barcode) {
+    if (product && code && !product.barcode) {
       // ilgari kodsiz yozilgan tovarga endi kod berildi
-      db.prepare('UPDATE products SET barcode = ? WHERE id = ?').run(barcode, product.id);
-      product.barcode = barcode;
+      db.prepare('UPDATE products SET barcode = ? WHERE id = ?').run(code, product.id);
+      product.barcode = code;
     }
 
     // Kodsiz katalog yozuviga do'konchi kod biriktirsa — markazga ham
     // yozamiz. Keyingi do'kon o'sha kodni skanerlaganda tayyor topadi.
-    if (barcode && catalogId) {
+    if (code && !codeReplaced && catalogId) {
       const cat = db.prepare('SELECT id, barcode FROM catalog_products WHERE id = ?').get(catalogId) as any;
       if (cat && !cat.barcode) {
-        const taken = db.prepare('SELECT id FROM catalog_products WHERE barcode = ?').get(barcode);
-        if (!taken) db.prepare('UPDATE catalog_products SET barcode = ? WHERE id = ?').run(barcode, catalogId);
+        const taken = db.prepare('SELECT id FROM catalog_products WHERE barcode = ?').get(code);
+        if (!taken) db.prepare('UPDATE catalog_products SET barcode = ? WHERE id = ?').run(code, catalogId);
       }
     }
 
-    if (barcode) {
-      attachBarcode(req.shopId, product.id, barcode);
+    if (code) {
+      attachBarcode(req.shopId, product.id, code);
       // markaziy katalogni boyitamiz
-      if (!db.prepare('SELECT 1 FROM barcode_catalog WHERE barcode = ?').get(barcode)) {
+      if (!db.prepare('SELECT 1 FROM barcode_catalog WHERE barcode = ?').get(code)) {
         db.prepare('INSERT INTO barcode_catalog (barcode, name, unit, created_by_shop) VALUES (?, ?, ?, ?)').run(
-          barcode,
+          code,
           name.trim(),
           unit,
           req.shopId
@@ -1904,7 +1935,11 @@ app.post<{
       const url = saveImage(image, product.id);
       if (url) db.prepare('UPDATE products SET image_url = ? WHERE id = ?').run(url, product.id);
     }
-    return hideCost(req, db.prepare('SELECT * FROM products WHERE id = ?').get(product.id));
+    const saqlangan = hideCost(req, db.prepare('SELECT * FROM products WHERE id = ?').get(product.id)) as any;
+    // Kod band bo'lgani uchun almashtirilgan bo'lsa — ilova buni
+    // do'konchiga aytadi, aks holda u chop etgan yorliqdagi kod
+    // kutgan raqamidan boshqa bo'lib qolardi
+    return codeReplaced ? { ...saqlangan, code_replaced: true, code_asked: barcode } : saqlangan;
   }
 );
 

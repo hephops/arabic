@@ -219,3 +219,27 @@ export function goldLine(p: {
     .filter(Boolean)
     .join(' · ');
 }
+
+/* ─────────── Zargarlik: buyum turlari ───────────
+ *
+ * Zargarlik do'konida hamma buyum bir xil nom bilan yoziladi
+ * ("Uzuk 585"), shuning uchun ombor bir uyum bo'lib ko'rinadi.
+ * Kategoriya buni ajratadi: uzuklar alohida, zanjirlar alohida,
+ * komplektlar alohida — Ombor ekranidagi chiplar shu bo'yicha
+ * saraladi.
+ *
+ * Ro'yxat qat'iy emas: do'konchi o'z so'zini yozsa ham bo'ladi,
+ * bular faqat bir bosishda qo'yiladigan tayyor variantlar.
+ */
+export const GOLD_CATEGORIES = [
+  'Uzuk',
+  "Sirg'a",
+  'Zanjir',
+  'Tros',
+  'Bilaguzuk',
+  'Kulon',
+  'Bilarzik',
+  'Komplekt',
+  'Tish',
+  'Lom',
+];

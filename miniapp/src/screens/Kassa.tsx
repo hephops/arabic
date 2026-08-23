@@ -20,7 +20,7 @@ import { TrustWarning } from '../trust';
 import { GoalStrip } from '../goal';
 import { VoiceCartSheet } from '../voiceCart';
 import { priceAfter } from '../discount';
-import { goldShop, goldPrice, goldFieldPrice, goldPrices, goldLine, shopInfo, profile, examples, exampleText, PROBAS } from '../shopTypes';
+import { goldShop, goldPrice, goldFieldPrice, goldPrices, goldLine, shopInfo, profile, examples, exampleText, PROBAS, GOLD_CATEGORIES } from '../shopTypes';
 import { scanFail } from '../beep';
 import {
   STOCK_UNITS, isFractional, parseQty, qtyText, qtyWithUnit,
@@ -978,6 +978,16 @@ function IntakeMode({
     // Zargarlik birkasidagi raqam zavod GTIN'i emas — nazorat raqami
     // to'g'ri kelmagani xato emas, shuning uchun ogohlantirmaymiz
     if (res.valid === false && !gold) setCodeWarning(t('barcodeInvalid'));
+    // Yakka buyumli do'konda (zargarlik, telefon) bu kod ALLAQACHON
+    // boshqa buyumda bo'lsa — nomini ham, narxini ham ko'chirmaymiz.
+    //
+    // Zargarlik birkasidagi raqam zavodniki: bir partiyadagi uzuklarda
+    // bir xil turishi mumkin. Ilgari shunday kod terilganda oldingi
+    // uzukning nomi va NARXI yangi buyumga tushib qolardi.
+    if (prof.unique && res.product) {
+      setCodeWarning(t('codeTakenHere'));
+      return;
+    }
     const known = res.product ?? res.catalog;
     if (known) setName(known.name);
     if (res.product) {
@@ -1066,10 +1076,17 @@ function IntakeMode({
             }
           : {}),
       });
-      toast.success(
-        t('toastIntakeSaved'),
-        `${product.name} · ${t('toastStockLeft')}: ${qtyWithUnit(product.stock, product.unit)} · ${priceLabel(product.sell_price, product.unit, product.price_qty)}`
-      );
+      if ((product as any).code_replaced) {
+        // Terilgan birka raqami boshqa buyumda band edi — bu buyumga
+        // do'konning o'z kodi berildi. Do'konchi buni bilishi shart:
+        // yorliqqa aynan shu kod chiqadi.
+        toast.info(t('codeReplacedTitle'), `${t('codeReplacedBody')} ${product.barcode ?? ''}`);
+      } else {
+        toast.success(
+          t('toastIntakeSaved'),
+          `${product.name} · ${t('toastStockLeft')}: ${qtyWithUnit(product.stock, product.unit)} · ${priceLabel(product.sell_price, product.unit, product.price_qty)}`
+        );
+      }
       // Yorliq so'ralgan bo'lsa — saqlangan tovarning O'ZI bilan
       // ochamiz: kod, narx va (zargarlikda) proba/massa serverdan
       // qaytgan yozuvdan olinadi
@@ -1249,6 +1266,23 @@ function IntakeMode({
               <datalist id="cat-list">
                 {cats.map((c) => <option key={c.name} value={c.name} />)}
               </datalist>
+              {/* Zargarlikda hamma buyum bir xil nom bilan yoziladi
+                  ("Uzuk 585"). Kategoriya — omborni ajratadigan yagona
+                  narsa: uzuklar alohida, zanjirlar alohida. Bir bosish
+                  bilan qo'yilsin, qo'lda terib o'tirmasin. */}
+              {gold && (
+                <div className="unit-chips" style={{ marginTop: 8 }}>
+                  {GOLD_CATEGORIES.map((c) => (
+                    <button
+                      key={c}
+                      className={`chip sm ${category === c ? 'on' : ''}`}
+                      onClick={() => setCategory(category === c ? '' : c)}
+                    >
+                      {c}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
             {codeWarning && <p className="form-note" style={{ color: 'var(--yellow)' }}>{codeWarning}</p>}
           </div>
