@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { api, type Admin } from '../api';
+import { api, type Admin, fmtWhen } from '../api';
 import { useEscape } from '../useEscape';
 
 export default function Admins({ me }: { me: Admin }) {
@@ -51,7 +51,7 @@ export default function Admins({ me }: { me: Admin }) {
                     {a.role === 'super' ? 'Super admin' : 'Admin'}
                   </span>
                 </td>
-                <td className="muted">{a.last_login_at ? a.last_login_at.slice(0, 16).replace('T', ' ') : '—'}</td>
+                <td className="muted">{fmtWhen(a.last_login_at)}</td>
                 <td>
                   <span className={`badge ${a.is_active ? 'ok' : 'blocked'}`}>{a.is_active ? 'Faol' : 'Bloklangan'}</span>
                 </td>

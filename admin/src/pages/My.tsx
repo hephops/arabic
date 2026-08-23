@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { api, fmt, fmtNum, fmtPhone, type AgentDetail } from '../api';
+import { api, fmt, fmtNum, fmtPhone, type AgentDetail, fmtWhen } from '../api';
 import { AppIcon } from '../icons';
 
 // Targ'ovchi xodimning O'Z sahifasi.
@@ -8,7 +8,8 @@ import { AppIcon } from '../icons';
 // agent rolini kiritmaydi). Bu yerda faqat o'zi ulagan do'konlar,
 // ishlab topgani va olgan puli ko'rinadi.
 
-const when = (s?: string | null) => (s ? String(s).replace('T', ' ').slice(0, 16) : '—');
+// Vaqt O'zbekiston mintaqasida ko'rsatiladi (api.ts: fmtWhen)
+const when = fmtWhen;
 
 export default function My() {
   const [data, setData] = useState<(AgentDetail & { bonus: number }) | null>(null);

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { api, fmt, fmtNum, fmtPhone, type Payment, type PaymentsPage, type Shop } from '../api';
+import { api, fmt, fmtNum, fmtPhone, type Payment, type PaymentsPage, type Shop, fmtWhenDay } from '../api';
 import { AppIcon, Glyph } from '../icons';
 import { useEscape } from '../useEscape';
 
@@ -29,7 +29,9 @@ const METHODS = [
 const methodLabel = (m?: string | null) => METHODS.find((x) => x.id === m)?.label ?? (m || '—');
 
 const PAGE_SIZES = [10, 25, 50, 100];
-const today = () => new Date().toISOString().slice(0, 10);
+// "Bugun" — O'ZBEKISTON kuni. Ilgari UTC olinardi va soat 05:00 gacha
+// kiritilgan to'lov kechagi kun bilan yozilardi
+const today = () => new Date(Date.now() + 5 * 3600_000).toISOString().slice(0, 10);
 
 export default function Payments() {
   const [data, setData] = useState<PaymentsPage | null>(null);
@@ -118,7 +120,7 @@ export default function Payments() {
   function exportCsv() {
     const head = ['Sana', "Do'kon", 'Telefon', 'Turi', 'Summa', "To'lov usuli", 'Hujjat', "To'lovchi", 'Izoh'];
     const body = rows.map((r) => [
-      (r.paid_at ?? r.created_at).slice(0, 10),
+      r.paid_at ? r.paid_at.slice(0, 10) : fmtWhenDay(r.created_at),
       r.shop_name ?? '',
       r.shop_phone ?? '',
       TYPE_LABEL[r.type] ?? r.type,
@@ -271,7 +273,10 @@ export default function Payments() {
                     aria-label="Belgilash"
                   />
                 </td>
-                <td className="muted">{(r.paid_at ?? r.created_at).slice(0, 10)}</td>
+                {/* paid_at — admin qo'lda kiritgan sana (mintaqasiz),
+                    created_at esa UTC vaqt: ikkinchisi o'zbek kuniga
+                    o'giriladi */}
+                <td className="muted">{r.paid_at ? r.paid_at.slice(0, 10) : fmtWhenDay(r.created_at)}</td>
                 <td>
                   {/* Summasi nol bo'lgan yozuv (masalan admin sovg'asi) kirim ham,
                       chiqim ham emas — o'z turi bilan ko'rsatiladi */}

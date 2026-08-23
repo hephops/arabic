@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { api, fmt, fmtNum, fmtPhone, BASE, type Receipt, type ReceiptsPage, type Shop } from '../api';
+import { api, fmt, fmtNum, fmtPhone, BASE, type Receipt, type ReceiptsPage, type Shop, fmtWhen, fmtWhenDay } from '../api';
 import { AppIcon, Glyph } from '../icons';
 import { PaymentModal, type PaymentPreset } from './Payments';
 import { useEscape } from '../useEscape';
@@ -24,7 +24,8 @@ const STATUS: Record<string, { label: string; cls: string }> = {
   rejected: { label: 'Rad etilgan', cls: 'bad' },
 };
 
-const when = (s?: string | null) => (s ? String(s).replace('T', ' ').slice(0, 16) : '—');
+// Vaqt O'zbekiston mintaqasida ko'rsatiladi (api.ts: fmtWhen)
+const when = fmtWhen;
 
 export default function Receipts() {
   const [tab, setTab] = useState('new');
@@ -134,7 +135,7 @@ export default function Receipts() {
                             payer: r.owner_name ?? '',
                             note: `Chek #${r.id}`,
                             method: 'karta',
-                            paid_at: String(r.created_at).slice(0, 10),
+                            paid_at: fmtWhenDay(r.created_at),
                             receipt_id: r.id,
                           })
                         }

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { api, type AdminLog } from '../api';
+import { api, type AdminLog, fmtWhen } from '../api';
 
 const ACTION_LABEL: Record<string, string> = {
   login: 'Panelga kirdi',
@@ -60,7 +60,7 @@ export default function Logs() {
           <tbody>
             {filtered.map((r) => (
               <tr key={r.id}>
-                <td className="muted">{r.created_at.slice(0, 16).replace('T', ' ')}</td>
+                <td className="muted">{fmtWhen(r.created_at)}</td>
                 <td>{r.username ?? `#${r.admin_id}`}</td>
                 <td>{ACTION_LABEL[r.action] ?? r.action}</td>
                 <td className="muted">{r.target_name ?? r.target ?? '—'}</td>

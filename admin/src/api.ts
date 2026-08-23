@@ -485,6 +485,52 @@ export const fmtNum = (n: number) =>
   String(Math.round(n || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, '\u00a0');
 export const fmt = (n: number) => `${fmtNum(n)} so'm`;
 
+/* ─────────── Vaqt ───────────
+ *
+ * Bazada vaqt UTC'da saqlanadi (SQLite datetime('now')), do'kon esa
+ * O'zbekistonda ishlaydi — farq besh soat.
+ *
+ * Ilgari admin panel bazadagi satrni shundayligicha kesib ko'rsatardi:
+ * soat 10:43 da qilingan kirim jurnalda "05:37" bo'lib turardi va
+ * do'kon egasi "bu qachon bo'lgan?" deb hayron qolardi.
+ *
+ * DIQQAT: faqat VAQTLI maydonlarga (created_at, last_login_at,
+ * reviewed_at, sent_at...) qo'llanadi. spent_at, due_date,
+ * charged_through kabi SANA maydonlari serverda allaqachon o'zbek
+ * kuni bo'yicha hisoblangan — ularga tegilmaydi, aks holda bir kun
+ * oldinga surilib ketardi.
+ */
+const UZ_SOAT = 5;
+
+function uzVaqt(v?: string | null): Date | null {
+  const s = String(v ?? '').trim();
+  if (!s) return null;
+  // "2026-08-23 05:37:12" — SQLite ko'rinishi, mintaqasiz, ya'ni UTC
+  const iso = /[zZ]|[+-]\d{2}:?\d{2}$/.test(s) ? s : `${s.replace(' ', 'T')}Z`;
+  const ms = Date.parse(iso);
+  if (!Number.isFinite(ms)) return null;
+  return new Date(ms + UZ_SOAT * 3600_000);
+}
+
+const ikki = (n: number) => String(n).padStart(2, '0');
+
+/** "2026-08-23 10:37" — O'zbekiston vaqti bilan */
+export function fmtWhen(v?: string | null): string {
+  const d = uzVaqt(v);
+  if (!d) return '—';
+  return (
+    `${d.getUTCFullYear()}-${ikki(d.getUTCMonth() + 1)}-${ikki(d.getUTCDate())} ` +
+    `${ikki(d.getUTCHours())}:${ikki(d.getUTCMinutes())}`
+  );
+}
+
+/** "2026-08-23" — O'zbekiston kuni bilan */
+export function fmtWhenDay(v?: string | null): string {
+  const d = uzVaqt(v);
+  if (!d) return '—';
+  return `${d.getUTCFullYear()}-${ikki(d.getUTCMonth() + 1)}-${ikki(d.getUTCDate())}`;
+}
+
 // Telefon do'kon ilovasidagidek ko'rinadi: +998 90 123 45 67
 export function fmtPhone(v: string | null | undefined): string {
   const d = String(v ?? '').replace(/\D/g, '').replace(/^998/, '');

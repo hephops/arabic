@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { api, fmtNum, fmtPhone, type ReminderLog } from '../api';
+import { api, fmtNum, fmtPhone, type ReminderLog, fmtWhen } from '../api';
 import { AppIcon } from '../icons';
 import { useEscape } from '../useEscape';
 
@@ -97,7 +97,7 @@ export default function Reminders() {
           <tbody>
             {rows.map((r) => (
               <tr key={r.id} className="clickable" onClick={() => setOpen(r)}>
-                <td className="muted">{r.created_at.slice(0, 16).replace('T', ' ')}</td>
+                <td className="muted">{fmtWhen(r.created_at)}</td>
                 <td>{r.shop_name}</td>
                 <td>
                   {r.customer_name ?? '—'}
@@ -126,7 +126,7 @@ export default function Reminders() {
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <h3>{CHANNEL_LABEL[open.channel] ?? open.channel}</h3>
             <div className="sub">
-              {open.shop_name} → {open.customer_name ?? '—'} · {open.created_at.slice(0, 16).replace('T', ' ')}
+              {open.shop_name} → {open.customer_name ?? '—'} · {fmtWhen(open.created_at)}
             </div>
             <div className="panel" style={{ whiteSpace: 'pre-wrap', fontSize: 13.5, lineHeight: 1.5 }}>
               {open.payload || 'Matn saqlanmagan'}

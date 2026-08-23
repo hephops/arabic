@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   api, fmt, fmtNum, fmtPhone,
-  type Agent, type Shop, type ShopActivity, type ShopDetail, type ShopsSummary,
-} from '../api';
+  type Agent, type Shop, type ShopActivity, type ShopDetail, type ShopsSummary, fmtWhen, fmtWhenDay } from '../api';
 import { AppIcon, Glyph } from '../icons';
 import { SHOP_TYPE_LABEL } from '../shopTypes';
 import { useEscape } from '../useEscape';
@@ -199,7 +198,7 @@ export default function Shops() {
                     return <span className={`badge ${st.cls}`}>{st.text}</span>;
                   })()}
                 </td>
-                <td className="muted">{s.created_at.slice(0, 10)}</td>
+                <td className="muted">{fmtWhenDay(s.created_at)}</td>
                 {/* Amallar. Qatorning o'zi ham bosiladi, lekin tugmalar
                     aniqroq: o'chirish tasodifan bosilib ketmasin deb u
                     alohida turadi va qatorni ochib yubormaydi. */}
@@ -505,7 +504,7 @@ function ShopModal({
               </select>
               <div className="set-hint">
                 {data.agent_linked_at
-                  ? `Biriktirilgan: ${String(data.agent_linked_at).slice(0, 10)}`
+                  ? `Biriktirilgan: ${fmtWhenDay(data.agent_linked_at)}`
                   : "Do'konchi chekda xodim raqamini yozsa o'zi biriktiriladi"}
               </div>
             </div>
@@ -647,7 +646,7 @@ function ShopModal({
                 <tbody>
                   {data.transactions.map((t) => (
                     <tr key={t.id}>
-                      <td className="muted">{t.created_at.slice(0, 16).replace('T', ' ')}</td>
+                      <td className="muted">{fmtWhen(t.created_at)}</td>
                       <td>
                         <span className={`badge ${t.amount > 0 ? 'ok' : t.amount < 0 ? 'bad' : ''}`}>
                           {TX_LABEL[t.type] ?? t.type}
@@ -935,7 +934,7 @@ function ShopLog({ shopId }: { shopId: number }) {
             {korinadigan.map((r, i) => (
               <tr key={`${r.kind}-${r.at}-${i}`}>
                 <td className="muted" style={{ whiteSpace: 'nowrap' }}>
-                  {String(r.at).slice(0, 16).replace('T', ' ')}
+                  {fmtWhen(r.at)}
                 </td>
                 <td>
                   <span className={`badge ${LOG_TUR[r.kind]?.rang ?? ''}`}>

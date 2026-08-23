@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { api, fmt, fmtNum, fmtPhone, type Admin, type Agent, type AgentDetail } from '../api';
+import { api, fmt, fmtNum, fmtPhone, type Admin, type Agent, type AgentDetail, fmtWhen } from '../api';
 import { AppIcon, Glyph } from '../icons';
 import { useEscape } from '../useEscape';
 
@@ -13,7 +13,8 @@ import { useEscape } from '../useEscape';
 // Xodimning o'zi ham shu panelga kiradi, lekin faqat O'Z sahifasini
 // ko'radi (My.tsx) — do'konlar, to'lovlar, sozlamalar unga yopiq.
 
-const when = (s?: string | null) => (s ? String(s).replace('T', ' ').slice(0, 16) : '—');
+// Vaqt O'zbekiston mintaqasida ko'rsatiladi (api.ts: fmtWhen)
+const when = fmtWhen;
 
 export default function Agents({ me }: { me: Admin }) {
   const [rows, setRows] = useState<Agent[]>([]);
