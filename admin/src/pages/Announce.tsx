@@ -9,6 +9,8 @@ import { useEscape } from '../useEscape';
 // har yangi maydon migratsiya talab qilardi.
 
 export interface AnnounceCfg {
+  /** ro'yxatda ajratish uchun — saqlashda beriladi */
+  id: string;
   enabled: boolean;
   text: string;
   color: string;
@@ -25,6 +27,7 @@ export interface AnnounceCfg {
 }
 
 export const BOSH: AnnounceCfg = {
+  id: '',
   enabled: false,
   text: '',
   color: '#ffffff',
@@ -36,13 +39,35 @@ export const BOSH: AnnounceCfg = {
   audience: 'all',
 };
 
-/** Saqlangan JSON dan sozlamani tiklash — buzuq bo'lsa boshlang'ich holat */
-export function parseAnnounce(raw: string): AnnounceCfg {
+/** Saqlangan JSON dan e'lonlar RO'YXATINI tiklash.
+ *
+ *  Ilgari bitta e'lon saqlanardi (obyekt). Eski yozuv ham o'qiladi —
+ *  bitta elementli ro'yxat deb qaraladi, ya'ni allaqachon qo'yilgan
+ *  e'lon yo'qolmaydi. Buzuq JSON bo'sh ro'yxat beradi. */
+export function parseAnnounceList(raw: string): AnnounceCfg[] {
   try {
-    return { ...BOSH, ...(JSON.parse(raw || '{}') as Partial<AnnounceCfg>) };
+    const parsed = JSON.parse(raw || '[]');
+    const list = Array.isArray(parsed) ? parsed : [parsed];
+    return list
+      .filter((x) => x && typeof x === 'object')
+      .map((x, i) => ({ ...BOSH, ...(x as Partial<AnnounceCfg>), id: String((x as any).id || `e${i + 1}`) }));
   } catch {
-    return { ...BOSH };
+    return [];
   }
+}
+
+/** Yangi e'lon uchun takrorlanmaydigan raqam */
+export function yangiId(mavjud: AnnounceCfg[]): string {
+  let n = mavjud.length + 1;
+  const bor = new Set(mavjud.map((x) => x.id));
+  while (bor.has(`e${n}`)) n++;
+  return `e${n}`;
+}
+
+/** Kimga ko'rinishi — ro'yxatda ko'rsatiladigan nom */
+export function kimgaNomi(audience: string): string {
+  const hit = KIMGA.find((k) => k.id === audience);
+  return hit ? hit.label : audience;
 }
 
 const KIMGA = [

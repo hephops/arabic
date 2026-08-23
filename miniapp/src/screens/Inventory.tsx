@@ -18,6 +18,7 @@ import { qrSvg } from '../qr';
 import { scanFail } from '../beep';
 import { goldShop, goldPrice, goldFieldPrice, goldLine, shopInfo, profile, PROBAS } from '../shopTypes';
 import { useEscape } from '../useEscape';
+import { labelCount, setLabelCount, labelPrice, setLabelPrice } from '../labelPrefs';
 
 /** Shu tovar uchun "kam qoldi" chegarasi: o'zinikini bo'lsa o'shanisi,
  *  bo'lmasa do'kon turining standarti (oltin/telefonda 0-1, oziqda 5) */
@@ -278,7 +279,9 @@ function ProductEdit({ product, onBack, onSaved }: { product: Product; onBack: (
   const [labels, setLabels] = useState(false);
   useEscape(() => setLabels(false), labels);
   // Zargarlikda har buyum yakka — bitta birka yetadi
-  const [labelQty, setLabelQty] = useState(goldShop() ? 1 : 8);
+  // Nechta yorliq va narx ko'rsatilsinmi — qurilmada eslab qolinadi
+  const [labelQty, setLabelQty] = useState(gold ? 1 : labelCount());
+  const [labelWithPrice, setLabelWithPrice] = useState(labelPrice());
   const [printingLabels, setPrintingLabels] = useState(false);
 
   // Yorliqqa chiziqli kod faqat EAN-13 bo'lsa chiziladi. Zargarlikda
@@ -603,11 +606,24 @@ function ProductEdit({ product, onBack, onSaved }: { product: Product; onBack: (
               <label className="sheet-label">{t('labelCount')}</label>
               <div className="chip-row wrap">
                 {[1, 4, 8, 12, 24].map((n) => (
-                  <button key={n} className={`chip ${labelQty === n ? 'on' : ''}`} onClick={() => setLabelQty(n)}>
+                  <button key={n} className={`chip ${labelQty === n ? 'on' : ''}`} onClick={() => { setLabelQty(n); setLabelCount(n); }}>
                     {n}
                   </button>
                 ))}
               </div>
+              {/* Narx yorliqda yozilsinmi. Standart — yo'q: narx
+                  o'zgaradi, yorliq esa tovarda qolib ketadi va eski
+                  narxli yorliq kassada nizoga sabab bo'ladi. */}
+              {!gold && (
+                <label className="sheet-check">
+                  <input
+                    type="checkbox"
+                    checked={labelWithPrice}
+                    onChange={(e) => { setLabelWithPrice(e.target.checked); setLabelPrice(e.target.checked); }}
+                  />
+                  <span>{t('labelShowPrice')}</span>
+                </label>
+              )}
               <button className="btn-primary btn-lg" onClick={() => { setLabels(false); setPrintingLabels(true); }}>
                 <Glyph name="check" size={18} color="#fff" /> {t('labelPrint')}
               </button>
@@ -620,6 +636,7 @@ function ProductEdit({ product, onBack, onSaved }: { product: Product; onBack: (
             <Labels
               t={t}
               gold={gold}
+              showPrice={labelWithPrice}
               items={Array.from({ length: labelQty }, () => ({
                 name: form.name || product.name,
                 // Yorliqdagi narx 1 birlik uchun — kod ham shunday o'qiladi

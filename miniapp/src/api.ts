@@ -1105,4 +1105,8 @@ export interface Announce {
   /** to'liq aylanish necha soniyada — kichik son = tezroq */
   speed?: number;
   audience?: string;
+  /** ro'yxatdagi o'rni — bir nechta e'lon bo'lishi mumkin */
+  id?: string;
+  /** hamma e'lonlar. Eski javobda yo'q — o'shanda bittasi ishlatiladi */
+  items?: Announce[];
 }

@@ -780,3 +780,40 @@ tr.picked { background: rgba(0, 122, 255, 0.06); }
 /* Ustama qo'yilmagan maydon — umumiydan olinyapti degani */
 .set-field.inherited input { border-style: dashed; color: var(--muted); }
 .set-note.muted { color: var(--muted); }
+
+/* ── E'lonlar ro'yxati ─────────────────────────────────────────── */
+/* Bitta e'lon o'rniga ro'yxat: har bo'lim uchun o'z xabari bo'ladi. */
+.panel-head {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 12px; flex-wrap: wrap;
+}
+.ann-list { display: flex; flex-direction: column; gap: 12px; margin-top: 14px; }
+.ann-item {
+  border: 1px solid var(--line); border-radius: 12px; padding: 10px;
+  background: var(--bg);
+}
+/* O'chirilgani xiraroq — ro'yxatda darhol ajralib tursin */
+.ann-item.off { opacity: 0.55; }
+.ann-row {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  margin-top: 10px;
+}
+.ann-who { font-size: 13px; font-weight: 600; color: var(--text); }
+.ann-state {
+  font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px;
+  padding: 2px 8px; border-radius: 999px; background: var(--bg); color: var(--muted);
+  border: 1px solid var(--line);
+}
+.ann-state.on { background: rgba(28, 179, 63, 0.12); color: var(--green); border-color: transparent; }
+.ann-acts { display: flex; gap: 6px; margin-left: auto; flex-wrap: wrap; }
+/* Xavfli, lekin ikkinchi darajali amal (masalan "Olib tashlash").
+   .btn.danger to'q qizil FON beradi — bu yerda esa oq fon, qizil
+   yozuv kerak. Uch marta e'lon qilingan .btn.danger qoidasi kuchliroq
+   bo'lgani uchun fon ATAYLAB qaytariladi, aks holda qizil fonda qizil
+   yozuv chiqib, tugma bo'sh ko'rinardi. */
+.btn.ghost.danger {
+  background: var(--card);
+  color: var(--red);
+  border-color: var(--line);
+}
+.btn.ghost.danger:hover { background: rgba(229, 55, 42, 0.07); border-color: var(--red); }

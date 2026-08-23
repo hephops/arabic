@@ -232,10 +232,15 @@ export function Labels({
   items,
   t,
   gold = false,
+  showPrice = false,
 }: {
   items: LabelItem[];
   t: (k: string) => string;
   gold?: boolean;
+  /** Yorliqda narx yozilsinmi. Standart — yo'q: narx o'zgaradi,
+   *  yorliq esa tovarda qolib ketadi va eski narx kassada nizoga
+   *  sabab bo'ladi. */
+  showPrice?: boolean;
 }) {
   if (gold) {
     return (
@@ -253,9 +258,11 @@ export function Labels({
         return (
           <div className="print-label" key={n}>
             <div className="l-name">{item.name}</div>
-            <div className="l-price">
-              {group(item.price)} {t('currency')}
-            </div>
+            {showPrice && (
+              <div className="l-price">
+                {group(item.price)} {t('currency')}
+              </div>
+            )}
             {svg ? (
               <div className="l-code" dangerouslySetInnerHTML={{ __html: svg }} />
             ) : (

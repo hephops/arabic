@@ -98,15 +98,21 @@ export default function App() {
 
   const refresh = () => setRefreshKey((k) => k + 1);
 
-  // E'lon kimga ko'rinadi. 'type:oltin' — faqat o'sha turdagi do'konga:
-  // zargarga tegishli xabar non do'koniga chiqmasin.
-  const showAnnounce =
-    announce?.enabled &&
-    (announce.audience === 'all' ||
-      (announce.audience === 'stopped' && shop?.service && !shop.service.active) ||
-      (announce.audience === 'active' && shop?.service?.active) ||
-      (String(announce.audience ?? '').startsWith('type:') &&
-        String(announce.audience).slice(5) === String(shop?.shop_type ?? '')));
+  /* E'lonlar. Bir nechta bo'lishi mumkin: hammaga bitta, do'kon turiga
+   * yana bittasi. Server ro'yxat qaytaradi (items); eski javobda esa
+   * bitta e'lon bo'lardi — u ham ishlaydi.
+   *
+   * Kimga ko'rinishi shu yerda hal qilinadi: do'kon turi ham, xizmat
+   * holati ham faqat ilovada ma'lum (yo'l ochiq, tokensiz chaqiriladi). */
+  const menga = (a: { audience?: string }) => {
+    const kim = String(a.audience ?? 'all');
+    if (kim === 'all') return true;
+    if (kim === 'stopped') return !!shop?.service && !shop.service.active;
+    if (kim === 'active') return !!shop?.service?.active;
+    if (kim.startsWith('type:')) return kim.slice(5) === String(shop?.shop_type ?? '');
+    return false;
+  };
+  const announces = (announce?.items ?? (announce?.enabled ? [announce] : [])).filter(menga);
 
   const TITLES: Record<Tab, string> = {
     home: t('tabHome'),
@@ -124,24 +130,25 @@ export default function App() {
       {/* E'lon menyu nomining TAGIDAN o'tadi — ekranni bosib qolmasin,
           lekin ko'zga tashlansin. Ichki ekranlarda ham ko'rinadi:
           do'konchi qayerda turganidan qat'i nazar xabarni olishi kerak. */}
-      {showAnnounce && announce && (
+      {announces.map((a, i) => (
         <div
+          key={a.id || i}
           className="announce"
           style={{
-            background: `linear-gradient(90deg, ${announce.bg1}, ${announce.bg2})`,
-            color: announce.color,
-            fontSize: `${announce.size}px`,
-            fontWeight: announce.weight === 'bold' ? 700 : announce.weight === 'medium' ? 500 : 400,
+            background: `linear-gradient(90deg, ${a.bg1}, ${a.bg2})`,
+            color: a.color,
+            fontSize: `${a.size}px`,
+            fontWeight: a.weight === 'bold' ? 700 : a.weight === 'medium' ? 500 : 400,
           }}
         >
-          <div className="announce-run" style={{ animationDuration: `${announce.speed}s` }}>
+          <div className="announce-run" style={{ animationDuration: `${a.speed}s` }}>
             {/* Matn ikki marta: birinchisi chetdan chiqib ketayotganda
                 ikkinchisi kirib keladi, ya'ni uzilish ko'rinmaydi */}
-            <span>{announce.text}</span>
-            <span aria-hidden="true">{announce.text}</span>
+            <span>{a.text}</span>
+            <span aria-hidden="true">{a.text}</span>
           </div>
         </div>
-      )}
+      ))}
       <ToastHost />
       <InstallPrompt />
 

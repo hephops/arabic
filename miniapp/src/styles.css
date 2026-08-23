@@ -2554,3 +2554,10 @@ button.link { background: none; color: var(--accent); font-size: 15px; font-weig
 .gram-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
 .gram-row .proba { width: 58px; flex-shrink: 0; font-weight: 700; font-size: 15px; }
 .gram-row input { margin-bottom: 0; }
+
+/* Varaqdagi belgilash (masalan "Yorliqda narx yozilsin") */
+.sheet-check {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 2px 4px; font-size: 15px; color: var(--text); cursor: pointer;
+}
+.sheet-check input { width: 20px; height: 20px; accent-color: var(--blue); }

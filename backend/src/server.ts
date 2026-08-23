@@ -279,37 +279,51 @@ app.get('/public/support', async () => ({
 }));
 
 /**
- * Yuguruvchi e'lon — ilovaning tepasida menyu tagidan o'tib turadi.
+ * Yuguruvchi e'lonlar — ilovaning tepasida menyu tagidan o'tib turadi.
  *
- * Sozlamalarda bitta JSON bo'lib saqlanadi: matn, ranglar, o'lcham,
- * tezlik va kimga ko'rinishi. Bitta yozuv bo'lgani uchun alohida
- * jadval ochilmadi — ustun qo'shish har o'zgarishda migratsiya
- * talab qilardi, JSON esa yangi maydonni erkin qabul qiladi.
+ * Sozlamalarda bitta JSON bo'lib saqlanadi (announce): matn, ranglar,
+ * o'lcham, tezlik va kimga ko'rinishi. Alohida jadval ochilmadi —
+ * ustun qo'shish har o'zgarishda migratsiya talab qilardi, JSON esa
+ * yangi maydonni erkin qabul qiladi.
+ *
+ * BIR NECHTA e'lon bo'lishi mumkin: zargarlarga bitta xabar, oziq-ovqat
+ * do'konlariga boshqasi, hammaga uchinchisi. Shuning uchun ro'yxat
+ * bo'lib saqlanadi. Eski yozuv bitta obyekt edi — u ham o'qiladi
+ * (bitta elementli ro'yxat deb qaraladi), ya'ni eski sozlama
+ * yo'qolmaydi.
  *
  * Ochiq yo'l: e'lon hammaga mo'ljallangan, kirmagan foydalanuvchi ham
- * ko'rishi mumkin. O'chirilgan bo'lsa bo'sh qaytadi.
+ * ko'rishi mumkin. Kimga ko'rinishini ilova hal qiladi (do'kon turi va
+ * xizmat holati faqat unda ma'lum).
  */
 app.get('/public/announce', async () => {
+  const bosh = { enabled: false, items: [] as any[] };
   try {
     const raw = getSetting('announce', '');
-    if (!raw) return { enabled: false };
-    const a = JSON.parse(raw);
-    if (!a?.enabled || !String(a?.text ?? '').trim()) return { enabled: false };
-    return {
-      enabled: true,
-      text: String(a.text),
-      color: String(a.color ?? '#ffffff'),
-      bg1: String(a.bg1 ?? '#3e97f7'),
-      bg2: String(a.bg2 ?? '#6b5cf6'),
-      size: Number(a.size) || 14,
-      weight: String(a.weight ?? 'bold'),
-      speed: Number(a.speed) || 22,
-      audience: String(a.audience ?? 'all'),
-    };
+    if (!raw) return bosh;
+    const parsed = JSON.parse(raw);
+    const list: any[] = Array.isArray(parsed) ? parsed : [parsed];
+    const items = list
+      .filter((a) => a?.enabled && String(a?.text ?? '').trim())
+      .map((a) => ({
+        id: String(a.id ?? ''),
+        enabled: true,
+        text: String(a.text),
+        color: String(a.color ?? '#ffffff'),
+        bg1: String(a.bg1 ?? '#3e97f7'),
+        bg2: String(a.bg2 ?? '#6b5cf6'),
+        size: Number(a.size) || 14,
+        weight: String(a.weight ?? 'bold'),
+        speed: Number(a.speed) || 22,
+        audience: String(a.audience ?? 'all'),
+      }));
+    // Eski ilova bitta e'lon kutadi — birinchisini eski shaklda ham
+    // qaytaramiz, shunda yangilanmagan varaq ham ishlab turaveradi
+    return { ...(items[0] ?? bosh), items };
   } catch {
     // Buzuq JSON butun ilovani to'xtatmasin — e'lon shunchaki
     // ko'rinmaydi
-    return { enabled: false };
+    return bosh;
   }
 });
 

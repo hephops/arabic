@@ -27,6 +27,7 @@ import {
   priceBases, basisOf, basisText, priceForBasis, priceLabel, PriceBasis,
 } from '../units';
 import { useEscape } from '../useEscape';
+import { labelCount, setLabelCount, labelPrice, setLabelPrice } from '../labelPrefs';
 
 export type KassaMode = 'sale' | 'intake' | 'history';
 
@@ -883,7 +884,9 @@ function IntakeMode({
   // Yorliq oynasi: qaysi tovar uchun, nechta nusxa va chop etish
   const [labelFor, setLabelFor] = useState<Product | null>(null);
   useEscape(() => setLabelFor(null), !!labelFor);
-  const [labelQty, setLabelQty] = useState(gold ? 1 : 8);
+  // Nechta yorliq va narx ko'rsatilsinmi — qurilmada eslab qolinadi
+  const [labelQty, setLabelQty] = useState(gold ? 1 : labelCount());
+  const [labelWithPrice, setLabelWithPrice] = useState(labelPrice());
   const [printing, setPrinting] = useState(false);
   const [weight, setWeight] = useState('');
   const [size, setSize] = useState('');
@@ -1463,11 +1466,24 @@ function IntakeMode({
             <div className="section-title sm">{t('labelCount')}</div>
             <div className="chip-row">
               {[1, 4, 8, 12, 24].map((n) => (
-                <button key={n} className={`chip ${labelQty === n ? 'on' : ''}`} onClick={() => setLabelQty(n)}>
+                <button key={n} className={`chip ${labelQty === n ? 'on' : ''}`} onClick={() => { setLabelQty(n); setLabelCount(n); }}>
                   {n}
                 </button>
               ))}
             </div>
+            {/* Narx yorliqda yozilsinmi. Standart — yo'q: narx
+                o'zgaradi, yorliq esa tovarda qolib ketadi va eski
+                narxli yorliq kassada nizoga sabab bo'ladi. */}
+            {!gold && (
+              <label className="sheet-check">
+                <input
+                  type="checkbox"
+                  checked={labelWithPrice}
+                  onChange={(e) => { setLabelWithPrice(e.target.checked); setLabelPrice(e.target.checked); }}
+                />
+                <span>{t('labelShowPrice')}</span>
+              </label>
+            )}
             <button
               className="btn-primary btn-lg"
               disabled={!labelFor.barcode}
@@ -1484,6 +1500,7 @@ function IntakeMode({
           <Labels
             t={t}
             gold={gold}
+            showPrice={labelWithPrice}
             items={Array.from({ length: labelQty }, () => ({
               name: labelFor.name,
               price: labelFor.sell_price,
