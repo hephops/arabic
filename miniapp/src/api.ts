@@ -300,7 +300,7 @@ export const api = {
    * qarab turadi (model soniyasiga ~44 token yozadi). Bu yerda esa
    * birinchi so'zlar darhol chiqadi.
    */
-  aiStream: async (question: string, on: (e: AiEvent) => void, image?: string) => {
+  aiStream: async (question: string, on: (e: AiEvent) => void, images?: string[]) => {
     // Telefonda aloqa uzilsa oqim shunchaki to'xtab qolishi mumkin —
     // u holda nuqtalar abadiy aylanaverardi. Shu sababli qorovul qo'yamiz:
     // STALL_MS davomida bitta ham bo'lak kelmasa yoki javob TOTAL_MS dan
@@ -365,7 +365,7 @@ export const api = {
       res = await fetch(`${BASE}/ai/stream`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
-        body: JSON.stringify({ question, image }),
+        body: JSON.stringify({ question, images }),
         signal: ac.signal,
       });
     } catch (e) {
@@ -644,6 +644,11 @@ export interface AiDraftItem {
   srok: string;
   /** skaner o'qiydigan kod: nakladnoyda bo'lmasa do'konchi o'zi qo'shadi */
   shtrix_kod?: string;
+  /* Zargarlik birkasidan o'qilgani — nomga emas, o'z maydoniga */
+  proba?: string;
+  massa?: number;
+  olcham?: string;
+  vstavka?: string;
   /* Quyidagilarni vosita ombordan topib qo'shadi — faqat ko'rsatish
      uchun. Do'konchi tovar allaqachon borligini tasdiqlashdan OLDIN
      bilishi kerak, aks holda ikkinchi nusxa ochilib ketardi. */
@@ -684,6 +689,9 @@ export interface AiMessage {
   /** yuborilgan surat: serverdan "/uploads/..." keladi, endigina
       yuborilganda esa ekranda darhol ko'rinishi uchun "data:..." */
   image_url?: string | null;
+  /** Bir xabarga bir nechta surat qo'yilgan bo'lsa — hammasi.
+      Eski yozuvlarda bo'sh keladi, u holda image_url ishlatiladi. */
+  image_urls?: string[] | null;
   created_at: string;
 }
 

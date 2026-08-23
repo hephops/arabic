@@ -165,6 +165,21 @@ Kod va srok haqida:
   ko'rinishida yoz.
 - Ikkalasi ham yo'q bo'lsa bo'sh qoldir — o'zingdan to'qima.
 
+ZARGARLIK BIRKASI (yorliq surati)
+Zargarlik do'konida har buyum yakka: probasi, massasi va o'lchami bor.
+Birka suratini yuborsa kirim_taklif ni shunday to'ldir:
+- nom QISQA bo'lsin: "Uzuk", "Zanjir", "Sirg'a", "Bilaguzuk",
+  "Komplekt". Proba, massa, o'lcham va vstavkani NOMGA YOZMA — ular
+  o'z maydonlarida turadi. Nomga yozilsa ombor bir uyum bo'lib qoladi
+  va proba bo'yicha saralab bo'lmaydi.
+- proba: birkadagi "Проба" (375, 585, 750, 916, 925, 999).
+- massa: "Масса" — grammda, kasr bilan (2.34).
+- olcham: "Размер" (19, 18.5).
+- vstavka: "Вставка" — ko'zi. "-" yoki yo'q bo'lsa bo'sh qoldir.
+- birkadagi uzun raqamni shtrix_kod ga yoz.
+- birlik "dona", miqdor 1 — bitta birka bitta buyum degani.
+- Bir suratda bir necha birka bo'lsa har biriga ALOHIDA qator qil.
+
 Birlik va narx haqida:
 - Birlik: dona, kg, gramm, litr, ml, metr, quti, qop, rulon, m2, m3,
   tonna, juft, komplekt. Do'konchi "10 qop un" desa birlik qop,
@@ -413,6 +428,9 @@ const PHOTO_ASK = "Suratdagi ma'lumotni o'qib ber.";
  */
 const IMG_DAY_CAP = Number(process.env.AI_IMG_DAY_CAP) || 30;
 
+/** Bir savolga qo'shsa bo'ladigan suratlar soni */
+export const MAX_IMAGES = Number(process.env.AI_MAX_IMAGES) || 6;
+
 /** Bugun shu do'kon uchun nechta surat saqlangan */
 function imagesToday(shopId: number): number {
   const r = db
@@ -458,6 +476,19 @@ function dropImageFile(url: unknown) {
   }
 }
 
+/** Xabarga tegishli hamma surat fayli: bittasi ham yetim qolmasin */
+function dropRowImages(row: { image_url?: unknown; image_urls?: unknown }) {
+  const out = new Set<string>();
+  if (row.image_url) out.add(String(row.image_url));
+  try {
+    const list = JSON.parse(String(row.image_urls ?? '[]'));
+    if (Array.isArray(list)) for (const u of list) if (u) out.add(String(u));
+  } catch {
+    /* buzuq yozuv tozalashni to'xtatmasin */
+  }
+  for (const u of out) dropImageFile(u);
+}
+
 /**
  * Suhbatni butunlay o'chirish: avval suratlar, keyin xabarlar, keyin
  * suhbatning o'zi.
@@ -468,9 +499,9 @@ function dropImageFile(url: unknown) {
  */
 export function dropChat(chatId: number) {
   const rows = db
-    .prepare('SELECT image_url FROM ai_messages WHERE chat_id = ? AND image_url IS NOT NULL')
+    .prepare('SELECT image_url, image_urls FROM ai_messages WHERE chat_id = ? AND image_url IS NOT NULL')
     .all(chatId) as any[];
-  for (const r of rows) dropImageFile(r.image_url);
+  for (const r of rows) dropRowImages(r);
   db.prepare('DELETE FROM ai_messages WHERE chat_id = ?').run(chatId);
   db.prepare('DELETE FROM ai_chats WHERE id = ?').run(chatId);
 }
@@ -511,6 +542,9 @@ export interface AskOptions {
   deep?: boolean;
   /** Do'konchi yuborgan surat (daftar, nakladnoy) — data URL */
   image?: string;
+  /** Bir nechta surat: zargarlik birkalari bittalab emas, dastasi
+   *  bilan yuboriladi. `image` — shuning bitta suratli eski shakli. */
+  images?: string[];
 }
 
 /** Oqim hodisalari: do'konchi kutib o'tirmasin, nima bo'layotgani ko'rinsin */
@@ -544,12 +578,19 @@ export async function askStream(opts: AskOptions, emit: (e: AiEvent) => void): P
 async function run(opts: AskOptions, emit?: (e: AiEvent) => void): Promise<AskResult> {
   if (!aiEnabled()) throw new AiError('ai_off', 'AI yoqilmagan');
   const question = String(opts.question ?? '').trim();
-  const img = parseImage(opts.image);
+  // Bir xabarda ko'pi bilan MAX_IMAGES surat. Chegara bor: har surat
+  // modelga alohida pul va vaqt, o'ntasi birdan ketsa javob ham
+  // sekinlashadi, hisob ham sezilarli oshadi.
+  const imgs = [...(Array.isArray(opts.images) ? opts.images : []), ...(opts.image ? [opts.image] : [])]
+    .map((x) => parseImage(x))
+    .filter((x): x is { media: string; data: string } => !!x)
+    .slice(0, MAX_IMAGES);
+  const img = imgs[0] ?? null;
   // Surat yuborilib matn yozilmasligi mumkin — bu to'liq to'g'ri holat:
   // do'konchi daftarni suratga oladi-yu, hech narsa yozmaydi. Shunda
   // MODELGA standart ko'rsatma ketadi, do'konchining PUFAKCHASIGA esa
   // bo'sh matn yoziladi — u yozmagan gap uning nomidan turmasin.
-  if (!question && !img) throw new AiError('empty', "Savol bo'sh");
+  if (!question && !imgs.length) throw new AiError('empty', "Savol bo'sh");
   if (question.length > 2000) throw new AiError('too_long', 'Savol juda uzun');
   const asked = question || PHOTO_ASK;
 
@@ -587,8 +628,11 @@ async function run(opts: AskOptions, emit?: (e: AiEvent) => void): Promise<AskRe
 
   // Surat bo'lsa savol bilan birga ketadi. Rasm BIRINCHI turadi:
   // model avval ko'radi, keyin nima so'ralayotganini o'qiydi.
-  const content: any = img
-    ? [{ type: 'image', source: { type: 'base64', media_type: img.media, data: img.data } }, { type: 'text', text: dated }]
+  const content: any = imgs.length
+    ? [
+        ...imgs.map((x) => ({ type: 'image', source: { type: 'base64', media_type: x.media, data: x.data } })),
+        { type: 'text', text: dated },
+      ]
     : dated;
 
   const messages: Anthropic.MessageParam[] = [...history(chatId), { role: 'user', content }];
@@ -597,9 +641,17 @@ async function run(opts: AskOptions, emit?: (e: AiEvent) => void): Promise<AskRe
   const userMsgId = saveMsg(chatId, opts.shopId, 'user', dated, question);
   // Ekran uchun esa nusxasi faylga tushadi: do'konchi o'z pufakchasida
   // qaysi daftarni yuborganini ko'rib turishi kerak.
-  if (img && imagesToday(opts.shopId) < IMG_DAY_CAP) {
-    const url = saveAiImage(userMsgId, img);
-    if (url) db.prepare('UPDATE ai_messages SET image_url = ? WHERE id = ?').run(url, userMsgId);
+  if (imgs.length && imagesToday(opts.shopId) < IMG_DAY_CAP) {
+    const urls = imgs.map((x) => saveAiImage(userMsgId, x)).filter((u): u is string => !!u);
+    if (urls.length) {
+      // image_url — birinchisi: eski yozuvlarni o'qiydigan joylar
+      // (Telegram, tozalash) faqat shu ustunni biladi
+      db.prepare('UPDATE ai_messages SET image_url = ?, image_urls = ? WHERE id = ?').run(
+        urls[0],
+        JSON.stringify(urls),
+        userMsgId
+      );
+    }
   }
 
   const used: string[] = [];
@@ -842,13 +894,13 @@ export function purgeOld(days: number) {
   // belgisi chiqib qolmasin.
   const stale = db
     .prepare(
-      `SELECT id, image_url FROM ai_messages
+      `SELECT id, image_url, image_urls FROM ai_messages
        WHERE image_url IS NOT NULL AND created_at < datetime('now', ?)`
     )
     .all(`-${days} days`) as any[];
   for (const m of stale) {
-    dropImageFile(m.image_url);
-    db.prepare('UPDATE ai_messages SET image_url = NULL WHERE id = ?').run(m.id);
+    dropRowImages(m);
+    db.prepare('UPDATE ai_messages SET image_url = NULL, image_urls = NULL WHERE id = ?').run(m.id);
   }
   return old.length;
 }

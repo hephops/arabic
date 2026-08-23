@@ -9,6 +9,11 @@ import { useT } from '../i18n';
 import { toast, loadFailed } from '../toast';
 import { haptic, setBackButton } from '../telegram';
 
+// Bir savolga qo'shsa bo'ladigan suratlar soni. Serverdagi chegara
+// bilan bir xil (AI_MAX_IMAGES): ortiqchasi u yerda tashlab
+// yuboriladi, do'konchi esa nega yo'qolganini bilmay qolardi.
+const AI_MAX_PHOTOS = 6;
+
 // AI yordamchi bilan suhbat.
 //
 // Do'konchi telefonda, ish ustida yozadi — shuning uchun ekran oddiy
@@ -99,18 +104,21 @@ export default function Ai({ onBack }: { onBack: () => void }) {
 
   async function send(q: string, img?: string | null) {
     const question = q.trim();
-    const pic = img ?? photo;
-    if ((!question && !pic) || sending.current) return;
+    const pics = img ? [img] : photos;
+    if ((!question && !pics.length) || sending.current) return;
     sending.current = true;
     haptic.select();
     setText('');
     // Savol darhol ekranga chiqadi — javob kutilayotgani bilinib tursin
-    setPhoto(null);
+    setPhotos([]);
     // Surat pufakchaning ichida darhol ko'rinadi: pic — telefonda
     // kichraytirilgan "data:image/jpeg;base64,..." satri, uni serverdan
     // kutish shart emas. Sahifa qayta yuklanganda o'sha xabar tarixdan
     // "/uploads/..." yo'li bilan keladi — <img src> ikkalasini ham tushunadi.
-    setMsgs((m) => [...m, { role: 'user', text: question, image_url: pic ?? null, created_at: '' }]);
+    setMsgs((m) => [
+      ...m,
+      { role: 'user', text: question, image_url: pics[0] ?? null, image_urls: pics, created_at: '' },
+    ]);
     setBusy(true);
     setStatusTool('');
     // Javob bo'lak-bo'lak keladi.
@@ -148,7 +156,7 @@ export default function Ai({ onBack }: { onBack: () => void }) {
             addDrafts([{ at: msgs.length + 1, id: e.draft_id, items: e.items }]);
           }
         },
-        pic ?? undefined
+        pics.length ? pics : undefined
       );
       if (!acc) push(t('aiNoAnswer'));
       api.aiStatus().then(setStatus).catch(() => {});
@@ -171,8 +179,12 @@ export default function Ai({ onBack }: { onBack: () => void }) {
   const [tgSent, setTgSent] = useState(-1);
   const [quotaOpen, setQuotaOpen] = useState(false);
   const [warnHidden, setWarnHidden] = useState(false);
-  // Yuborilishi kutilayotgan surat (data URL) va uning ko'rinishi
-  const [photo, setPhoto] = useState<string | null>(null);
+  // Yuborilishi kutilayotgan suratlar (data URL).
+  //
+  // Bitta emas, ro'yxat: zargar birkalarni bittalab emas, dastasi
+  // bilan suratga oladi — har biri uchun alohida savol yuborish ham
+  // sekin, ham pulli.
+  const [photos, setPhotos] = useState<string[]>([]);
   // To'liq ekranda ochilgan surat: nakladnoydagi mayda yozuvni
   // pufakchadagi kichik rasmdan o'qib bo'lmaydi
   const [zoom, setZoom] = useState<string | null>(null);
@@ -273,15 +285,29 @@ export default function Ai({ onBack }: { onBack: () => void }) {
 
         {shown.map((m, i) => {
           // "data:" — endigina yuborilgan surat, qolgani serverdagi fayl
-          const img = m.image_url
-            ? m.image_url.startsWith('data:')
-              ? m.image_url
-              : BASE + m.image_url
-            : null;
+          const toUrl = (u: string) => (u.startsWith('data:') ? u : BASE + u);
+          const imgs = (m.image_urls?.length ? m.image_urls : m.image_url ? [m.image_url] : []).map(toUrl);
+          const img = imgs[0] ?? null;
           return (
             <div key={i} className={`ai-msg-wrap ${m.role}`}>
               <div className={`ai-msg ${m.role}${img ? ' with-img' : ''}`}>
-                {img && (
+                {imgs.length > 1 && (
+                  <div className="ai-msg-imgs">
+                    {imgs.map((u, k) => (
+                      <img
+                        key={k}
+                        src={u}
+                        alt=""
+                        loading="lazy"
+                        onLoad={() => {
+                          if (i === shown.length - 1) endRef.current?.scrollIntoView({ block: 'end' });
+                        }}
+                        onClick={() => setZoom(u)}
+                      />
+                    ))}
+                  </div>
+                )}
+                {imgs.length === 1 && img && (
                   <img
                     className="ai-msg-img"
                     src={img}
@@ -421,12 +447,28 @@ export default function Ai({ onBack }: { onBack: () => void }) {
           </div>
         )}
 
-        {/* Tanlangan surat — yuborishdan oldin ko'rinib tursin */}
-        {photo && (
+        {/* Tanlangan suratlar — yuborishdan oldin ko'rinib tursin.
+            Har birini alohida olib tashlash mumkin. */}
+        {photos.length > 0 && (
           <div className="ai-photo">
-            <img src={photo} alt="" />
-            <div className="ai-photo-txt">{t('aiPhotoHint')}</div>
-            <button className="ai-warn-x" onClick={() => setPhoto(null)} aria-label={t('cancel')}>
+            <div className="ai-photo-strip">
+              {photos.map((p, k) => (
+                <div className="ai-photo-one" key={k}>
+                  <img src={p} alt="" onClick={() => setZoom(p)} />
+                  <button
+                    className="ai-photo-x"
+                    onClick={() => setPhotos((list) => list.filter((_, j) => j !== k))}
+                    aria-label={t('cancel')}
+                  >
+                    <Glyph name="close" size={12} color="#fff" />
+                  </button>
+                </div>
+              ))}
+            </div>
+            <div className="ai-photo-txt">
+              {photos.length > 1 ? `${photos.length} ta surat · ${t('aiPhotoHint')}` : t('aiPhotoHint')}
+            </div>
+            <button className="ai-warn-x" onClick={() => setPhotos([])} aria-label={t('cancel')}>
               <Glyph name="close" size={15} color="var(--muted)" />
             </button>
           </div>
@@ -439,16 +481,30 @@ export default function Ai({ onBack }: { onBack: () => void }) {
             ref={fileRef}
             type="file"
             accept="image/*"
+            multiple
             style={{ display: 'none' }}
             onChange={async (e) => {
-              const f = e.target.files?.[0];
+              const files = Array.from(e.target.files ?? []);
               e.target.value = '';
-              if (!f) return;
-              try {
-                setPhoto(await shrink(f));
-              } catch {
-                // Buzuq rasmni jimgina yuborgandan ko'ra aytgan yaxshi
-                toast.error(t('aiPhotoFail'), t('aiPhotoFailSub'));
+              if (!files.length) return;
+              let xato = 0;
+              const yangi: string[] = [];
+              for (const f of files) {
+                // Chegara — serverdagi bilan bir xil: ortiqchasi
+                // jimgina tashlab yuborilgandan ko'ra shu yerda
+                // to'xtagani ma'qul
+                if (photos.length + yangi.length >= AI_MAX_PHOTOS) break;
+                try {
+                  yangi.push(await shrink(f));
+                } catch {
+                  xato++;
+                }
+              }
+              if (yangi.length) setPhotos((list) => [...list, ...yangi].slice(0, AI_MAX_PHOTOS));
+              // Buzuq rasmni jimgina yuborgandan ko'ra aytgan yaxshi
+              if (xato) toast.error(t('aiPhotoFail'), t('aiPhotoFailSub'));
+              else if (photos.length + files.length > AI_MAX_PHOTOS) {
+                toast.info(t('aiPhotoMax').replace('{n}', String(AI_MAX_PHOTOS)));
               }
             }}
           />
@@ -476,7 +532,7 @@ export default function Ai({ onBack }: { onBack: () => void }) {
         <button
             className="ai-send"
             onClick={() => send(text)}
-            disabled={busy || (!text.trim() && !photo)}
+            disabled={busy || (!text.trim() && !photos.length)}
             aria-label={t('send')}
           >
           <Glyph name="arrowUp" size={20} color="#fff" strokeWidth={2.4} />

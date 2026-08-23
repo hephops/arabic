@@ -749,8 +749,12 @@ TOOLS.push({
             sotuv_narxi: { type: 'number', description: "bir birlik uchun. Bilmasang 0" },
             srok: { type: 'string', description: 'YYYY-MM-DD yoki bo\'sh satr' },
             shtrix_kod: { type: 'string', description: "nakladnoydagi shtrix-kod yoki artikul raqami, bo'lmasa bo'sh satr" },
+            proba: { type: 'string', description: "faqat zargarlik: 375, 585, 750, 916, 925, 999. Bo'lmasa bo'sh satr" },
+            massa: { type: 'number', description: 'faqat zargarlik: buyum og\'irligi grammda (2.34). Bo\'lmasa 0' },
+            olcham: { type: 'string', description: "faqat zargarlik: uzuk yoki bilaguzuk o'lchami (19). Bo'lmasa bo'sh satr" },
+            vstavka: { type: 'string', description: "faqat zargarlik: ko'zi (brilliant, fianit). Yo'q bo'lsa bo'sh satr" },
           },
-          required: ['nom', 'miqdor', 'birlik', 'kirim_narxi', 'sotuv_narxi', 'srok', 'shtrix_kod'],
+          required: ['nom', 'miqdor', 'birlik', 'kirim_narxi', 'sotuv_narxi', 'srok', 'shtrix_kod', 'proba', 'massa', 'olcham', 'vstavka'],
           additionalProperties: false,
         },
       },
@@ -774,6 +778,14 @@ TOOLS.push({
         // qidiriladi — xato kod bilan begona tovarga tushgandan ko'ra
         // shunisi xavfsiz.
         shtrix_kod: cleanBarcode(r?.shtrix_kod),
+        // Zargarlik birkasidagi to'rt qator. Bular NOMGA emas, o'z
+        // maydonlariga tushadi: aks holda ombor "Uzuk 585 proba,
+        // o'lcham 19, massa 2.34 g" degan uzun nomlar uyumi bo'lardi
+        // va proba bo'yicha saralash ham ishlamasdi.
+        proba: String(r?.proba ?? '').replace(/\D/g, '').slice(0, 4),
+        massa: Math.max(0, Number(String(r?.massa ?? '').replace(',', '.')) || 0),
+        olcham: String(r?.olcham ?? '').trim().slice(0, 40),
+        vstavka: String(r?.vstavka ?? '').trim().slice(0, 40),
       }))
       .filter((r: any) => r.nom && r.miqdor > 0);
 

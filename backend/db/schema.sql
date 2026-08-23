@@ -503,6 +503,10 @@ CREATE TABLE IF NOT EXISTS ai_messages (
   -- Suratning o'zi content ga yozilmaydi — base64 megabaytlab joy
   -- egallaydi; ekranda ko'rsatish uchun shu yo'l yetarli.
   image_url TEXT,
+  -- Bir xabarga bir nechta surat yuborilsa — hammasining yo'li (JSON
+  -- ro'yxat). image_url birinchisini saqlaydi: eski yozuvlar va
+  -- Telegram yo'li faqat o'shani biladi.
+  image_urls TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_ai_messages_chat ON ai_messages(chat_id, id);

@@ -334,7 +334,7 @@ export function registerAiRoutes(app: FastifyInstance, opts: { requireAi: Guard;
   });
 
   /** Savol berish */
-  app.post<{ Body: { question?: string; deep?: boolean; image?: string } }>(
+  app.post<{ Body: { question?: string; deep?: boolean; image?: string; images?: string[] } }>(
     '/ai/ask',
     { preHandler: opts.requireAi },
     async (req, reply) => {
@@ -348,6 +348,7 @@ export function registerAiRoutes(app: FastifyInstance, opts: { requireAi: Guard;
           channel: 'app',
           deep: !!req.body?.deep,
           image: typeof req.body?.image === 'string' ? req.body.image : undefined,
+          images: Array.isArray(req.body?.images) ? req.body!.images.filter((x) => typeof x === 'string') : undefined,
         });
         // Sarf do'konchiga ko'rsatilmaydi — u obunaga kirgan, har
         // savolda "shuncha so'm ketdi" deb turish bezovta qiladi
@@ -371,7 +372,7 @@ export function registerAiRoutes(app: FastifyInstance, opts: { requireAi: Guard;
    * Ilova esa shu yo'ldan yuradi — do'konchi bo'sh ekranga qarab
    * o'tirmasin.
    */
-  app.post<{ Body: { question?: string; deep?: boolean; image?: string } }>(
+  app.post<{ Body: { question?: string; deep?: boolean; image?: string; images?: string[] } }>(
     '/ai/stream',
     { preHandler: opts.requireAi },
     async (req, reply) => {
@@ -418,6 +419,7 @@ export function registerAiRoutes(app: FastifyInstance, opts: { requireAi: Guard;
             channel: 'app',
             deep: !!req.body?.deep,
             image: typeof req.body?.image === 'string' ? req.body.image : undefined,
+            images: Array.isArray(req.body?.images) ? req.body!.images.filter((x) => typeof x === 'string') : undefined,
           },
           send
         );
@@ -743,6 +745,13 @@ export function registerAiRoutes(app: FastifyInstance, opts: { requireAi: Guard;
             // yangi tovarga darhol biriktiriladi — keyin skaner bilan
             // sotiladi
             barcode,
+            // Zargarlik birkasidan o'qilgani. Bo'sh bo'lsa
+            // YUBORILMAYDI: /products/intake bo'sh qiymatni yozib,
+            // mavjud kartochkadagi probani o'chirib yuborardi.
+            proba: String(r?.proba ?? '').replace(/\D/g, '').slice(0, 4) || undefined,
+            weight_g: Number(String(r?.massa ?? '').replace(',', '.')) || undefined,
+            size: String(r?.olcham ?? '').trim().slice(0, 40) || undefined,
+            stone: String(r?.vstavka ?? '').trim().slice(0, 40) || undefined,
           },
         });
         if (res.statusCode === 200) {
@@ -854,11 +863,24 @@ export function registerAiRoutes(app: FastifyInstance, opts: { requireAi: Guard;
     // qo'ymaydi. Matnsiz, faqat suratli xabar esa endi ko'rinadi.
     return db
       .prepare(
-        `SELECT role, text, image_url, created_at FROM ai_messages
+        `SELECT role, text, image_url, image_urls, created_at FROM ai_messages
          WHERE chat_id = ? AND ((text IS NOT NULL AND text != '') OR image_url IS NOT NULL)
          ORDER BY id LIMIT 100`
       )
-      .all(chat.id);
+      .all(chat.id)
+      // Ro'yxat ilovaga tayyor massiv bo'lib boradi: bir xabarda bir
+      // nechta surat bo'lsa hammasi pufakchada ko'rinsin
+      .map((m: any) => {
+        let list: string[] = [];
+        try {
+          const raw = JSON.parse(String(m.image_urls ?? '[]'));
+          if (Array.isArray(raw)) list = raw.filter((x: unknown) => typeof x === 'string');
+        } catch {
+          /* buzuq yozuv tarixni to'xtatmasin */
+        }
+        if (!list.length && m.image_url) list = [String(m.image_url)];
+        return { ...m, image_urls: list };
+      });
   });
 
   /** Suhbatni tozalash — do'konchi o'zi o'chira olsin */

@@ -8,7 +8,7 @@ import { qtyText, normalizeUnit } from '../units';
 import { formatAmount, amountValue } from '../format';
 import { DateField } from '../ui';
 import Scanner from '../Scanner';
-import { profile } from '../shopTypes';
+import { profile, goldShop, PROBAS } from '../shopTypes';
 
 // Rasmdan o'qilgan kirim taklifi.
 //
@@ -129,6 +129,7 @@ export default function AiDraft({
     setWarn(null);
   }
 
+  const gold = goldShop();
   // Birligi yoki kirim narxi yo'q qator — do'konchining qo'li tegishi shart
   const toFill = (r: Row) => !r.birlik || !r.kirim_narxi;
   // To'ldirilmagani o'zi ochiq turadi: uzun nakladnoyda do'konchi qaysi
@@ -236,6 +237,9 @@ export default function AiDraft({
         // Yopiq qatorda eng kerakli uchtasi bir satrda turadi
         const meta = [
           r.miqdor ? `${qtyText(r.miqdor)}${r.birlik ? ` ${r.birlik}` : ''}` : '',
+          // Zargarlikda buyumni ajratadigan narsa nomi emas, birkasi:
+          // yopiq qatorda ham proba va massa ko'rinib tursin
+          gold ? [r.proba, r.massa ? `${r.massa} g` : '', r.olcham ? `№${r.olcham}` : ''].filter(Boolean).join(' · ') : '',
           r.kirim_narxi ? fmt(r.kirim_narxi) : '',
         ]
           .filter(Boolean)
@@ -393,6 +397,52 @@ export default function AiDraft({
                       </span>
                     )}
                   </div>
+                )}
+
+                {/* Zargarlik birkasining to'rt qatori. Yordamchi ularni
+                    rasmdan o'qib qo'yadi, do'konchi shu yerda tuzatadi.
+                    Nomga yozilsa ombor saralanmay qolardi. */}
+                {gold && (
+                  <>
+                    <label>
+                      <span>{t('goldProba')}</span>
+                      <select
+                        className="proba"
+                        value={r.proba || ''}
+                        onChange={(e) => set(i, { proba: e.target.value })}
+                      >
+                        <option value="">—</option>
+                        {Array.from(new Set([...PROBAS, ...(r.proba ? [r.proba] : [])])).map((v) => (
+                          <option key={v} value={v}>{v}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      <span>{t('goldWeight')}</span>
+                      <input
+                        className="massa"
+                        inputMode="decimal"
+                        value={String(r.massa ?? '')}
+                        onChange={(e) => set(i, { massa: Number(e.target.value.replace(',', '.')) || 0 })}
+                      />
+                    </label>
+                    <label>
+                      <span>{t('goldSize')}</span>
+                      <input
+                        className="olcham"
+                        value={r.olcham ?? ''}
+                        onChange={(e) => set(i, { olcham: e.target.value })}
+                      />
+                    </label>
+                    <label>
+                      <span>{t('goldStone')}</span>
+                      <input
+                        className="vstavka"
+                        value={r.vstavka ?? ''}
+                        onChange={(e) => set(i, { vstavka: e.target.value })}
+                      />
+                    </label>
+                  </>
                 )}
 
                 <label className="wide">

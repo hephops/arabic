@@ -161,6 +161,10 @@ for (const sql of [
   'ALTER TABLE shops ADD COLUMN referral_paid_at TEXT',
   // Balans ogohlantirishi qaysi kuni yuborilgani — kuniga bir marta
   'ALTER TABLE shops ADD COLUMN low_notified_on TEXT',
+  // Bir xabarga bir nechta surat (JSON ro'yxat). Birinchisi eskisidek
+  // image_url da ham turadi: eski yozuvlar va Telegram yo'li o'sha
+  // ustunni o'qiydi.
+  'ALTER TABLE ai_messages ADD COLUMN image_urls TEXT',
 ]) {
   try {
     db.exec(sql);
