@@ -13,8 +13,15 @@ const TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 kun
 // (perms.ts). Balans, xodimlar ro'yxati va taklif kodi esa hech qachon
 // berilmaydi — ular faqat egada (requireOwner).
 
-export function signToken(shopId: number, employeeId?: number): string {
-  const exp = Date.now() + TOKEN_TTL_MS;
+/**
+ * Token yasash.
+ *
+ * `ttlMs` berilsa muddat qisqaroq bo'ladi. Bu admin panelidan do'kon
+ * kabinetiga kirish uchun kerak: o'sha token 30 kun yashashi shart
+ * emas — brauzerda unutilib qolsa uzoq muddat ochiq turmasin.
+ */
+export function signToken(shopId: number, employeeId?: number, ttlMs = TOKEN_TTL_MS): string {
+  const exp = Date.now() + ttlMs;
   const body = employeeId ? `e.${shopId}.${employeeId}.${exp}` : `${shopId}.${exp}`;
   const sig = createHmac('sha256', SECRET).update(body).digest('hex');
   return `${body}.${sig}`;

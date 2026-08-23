@@ -7,6 +7,23 @@ import './styles.css';
 import { initTelegram } from './telegram';
 import { rememberRef } from './api';
 
+// Admin paneldan "kabinetga kirish": token URL manzilining hash
+// qismida keladi (#token=...). Hash serverga YUBORILMAYDI — ya'ni
+// token tarmoqda, jurnal fayllarda yoki proksida ko'rinmaydi.
+//
+// Tokenni saqlab, manzildan darhol tozalaymiz: brauzer tarixida
+// yoki yangilanganda qayta ishlatilmasin.
+(() => {
+  const m = /[#&]token=([^&]+)/.exec(location.hash);
+  if (!m) return;
+  try {
+    localStorage.setItem('token', decodeURIComponent(m[1]));
+  } catch {
+    /* localStorage yopiq bo'lishi mumkin */
+  }
+  history.replaceState(null, '', location.pathname + location.search);
+})();
+
 // Telegram Mini App muhitida ekranni to'liq ochamiz va mavzuga moslashamiz
 initTelegram();
 

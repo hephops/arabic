@@ -18,6 +18,7 @@ import {
 } from './billing.js';
 import { agentByPhone, linkAgent, agentBonus } from './agentcore.js';
 import { SHOP_TYPES } from './shopTypes.js';
+import { signToken } from './auth.js';
 
 // Admin panel: alohida autentifikatsiya (login + parol) va boshqaruv API'si.
 // Do'konchi tokeni bilan admin API'ga kirib bo'lmaydi — token turi ajratilgan.
@@ -147,14 +148,23 @@ export function registerAdminRoutes(app: FastifyInstance) {
   // Kirish
   app.post<{ Body: { username: string; password: string } }>('/admin/login', async (req, reply) => {
     const { username, password } = req.body ?? {};
+    // Login KATTA-KICHIK harfga qaramaydi.
+    //
+    // Targ'ovchi xodim yaratilganda logini kichik harfga o'giriladi
+    // ("Aziz" -> "aziz"), lekin kirishda AYNAN yozilgani qidirilardi —
+    // ya'ni xodim o'zi bergan login bilan hech qachon kira olmasdi.
+    const key = String(username ?? '').trim().toLowerCase();
     // Parolni terib topishga urinishlar cheklanadi
-    const gate = hit(`adm:${username ?? ''}`, { max: 6, windowMs: 10 * 60_000, blockMs: 20 * 60_000 });
+    const gate = hit(`adm:${key}`, { max: 6, windowMs: 10 * 60_000, blockMs: 20 * 60_000 });
     if (!gate.ok) return reply.code(429).send({ error: 'too_many_attempts', retry_after: gate.retryAfter });
-    const admin = db.prepare('SELECT * FROM admins WHERE username = ?').get(username) as any;
+    // Bir xil nom faqat harf o'lchami bilan farq qilsa (eski bazada
+    // qolgan bo'lishi mumkin) — kimligi noaniq, kiritmaymiz.
+    const topilgan = db.prepare('SELECT * FROM admins WHERE username = ? COLLATE NOCASE').all(key) as any[];
+    const admin = topilgan.length === 1 ? topilgan[0] : null;
     if (!admin || !admin.is_active || !checkPassword(password ?? '', admin.password_hash)) {
       return reply.code(401).send({ error: 'invalid_credentials' });
     }
-    reset(`adm:${username}`);
+    reset(`adm:${key}`);
     db.prepare("UPDATE admins SET last_login_at = datetime('now') WHERE id = ?").run(admin.id);
     log(admin.id, 'login');
     return {
@@ -697,6 +707,41 @@ export function registerAdminRoutes(app: FastifyInstance) {
       const counts: Record<string, number> = {};
       for (const r of rows) counts[r.kind] = (counts[r.kind] ?? 0) + 1;
       return { items: filtered.slice(0, limit), counts, total: filtered.length };
+    }
+  );
+
+  /* ═══════════ Do'kon kabinetiga kirish ═══════════
+   *
+   * Texnik yordam uchun: do'konchi "menda shunday chiqyapti" desa,
+   * admin uning ekranini o'z ko'zi bilan ko'radi. Parol so'ralmaydi —
+   * do'konchining parolini bilish shart emas va bilinmasligi kerak.
+   *
+   * DO'KON TOMONIDA IZ QOLMAYDI:
+   *   - employee_logins ga yozilmaydi, ya'ni do'konning "Loglar"
+   *     bo'limida ko'rinmaydi;
+   *   - egaga "xodim kirdi" degan Telegram xabari ketmaydi.
+   * Aks holda har texnik ko'rikda do'konchi bezovta bo'lardi.
+   *
+   * LEKIN kompaniyaning O'Z jurnaliga (admin_logs → "Audit jurnali")
+   * yoziladi: kim, qachon, qaysi do'kon kabinetiga kirgani. Panelga
+   * kirish huquqi bir necha odamda, shuning uchun bu yozuv ham do'kon
+   * egasi oldida, ham kompaniya ichida javobgarlik uchun kerak.
+   *
+   * Token qisqa muddatli (2 soat): brauzerda unutilib qolsa uzoq
+   * ochiq turmasin.
+   *
+   * Faqat ADMIN: targ'ovchi xodim (role='agent') bu yo'lga tushmaydi.
+   */
+  app.post<{ Params: { id: string } }>(
+    '/admin/shops/:id/login',
+    { preHandler: requireAdmin },
+    async (req, reply) => {
+      const shop = db.prepare('SELECT id, name FROM shops WHERE id = ?').get(req.params.id) as any;
+      if (!shop) return reply.code(404).send({ error: 'not_found' });
+      const TTL = 2 * 60 * 60 * 1000;
+      const token = signToken(shop.id, undefined, TTL);
+      log(req.admin!.id, 'shop_login', `shop:${shop.id}`, shop.name ?? '');
+      return { token, shop: { id: shop.id, name: shop.name }, expires_in: TTL };
     }
   );
 
@@ -1335,11 +1380,28 @@ export function registerAdminRoutes(app: FastifyInstance) {
       if (!username?.trim() || !password || password.length < 6) {
         return reply.code(400).send({ error: 'username_and_password6_required' });
       }
+      // Login har doim kichik harfda saqlanadi — kirishda ham
+      // shunday qidiriladi. "Aziz" va "aziz" ikki xil hisob
+      // bo'lib qolmasin.
+      const login = username.trim().toLowerCase();
+      if (db.prepare('SELECT id FROM admins WHERE username = ? COLLATE NOCASE').get(login)) {
+        return reply.code(409).send({ error: 'username_taken' });
+      }
+      // Noma'lum rol JIMGINA "admin" ga aylanmasin.
+      //
+      // Ilgari `role === 'super' ? 'super' : 'admin'` edi: bu yo'lga
+      // xato bilan 'agent' yuborilsa, targ'ovchi xodim bo'lish o'rniga
+      // TO'LIQ ADMIN bo'lib qolardi — ya'ni huquq kamayish o'rniga
+      // oshib ketardi. Targ'ovchi xodim o'z yo'li bilan yaratiladi
+      // (/admin/agents).
+      if (role !== undefined && role !== 'admin' && role !== 'super') {
+        return reply.code(400).send({ error: 'bad_role', allowed: ['admin', 'super'] });
+      }
       try {
         const info = db
           .prepare('INSERT INTO admins (username, password_hash, name, role) VALUES (?, ?, ?, ?)')
-          .run(username.trim(), hashPassword(password), name ?? null, role === 'super' ? 'super' : 'admin');
-        log(req.admin!.id, 'create_admin', username);
+          .run(login, hashPassword(password), name ?? null, role === 'super' ? 'super' : 'admin');
+        log(req.admin!.id, 'create_admin', login);
         return db
           .prepare('SELECT id, username, name, role, is_active FROM admins WHERE id = ?')
           .get(info.lastInsertRowid);

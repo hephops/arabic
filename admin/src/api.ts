@@ -99,6 +99,14 @@ export const api = {
       method: 'POST',
       body: '{}',
     }),
+  /** Do'kon kabinetiga kirish uchun qisqa muddatli token (2 soat).
+   *  Parol so'ralmaydi; do'kon "Loglar"ida ko'rinmaydi, faqat
+   *  kompaniya audit jurnaliga yoziladi. */
+  shopLogin: (id: number) =>
+    request<{ token: string; shop: { id: number; name: string }; expires_in: number }>(
+      `/admin/shops/${id}/login`,
+      { method: 'POST', body: '{}' }
+    ),
   /** Do'kon jurnali — barcha harakatlar bir ro'yxatda */
   shopActivity: (id: number, limit = 300, kind = '') =>
     request<{ items: ShopActivity[]; counts: Record<string, number>; total: number }>(

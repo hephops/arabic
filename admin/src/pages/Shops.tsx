@@ -271,6 +271,33 @@ function ShopModal({
   const [tab, setTab] = useState<'info' | 'balance' | 'log'>('info');
   const [data, setData] = useState(shop);
   const [msg, setMsg] = useState('');
+  const [entering, setEntering] = useState(false);
+
+  /* Kabinetga kirish.
+   *
+   * Server qisqa muddatli token beradi (2 soat, parolsiz). Ilova
+   * boshqa manzilda (admin.buysale.uz → app.buysale.uz), shuning
+   * uchun token URL HASH orqali uzatiladi: hash serverga yuborilmaydi,
+   * ya'ni tarmoqda, proksida yoki jurnal fayllarda ko'rinmaydi.
+   * Ilova uni o'qib, saqlaydi va manzildan darhol tozalaydi. */
+  async function enterCabinet() {
+    setEntering(true);
+    setMsg('');
+    try {
+      const { token } = await api.shopLogin(data.id);
+      // admin.<domen> → app.<domen>. Localhostda esa 5173-port.
+      const h = location.hostname;
+      const appUrl =
+        h === 'localhost' || h === '127.0.0.1'
+          ? `${location.protocol}//${h}:5173/`
+          : `${location.protocol}//${h.replace(/^admin\./, 'app.')}/`;
+      window.open(`${appUrl}#token=${encodeURIComponent(token)}`, '_blank', 'noopener');
+    } catch (e: any) {
+      setMsg(e.message);
+    } finally {
+      setEntering(false);
+    }
+  }
   const [grantDays, setGrantDays] = useState('30');
   // Do'kon ma'lumotlari shu oynada tahrirlanadi
   const [eName, setEName] = useState(shop.name ?? '');
@@ -383,6 +410,14 @@ function ShopModal({
         <div className="modal-sub">
           {fmtPhone(data.phone)} {data.owner_name && `· ${data.owner_name}`}
           {data.telegram_user_id ? ' · Telegram ulangan' : ''}
+        </div>
+
+        {/* Kabinetga kirish — texnik yordam uchun. Parolsiz, do'kon
+            ilovasini yangi tabda o'sha do'kon nomidan ochadi. */}
+        <div className="toolbar" style={{ margin: '10px 0 4px' }}>
+          <button className="btn ghost" onClick={enterCabinet} disabled={entering}>
+            <Glyph name="logout" size={14} /> {entering ? 'Ochilmoqda…' : 'Kabinetga kirish'}
+          </button>
         </div>
 
         <div className="cards" style={{ gridTemplateColumns: 'repeat(3, 1fr)', marginBottom: 14 }}>

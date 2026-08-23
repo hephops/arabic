@@ -88,6 +88,11 @@ export function registerAgentRoutes(app: FastifyInstance) {
       // bilib bo'lmasdi.
       if (phoneKey(phone).length < 9) return reply.code(400).send({ error: 'phone_invalid' });
       if (agentByPhone(phone)) return reply.code(409).send({ error: 'phone_taken' });
+      // Login kichik harfda saqlanadi; katta-kichik farqi bilan
+      // ikkinchi hisob yaratilib qolmasin
+      if (db.prepare('SELECT id FROM admins WHERE username = ? COLLATE NOCASE').get(username)) {
+        return reply.code(409).send({ error: 'username_taken' });
+      }
       try {
         const info = db
           .prepare("INSERT INTO admins (username, password_hash, name, phone, role) VALUES (?, ?, ?, ?, 'agent')")
