@@ -8,6 +8,7 @@ import { ask, askStream, AiError, spend, purgeOld, dropChat, type AiEvent } from
 import { KEEP_DAYS, aiEnabled, aiKey, model as aiModel, dailyLimit, questionPrice } from './config.js';
 import { cleanBarcode, simpleName } from './tools.js';
 import { normalizeBarcode, barcodeVariants } from '../barcodes.js';
+import { shopProfile } from '../shopTypes.js';
 
 type Guard = (req: FastifyRequest, reply: FastifyReply) => Promise<unknown>;
 
@@ -602,6 +603,9 @@ export function registerAiRoutes(app: FastifyInstance, opts: { requireAi: Guard;
       // shu ro'yxatda bo'lmaydi — pastda ikkisi boshqacha ko'riladi.
       // O'qib bo'lmasa null qoladi: u holda hamma kod suratdan kelgan
       // deb hisoblanadi, ya'ni qattiqroq tekshiriladi.
+      const uniqueShop = shopProfile(
+        db.prepare('SELECT shop_type FROM shops WHERE id = ?').get(req.shopId) as any
+      ).unique;
       let aiCodes: Set<string> | null = null;
       // Taklif tuzilganda qanday nomlar bo'lgani. Do'konchi kartada
       // nomni TUZATGAN bo'lsa (yordamchi qo'lyozmani noto'g'ri o'qigan
@@ -695,8 +699,14 @@ export function registerAiRoutes(app: FastifyInstance, opts: { requireAi: Guard;
         // Code-128 ni ham o'qiydi), shuning uchun ilovaning boshqa
         // joylaridagi kabi o'zgarishsiz ketadi.
         const rawCode = String(r?.shtrix_kod ?? '').replace(/[^0-9A-Za-z]/g, '').slice(0, 32);
+        // Yakka buyumli do'konda (zargarlik, telefon) suratdan kelgan
+        // kod ham qat'iy tekshiruvsiz o'tadi: birkadagi raqam GTIN
+        // emas va tekshiruvdan hech qachon o'tmaydi, xato kodning
+        // zarari esa yo'q — har kirim o'z kartochkasini ochadi.
         let barcode =
-          (aiCodes && !aiCodes.has(rawCode) ? normalizeBarcode(rawCode) : cleanBarcode(rawCode)) || undefined;
+          (uniqueShop || (aiCodes && !aiCodes.has(rawCode))
+            ? normalizeBarcode(rawCode)
+            : cleanBarcode(rawCode)) || undefined;
 
         // Kod BOSHQA tovarga biriktirilgan bo'lsa.
         //

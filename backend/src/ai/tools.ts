@@ -11,7 +11,7 @@
 import { db } from '../db.js';
 import { dailyPrice } from '../billing.js';
 import { barcodeVariants, normalizeBarcode, checkGtin } from '../barcodes.js';
-import { lowStockApplies } from '../shopTypes.js';
+import { lowStockApplies, shopProfile } from '../shopTypes.js';
 
 export interface ToolDef {
   name: string;
@@ -764,6 +764,9 @@ TOOLS.push({
   },
   run: (shopId, i) => {
     const rows = Array.isArray(i.tovarlar) ? i.tovarlar.slice(0, 40) : [];
+    // Yakka buyumli do'kon (zargarlik, telefon) — kod boshqacha
+    // ko'riladi, pastda tushuntirilgan
+    const unique = shopProfile(db.prepare('SELECT shop_type FROM shops WHERE id = ?').get(shopId) as any).unique;
     const items = rows
       .map((r: any) => ({
         nom: String(r?.nom ?? '').trim().slice(0, 120),
@@ -777,7 +780,16 @@ TOOLS.push({
         // qara). O'tmasa qator kodsiz qoladi va tovar nomi bo'yicha
         // qidiriladi — xato kod bilan begona tovarga tushgandan ko'ra
         // shunisi xavfsiz.
-        shtrix_kod: cleanBarcode(r?.shtrix_kod),
+        //
+        // LEKIN zargarlik birkasidagi raqam GTIN emas: u 16 xonali
+        // zavod raqami va nazorat raqamiga bo'ysunmaydi — tekshiruv
+        // uni HAR DOIM tashlab yuborardi, do'konchi esa birkadagi
+        // raqamni qo'lda ko'chirib o'tirardi. Yakka buyumli do'konda
+        // xato kodning zarari ham yo'q: har kirim o'z kartochkasini
+        // ochadi, begona tovarning qoldig'i oshib qolmaydi.
+        shtrix_kod: unique
+          ? normalizeBarcode(String(r?.shtrix_kod ?? '').replace(/[^0-9A-Za-z]/g, '').slice(0, 32))
+          : cleanBarcode(r?.shtrix_kod),
         // Zargarlik birkasidagi to'rt qator. Bular NOMGA emas, o'z
         // maydonlariga tushadi: aks holda ombor "Uzuk 585 proba,
         // o'lcham 19, massa 2.34 g" degan uzun nomlar uyumi bo'lardi
