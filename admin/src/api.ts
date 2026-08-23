@@ -99,6 +99,11 @@ export const api = {
       method: 'POST',
       body: '{}',
     }),
+  /** Do'kon jurnali — barcha harakatlar bir ro'yxatda */
+  shopActivity: (id: number, limit = 300, kind = '') =>
+    request<{ items: ShopActivity[]; counts: Record<string, number>; total: number }>(
+      `/admin/shops/${id}/activity?limit=${limit}${kind ? `&kind=${encodeURIComponent(kind)}` : ''}`
+    ),
   settings: () => request<Record<string, string>>('/admin/settings'),
   /** Qaysi turlar bor va qaysi sozlamani tur uchun alohida qo'yish mumkin */
   settingsMeta: () =>
@@ -565,4 +570,17 @@ export interface AiReport {
     shop_id: number; nom: string; telefon: string;
     savollar: number; chaqiruvlar: number; tannarx: number; tushum: number;
   }[];
+}
+
+/** Do'kon jurnalidagi bitta yozuv (backend: /admin/shops/:id/activity) */
+export interface ShopActivity {
+  at: string;
+  /** savdo | qarz | ombor | balans ... — ro'yxatda filtr uchun */
+  kind: string;
+  title: string;
+  detail?: string | null;
+  /** pul bilan bog'liq bo'lsa: + kirim, − chiqim */
+  amount?: number | null;
+  /** kim qilgani: xodim ismi yoki "Ega" */
+  who?: string | null;
 }

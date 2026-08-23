@@ -357,6 +357,349 @@ export function registerAdminRoutes(app: FastifyInstance) {
     return { ...(shop as any), stats, transactions, service: serviceState(shop) };
   });
 
+
+  /* ═══════════ Do'kon jurnali (loglar) ═══════════
+   *
+   * Do'konda BO'LIB O'TGAN hamma narsa bir ro'yxatda: savdo, qaytarish,
+   * qarz, kirim, xarajat, xodim kirishi, eslatma, AI savoli, admin
+   * amallari...
+   *
+   * Alohida "jurnal" jadvali OCHILMADI va har amalga yozuv qo'shilmadi.
+   * Ikki sabab:
+   *   1) Butun tarix ALLAQACHON jadvallarda turibdi — yangi jadval
+   *      bugundan boshlab yozardi, ya'ni o'tgan oylar ko'rinmasdi.
+   *   2) Har yo'lga qo'lda "log yoz" qatorini qo'shish kerak bo'lardi
+   *      va bittasi unutilsa, jurnal jimgina to'liqmas bo'lib qolardi.
+   *
+   * Shuning uchun mavjud jadvallar o'qib, vaqt bo'yicha birlashtiriladi.
+   * Har manba alohida so'rov: har biri o'z indeksidan foydalanadi,
+   * bitta ulkan UNION esa hammasini skanerlashga majbur qilardi.
+   */
+  app.get<{ Params: { id: string }; Querystring: { limit?: string; kind?: string } }>(
+    '/admin/shops/:id/activity',
+    { preHandler: requireAdmin },
+    async (req, reply) => {
+      const shopId = Number(req.params.id);
+      const shop = db.prepare('SELECT id FROM shops WHERE id = ?').get(shopId) as any;
+      if (!shop) return reply.code(404).send({ error: 'not_found' });
+      // Har manbadan shuncha oxirgi yozuv olinadi, keyin birlashtirib
+      // eng yangisidan kesiladi
+      const limit = Math.min(Math.max(Number(req.query.limit) || 200, 20), 500);
+      const per = limit;
+
+      // Kim qilgani: xodim ismi yoki "Ega"
+      const emp = new Map<number, string>();
+      for (const e of db.prepare('SELECT id, name FROM employees WHERE shop_id = ?').all(shopId) as any[]) {
+        emp.set(Number(e.id), String(e.name));
+      }
+      const kim = (id: number | null) => (id ? (emp.get(Number(id)) ?? `Xodim #${id}`) : 'Ega');
+
+      type Row = {
+        at: string;
+        kind: string;
+        title: string;
+        detail?: string | null;
+        amount?: number | null;
+        who?: string | null;
+      };
+      const rows: Row[] = [];
+      const q = (sql: string, ...args: any[]) => db.prepare(sql).all(...args) as any[];
+
+      const pul = (n: any) => Math.round(Number(n) || 0);
+      const TOLOV: Record<string, string> = { cash: 'naqd', card: 'karta', debt: 'qarzga' };
+
+      // ── Savdo
+      for (const r of q(
+        `SELECT s.id, s.total, s.payment_type, s.created_by, s.created_at, c.name AS mijoz,
+                (SELECT COUNT(*) FROM sale_items si WHERE si.sale_id = s.id) AS satr
+           FROM sales s LEFT JOIN customers c ON c.id = s.customer_id
+          WHERE s.shop_id = ? ORDER BY s.created_at DESC LIMIT ?`,
+        shopId,
+        per
+      )) {
+        rows.push({
+          at: r.created_at,
+          kind: 'savdo',
+          title: `Savdo #${r.id}`,
+          detail: [`${r.satr} xil tovar`, TOLOV[r.payment_type] ?? r.payment_type, r.mijoz].filter(Boolean).join(' · '),
+          amount: pul(r.total),
+          who: kim(r.created_by),
+        });
+      }
+
+      // ── Qaytarish
+      for (const r of q(
+        `SELECT r.id, r.total, r.reason, r.refund_type, r.created_by, r.created_at, c.name AS mijoz
+           FROM returns r LEFT JOIN customers c ON c.id = r.customer_id
+          WHERE r.shop_id = ? ORDER BY r.created_at DESC LIMIT ?`,
+        shopId,
+        per
+      )) {
+        rows.push({
+          at: r.created_at,
+          kind: 'qaytarish',
+          title: `Qaytarish #${r.id}`,
+          detail: [TOLOV[r.refund_type] ?? r.refund_type, r.mijoz, r.reason].filter(Boolean).join(' · '),
+          amount: -pul(r.total),
+          who: kim(r.created_by),
+        });
+      }
+
+      // ── Qarz yozildi
+      for (const r of q(
+        `SELECT d.id, d.amount, d.note, d.due_date, d.created_by, d.created_at, c.name AS mijoz
+           FROM debts d LEFT JOIN customers c ON c.id = d.customer_id
+          WHERE d.shop_id = ? ORDER BY d.created_at DESC LIMIT ?`,
+        shopId,
+        per
+      )) {
+        rows.push({
+          at: r.created_at,
+          kind: 'qarz',
+          title: `Qarz yozildi — ${r.mijoz ?? 'mijoz'}`,
+          detail: [r.due_date ? `muddat ${r.due_date}` : null, r.note].filter(Boolean).join(' · '),
+          amount: pul(r.amount),
+          who: kim(r.created_by),
+        });
+      }
+
+      // ── Qarz to'lovi
+      for (const r of q(
+        `SELECT p.id, p.amount, p.created_by, p.created_at, c.name AS mijoz
+           FROM debt_payments p
+           JOIN debts d ON d.id = p.debt_id
+           LEFT JOIN customers c ON c.id = d.customer_id
+          WHERE d.shop_id = ? ORDER BY p.created_at DESC LIMIT ?`,
+        shopId,
+        per
+      )) {
+        rows.push({
+          at: r.created_at,
+          kind: 'qarz_tolov',
+          title: `Qarz to'lovi — ${r.mijoz ?? 'mijoz'}`,
+          amount: pul(r.amount),
+          who: kim(r.created_by),
+        });
+      }
+
+      // ── Ombor harakati
+      const HARAKAT: Record<string, string> = {
+        in: 'Tovar kirimi',
+        out: 'Tovar chiqimi',
+        return: 'Tovar qaytdi',
+        adjust: 'Qoldiq to\'g\'rilandi',
+        writeoff: 'Hisobdan chiqarildi',
+      };
+      for (const r of q(
+        `SELECT m.id, m.type, m.qty, m.created_by, m.created_at, p.name AS tovar, p.unit
+           FROM stock_movements m LEFT JOIN products p ON p.id = m.product_id
+          WHERE m.shop_id = ? ORDER BY m.created_at DESC LIMIT ?`,
+        shopId,
+        per
+      )) {
+        rows.push({
+          at: r.created_at,
+          kind: 'ombor',
+          title: HARAKAT[r.type] ?? `Ombor: ${r.type}`,
+          detail: `${r.tovar ?? "o'chirilgan tovar"} — ${r.qty} ${r.unit ?? ''}`.trim(),
+          who: kim(r.created_by),
+        });
+      }
+
+      // ── Xarajat
+      for (const r of q(
+        `SELECT id, category, amount, note, spent_at, created_by, created_at
+           FROM expenses WHERE shop_id = ? ORDER BY created_at DESC LIMIT ?`,
+        shopId,
+        per
+      )) {
+        rows.push({
+          at: r.created_at,
+          kind: 'xarajat',
+          title: `Xarajat — ${r.category ?? 'boshqa'}`,
+          detail: [r.spent_at, r.note].filter(Boolean).join(' · '),
+          amount: -pul(r.amount),
+          who: kim(r.created_by),
+        });
+      }
+
+      // ── Balans (to'ldirish, kunlik yechim, bonus...)
+      const BALANS: Record<string, string> = {
+        topup: "Balans to'ldirildi",
+        daily: 'Kunlik xizmat haqi',
+        withdraw: 'Balansdan yechildi',
+        refund: 'Balans qaytarildi',
+        grant: 'Bepul berildi',
+        referral: 'Taklif bonusi',
+        ai: 'AI savoli uchun yechildi',
+      };
+      for (const r of q(
+        `SELECT id, type, amount, note, method, payer, created_at
+           FROM balance_transactions WHERE shop_id = ? ORDER BY created_at DESC LIMIT ?`,
+        shopId,
+        per
+      )) {
+        rows.push({
+          at: r.created_at,
+          kind: 'balans',
+          title: BALANS[r.type] ?? `Balans: ${r.type}`,
+          detail: [r.method, r.payer, r.note].filter(Boolean).join(' · '),
+          amount: pul(r.amount),
+        });
+      }
+
+      // ── Eslatmalar
+      for (const r of q(
+        `SELECT r.id, r.channel, r.status, r.created_at, c.name AS mijoz
+           FROM reminder_logs r LEFT JOIN customers c ON c.id = r.customer_id
+          WHERE r.shop_id = ? ORDER BY r.created_at DESC LIMIT ?`,
+        shopId,
+        per
+      )) {
+        rows.push({
+          at: r.created_at,
+          kind: 'eslatma',
+          title: r.channel === 'call' ? "AI qo'ng'iroq" : `Eslatma (${r.channel})`,
+          detail: [r.mijoz, r.status === 'sent' ? 'yuborildi' : r.status].filter(Boolean).join(' · '),
+        });
+      }
+
+      // ── Xodim kirishlari
+      for (const r of q(
+        `SELECT id, employee_name, created_at FROM employee_logins
+          WHERE shop_id = ? ORDER BY created_at DESC LIMIT ?`,
+        shopId,
+        per
+      )) {
+        rows.push({ at: r.created_at, kind: 'kirish', title: 'Xodim kirdi', who: r.employee_name });
+      }
+
+      // ── Xodim qo'shildi
+      for (const r of q(
+        `SELECT id, name, role, created_at FROM employees WHERE shop_id = ? ORDER BY created_at DESC LIMIT ?`,
+        shopId,
+        per
+      )) {
+        rows.push({ at: r.created_at, kind: 'xodim', title: `Xodim qo'shildi — ${r.name}`, detail: r.role });
+      }
+
+      // ── Mijoz qo'shildi
+      for (const r of q(
+        `SELECT id, name, phone, created_at FROM customers WHERE shop_id = ? ORDER BY created_at DESC LIMIT ?`,
+        shopId,
+        per
+      )) {
+        rows.push({ at: r.created_at, kind: 'mijoz', title: `Yangi mijoz — ${r.name}`, detail: r.phone });
+      }
+
+      // ── Yangi tovar
+      for (const r of q(
+        `SELECT id, name, barcode, created_at FROM products WHERE shop_id = ? ORDER BY created_at DESC LIMIT ?`,
+        shopId,
+        per
+      )) {
+        rows.push({ at: r.created_at, kind: 'tovar', title: `Yangi tovar — ${r.name}`, detail: r.barcode });
+      }
+
+      // ── Ta'minotchi va unga qarz
+      for (const r of q(
+        `SELECT id, name, phone, created_at FROM suppliers WHERE shop_id = ? ORDER BY created_at DESC LIMIT ?`,
+        shopId,
+        per
+      )) {
+        rows.push({ at: r.created_at, kind: 'taminotchi', title: `Yangi ta'minotchi — ${r.name}`, detail: r.phone });
+      }
+      for (const r of q(
+        `SELECT d.id, d.amount, d.note, d.created_at, s.name AS taminotchi
+           FROM supplier_debts d LEFT JOIN suppliers s ON s.id = d.supplier_id
+          WHERE d.shop_id = ? ORDER BY d.created_at DESC LIMIT ?`,
+        shopId,
+        per
+      )) {
+        rows.push({
+          at: r.created_at,
+          kind: 'taminotchi_qarz',
+          title: `Ta'minotchiga qarz — ${r.taminotchi ?? '—'}`,
+          detail: r.note,
+          amount: pul(r.amount),
+        });
+      }
+
+      // ── Buyurtmalar
+      for (const r of q(
+        `SELECT o.id, o.status, o.note, o.created_at, o.created_by, s.name AS taminotchi
+           FROM orders o LEFT JOIN suppliers s ON s.id = o.supplier_id
+          WHERE o.shop_id = ? ORDER BY o.created_at DESC LIMIT ?`,
+        shopId,
+        per
+      )) {
+        rows.push({
+          at: r.created_at,
+          kind: 'buyurtma',
+          title: `Buyurtma #${r.id}`,
+          detail: [r.taminotchi, r.status, r.note].filter(Boolean).join(' · '),
+          who: kim(r.created_by),
+        });
+      }
+
+      // ── Yuborilgan to'lov cheklari
+      for (const r of q(
+        `SELECT id, amount, status, agent_phone, note, created_at
+           FROM payment_receipts WHERE shop_id = ? ORDER BY created_at DESC LIMIT ?`,
+        shopId,
+        per
+      )) {
+        rows.push({
+          at: r.created_at,
+          kind: 'chek',
+          title: 'To\'lov cheki yuborildi',
+          detail: [r.status, r.agent_phone, r.note].filter(Boolean).join(' · '),
+          amount: pul(r.amount),
+        });
+      }
+
+      // ── AI savollari
+      for (const r of q(
+        `SELECT id, model, cost_uzs, created_at FROM ai_usage WHERE shop_id = ? ORDER BY created_at DESC LIMIT ?`,
+        shopId,
+        per
+      )) {
+        rows.push({
+          at: r.created_at,
+          kind: 'ai',
+          title: 'AI savoli',
+          detail: `${r.model} · tannarx ${pul(r.cost_uzs)} so'm`,
+        });
+      }
+
+      // ── Admin shu do'kon ustida qilgan amallar
+      for (const r of q(
+        `SELECT l.id, l.action, l.details, l.created_at, a.username
+           FROM admin_logs l LEFT JOIN admins a ON a.id = l.admin_id
+          WHERE l.target = ? OR l.target = ? ORDER BY l.created_at DESC LIMIT ?`,
+        `shop:${shopId}`,
+        String(shopId),
+        per
+      )) {
+        rows.push({
+          at: r.created_at,
+          kind: 'admin',
+          title: `Admin: ${r.action}`,
+          detail: r.details,
+          who: r.username ? `@${r.username}` : null,
+        });
+      }
+
+      rows.sort((a, b) => String(b.at).localeCompare(String(a.at)));
+      const kind = String(req.query.kind ?? '').trim();
+      const filtered = kind ? rows.filter((r) => r.kind === kind) : rows;
+      // Har turdan nechtadan borligi — panelda filtr tugmalari uchun
+      const counts: Record<string, number> = {};
+      for (const r of rows) counts[r.kind] = (counts[r.kind] ?? 0) + 1;
+      return { items: filtered.slice(0, limit), counts, total: filtered.length };
+    }
+  );
+
   // Do'konni boshqarish: bloklash, obuna berish, balans qo'shish
   app.patch<{ Params: { id: string }; Body: { is_blocked?: boolean; reason?: string } }>(
     '/admin/shops/:id/block',

@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react';
-import { api, fmt, fmtNum, fmtPhone, type Agent, type Shop, type ShopDetail, type ShopsSummary } from '../api';
+import {
+  api, fmt, fmtNum, fmtPhone,
+  type Agent, type Shop, type ShopActivity, type ShopDetail, type ShopsSummary,
+} from '../api';
 import { AppIcon, Glyph } from '../icons';
 import { SHOP_TYPE_LABEL } from '../shopTypes';
 import { useEscape } from '../useEscape';
@@ -266,7 +269,7 @@ function ShopModal({
 }) {
   // Oyna ichidagi bo'limlar. Hammasi bir ustunga tizilsa modal juda
   // uzayib ketadi va kerakli joyni topish qiyin — shuning uchun tab.
-  const [tab, setTab] = useState<'info' | 'balance'>('info');
+  const [tab, setTab] = useState<'info' | 'balance' | 'log'>('info');
   const [data, setData] = useState(shop);
   const [msg, setMsg] = useState('');
   const [grantDays, setGrantDays] = useState('30');
@@ -370,7 +373,10 @@ function ShopModal({
 
   return (
     <div className="modal-wrap" onClick={onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
+      {/* Loglar bo'limida jadval besh ustunli — tor oynada
+          "Nima bo'ldi" ikki-uch qatorga bo'linib, "Kim" umuman
+          qirqilib ketardi. Shu bo'limda oyna kengayadi. */}
+      <div className={`modal ${tab === 'log' ? 'wide' : ''}`} onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
           <AppIcon glyph="house" size={34} />
           <div className="modal-title">{data.name}</div>
@@ -409,6 +415,9 @@ function ShopModal({
           <button className={`tab ${tab === 'balance' ? 'on' : ''}`} onClick={() => setTab('balance')}>
             <Glyph name="banknote" size={14} /> Balans tarixi
             <span className="tab-count">{data.transactions.length}</span>
+          </button>
+          <button className={`tab ${tab === 'log' ? 'on' : ''}`} onClick={() => setTab('log')}>
+            <Glyph name="note" size={14} /> Loglar
           </button>
         </div>
 
@@ -665,6 +674,8 @@ function ShopModal({
           </div>
         )}
 
+        {tab === 'log' && <ShopLog shopId={data.id} />}
+
         {msg && <p className="hint" style={{ color: 'var(--green)' }}>{msg}</p>}
         <div className="modal-actions">
           <button className="btn ghost" onClick={onClose}>
@@ -796,6 +807,169 @@ function DeleteShop({ shop, onClose, onDone }: { shop: Shop; onClose: () => void
           <button className="btn ghost" onClick={onClose} disabled={busy}>Bekor qilish</button>
         </div>
       </div>
+    </div>
+  );
+}
+
+/* ═══════════ Do'kon jurnali ═══════════
+ *
+ * Do'konda bo'lib o'tgan HAMMA narsa vaqt bo'yicha bir ro'yxatda:
+ * savdo, qaytarish, qarz, ombor harakati, xarajat, balans, eslatma,
+ * xodim kirishi, AI savoli va admin amallari.
+ *
+ * Ma'lumot alohida "jurnal" jadvalidan emas — server mavjud
+ * jadvallarni o'qib birlashtiradi (backend: /admin/shops/:id/activity).
+ * Shu sabab do'konning BUTUN o'tmishi ko'rinadi, faqat shu funksiya
+ * qo'shilgandan keyingisi emas.
+ */
+
+/** Har tur uchun nom va rang — ro'yxatda ko'z bilan ajratish uchun */
+const LOG_TUR: Record<string, { nom: string; rang: string }> = {
+  savdo: { nom: 'Savdo', rang: 'green' },
+  qaytarish: { nom: 'Qaytarish', rang: 'red' },
+  qarz: { nom: 'Qarz', rang: 'amber' },
+  qarz_tolov: { nom: "Qarz to'lovi", rang: 'green' },
+  ombor: { nom: 'Ombor', rang: 'blue' },
+  xarajat: { nom: 'Xarajat', rang: 'red' },
+  balans: { nom: 'Balans', rang: 'indigo' },
+  eslatma: { nom: 'Eslatma', rang: 'teal' },
+  kirish: { nom: 'Kirish', rang: 'gray' },
+  xodim: { nom: 'Xodim', rang: 'indigo' },
+  mijoz: { nom: 'Mijoz', rang: 'teal' },
+  tovar: { nom: 'Tovar', rang: 'blue' },
+  taminotchi: { nom: "Ta'minotchi", rang: 'amber' },
+  taminotchi_qarz: { nom: "Ta'minotchi qarzi", rang: 'amber' },
+  buyurtma: { nom: 'Buyurtma', rang: 'blue' },
+  chek: { nom: 'Chek', rang: 'indigo' },
+  ai: { nom: 'AI', rang: 'indigo' },
+  admin: { nom: 'Admin', rang: 'gray' },
+};
+
+function ShopLog({ shopId }: { shopId: number }) {
+  const [rows, setRows] = useState<ShopActivity[]>([]);
+  const [counts, setCounts] = useState<Record<string, number>>({});
+  const [tur, setTur] = useState('');
+  const [q, setQ] = useState('');
+  const [yuk, setYuk] = useState(true);
+  const [err, setErr] = useState('');
+
+  /* Tur almashganda serverdan QAYTA so'raladi.
+   *
+   * Ro'yxat eng yangi 300 yozuv bilan cheklangan, tugmadagi son esa
+   * HAQIQIY sonni ko'rsatadi. Agar filtr shu 300 taning ichidan
+   * qidirilsa, "Kirish 92" deb turgan tugma bosilganda 20 tasi
+   * chiqib qolardi — son bilan ro'yxat bir-biriga to'g'ri kelmasdi.
+   * Server esa o'sha turdagi eng yangi 300 tasini beradi. */
+  useEffect(() => {
+    let bekor = false;
+    setYuk(true);
+    api
+      .shopActivity(shopId, 300, tur)
+      .then((d) => {
+        if (bekor) return;
+        setRows(d.items);
+        // Sanoq faqat "Hammasi" da yangilanadi: tur tanlangan javobda
+        // boshqa turlarning soni bo'lmaydi
+        if (!tur) setCounts(d.counts);
+      })
+      .catch((e) => !bekor && setErr(e.message))
+      .finally(() => !bekor && setYuk(false));
+    return () => {
+      bekor = true;
+    };
+  }, [shopId, tur]);
+
+  // Tur serverda ajratiladi, qidiruv esa shu yerda — yozib turganda
+  // har harfda so'rov yuborilmasin
+  const matn = q.trim().toLowerCase();
+  const korinadigan = matn
+    ? rows.filter((r) => `${r.title} ${r.detail ?? ''} ${r.who ?? ''}`.toLowerCase().includes(matn))
+    : rows;
+
+  if (yuk && rows.length === 0) return <div className="panel"><div className="empty">Yuklanmoqda…</div></div>;
+  if (err) return <div className="panel"><div className="error">{err}</div></div>;
+
+  return (
+    <div className="panel">
+      <div className="muted" style={{ fontSize: 13, marginBottom: 12 }}>
+        Do'konda bo'lib o'tgan hamma harakat — eng yangisidan
+      </div>
+
+      {/* Turlar bo'yicha filtr. Har tugmada nechtaligi ko'rinadi —
+          "bu do'konda umuman savdo bo'lganmi" degan savolga darhol
+          javob beradi. */}
+      <div className="stype-tabs" style={{ marginBottom: 12 }}>
+        <button className={`stype-tab ${tur === '' ? 'on' : ''}`} onClick={() => setTur('')}>
+          Hammasi
+          <i className="stype-badge">{Object.values(counts).reduce((a, b) => a + b, 0)}</i>
+        </button>
+        {Object.entries(counts)
+          .sort((a, b) => b[1] - a[1])
+          .map(([k, n]) => (
+            <button key={k} className={`stype-tab ${tur === k ? 'on' : ''}`} onClick={() => setTur(k)}>
+              {LOG_TUR[k]?.nom ?? k}
+              <i className="stype-badge">{n}</i>
+            </button>
+          ))}
+      </div>
+
+      <input
+        placeholder="Qidiruv: nom, izoh yoki kim qilgani"
+        value={q}
+        onChange={(e) => setQ(e.target.value)}
+        style={{ marginBottom: 12 }}
+      />
+
+      <div className="table-wrap">
+        <table className="tbl">
+          <thead>
+            <tr>
+              <th>Vaqt</th>
+              <th>Turi</th>
+              <th>Nima bo'ldi</th>
+              <th className="num">Summa</th>
+              <th>Kim</th>
+            </tr>
+          </thead>
+          <tbody>
+            {korinadigan.map((r, i) => (
+              <tr key={`${r.kind}-${r.at}-${i}`}>
+                <td className="muted" style={{ whiteSpace: 'nowrap' }}>
+                  {String(r.at).slice(0, 16).replace('T', ' ')}
+                </td>
+                <td>
+                  <span className={`badge ${LOG_TUR[r.kind]?.rang ?? ''}`}>
+                    {LOG_TUR[r.kind]?.nom ?? r.kind}
+                  </span>
+                </td>
+                <td>
+                  <div>{r.title}</div>
+                  {r.detail && <div className="muted" style={{ fontSize: 12.5 }}>{r.detail}</div>}
+                </td>
+                <td
+                  className="num"
+                  style={{
+                    fontWeight: 600,
+                    whiteSpace: 'nowrap',
+                    color:
+                      r.amount == null
+                        ? 'var(--muted)'
+                        : r.amount > 0
+                          ? 'var(--green)'
+                          : r.amount < 0
+                            ? 'var(--red)'
+                            : 'var(--muted)',
+                  }}
+                >
+                  {r.amount == null ? '—' : `${r.amount > 0 ? '+' : ''}${fmtNum(r.amount)} so'm`}
+                </td>
+                <td className="muted">{r.who ?? '—'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {korinadigan.length === 0 && <div className="empty">Bunday yozuv yo'q</div>}
     </div>
   );
 }
