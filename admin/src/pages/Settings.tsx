@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { api, fmt, fmtNum, type AdminAiStatus } from '../api';
-import AnnounceModal, { parseAnnounceList, yangiId, kimgaNomi, BOSH, type AnnounceCfg } from './Announce';
 import { SHOP_TYPES, typeKey } from '../shopTypes';
 
 type Field = {
@@ -213,48 +212,6 @@ export default function Settings() {
     }
   }
 
-  /* ─────────── Yuguruvchi e'lonlar ───────────
-   *
-   * Bitta e'lon yetarli emas edi: zargarlarga bir xabar, oziq-ovqat
-   * do'konlariga boshqasi kerak bo'ladi. Endi ro'yxat — har biriga
-   * o'z matni, rangi va kimga ko'rinishi.
-   *
-   * Tur tanlangan bo'lsa ro'yxat FAQAT o'sha turnikini ko'rsatadi va
-   * "+" bosilganda yangi e'lon darhol o'sha turga yo'naltiriladi. */
-  const [annEdit, setAnnEdit] = useState<AnnounceCfg | null>(null);
-  const annList: AnnounceCfg[] = parseAnnounceList(data.announce ?? '');
-  const annKorinadigan = stype ? annList.filter((a) => a.audience === `type:${stype}`) : annList;
-
-  async function saveAnnounce(v: AnnounceCfg) {
-    const bor = annList.some((a) => a.id === v.id);
-    const yangi = bor ? annList.map((a) => (a.id === v.id ? v : a)) : [...annList, v];
-    setData(await api.saveSettings({ announce: JSON.stringify(yangi) }));
-    setAnnEdit(null);
-    setMsg("E'lon saqlandi");
-  }
-
-  async function ochirAnnounce(id: string) {
-    if (!confirm("Shu e'lon o'chirilsinmi?")) return;
-    setData(await api.saveSettings({ announce: JSON.stringify(annList.filter((a) => a.id !== id)) }));
-    setMsg("E'lon o'chirildi");
-  }
-
-  /** Yoqish/o'chirish — oyna ochmasdan, bir bosishda */
-  async function toggleAnnounce(id: string) {
-    const yangi = annList.map((a) => (a.id === id ? { ...a, enabled: !a.enabled } : a));
-    setData(await api.saveSettings({ announce: JSON.stringify(yangi) }));
-  }
-
-  function yangiAnnounce() {
-    setAnnEdit({
-      ...BOSH,
-      id: yangiId(annList),
-      enabled: true,
-      // Tur tanlangan bo'lsa e'lon darhol o'sha turga yo'naltiriladi
-      audience: stype ? `type:${stype}` : 'all',
-    });
-  }
-
   async function save() {
     setSaving(true);
     setErr('');
@@ -310,70 +267,6 @@ export default function Settings() {
           </div>
         )}
       </div>
-
-      {/* Yuguruvchi e'lonlar — do'konchilarga xabar. Har biri alohida
-          oynada sozlanadi, chunki rang/o'lcham/tezlik ko'p va ular
-          sozlamalar ro'yxatiga sig'masdi.
-
-          Ro'yxat bo'lgani uchun har bo'lim uchun o'z e'loni bo'ladi:
-          zargarlarga bir xabar, dorixonalarga boshqasi. */}
-      <div className="panel">
-        <div className="panel-head">
-          <div>
-            <h3>Yuguruvchi e'lon</h3>
-            <div className="muted" style={{ marginTop: -6, fontSize: 13 }}>
-              {stype
-                ? `Faqat ${typeInfo?.emoji} ${typeInfo?.label} do'konlariga ko'rinadigan e'lonlar`
-                : 'Ilovaning tepasida, bo‘lim nomi tagidan o‘tib turadi'}
-            </div>
-          </div>
-          <button className="btn" onClick={yangiAnnounce}>+ Yangi e'lon</button>
-        </div>
-
-        {annKorinadigan.length === 0 ? (
-          <div className="muted" style={{ fontSize: 13, marginTop: 12 }}>
-            {stype ? "Bu bo'lim uchun e'lon yo'q" : 'Hozircha e‘lon yo‘q'} — «+ Yangi e'lon» bosing
-          </div>
-        ) : (
-          <div className="ann-list">
-            {annKorinadigan.map((a) => (
-              <div className={`ann-item ${a.enabled ? '' : 'off'}`} key={a.id}>
-                <div
-                  className="ann-preview"
-                  style={{
-                    background: `linear-gradient(90deg, ${a.bg1}, ${a.bg2})`,
-                    color: a.color,
-                    fontSize: `${a.size}px`,
-                    fontWeight: a.weight === 'bold' ? 700 : a.weight === 'medium' ? 500 : 400,
-                  }}
-                >
-                  <div className="ann-run" style={{ animationDuration: `${a.speed}s` }}>
-                    <span>{a.text || 'Matn yo‘q'}</span>
-                    <span aria-hidden="true">{a.text || 'Matn yo‘q'}</span>
-                  </div>
-                </div>
-                <div className="ann-row">
-                  <span className="ann-who">{kimgaNomi(a.audience)}</span>
-                  <span className={`ann-state ${a.enabled ? 'on' : ''}`}>
-                    {a.enabled ? 'Ko‘rinyapti' : 'O‘chiq'}
-                  </span>
-                  <div className="ann-acts">
-                    <button className="btn ghost" onClick={() => toggleAnnounce(a.id)}>
-                      {a.enabled ? 'O‘chirish' : 'Yoqish'}
-                    </button>
-                    <button className="btn ghost" onClick={() => setAnnEdit(a)}>Sozlash</button>
-                    <button className="btn ghost danger" onClick={() => ochirAnnounce(a.id)}>Olib tashlash</button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {annEdit && (
-        <AnnounceModal value={annEdit} onClose={() => setAnnEdit(null)} onSave={saveAnnounce} />
-      )}
 
       {/* AI yordamchi.
           Kalit shu yerdan qo'yiladi — serverga kirib .env tahrirlash

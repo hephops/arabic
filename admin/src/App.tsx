@@ -14,11 +14,12 @@ import Logs from './pages/Logs';
 import Catalog from './pages/Catalog';
 import Agents from './pages/Agents';
 import Receipts from './pages/Receipts';
+import Announces from './pages/Announces';
 import My from './pages/My';
 
 export type Page =
   | 'dashboard' | 'shops' | 'payments' | 'receipts' | 'catalog' | 'reminders'
-  | 'referrals' | 'agents' | 'settings' | 'admins' | 'logs' | 'my';
+  | 'referrals' | 'agents' | 'announces' | 'settings' | 'admins' | 'logs' | 'my';
 
 interface NavItem {
   id: Page;
@@ -44,6 +45,9 @@ const GROUPS: NavItem[][] = [
     { id: 'agents', label: 'Xodimlar', glyph: 'employee', sub: "Targ'ovchi agentlar va ularning hisobi" },
     { id: 'catalog', label: 'Katalog', glyph: 'boxes', sub: "Markaziy tovarlar bazasi" },
     { id: 'reminders', label: 'Eslatmalar', glyph: 'calendar', sub: "SMS va qo'ng'iroqlar jurnali" },
+    // E'lonlar Sozlamalar ichida edi — u yerda ko'zga tashlanmasdi va
+    // "sozlama" emas, kundalik ish: bugun bir xabar, ertaga boshqasi
+    { id: 'announces', label: "E'lonlar", glyph: 'megaphone', sub: "Ilova tepasida yuguruvchi xabarlar" },
     { id: 'referrals', label: 'Referallar', glyph: 'gift', sub: 'Taklif qilish natijalari' },
   ],
   [
@@ -183,6 +187,7 @@ export default function App() {
           {view === 'catalog' && <Catalog />}
           {view === 'reminders' && <Reminders />}
           {view === 'referrals' && <Referrals />}
+          {view === 'announces' && <Announces />}
           {view === 'settings' && <Settings />}
           {view === 'admins' && <Admins me={admin} />}
           {view === 'logs' && <Logs />}

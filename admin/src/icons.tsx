@@ -7,6 +7,7 @@
 import type { ReactNode } from 'react';
 import type { IconType } from 'react-icons';
 import {
+  IoMegaphoneOutline,
   IoHomeOutline, IoHome, IoPeopleOutline, IoPeople, IoAdd, IoAddCircleOutline,
   IoAddCircle, IoCartOutline, IoCart, IoPersonOutline, IoPerson, IoMicOutline,
   IoCashOutline, IoCardOutline, IoBookOutline, IoWarningOutline, IoCalendarOutline,
@@ -28,6 +29,7 @@ const GLYPHS: Record<string, IconType> = {
   person: IoPersonOutline, personFill: IoPerson,
   mic: IoMicOutline, banknote: IoCashOutline, card: IoCardOutline, book: IoBookOutline,
   warning: IoWarningOutline, calendar: IoCalendarOutline, box: IoCubeOutline,
+  megaphone: IoMegaphoneOutline,
   clock: IoTimeOutline, arrowDown: IoArrowDownOutline, arrowUp: IoArrowUpOutline,
   check: IoCheckmark, search: IoSearchOutline, scan: IoScanOutline, pencil: IoPencil,
   gear: IoSettingsOutline, chevron: IoChevronForward, star: IoStarOutline,
@@ -209,6 +211,17 @@ const ART: Record<string, (bg: string) => ReactNode> = {
       <path d="M50 31c5.5-13 24-11.5 24-1.5 0 6.5-14 6-24 1.5Z" fill="#fff" />
     </>
   ),
+  // Megafon — e'lonlar
+  megaphone: () => (
+    <>
+      {/* Karnay: keng og'zi o'ngda, tor uchi chapda */}
+      <path d="M78 20 L36 42 v16 l42 22 a4 4 0 0 0 6-3.5 V23.5 A4 4 0 0 0 78 20Z" fill="#fff" />
+      {/* Ushlagich */}
+      <rect x="16" y="40" width="22" height="20" rx="6" fill="#fff" opacity="0.85" />
+      {/* Tovush to'lqinlari */}
+      <path d="M30 60 l4 22 a4 4 0 0 0 4 3h5a3 3 0 0 0 3-3.5L43 63Z" fill="#fff" opacity="0.7" />
+    </>
+  ),
   // Tishli g'ildirak — sozlamalar
   gear: (bg) => (
     <>
@@ -359,7 +372,7 @@ const DEFAULT_COLOR: Record<string, IconColor> = {
   employee: 'gray', gift: 'pink', gear: 'gray', scan: 'indigo', mic: 'red',
   card: 'indigo', globe: 'teal', logout: 'red', arrowDown: 'green', arrowUp: 'red',
   star: 'yellow', book: 'amber', search: 'teal', warning: 'orange', clock: 'orange',
-  calendar: 'red', plus: 'green',
+  calendar: 'red', plus: 'green', megaphone: 'orange',
 };
 
 // Eski nomlar bilan moslik
