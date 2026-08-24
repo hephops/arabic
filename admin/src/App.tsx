@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { api, getToken, logout, type Admin } from './api';
 import { AppIcon, Glyph, Logo, Wordmark } from './icons';
 import { toggleSide } from './sidebar';
+import ErrorBoundary from './ErrorBoundary';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Shops from './pages/Shops';
@@ -130,6 +131,9 @@ export default function App() {
             <Glyph name="logout" size={17} color="var(--red)" />
             <span className="side-label">Chiqish</span>
           </button>
+          {/* Qaysi yig'ma ishlayapti. Serverda qayta yig'ilmagan bo'lsa
+              shu yerdan bilinadi. */}
+          <div className="side-build">{__BUILD__}</div>
         </div>
       </nav>
 
@@ -177,20 +181,25 @@ export default function App() {
           </div>
         </div>
 
+        {/* Bo'lim ichidagi xato butun panelni oq ekranga aylantirmasin:
+            chegara uni ushlab qoladi, yon menyu joyida qoladi. `key`
+            bo'lim nomi bilan — boshqa bo'limga o'tilsa xato tozalanadi. */}
         <div className="page">
-          {view === 'my' && <My />}
-          {view === 'dashboard' && <Dashboard onOpenShops={() => setPage('shops')} />}
-          {view === 'shops' && <Shops />}
-          {view === 'payments' && <Payments />}
-          {view === 'receipts' && <Receipts />}
-          {view === 'agents' && <Agents me={admin} />}
-          {view === 'catalog' && <Catalog />}
-          {view === 'reminders' && <Reminders />}
-          {view === 'referrals' && <Referrals />}
-          {view === 'announces' && <Announces />}
-          {view === 'settings' && <Settings />}
-          {view === 'admins' && <Admins me={admin} />}
-          {view === 'logs' && <Logs />}
+          <ErrorBoundary key={view}>
+            {view === 'my' && <My />}
+            {view === 'dashboard' && <Dashboard onOpenShops={() => setPage('shops')} />}
+            {view === 'shops' && <Shops />}
+            {view === 'payments' && <Payments />}
+            {view === 'receipts' && <Receipts />}
+            {view === 'agents' && <Agents me={admin} />}
+            {view === 'catalog' && <Catalog />}
+            {view === 'reminders' && <Reminders />}
+            {view === 'referrals' && <Referrals />}
+            {view === 'announces' && <Announces />}
+            {view === 'settings' && <Settings />}
+            {view === 'admins' && <Admins me={admin} />}
+            {view === 'logs' && <Logs />}
+          </ErrorBoundary>
         </div>
       </main>
     </div>

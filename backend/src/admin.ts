@@ -1296,6 +1296,9 @@ export function registerAdminRoutes(app: FastifyInstance) {
     const rows = db.prepare('SELECT * FROM settings').all() as any[];
     const out: Record<string, string> = {};
     for (const r of rows) {
+      // '_' bilan boshlanadigan kalitlar ichki belgilar (masalan
+      // migratsiya bajarilganini bildiruvchi) — panelga chiqmaydi
+      if (String(r.key).startsWith('_')) continue;
       if (SECRET_SETTINGS.has(r.key)) {
         // Qiymat o'rniga faqat dumi — "qaysi kalit turibdi" bilinsin
         out[r.key + '_tail'] = r.value ? String(r.value).slice(-4) : '';

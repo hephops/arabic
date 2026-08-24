@@ -26,9 +26,15 @@ if ((Test-Path $nodeBin) -and (-not (Get-Command npm -ErrorAction SilentlyContin
 # Kod yangilanganda (masalan "git pull" qilgandan keyin) o'zgarish
 # ko'rinishi uchun bu skriptni QAYTA ishga tushirish kerak (avval
 # stop.bat, keyin start.bat) — u har safar qaytadan build qiladi.
+#
+# Build XATO bersa eski dist/ joyida qoladi va "preview" o'shani
+# ko'rsataveradi: kod yangilangandek tuyuladi, aslida esa eski versiya
+# ishlaydi. Shuning uchun build xato bersa oynada qizil ogohlantirish
+# chiqadi. Admin panelning pastida yig'ilgan versiya (commit va sana)
+# ham yozib turadi — qaysi yig'ma ishlayotganini shundan bilsa bo'ladi.
 Start-Process powershell -ArgumentList "-NoExit", "-ExecutionPolicy", "Bypass", "-Command", "cd '$root\backend'; npm run dev"
-Start-Process powershell -ArgumentList "-NoExit", "-ExecutionPolicy", "Bypass", "-Command", "cd '$root\miniapp'; npm run build; npm run preview:https"
-Start-Process powershell -ArgumentList "-NoExit", "-ExecutionPolicy", "Bypass", "-Command", "cd '$root\admin'; npm run build; npm run preview"
+Start-Process powershell -ArgumentList "-NoExit", "-ExecutionPolicy", "Bypass", "-Command", "cd '$root\miniapp'; npm run build; if (`$LASTEXITCODE -ne 0) { Write-Host ''; Write-Host '  !!! YIGISH XATO BERDI - ESKI VERSIYA KORSATILADI !!!' -ForegroundColor Red; Write-Host '  Yuqoridagi xatoni tuzatmaguncha yangi ozgarishlar chiqmaydi.' -ForegroundColor Red; Write-Host '' }; npm run preview:https"
+Start-Process powershell -ArgumentList "-NoExit", "-ExecutionPolicy", "Bypass", "-Command", "cd '$root\admin'; npm run build; if (`$LASTEXITCODE -ne 0) { Write-Host ''; Write-Host '  !!! YIGISH XATO BERDI - ESKI VERSIYA KORSATILADI !!!' -ForegroundColor Red; Write-Host '  Yuqoridagi xatoni tuzatmaguncha yangi ozgarishlar chiqmaydi.' -ForegroundColor Red; Write-Host '' }; npm run preview"
 
 # Cloudflare Tunnel: duk.goybusut.uz -> Mini App (5173)
 #                    admin.goybusut.uz -> Admin panel (5174)

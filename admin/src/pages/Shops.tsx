@@ -42,12 +42,18 @@ export default function Shops() {
   // Tahrirlash va o'chirish oynalari — ro'yxatdagi tugmalardan ochiladi
   const [editing, setEditing] = useState<Shop | null>(null);
   const [removing, setRemoving] = useState<Shop | null>(null);
+  const [xato, setXato] = useState('');
 
   function load() {
-    api.shops({ q, status, limit, offset }).then((r) => {
-      setRows(r.rows);
-      setTotal(r.total);
-    });
+    api.shops({ q, status, limit, offset })
+      .then((r) => {
+        setRows(r.rows);
+        setTotal(r.total);
+        setXato('');
+      })
+      // Ilgari xato jimgina yo'qolardi: ro'yxat bo'sh qolardi va
+      // "do'kon yo'q" degan taassurot tug'ilardi
+      .catch((e) => setXato(e.message));
     api.shopsSummary().then(setSum).catch(() => {});
     api.stats().then((st) => setPrice(st.daily_price)).catch(() => {});
   }
@@ -115,6 +121,8 @@ export default function Shops() {
           </div>
         </div>
       </div>
+
+      {xato && <div className="panel"><span className="error">Ro'yxat yuklanmadi: {xato}</span></div>}
 
       <div className="toolbar">
         <div className="panel-title" style={{ margin: 0 }}>Do'konlar ro'yxati</div>
