@@ -161,8 +161,12 @@ export default function Inventory({ onBack }: { onBack: () => void }) {
         />
 
         {/* Probalar — zargarlik do'konida eng ko'p so'raladigan kesim:
-            "585 lar qancha, 750 lar qancha". Yonida soni turadi. */}
-        {gold && probalar.length > 1 && (
+            "585 lar qancha, 750 lar qancha". Yonida soni turadi.
+            Bitta probaning o'zi bo'lsa ham qator KO'RINADI: ilgari
+            "kamida ikki xil bo'lsa" degan shart bor edi va hamma
+            buyumi 585 bo'lgan do'konda qator butunlay yo'qolib,
+            do'konchi "nega menda yo'q" deb qolardi. */}
+        {gold && probalar.length > 0 && (
           <div className="chip-row">
             <button className={`chip ${proba === '' ? 'on' : ''}`} onClick={() => setProba('')}>
               {t('probaAll')} <span className="chip-n">{base.filter(catOk).length}</span>
