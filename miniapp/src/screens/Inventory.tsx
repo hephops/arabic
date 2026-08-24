@@ -16,7 +16,10 @@ import {
 import { ean13Svg, isEan13, scaleBarcode } from '../ean13';
 import { qrSvg } from '../qr';
 import { scanFail } from '../beep';
-import { goldShop, goldPrice, goldFieldPrice, goldLine, shopInfo, profile, PROBAS } from '../shopTypes';
+import {
+  goldShop, goldPrice, goldFieldPrice, goldLine, itemLine, shopInfo, profile,
+  PROBAS, CLOTHING_SIZES,
+} from '../shopTypes';
 import { useEscape } from '../useEscape';
 import { labelCount, setLabelCount, labelPrice, setLabelPrice } from '../labelPrefs';
 
@@ -54,9 +57,31 @@ export default function Inventory({ onBack }: { onBack: () => void }) {
   // Zargarlikda proba bo'yicha saralash: "585 lar qancha" degan savol
   // do'konchida kuniga o'n marta tug'iladi
   const [proba, setProba] = useState('');
+  // Kiyim do'konida razmer bo'yicha saralash: "M lardan nechta qoldi"
+  const [razmer, setRazmer] = useState('');
   const [editing, setEditing] = useState<Product | null>(null);
   const [counting, setCounting] = useState(false);
+  // Birkani kamera bilan o'qib, tovarni ro'yxatdan qidirmasdan topish
+  const [scanning, setScanning] = useState(false);
   const { t } = useT();
+
+  /** Skanerdan kelgan kod: tovar topilsa kartochkasi ochiladi.
+   *
+   *  Topilmasa kod qidiruv maydoniga tushadi — do'konchi qo'lda
+   *  ko'rib chiqsin, chunki kod boshqa do'konniki yoki hali kirim
+   *  qilinmagan bo'lishi mumkin. */
+  async function scanFound(code: string) {
+    setScanning(false);
+    const res = await api.lookupBarcode(code).catch(() => null);
+    const topilgan = res?.product ? products.find((x) => x.id === res.product!.id) : null;
+    if (topilgan) {
+      setEditing(topilgan);
+      return;
+    }
+    scanFail();
+    setQuery(code);
+    toast.info(t('invScanNotFound'), code);
+  }
 
   const load = () => api.products().then(setProducts).catch(loadFailed);
   useEffect(() => {
@@ -84,7 +109,13 @@ export default function Inventory({ onBack }: { onBack: () => void }) {
 
   // Qidiruv va tepadagi filtr — qolgan hammasining asosi
   const base = products.filter((p) => {
-    if (query && !p.name.toLowerCase().includes(query.toLowerCase())) return false;
+    // Kod bo'yicha ham qidiramiz: skaner topa olmagan kodni do'konchi
+    // qo'lda ko'rib chiqsa ham natija chiqsin
+    if (query) {
+      const q = query.toLowerCase().trim();
+      const kod = String(p.barcode ?? '').toLowerCase();
+      if (!p.name.toLowerCase().includes(q) && !kod.includes(q)) return false;
+    }
     // Tovarning O'Z chegarasi bo'yicha. Ilgari hamma joyda qat'iy 5
     // turardi: zargarlik va telefon do'konida har buyum yakka (qoldiq
     // 1-2) va BUTUN ombor doim "kam qolgan" bo'lib yonib turardi.
@@ -92,8 +123,23 @@ export default function Inventory({ onBack }: { onBack: () => void }) {
     if (filter === 'expiry') return p.expiry_date !== null && daysTo(p.expiry_date) <= 7;
     return true;
   });
+  // Kiyim do'konida razmer — omborni ajratadigan asosiy kesim
+  const sized = profile().sizes;
+  const sizeOf = (p: Product) => String(p.size ?? '').trim();
   const catOk = (p: Product) => !category || p.category === category;
   const probaOk = (p: Product) => !proba || probaOf(p) === (proba === '—' ? '' : proba);
+  const sizeOk = (p: Product) => !razmer || sizeOf(p) === (razmer === '—' ? '' : razmer);
+
+  // Ombordagi razmerlar — tayyor ro'yxat tartibida (XS, S, M ...),
+  // raqamli o'lchamlar (42, 44) undan keyin o'z tartibida
+  const razmerlar = [...new Set(base.map(sizeOf))].sort((a, b) => {
+    const i = CLOTHING_SIZES.indexOf(a), j = CLOTHING_SIZES.indexOf(b);
+    if (i >= 0 || j >= 0) return (i < 0 ? 99 : i) - (j < 0 ? 99 : j);
+    const na = Number(a), nb = Number(b);
+    if (Number.isFinite(na) && Number.isFinite(nb)) return na - nb;
+    return a.localeCompare(b);
+  });
+  const razmerSoni = (v: string) => base.filter((p) => catOk(p) && sizeOf(p) === (v === '—' ? '' : v)).length;
 
   // Ombordagi probalar — buyumlardan yig'iladi, tartibi standart
   // ro'yxat bo'yicha (375, 585, 750 ...), begonasi oxirida
@@ -103,9 +149,9 @@ export default function Inventory({ onBack }: { onBack: () => void }) {
   });
   // Har chip yonidagi son: "bossam nechta chiqadi" degani
   const probaSoni = (v: string) => base.filter((p) => catOk(p) && probaOf(p) === (v === '—' ? '' : v)).length;
-  const katSoni = (c: string) => base.filter((p) => probaOk(p) && p.category === c).length;
+  const katSoni = (c: string) => base.filter((p) => probaOk(p) && sizeOk(p) && p.category === c).length;
 
-  const filtered = base.filter((p) => catOk(p) && probaOk(p));
+  const filtered = base.filter((p) => catOk(p) && probaOk(p) && sizeOk(p));
 
   // Ombordagi pul — kirim narxi bo'yicha. Ruxsati yo'q xodimga
   // cost_price umuman yuborilmaydi (server yashiradi), shuning uchun
@@ -143,7 +189,17 @@ export default function Inventory({ onBack }: { onBack: () => void }) {
               </button>
             )}
           </div>
+          {/* Kamera bilan qidirish. Omborda tovar ko'p bo'lganda nomini
+              terib o'tirishdan ko'ra birkani ko'rsatish tez: kod
+              topilsa tovar kartochkasi darhol ochiladi. */}
+          <button className="search-scan" onClick={() => setScanning(true)} aria-label={t('scanner')}>
+            <Glyph name="scan" size={20} color="#fff" />
+          </button>
         </div>
+
+        {scanning && (
+          <Scanner status={t('invScanHint')} onScan={scanFound} onClose={() => setScanning(false)} />
+        )}
 
         {/* "Srogi yaqin" filtri faqat srogi bor do'konda. Zargarlik yoki
             telefon do'konida u doim bo'sh natija berardi — ekranning
@@ -182,11 +238,33 @@ export default function Inventory({ onBack }: { onBack: () => void }) {
           </div>
         )}
 
+        {/* Razmerlar — kiyim do'konida eng ko'p so'raladigan kesim:
+            "M lardan nechta qoldi". Yonida soni turadi. */}
+        {sized && razmerlar.length > 0 && (
+          <div className="chip-row">
+            <button className={`chip ${razmer === '' ? 'on' : ''}`} onClick={() => setRazmer('')}>
+              {t('sizeAll')} <span className="chip-n">{base.filter(catOk).length}</span>
+            </button>
+            {razmerlar.map((v) => {
+              const id = v || '—';
+              return (
+                <button
+                  key={id}
+                  className={`chip ${razmer === id ? 'on' : ''}`}
+                  onClick={() => setRazmer(razmer === id ? '' : id)}
+                >
+                  {v || t('sizeNone')} <span className="chip-n">{razmerSoni(id)}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
         {/* Kategoriyalar — ko'p tovarli do'konda kerakli guruhni tez topish uchun */}
         {categories.length > 0 && (
           <div className="chip-row">
             <button className={`chip ${category === '' ? 'on' : ''}`} onClick={() => setCategory('')}>
-              {t('categoryAll')} <span className="chip-n">{base.filter(probaOk).length}</span>
+              {t('categoryAll')} <span className="chip-n">{base.filter((p) => probaOk(p) && sizeOk(p)).length}</span>
             </button>
             {categories.map((c) => (
               <button key={c} className={`chip ${category === c ? 'on' : ''}`} onClick={() => setCategory(category === c ? '' : c)}>
@@ -210,7 +288,7 @@ export default function Inventory({ onBack }: { onBack: () => void }) {
                     </div>
                     {/* Zargarlikda proba va massa buyumni nomdan ham
                         yaxshiroq ajratadi (bir xil nomli uzuk ko'p bo'ladi) */}
-                    {goldLine(p) && <div className="sub">{goldLine(p)}</div>}
+                    {itemLine(p) && <div className="sub">{itemLine(p)}</div>}
                     <div className="sub">
                       {/* Chegirma bo'lsa eski narx chizilgan holda qoladi */}
                       {(p.discount_percent ?? 0) > 0 ? (
@@ -484,6 +562,8 @@ function ProductEdit({ product, onBack, onSaved }: { product: Product; onBack: (
             stone: stone.trim(),
           }
         : {}),
+      // Kiyimda razmer tovarning bir qismi — u ham tahrirlanadi
+      ...(prof.sizes ? { size: size.trim() } : {}),
     } as any);
     toast.success(t('toastProductSaved'), form.name.trim());
     onSaved();
@@ -724,6 +804,26 @@ function ProductEdit({ product, onBack, onSaved }: { product: Product; onBack: (
             </div>
           </>
         )}
+        {/* Razmer — kiyim do'konida tovarni ajratadigan asosiy belgi.
+            Xato yozilgan bo'lsa shu yerdan tuzatiladi. */}
+        {prof.sizes && (
+          <>
+            <label>{t('sizeLabel')}</label>
+            <input value={size} onChange={(e) => setSize(e.target.value)} placeholder={t('sizePh')} />
+            <div className="chip-row wrap" style={{ marginTop: 8 }}>
+              {CLOTHING_SIZES.map((x) => (
+                <button
+                  key={x}
+                  className={`chip ${size.trim().toUpperCase() === x ? 'on' : ''}`}
+                  onClick={() => setSize(size.trim().toUpperCase() === x ? '' : x)}
+                >
+                  {x}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+
         {/* Zargarlik buyumi: yorliqdagi qatorlar. Narx massa × gramm
             narxidan chiqadi, lekin qo'lda ham yozsa bo'ladi. */}
         {gold && (
@@ -886,7 +986,11 @@ function Stocktake({ products, onBack }: { products: Product[]; onBack: () => vo
     setResult(res.items.filter((r) => r.diff !== 0));
   }
 
-  const list = products.filter((p) => !query || p.name.toLowerCase().includes(query.toLowerCase()));
+  const list = products.filter((p) => {
+    const q = query.toLowerCase().trim();
+    if (!q) return true;
+    return p.name.toLowerCase().includes(q) || String(p.barcode ?? '').toLowerCase().includes(q);
+  });
 
   if (result) {
     return (
@@ -945,7 +1049,13 @@ function Stocktake({ products, onBack }: { products: Product[]; onBack: () => vo
                 <div className="lead">
                   <Thumb p={p} size={36} />
                   <div>
-                    <div className="name">{p.name}</div>
+                    {/* Razmersiz sanoq kiyim do'konida ishlamaydi: bir
+                        xil nomli beshta qator ko'rinardi va sanoqchi
+                        qaysi biriga yozishni bilmasdi */}
+                    <div className="name">
+                      {p.name}
+                      {itemLine(p) && <i className="nm-belgi">{itemLine(p)}</i>}
+                    </div>
                     <div className="sub">
                       {t('stock')}: {p.stock} {p.unit}
                       {diff !== null && diff !== 0 && (

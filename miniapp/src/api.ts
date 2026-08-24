@@ -812,7 +812,8 @@ export interface Product {
   supplier_id?: number | null;
   supplier_name?: string | null;
   from_catalog?: boolean;
-  /* Zargarlik buyumi — yorliqdagi to'rt qator (faqat oltin do'konida) */
+  /* Zargarlik buyumi — yorliqdagi to'rt qator (faqat oltin do'konida).
+     `size` kiyim do'konida ham ishlatiladi — u yerda bu RAZMER. */
   proba?: string | null;
   weight_g?: number | null;
   size?: string | null;

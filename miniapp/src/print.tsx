@@ -258,6 +258,10 @@ export function Labels({
         return (
           <div className="print-label" key={n}>
             <div className="l-name">{item.name}</div>
+            {/* Razmer — kiyim do'konida yorliqdagi eng kerakli belgi:
+                javondagi bir xil ko'ylaklarni faqat shu ajratadi.
+                Boshqa do'konda maydon bo'sh bo'ladi va chizilmaydi. */}
+            {String(item.size ?? '').trim() && <div className="l-size">{item.size}</div>}
             {showPrice && (
               <div className="l-price">
                 {group(item.price)} {t('currency')}

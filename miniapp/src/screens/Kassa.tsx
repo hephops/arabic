@@ -20,7 +20,10 @@ import { TrustWarning } from '../trust';
 import { GoalStrip } from '../goal';
 import { VoiceCartSheet } from '../voiceCart';
 import { priceAfter } from '../discount';
-import { goldShop, goldPrice, goldFieldPrice, goldPrices, goldLine, shopInfo, profile, examples, exampleText, PROBAS, GOLD_CATEGORIES } from '../shopTypes';
+import {
+  goldShop, goldPrice, goldFieldPrice, goldPrices, goldLine, itemLine, shopInfo, profile,
+  examples, exampleText, PROBAS, GOLD_CATEGORIES, CLOTHING_SIZES,
+} from '../shopTypes';
 import { scanFail } from '../beep';
 import {
   STOCK_UNITS, isFractional, parseQty, qtyText, qtyWithUnit,
@@ -667,7 +670,7 @@ function SaleMode({ onDone, autoScan = 0 }: { onDone: () => void; autoScan?: num
                     <div className="name">{p.name}</div>
                     {/* Zargarlikda buyumning o'zi muhim: proba va massa
                         nomdan ham ko'proq narsa aytadi */}
-                    {goldLine(p) && <div className="sub">{goldLine(p)}</div>}
+                    {itemLine(p) && <div className="sub">{itemLine(p)}</div>}
                     <div className="sub" style={p.stock <= 0 ? { color: 'var(--red)' } : undefined}>
                       {t('stock')}: {qtyWithUnit(p.stock, p.unit)}
                     </div>
@@ -703,7 +706,7 @@ function SaleMode({ onDone, autoScan = 0 }: { onDone: () => void; autoScan?: num
                     <ProductThumb product={l.product} size={38} />
                     <div style={{ minWidth: 0 }}>
                       <div className="name">{l.product.name}</div>
-                      {goldLine(l.product) && <div className="sub">{goldLine(l.product)}</div>}
+                      {itemLine(l.product) && <div className="sub">{itemLine(l.product)}</div>}
                       <div className="sub">
                         {fmt(linePrice(l.product) * l.qty)}
                         {(l.product.discount_percent ?? 0) > 0 && (
@@ -959,6 +962,9 @@ function IntakeMode({
     setName(p.name);
     if (p.barcode) setBarcode(p.barcode);
     if (p.category) setCategory(p.category);
+    // Razmerli do'konda tanlangan kartochka AYNAN shu o'lchamniki —
+    // maydonda boshqa razmer qolib ketsa server yangi kartochka ochardi
+    if (prof.sizes) setSize(String(p.size ?? ''));
     const u = p.unit || 'dona';
     const b = basisOf(u, p.price_qty);
     setUnit(u);
@@ -988,7 +994,7 @@ function IntakeMode({
       // Quruq "kod band" degan gap kam: do'konchi birkani noto'g'ri
       // o'qigan bo'lishi mumkin. Qaysi buyum ekanini AYTAMIZ —
       // zargarlikda nomlar bir xil, buyumni proba va massa ajratadi.
-      const kim = [res.product.name, goldLine(res.product)].filter(Boolean).join(' · ');
+      const kim = [res.product.name, itemLine(res.product)].filter(Boolean).join(' · ');
       setCodeWarning(`${t('codeTakenHere')}: ${kim}`);
       return;
     }
@@ -1079,6 +1085,9 @@ function IntakeMode({
               stone: stone.trim() || undefined,
             }
           : {}),
+        // Kiyimda razmer tovarning bir qismi: server shu bo'yicha
+        // alohida kartochka ochadi, M va L qo'shilib ketmasin
+        ...(prof.sizes ? { size: size.trim() || undefined } : {}),
       });
       if ((product as any).code_replaced) {
         // Terilgan birka raqami boshqa buyumda band edi — bu buyumga
@@ -1219,7 +1228,12 @@ function IntakeMode({
                   <div className="nm-head">{t('intakeExisting')}</div>
                   {matches.map((p) => (
                     <button key={p.id} className="nm-item" onClick={() => pickProduct(p)}>
-                      <span className="nm-name">{p.name}</span>
+                      <span className="nm-name">
+                        {p.name}
+                        {/* Razmersiz ro'yxat kiyim do'konida foydasiz:
+                            bir xil nomli beshta qator ko'rinardi */}
+                        {itemLine(p) && <i className="nm-belgi">{itemLine(p)}</i>}
+                      </span>
                       <span className="nm-sub">
                         {t('leftShort')}: {qtyWithUnit(p.stock, p.unit)}
                       </span>
@@ -1296,6 +1310,33 @@ function IntakeMode({
                 </div>
               )}
             </div>
+            {/* Razmer — kiyim do'konida tovarning ajralmas qismi.
+                Bir xil ko'ylakning M va L o'lchami alohida kartochka
+                bo'ladi (server shu maydonga qarab ajratadi), aks holda
+                omborda "20 dona ko'ylak" bo'lib qolardi va qaysi
+                o'lchamdan nechta borligi bilinmasdi. */}
+            {prof.sizes && (
+              <div className="form-row">
+                <label>
+                  {t('sizeLabel')} <span className="tag">{t('optional')}</span>
+                </label>
+                <input value={size} onChange={(e) => setSize(e.target.value)} placeholder={t('sizePh')} />
+                {/* Tayyor variantlar bir bosishda. Ro'yxat qat'iy emas:
+                    poyabzalga 42, bolalar kiyimiga 104 sm deb yozsa ham
+                    bo'ladi — maydon ochiq turadi. */}
+                <div className="unit-chips" style={{ marginTop: 8 }}>
+                  {CLOTHING_SIZES.map((v) => (
+                    <button
+                      key={v}
+                      className={`chip sm ${size.trim().toUpperCase() === v ? 'on' : ''}`}
+                      onClick={() => setSize(size.trim().toUpperCase() === v ? '' : v)}
+                    >
+                      {v}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
             {codeWarning && <p className="form-note" style={{ color: 'var(--yellow)' }}>{codeWarning}</p>}
           </div>
         </div>

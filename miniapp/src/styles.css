@@ -1649,6 +1649,8 @@ button.link { background: none; color: var(--accent); font-size: 15px; font-weig
   height: 2.4em; overflow: hidden;
 }
 .l-price { font-size: 17px; font-weight: 800; margin: 1mm 0; }
+/* Razmer yorliqda yiroqdan ko'rinsin — javonda buyumni shu ajratadi */
+.l-size { font-size: 15px; font-weight: 800; letter-spacing: 0.5px; margin: 0.5mm 0; }
 .l-code svg { max-width: 100%; height: auto; }
 .l-code-text { font-family: monospace; font-size: 10px; letter-spacing: 1px; }
 
@@ -2600,3 +2602,13 @@ button.link { background: none; color: var(--accent); font-size: 15px; font-weig
   background: var(--fill, #e9e9eb); border-radius: 10px; padding: 12px; width: 100%;
   max-height: 40vh; overflow: auto;
 }
+
+/* Kirimda "bunday nomli tovar bor" ro'yxatidagi belgi (razmer, proba) */
+.nm-belgi { font-style: normal; font-weight: 500; color: var(--muted); margin-left: 6px; font-size: 13px; }
+
+/* Ombordagi qidiruv yonidagi skaner tugmasi */
+.search-scan {
+  width: 46px; height: 46px; flex-shrink: 0; border-radius: 13px;
+  background: var(--accent); display: flex; align-items: center; justify-content: center;
+}
+.search-scan:active { filter: brightness(0.92); }

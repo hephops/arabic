@@ -44,6 +44,14 @@ export interface ShopProfile {
   /** Har buyum o'ziga xosmi (uzuk, telefon) — bir nom bilan
    *  birlashtirilmaydi, aks holda ikkinchisining ma'lumoti yo'qoladi */
   unique: boolean;
+  /** Razmer (o'lcham) tovarning bir qismimi — kiyim, poyabzal.
+   *
+   *  Zargarlikdan farqi bor: u yerda HAR BUYUM yakka (unique), bu
+   *  yerda esa bir o'lchamning o'ntasi bo'lishi mumkin. Lekin bir xil
+   *  ko'ylakning M va L o'lchami BOSHQA-BOSHQA tovar: bitta
+   *  kartochkaga qo'shilsa "20 dona ko'ylak" bo'lib qoladi va qaysi
+   *  o'lchamdan nechta borligi yo'qoladi. */
+  sizes: boolean;
   /** "Kam qoldi" chegarasining standarti */
   lowStock: number;
 }
@@ -53,6 +61,7 @@ const P = (units: string[], o: Partial<ShopProfile> = {}): ShopProfile => ({
   expiry: false,
   scale: false,
   unique: false,
+  sizes: false,
   lowStock: 5,
   ...o,
 });
@@ -69,7 +78,8 @@ export const SHOP_PROFILES: Record<ShopType, ShopProfile> = {
   telefon: P(['dona', 'komplekt'], { unique: true, lowStock: 1 }),
   // Zargarlik: buyum donalab yuritiladi, lom esa grammda
   oltin: P(['dona', 'gramm'], { unique: true, lowStock: 0 }),
-  kiyim: P(['dona', 'juft', 'komplekt', 'metr'], { lowStock: 2 }),
+  // Kiyim-kechak va poyabzal: razmer tovarning ajralmas qismi
+  kiyim: P(['dona', 'juft', 'komplekt', 'metr'], { sizes: true, lowStock: 2 }),
   qurilish: P(['dona', 'kg', 'tonna', 'metr', 'm2', 'm3', 'qop', 'rulon', 'quti', 'litr']),
   // Dorixonada srok eng muhimi
   dorixona: P(['dona', 'quti'], { expiry: true }),
@@ -95,6 +105,20 @@ export function lowStockApplies(shop: { shop_type?: string | null } | string | n
 export function shopProfile(shop: { shop_type?: string | null } | string | null | undefined): ShopProfile {
   const type = typeof shop === 'string' ? shop : shop?.shop_type;
   return SHOP_PROFILES[normalizeShopType(type)];
+}
+
+/* ─────────── Razmer ───────────
+ *
+ * Kiyim do'konida "m" bilan "M" bir xil o'lcham. Tozalanmasa ikkita
+ * alohida kartochka ochilib ketardi va do'konchi "nega ikkita
+ * ko'ylagim bor" deb qolardi. */
+export function normalizeSize(raw: unknown): string | null {
+  return String(raw ?? '').trim().toUpperCase().replace(/\s+/g, ' ').slice(0, 40) || null;
+}
+
+/** Ikki o'lcham bir xilmi (ikkalasi ham bo'sh bo'lsa — ha) */
+export function sameSize(a: unknown, b: unknown): boolean {
+  return (normalizeSize(a) ?? '') === (normalizeSize(b) ?? '');
 }
 
 /* ─────────── Zargarlik: gramm narxi ─────────── */

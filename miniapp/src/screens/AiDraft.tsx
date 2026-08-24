@@ -8,7 +8,7 @@ import { qtyText, normalizeUnit } from '../units';
 import { formatAmount, amountValue } from '../format';
 import { DateField } from '../ui';
 import Scanner from '../Scanner';
-import { profile, goldShop, PROBAS } from '../shopTypes';
+import { profile, goldShop, PROBAS, CLOTHING_SIZES } from '../shopTypes';
 
 // Rasmdan o'qilgan kirim taklifi.
 //
@@ -130,6 +130,9 @@ export default function AiDraft({
   }
 
   const gold = goldShop();
+  // Kiyim do'konida razmer tovarning bir qismi — yordamchi uni birkadan
+  // o'qib qo'yadi, do'konchi shu yerda tuzatadi
+  const sized = profile().sizes;
   // Birligi yoki kirim narxi yo'q qator — do'konchining qo'li tegishi shart
   const toFill = (r: Row) => !r.birlik || !r.kirim_narxi;
   // To'ldirilmagani o'zi ochiq turadi: uzun nakladnoyda do'konchi qaysi
@@ -232,6 +235,14 @@ export default function AiDraft({
       </div>
       <p className="hint" style={{ margin: '2px 0 10px' }}>{t('draftHint')}</p>
 
+      {/* Razmer maydonlari uchun tayyor variantlar — bir marta e'lon
+          qilinadi, har qator shu ro'yxatdan foydalanadi */}
+      {sized && (
+        <datalist id="ai-size-list">
+          {CLOTHING_SIZES.map((v) => <option key={v} value={v} />)}
+        </datalist>
+      )}
+
       {rows.map((r, i) => {
         const op = ochiq(i);
         // Yopiq qatorda eng kerakli uchtasi bir satrda turadi
@@ -239,7 +250,11 @@ export default function AiDraft({
           r.miqdor ? `${qtyText(r.miqdor)}${r.birlik ? ` ${r.birlik}` : ''}` : '',
           // Zargarlikda buyumni ajratadigan narsa nomi emas, birkasi:
           // yopiq qatorda ham proba va massa ko'rinib tursin
-          gold ? [r.proba, r.massa ? `${r.massa} g` : '', r.olcham ? `№${r.olcham}` : ''].filter(Boolean).join(' · ') : '',
+          gold
+            ? [r.proba, r.massa ? `${r.massa} g` : '', r.olcham ? `№${r.olcham}` : ''].filter(Boolean).join(' · ')
+            : sized && r.olcham
+              ? `${t('sizeShort')} ${r.olcham}`
+              : '',
           r.kirim_narxi ? fmt(r.kirim_narxi) : '',
         ]
           .filter(Boolean)
@@ -443,6 +458,22 @@ export default function AiDraft({
                       />
                     </label>
                   </>
+                )}
+
+                {/* Razmer — kiyimda tovarni ajratadigan belgi. Nomga
+                    yozilsa "Ko'ylak oq M" va "Ko'ylak oq L" ikki xil nom
+                    bo'lib qolardi va ombor razmer bo'yicha saralanmasdi. */}
+                {sized && (
+                  <label>
+                    <span>{t('sizeLabel')}</span>
+                    <input
+                      className="olcham"
+                      list="ai-size-list"
+                      value={r.olcham ?? ''}
+                      onChange={(e) => set(i, { olcham: e.target.value })}
+                      placeholder={t('sizePh')}
+                    />
+                  </label>
                 )}
 
                 <label className="wide">

@@ -55,6 +55,9 @@ export interface ShopProfile {
   expiry: boolean;
   scale: boolean;
   unique: boolean;
+  /** Razmer tovarning bir qismimi (kiyim, poyabzal) — bir xil
+   *  ko'ylakning M va L o'lchami alohida kartochka bo'ladi */
+  sizes: boolean;
   lowStock: number;
 }
 
@@ -63,6 +66,7 @@ const P = (units: string[], o: Partial<ShopProfile> = {}): ShopProfile => ({
   expiry: false,
   scale: false,
   unique: false,
+  sizes: false,
   lowStock: 5,
   ...o,
 });
@@ -75,7 +79,7 @@ export const SHOP_PROFILES: Record<string, ShopProfile> = {
   xoztovar: P(['dona', 'kg', 'litr', 'metr', 'quti', 'komplekt']),
   telefon: P(['dona', 'komplekt'], { unique: true, lowStock: 1 }),
   oltin: P(['dona', 'gramm'], { unique: true, lowStock: 0 }),
-  kiyim: P(['dona', 'juft', 'komplekt', 'metr'], { lowStock: 2 }),
+  kiyim: P(['dona', 'juft', 'komplekt', 'metr'], { sizes: true, lowStock: 2 }),
   qurilish: P(['dona', 'kg', 'tonna', 'metr', 'm2', 'm3', 'qop', 'rulon', 'quti', 'litr']),
   dorixona: P(['dona', 'quti'], { expiry: true }),
   boshqa: P(['dona', 'kg', 'litr', 'metr', 'quti'], { expiry: true }),
@@ -231,6 +235,31 @@ export function goldLine(p: {
  * Ro'yxat qat'iy emas: do'konchi o'z so'zini yozsa ham bo'ladi,
  * bular faqat bir bosishda qo'yiladigan tayyor variantlar.
  */
+/* ─────────── Kiyim: razmer ───────────
+ *
+ * Bir bosishda qo'yiladigan tayyor variantlar. Ro'yxat qat'iy emas:
+ * do'konchi 44, 46 yoki "104 sm" deb ham yozishi mumkin — poyabzal,
+ * bolalar kiyimi va gazlama har xil o'lchanadi.
+ */
+export const CLOTHING_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL'];
+
+/** Ro'yxatlarda tovar tagida turadigan belgi satri.
+ *
+ *  Zargarlikda bu proba/massa/o'lcham, kiyimda esa RAZMER: bir xil
+ *  nomli o'nta ko'ylakni faqat shu satr ajratadi. Boshqa do'konda
+ *  ko'rsatadigan narsa yo'q — satr bo'sh qaytadi va chizilmaydi. */
+export function itemLine(p: {
+  proba?: string | null;
+  weight_g?: number | null;
+  size?: string | null;
+  stone?: string | null;
+}): string {
+  if (goldShop()) return goldLine(p);
+  if (!profile().sizes) return '';
+  const s = String(p.size ?? '').trim();
+  return s ? `${translate('sizeShort')} ${s}` : '';
+}
+
 export const GOLD_CATEGORIES = [
   'Uzuk',
   "Sirg'a",

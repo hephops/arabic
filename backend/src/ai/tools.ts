@@ -751,7 +751,12 @@ TOOLS.push({
             shtrix_kod: { type: 'string', description: "nakladnoydagi shtrix-kod yoki artikul raqami, bo'lmasa bo'sh satr" },
             proba: { type: 'string', description: "faqat zargarlik: 375, 585, 750, 916, 925, 999. Bo'lmasa bo'sh satr" },
             massa: { type: 'number', description: 'faqat zargarlik: buyum og\'irligi grammda (2.34). Bo\'lmasa 0' },
-            olcham: { type: 'string', description: "faqat zargarlik: uzuk yoki bilaguzuk o'lchami (19). Bo'lmasa bo'sh satr" },
+            olcham: {
+              type: 'string',
+              description:
+                "o'lcham/razmer. Zargarlikda uzuk yoki bilaguzuk raqami (19), " +
+                "kiyim va poyabzalda razmer (M, XL, 44). Bo'lmasa bo'sh satr",
+            },
             vstavka: { type: 'string', description: "faqat zargarlik: ko'zi (brilliant, fianit). Yo'q bo'lsa bo'sh satr" },
           },
           required: ['nom', 'miqdor', 'birlik', 'kirim_narxi', 'sotuv_narxi', 'srok', 'shtrix_kod', 'proba', 'massa', 'olcham', 'vstavka'],
@@ -794,6 +799,11 @@ TOOLS.push({
         // maydonlariga tushadi: aks holda ombor "Uzuk 585 proba,
         // o'lcham 19, massa 2.34 g" degan uzun nomlar uyumi bo'lardi
         // va proba bo'yicha saralash ham ishlamasdi.
+        //
+        // `olcham` kiyim do'konida RAZMER bo'ladi va xuddi shu sabab
+        // bilan nomga emas, o'z maydoniga tushadi: "Ko'ylak oq M" va
+        // "Ko'ylak oq L" ikkita boshqa-boshqa nom bo'lib qolsa ombor
+        // razmer bo'yicha saralanmasdi.
         proba: String(r?.proba ?? '').replace(/\D/g, '').slice(0, 4),
         massa: Math.max(0, Number(String(r?.massa ?? '').replace(',', '.')) || 0),
         olcham: String(r?.olcham ?? '').trim().slice(0, 40),

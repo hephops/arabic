@@ -22,7 +22,10 @@ import { registerAiRoutes, startAiCleanup } from './ai/routes.js';
 import { seedCatalog } from './catalogSeed.js';
 import { normalizeBarcode, barcodeVariants, checkGtin, makeInStoreEan13, parseScaleBarcode, makeScaleBarcode, scaleQty } from './barcodes.js';
 import { normalizePhone } from './phone.js';
-import { normalizeShopType, cleanGoldPrices, goldPrice, isGold, shopProfile, lowStockApplies } from './shopTypes.js';
+import {
+  normalizeShopType, cleanGoldPrices, goldPrice, isGold, shopProfile, lowStockApplies,
+  normalizeSize, sameSize,
+} from './shopTypes.js';
 import { agentByPhone } from './agentcore.js';
 import { noteEmployeeLogin, notifyPinAttempts, recentLogins } from './staffAlert.js';
 import { addBatch, consume, restore, setTotal, batchesOf, syncProduct } from './batches.js';
@@ -1757,7 +1760,9 @@ app.post<{
     const proba = String(req.body?.proba ?? '').replace(/\D/g, '').slice(0, 4) || null;
     const weightRaw = Number(String(req.body?.weight_g ?? '').replace(',', '.'));
     const weight = Number.isFinite(weightRaw) && weightRaw > 0 ? weightRaw : null;
-    const size = String(req.body?.size ?? '').trim().slice(0, 40) || null;
+    // Razmer: kiyim do'konida "m" va "M" bir xil o'lcham bo'lishi shart,
+    // aks holda bitta ko'ylakdan ikkita kartochka ochilib ketardi
+    const size = normalizeSize(req.body?.size);
     const stone = String(req.body?.stone ?? '').trim().slice(0, 40) || null;
     if (isGold(shopRow) && !sell_price) {
       const auto = goldPrice(shopRow, proba, weight);
@@ -1784,6 +1789,18 @@ app.post<{
     // uchun bunday do'konda faqat KOD bo'yicha topiladi: bir birka
     // bir buyum degani.
     const unique = shopProfile(shopRow).unique;
+    // Kiyim do'konida razmer tovarning bir qismi: bir xil ko'ylakning
+    // M va L o'lchami boshqa-boshqa kartochka bo'lishi kerak
+    const sized = shopProfile(shopRow).sizes;
+
+    /** Kod band bo'lsa "kim egasi" deb ko'rsatiladigan belgi.
+     *  Zargarlikda buyumni proba va massa ajratadi, kiyimda — razmer. */
+    const belgiOf = (row: any): string =>
+      isGold(shopRow)
+        ? [row.proba, row.weight_g ? `${row.weight_g} g` : '', row.size ? `№${row.size}` : '']
+            .filter(Boolean)
+            .join(' · ')
+        : String(row.size ?? '').trim();
 
     // ── Yakka buyumli do'konda HAR KIRIM — ALOHIDA buyum.
     //
@@ -1809,31 +1826,52 @@ app.post<{
     if (unique) {
       const egasi = code ? findByBarcode(req.shopId!, code) : null;
       if (egasi) {
-        codeOwner = {
-          id: Number(egasi.id),
-          name: String(egasi.name ?? ''),
-          // Zargarlikda nom bir xil bo'ladi — buyumni proba va massa ajratadi
-          belgi: [egasi.proba, egasi.weight_g ? `${egasi.weight_g} g` : '', egasi.size ? `№${egasi.size}` : '']
-            .filter(Boolean)
-            .join(' · '),
-        };
+        codeOwner = { id: Number(egasi.id), name: String(egasi.name ?? ''), belgi: belgiOf(egasi) };
         code = freeBarcode(req.shopId!) ?? '';
         codeReplaced = true;
       }
     } else {
-      product = (code ? findByBarcode(req.shopId, code) : undefined) as any;
+      const egasi = (code ? findByBarcode(req.shopId, code) : undefined) as any;
+      // ── Razmerli do'kon: kod ham, nom ham yolg'iz yetarli emas.
+      //
+      // Kiyim do'konida bitta modelning hamma o'lchamida ko'pincha
+      // BIR XIL birka turadi. Ilgari shu kod bo'yicha topilgan
+      // kartochkaga qo'shib yuborilardi: M va L bitta qatorda "20
+      // dona" bo'lib qolardi va qaysi o'lchamdan nechta borligi
+      // yo'qolardi. Endi kod boshqa o'lchamda band bo'lsa — yangi
+      // kartochkaga do'konning o'z ichki kodi beriladi, kassada
+      // qaysi o'lcham sotilayotgani aniq bo'lsin.
+      if (egasi && (!sized || sameSize(egasi.size, size))) {
+        product = egasi;
+      } else if (egasi && sized) {
+        codeOwner = { id: Number(egasi.id), name: String(egasi.name ?? ''), belgi: belgiOf(egasi) };
+        code = freeBarcode(req.shopId!) ?? '';
+        codeReplaced = true;
+      }
+
       if (!product) {
-        product = db
-          .prepare('SELECT * FROM products WHERE shop_id = ? AND name = ? COLLATE NOCASE')
-          .get(req.shopId, name.trim()) as any;
+        product = sized
+          ? (db
+              .prepare(
+                "SELECT * FROM products WHERE shop_id = ? AND name = ? COLLATE NOCASE AND IFNULL(size, '') = ?"
+              )
+              .get(req.shopId, name.trim(), size ?? '') as any)
+          : (db
+              .prepare('SELECT * FROM products WHERE shop_id = ? AND name = ? COLLATE NOCASE')
+              .get(req.shopId, name.trim()) as any);
       }
 
       // Katalogdan kelgan bo'lsa — o'sha yozuvga bog'langan tovarni ham
-      // qidiramiz: do'konchi nomini o'zgartirgan bo'lsa ham topilsin
+      // qidiramiz: do'konchi nomini o'zgartirgan bo'lsa ham topilsin.
+      // Razmerli do'konda katalog yozuvi ham o'lchamga bo'linadi.
       if (!product && catalogId) {
-        product = db
-          .prepare('SELECT * FROM products WHERE shop_id = ? AND catalog_id = ?')
-          .get(req.shopId, catalogId) as any;
+        product = sized
+          ? (db
+              .prepare("SELECT * FROM products WHERE shop_id = ? AND catalog_id = ? AND IFNULL(size, '') = ?")
+              .get(req.shopId, catalogId, size ?? '') as any)
+          : (db
+              .prepare('SELECT * FROM products WHERE shop_id = ? AND catalog_id = ?')
+              .get(req.shopId, catalogId) as any);
       }
     }
 
@@ -2215,7 +2253,10 @@ app.patch<{ Params: { id: string }; Body: Record<string, unknown> }>(
           const w = Number(String(value).replace(',', '.'));
           value = Number.isFinite(w) && w > 0 ? w : null;
         }
-        if (key === 'size' || key === 'stone') value = String(value ?? '').trim().slice(0, 40) || null;
+        // Razmer bir xil ko'rinishda saqlansin ("m" -> "M"), aks holda
+        // omborda bitta o'lcham ikki xil chip bo'lib chiqib qolardi
+        if (key === 'size') value = normalizeSize(value);
+        if (key === 'stone') value = String(value ?? '').trim().slice(0, 40) || null;
         if (key === 'supplier_id') {
           // Begona do'konning ta'minotchisi biriktirilmasin
           value = value
