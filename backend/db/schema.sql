@@ -81,7 +81,7 @@ INSERT OR IGNORE INTO settings (key, value) VALUES
   ('daily_price', '3300'),            -- kunlik xizmat narxi (balansdan yechiladi)
   ('trial_days', '14'),               -- yangi do'kon uchun bepul kunlar
   ('low_balance_days', '5'),          -- shuncha kun qolganda ogohlantiriladi
-  ('block_on_empty', '0'),            -- balans tugasa xizmat to'xtasinmi
+  ('block_on_empty', '1'),            -- balans tugasa xizmat to'xtasinmi
   ('referral_bonus', '20000'),        -- taklif qilgan do'konga bonus
   ('agent_bonus', '100000'),          -- ulangan har do'kon uchun xodimga mukofot
   ('sms_price', '150'),               -- 1 ta SMS tannarxi

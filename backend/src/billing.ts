@@ -92,7 +92,9 @@ export const SETTING_DEFAULTS: Record<string, string> = {
   trial_days: '14',
   low_balance_days: '5',
   low_balance_notify: '1',
-  block_on_empty: '0',
+  // Balansi tugagan do'kon savdo ham, kirim ham qila olmasin —
+  // aks holda "balans tugadi" ogohlantirishi ma'nosiz bo'lib qolardi
+  block_on_empty: '1',
   min_topup_amount: '10000',
   referral_bonus: '20000',
   agent_bonus: '100000',

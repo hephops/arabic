@@ -173,6 +173,22 @@ for (const sql of [
   }
 }
 
+// Balans tugasa yozuv to'xtatilsinmi — ilgari standart O'CHIQ edi,
+// ya'ni balansi tugagan do'kon baribir sotib, kirim qilib davom
+// etaverardi. Endi standart YOQIQ: kim buni ilgari o'zi ONGLI
+// ravishda O'CHIRGAN bo'lsa (marker yo'q bo'lsa-yu qiymat '0' bo'lsa)
+// bilib bo'lmaydi, shuning uchun BIR MARTA, faqat hech kim tegmagan
+// standart '0' qiymatini '1' ga o'giramiz. Migratsiya belgisi
+// qo'yilgach ikkinchi marta ishga tushmaydi — admin keyin o'chirib
+// qo'ysa, restart uni qaytarib yoqmaydi.
+{
+  const belgi = db.prepare("SELECT 1 FROM settings WHERE key = '_migrated_block_on_empty'").get();
+  if (!belgi) {
+    db.prepare("UPDATE settings SET value = '1' WHERE key = 'block_on_empty' AND value = '0'").run();
+    db.prepare("INSERT INTO settings (key, value) VALUES ('_migrated_block_on_empty', '1')").run();
+  }
+}
+
 // Partiyalar jadvalining eski shakli: product_id ga FOREIGN KEY bor edi
 // va u tovarni o'chirishni to'sib qo'yardi. Partiya — tovarning tarixi,
 // u tovarni ushlab turmasligi kerak.

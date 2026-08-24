@@ -24,13 +24,17 @@ const HOUR = 10;
 const money = (n: number) => Math.round(n).toLocaleString('ru-RU').replace(/ /g, ' ');
 
 const TEXT = {
-  uz: (name: string, days: number, price: number, card: string) =>
+  uz: (name: string, days: number, price: number, card: string, blocked: boolean) =>
     days <= 0
       ? [
           `<b>${name}</b> — xizmat to'xtadi`,
           '',
-          'Balansingiz tugadi. Ilova ishlashda davom etadi, lekin balansni',
-          "to'ldirmaguningizcha ba'zi amallar cheklanishi mumkin.",
+          blocked
+            ? "Balansingiz tugadi. Savdo ham, kirim ham TO'XTATILDI —"
+            : 'Balansingiz tugadi. Ilova ishlashda davom etadi, lekin balansni',
+          blocked
+            ? "balansni to'ldirmaguningizcha ishlamaydi."
+            : "to'ldirmaguningizcha ba'zi amallar cheklanishi mumkin.",
           card ? `\nKarta: <b>${card}</b>` : '',
         ]
       : [
@@ -40,13 +44,15 @@ const TEXT = {
           "Uzilish bo'lmasligi uchun balansni to'ldirib qo'ying.",
           card ? `\nKarta: <b>${card}</b>` : '',
         ],
-  ru: (name: string, days: number, price: number, card: string) =>
+  ru: (name: string, days: number, price: number, card: string, blocked: boolean) =>
     days <= 0
       ? [
           `<b>${name}</b> — обслуживание остановлено`,
           '',
-          'Баланс закончился. Приложение продолжает работать, но часть',
-          'действий может быть ограничена до пополнения.',
+          blocked
+            ? 'Баланс закончился. Продажа и приход ОСТАНОВЛЕНЫ —'
+            : 'Баланс закончился. Приложение продолжает работать, но часть',
+          blocked ? 'не будут работать до пополнения.' : 'действий может быть ограничена до пополнения.',
           card ? `\nКарта: <b>${card}</b>` : '',
         ]
       : [
@@ -70,7 +76,8 @@ export async function sendLowBalanceWarning(shopId: number): Promise<boolean> {
   // qayerga pul tashlashni bilsin
   const card = getSetting('topup_card', '').trim();
   const lang = langFor(shop.telegram_user_id, shop.language) === 'ru' ? 'ru' : 'uz';
-  const text = TEXT[lang](escapeHtml(shop.name ?? ''), st.days_left, st.daily_price, card)
+  const blocked = shopSetting(shop, 'block_on_empty', '1') === '1';
+  const text = TEXT[lang](escapeHtml(shop.name ?? ''), st.days_left, st.daily_price, card, blocked)
     .filter(Boolean)
     .join('\n');
   const res: any = await sendMessage(shop.telegram_user_id, text);

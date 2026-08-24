@@ -81,6 +81,14 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
         /* localStorage yopiq bo'lishi mumkin */
       }
     }
+    // Balans tugab, admin sozlamasida yozuv to'xtatilgan bo'lsa server
+    // 402 va {error:'balance_empty'} qaytaradi. Shu matn o'zi ekranga
+    // chiqib qolmasin — do'konchi "balance_empty" degan so'zni tushunmaydi
+    // va nima qilishi kerakligini bilmay qoladi.
+    if (res.status === 402 && body?.error === 'balance_empty') {
+      err.balanceEmpty = true;
+      err.message = translate('balanceEmptyBlocked');
+    }
     throw err;
   }
   return res.json();

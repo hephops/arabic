@@ -78,6 +78,12 @@ const OPEN_PATHS = /^\/(auth|public|balance|me|telegram|health)/;
 app.addHook('preHandler', async (req, reply) => {
   if (req.method === 'GET' || req.method === 'OPTIONS') return;
   if (OPEN_PATHS.test(req.url)) return;
+  // Balans tugagani haqidagi ESLATMANING o'zi yozuv emas: u faqat
+  // Telegramga xabar yuboradi va sanani belgilaydi. Aynan shu yo'l
+  // orqali do'konchi balansi tugaganini bilib qoladi — uni ham
+  // to'xtatib qo'ysak, "yong'in signalini yong'in vaqtida o'chirib
+  // qo'yish" bilan barobar bo'lardi.
+  if (req.url.startsWith('/reminders/low-balance')) return;
   const header = req.headers.authorization;
   const session = header?.startsWith('Bearer ') ? verifyToken(header.slice(7)) : null;
   if (!session) return; // avtorizatsiyani o'z joyidagi tekshiruv hal qiladi
@@ -87,7 +93,7 @@ app.addHook('preHandler', async (req, reply) => {
   if (!shop) return;
   // To'xtatish qoidasi do'kon TURIGA qarab ham qo'yilishi mumkin:
   // zargarlik to'xtatilsin, oziq-ovqat esa ishlayversin
-  if (shopSetting(shop, 'block_on_empty', '0') !== '1') return;
+  if (shopSetting(shop, 'block_on_empty', '1') !== '1') return;
   if (!serviceState(shop).active) {
     reply.code(402).send({ error: 'balance_empty' });
     return reply;
