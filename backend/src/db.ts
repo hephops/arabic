@@ -181,12 +181,20 @@ for (const sql of [
 // standart '0' qiymatini '1' ga o'giramiz. Migratsiya belgisi
 // qo'yilgach ikkinchi marta ishga tushmaydi — admin keyin o'chirib
 // qo'ysa, restart uni qaytarib yoqmaydi.
-{
+//
+// try/catch SHART: bu yozuv ishga tushish paytida bajariladi. Baza
+// band bo'lsa (eski jarayon hali yopilmagan, Windowsda tez-tez
+// uchraydi) yozuv xato beradi va butun backend KO'TARILMAY qolardi —
+// ya'ni bir sozlama uchun butun do'kon tizimi to'xtardi. Migratsiya
+// bajarilmasa ham ilova ishlayveradi: standart qiymat kodda ham '1'.
+try {
   const belgi = db.prepare("SELECT 1 FROM settings WHERE key = '_migrated_block_on_empty'").get();
   if (!belgi) {
     db.prepare("UPDATE settings SET value = '1' WHERE key = 'block_on_empty' AND value = '0'").run();
-    db.prepare("INSERT INTO settings (key, value) VALUES ('_migrated_block_on_empty', '1')").run();
+    db.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES ('_migrated_block_on_empty', '1')").run();
   }
+} catch (e) {
+  console.warn('[db] block_on_empty migratsiyasi bajarilmadi:', e);
 }
 
 // Partiyalar jadvalining eski shakli: product_id ga FOREIGN KEY bor edi
