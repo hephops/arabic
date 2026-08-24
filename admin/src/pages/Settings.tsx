@@ -94,19 +94,17 @@ const GROUPS: Group[] = [
 ];
 
 /** Server javob bermasa ishlaydigan zaxira ro'yxat.
- *  backend/src/billing.ts:TYPE_SETTING_KEYS bilan bir xil. */
+ *  backend/src/billing.ts:TYPE_SETTING_KEYS bilan bir xil.
+ *
+ *  Turga faqat BALANSDAN PUL YECHILADIGAN narxlar bo'linadi. Bepul
+ *  muddat, to'ldirish kartasi, bonuslar va qo'llab-quvvatlash butun
+ *  kompaniya uchun bitta — ular tur tanlanganda umuman ko'rinmaydi. */
 const DEFAULT_TYPE_KEYS = [
   'daily_price',
   'ai_question_price',
   'ai_daily_limit',
   'sms_price',
   'call_price',
-  'trial_days',
-  'low_balance_days',
-  'block_on_empty',
-  'min_topup_amount',
-  'referral_bonus',
-  'agent_bonus',
 ];
 
 /* ─────────── Har tur uchun alohida sozlama ───────────
@@ -264,6 +262,10 @@ export default function Settings() {
           <div className="stype-note">
             <b>{typeInfo?.emoji} {typeInfo?.label}</b> do'konlari uchun sozlanyapti.
             Maydon bo'sh qoldirilsa — umumiy qiymat ishlaydi.
+            <br />
+            Turga faqat <b>balansdan pul yechiladigan narxlar</b> bo'linadi. Bepul
+            muddat, to'ldirish kartasi, bonuslar, qo'llab-quvvatlash va AI kaliti
+            butun tizim uchun bitta — ular «Umumiy» bo'limida o'zgartiriladi.
           </div>
         )}
       </div>

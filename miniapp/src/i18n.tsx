@@ -1979,6 +1979,26 @@ export function toCyrillic(text: string): string {
 
 let currentLang: Lang = (localStorage.getItem('lang') as Lang) || 'uz';
 
+/** <html lang> ni tanlangan tilga moslash.
+ *
+ *  Brauzer tarjima taklifini AYNAN shu belgiga qarab beradi. Ilgari
+ *  bu yerda har doim "uz" turardi: do'konchi ilovani ruschaga o'tkazsa
+ *  ham rus brauzeri uni "o'zbekcha sahifa" deb bilib tarjima qilishga
+ *  urinardi. Tarjima esa React chizgan matn tugunlarini ko'chirib
+ *  qo'yadi va ilova qulaydi (index.html dagi notranslate izohiga
+ *  qarang). */
+const HTML_LANG: Record<Lang, string> = { uz: 'uz', uz_cyrl: 'uz-Cyrl', ru: 'ru' };
+
+function htmlLang(l: Lang) {
+  try {
+    document.documentElement.lang = HTML_LANG[l] ?? 'uz';
+  } catch {
+    /* muhim emas */
+  }
+}
+
+htmlLang(currentLang);
+
 export function translate(key: string, lang: Lang = currentLang): string {
   if (lang === 'ru') return RU[key] ?? UZ[key] ?? key;
   const uz = UZ[key] ?? key;
@@ -2026,6 +2046,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   function setLang(l: Lang) {
     currentLang = l;
     localStorage.setItem('lang', l);
+    htmlLang(l);
     setLangState(l);
   }
 

@@ -366,29 +366,13 @@ app.patch<{ Body: Record<string, unknown> }>('/me', { preHandler: requirePerm('s
       db.prepare(`UPDATE shops SET ${key} = ? WHERE id = ?`).run(value, req.shopId);
     }
   }
-  // Bepul kunlar do'kon TURIGA qarab boshqacha bo'lishi mumkin
-  // (zargarlikka 30, oziq-ovqatga 14). Tur esa ro'yxatdan o'tgandan
-  // KEYIN, sozlash oynasida tanlanadi — o'sha paytda muddat umumiy
-  // qoida bo'yicha allaqachon qo'yilgan bo'ladi. Shuning uchun tur
-  // birinchi marta tanlanganda muddat qayta hisoblanadi.
-  //
-  // Faqat hali TEGILMAGAN do'konda: sinov davri davom etayotgan va
-  // balansda birorta harakat bo'lmagan bo'lsa. Aks holda pul to'lagan
-  // do'konning hisobini o'zgartirib yuborardik.
-  if ('shop_type' in req.body) {
-    const sh = db.prepare('SELECT shop_type, trial_ends_at, charged_through FROM shops WHERE id = ?').get(req.shopId) as any;
-    const used = (db
-      .prepare('SELECT COUNT(*) AS c FROM balance_transactions WHERE shop_id = ?')
-      .get(req.shopId) as any).c as number;
-    if (!used && sh?.trial_ends_at && sh.trial_ends_at >= uzToday()) {
-      const start = trialThrough(new Date(), sh.shop_type);
-      db.prepare('UPDATE shops SET charged_through = ?, trial_ends_at = ? WHERE id = ?').run(
-        start.charged_through,
-        start.trial_ends_at,
-        req.shopId
-      );
-    }
-  }
+  // Ilgari shu yerda tur tanlanganda bepul muddat QAYTA hisoblanardi:
+  // bepul kunlar har tur uchun boshqacha bo'lishi mumkin edi. Endi
+  // bepul kunlar butun tizim uchun bitta, ya'ni qayta hisoblashdan
+  // hech qanday foyda yo'q — zarari esa bor edi: do'konchi sozlash
+  // oynasiga qaytib turni yana saqlasa muddat BUGUNDAN qayta
+  // boshlanardi va sinov davri cheksiz cho'zilib ketishi mumkin edi.
+  // Muddat ro'yxatdan o'tishda qo'yiladi va o'shanday qoladi.
 
   // Til o'zgarsa botdagi xabarlar ham o'sha tilga o'tsin — do'konchi
   // ilovada ruschani tanlab, botdan o'zbekcha xabar olmasin

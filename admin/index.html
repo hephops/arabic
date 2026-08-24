@@ -1,8 +1,15 @@
 <!DOCTYPE html>
-<html lang="uz">
+<html lang="uz" translate="no" class="notranslate">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- Brauzer sahifani AVTOMATIK TARJIMA qilmasin.
+         Sabab: tarjimon matn tugunlarini <font> ichiga o'rab qo'yadi va
+         React kuzatib turgan tugunlar joyida qolmaydi. Keyingi qayta
+         chizishda "Failed to execute 'removeChild' on 'Node'" xatosi
+         chiqib, butun sahifa oqarib qolardi. Panel o'zbekcha, rus
+         tilidagi brauzer uni tarjima qilishga urinardi. -->
+    <meta name="google" content="notranslate" />
     <title>BuySale — Admin panel</title>
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
   </head>

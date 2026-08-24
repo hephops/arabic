@@ -54,22 +54,24 @@ export const typeKey = (type: string, key: string): string => `${TYPE_PREFIX}${t
 
 /** Har bir tur uchun ALOHIDA qo'yilishi mumkin bo'lgan sozlamalar.
  *
- *  Bu ro'yxatda yo'q kalitlar (karta raqami, qo'llab-quvvatlash
- *  telefoni) butun kompaniya uchun bitta — ularni turga bo'lish
- *  ma'nosiz va faqat chalkashtirardi. */
+ *  Faqat BALANSDAN PUL YECHILADIGAN narxlar. Sabab: zargarlik do'koni
+ *  bilan non do'konidan bir xil haq olish shart emas, lekin qolgan
+ *  hamma narsa — bepul kunlar, ogohlantirish muddati, to'ldirish
+ *  kartasi, bonuslar, qo'llab-quvvatlash — butun kompaniya uchun bitta
+ *  qoida. Ilgari ular ham turga bo'linardi va bu faqat chalkashtirardi:
+ *  bitta bepul muddatni o'zgartirish uchun sakkiz turni aylanib
+ *  chiqishga to'g'ri kelardi.
+ *
+ *  Ro'yxatdan chiqarilgan kalit uchun bazada eski 't_<tur>_<kalit>'
+ *  satri qolgan bo'lsa — u endi O'QILMAYDI (typeSetting shu ro'yxatga
+ *  qaraydi), ya'ni umumiy qiymat ishlaydi. Satrlar o'chirilmaydi:
+ *  ma'lumotni yo'q qilmaymiz. */
 export const TYPE_SETTING_KEYS = [
   'daily_price',
   'ai_question_price',
   'ai_daily_limit',
   'sms_price',
   'call_price',
-  'trial_days',
-  'low_balance_days',
-  'low_balance_notify',
-  'block_on_empty',
-  'min_topup_amount',
-  'referral_bonus',
-  'agent_bonus',
 ] as const;
 
 const TYPE_KEY_SET: ReadonlySet<string> = new Set(TYPE_SETTING_KEYS);
