@@ -985,7 +985,11 @@ function IntakeMode({
     // bir xil turishi mumkin. Ilgari shunday kod terilganda oldingi
     // uzukning nomi va NARXI yangi buyumga tushib qolardi.
     if (prof.unique && res.product) {
-      setCodeWarning(t('codeTakenHere'));
+      // Quruq "kod band" degan gap kam: do'konchi birkani noto'g'ri
+      // o'qigan bo'lishi mumkin. Qaysi buyum ekanini AYTAMIZ —
+      // zargarlikda nomlar bir xil, buyumni proba va massa ajratadi.
+      const kim = [res.product.name, goldLine(res.product)].filter(Boolean).join(' · ');
+      setCodeWarning(`${t('codeTakenHere')}: ${kim}`);
       return;
     }
     const known = res.product ?? res.catalog;
@@ -1079,8 +1083,16 @@ function IntakeMode({
       if ((product as any).code_replaced) {
         // Terilgan birka raqami boshqa buyumda band edi — bu buyumga
         // do'konning o'z kodi berildi. Do'konchi buni bilishi shart:
-        // yorliqqa aynan shu kod chiqadi.
-        toast.info(t('codeReplacedTitle'), `${t('codeReplacedBody')} ${product.barcode ?? ''}`);
+        // yorliqqa aynan shu kod chiqadi. Kod KIMDA band ekani ham
+        // aytiladi, aks holda chalkashlikni topib bo'lmaydi.
+        const ega = (product as any).code_owner;
+        const kim = ega ? [ega.name, ega.belgi].filter(Boolean).join(' · ') : '';
+        toast.info(
+          t('codeReplacedTitle'),
+          [kim ? `${t('codeTakenHere')}: ${kim}` : '', `${t('codeReplacedBody')} ${product.barcode ?? ''}`]
+            .filter(Boolean)
+            .join(' · ')
+        );
       } else {
         toast.success(
           t('toastIntakeSaved'),

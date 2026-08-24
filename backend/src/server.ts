@@ -1810,9 +1810,23 @@ app.post<{
     // aks holda kassada qaysi uzuk sotilayotgani noaniq bo'lardi.
     let code = barcode;
     let codeReplaced = false;
+    // Kod kimda band edi — do'konchiga AYNAN shuni aytamiz.
+    // "Kod almashtirildi" degan quruq gap yetarli emas: do'konchi
+    // birkani noto'g'ri o'qigan bo'lishi ham mumkin, u holda qaysi
+    // buyum bilan chalkashganini ko'rib, tuzatib qo'yadi.
+    let codeOwner: { id: number; name: string; belgi: string } | null = null;
     let product: any;
     if (unique) {
-      if (code && findByBarcode(req.shopId!, code)) {
+      const egasi = code ? findByBarcode(req.shopId!, code) : null;
+      if (egasi) {
+        codeOwner = {
+          id: Number(egasi.id),
+          name: String(egasi.name ?? ''),
+          // Zargarlikda nom bir xil bo'ladi — buyumni proba va massa ajratadi
+          belgi: [egasi.proba, egasi.weight_g ? `${egasi.weight_g} g` : '', egasi.size ? `№${egasi.size}` : '']
+            .filter(Boolean)
+            .join(' · '),
+        };
         code = freeBarcode(req.shopId!) ?? '';
         codeReplaced = true;
       }
@@ -1939,7 +1953,9 @@ app.post<{
     // Kod band bo'lgani uchun almashtirilgan bo'lsa — ilova buni
     // do'konchiga aytadi, aks holda u chop etgan yorliqdagi kod
     // kutgan raqamidan boshqa bo'lib qolardi
-    return codeReplaced ? { ...saqlangan, code_replaced: true, code_asked: barcode } : saqlangan;
+    return codeReplaced
+      ? { ...saqlangan, code_replaced: true, code_asked: barcode, code_owner: codeOwner }
+      : saqlangan;
   }
 );
 
