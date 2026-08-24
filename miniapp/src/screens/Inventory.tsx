@@ -23,6 +23,31 @@ import {
 import { useEscape } from '../useEscape';
 import { labelCount, setLabelCount, labelPrice, setLabelPrice } from '../labelPrefs';
 
+/* ─────────── Zargarlik: og'irlik hisobi ───────────
+ *
+ * Zargar do'konida asosiy o'lchov — GRAMM. "585 dan jami necha gramm
+ * bor" degan savol kuniga bir necha marta tug'iladi (yangi tovar
+ * olishdan oldin, hisob-kitobda, tekshiruvda) va ilgari unga javob
+ * berish uchun buyumlarni qo'lda qo'shib chiqishga to'g'ri kelardi.
+ */
+
+/** Shu qatordagi jami og'irlik, grammda.
+ *
+ *  Lom grammda yuritiladi — u yerda QOLDIQNING o'zi gramm. Buyum esa
+ *  donada: og'irligi × nechta borligi. */
+function gramsOf(p: { unit?: string | null; weight_g?: number | null; stock: number }): number {
+  const u = String(p.unit ?? '').toLowerCase();
+  if (u === 'gramm' || u === 'g') return Number(p.stock) || 0;
+  return (Number(p.weight_g) || 0) * (Number(p.stock) || 0);
+}
+
+/** "1 234,56" — minglar ajratilgan holda, ortiqcha nol yozilmaydi */
+function gramFmt(g: number): string {
+  const yaxlit = Math.round((Number(g) || 0) * 100) / 100;
+  const [butun, kasr] = String(yaxlit).split('.');
+  return butun.replace(/\B(?=(\d{3})+(?!\d))/g, '\u00a0') + (kasr ? `,${kasr}` : '');
+}
+
 /** Shu tovar uchun "kam qoldi" chegarasi: o'zinikini bo'lsa o'shanisi,
  *  bo'lmasa do'kon turining standarti (oltin/telefonda 0-1, oziqda 5) */
 const lowLimit = (p: { low_stock_threshold?: number | null }) =>
@@ -50,7 +75,7 @@ function Thumb({ p, size = 42 }: { p: Product; size?: number }) {
 export default function Inventory({ onBack }: { onBack: () => void }) {
   const [products, setProducts] = useState<Product[]>([]);
   const [query, setQuery] = useState('');
-  const [filter, setFilter] = useState<'all' | 'low' | 'expiry'>('all');
+  const [filter, setFilter] = useState<'all' | 'low' | 'expiry' | 'proba'>('all');
   // Ommaviy chegirma oynasi uchun tanlangan tovarlar
   const [discountFor, setDiscountFor] = useState<Product[] | null>(null);
   const [category, setCategory] = useState('');
@@ -213,6 +238,10 @@ export default function Inventory({ onBack }: { onBack: () => void }) {
             // ma'nosiz: har kartochka bitta buyum
             ...(profile().unique ? [] : [{ id: 'low' as const, label: t('filterLow') }]),
             ...(profile().expiry ? [{ id: 'expiry' as const, label: t('filterExpiry') }] : []),
+            // Zargarda kuniga bir necha marta tug'iladigan savol:
+            // "585 dan jami necha gramm bor". Ilgari uni bilish uchun
+            // buyumlarni qo'lda qo'shib chiqishga to'g'ri kelardi.
+            ...(gold ? [{ id: 'proba' as const, label: t('probaTab') }] : []),
           ]}
         />
 
@@ -222,7 +251,7 @@ export default function Inventory({ onBack }: { onBack: () => void }) {
             "kamida ikki xil bo'lsa" degan shart bor edi va hamma
             buyumi 585 bo'lgan do'konda qator butunlay yo'qolib,
             do'konchi "nega menda yo'q" deb qolardi. */}
-        {gold && probalar.length > 0 && (
+        {gold && filter !== 'proba' && probalar.length > 0 && (
           <div className="chip-row">
             <button className={`chip ${proba === '' ? 'on' : ''}`} onClick={() => setProba('')}>
               {t('probaAll')} <span className="chip-n">{base.filter(catOk).length}</span>
@@ -240,7 +269,7 @@ export default function Inventory({ onBack }: { onBack: () => void }) {
 
         {/* Razmerlar — kiyim do'konida eng ko'p so'raladigan kesim:
             "M lardan nechta qoldi". Yonida soni turadi. */}
-        {sized && razmerlar.length > 0 && (
+        {sized && filter !== 'proba' && razmerlar.length > 0 && (
           <div className="chip-row">
             <button className={`chip ${razmer === '' ? 'on' : ''}`} onClick={() => setRazmer('')}>
               {t('sizeAll')} <span className="chip-n">{base.filter(catOk).length}</span>
@@ -261,7 +290,7 @@ export default function Inventory({ onBack }: { onBack: () => void }) {
         )}
 
         {/* Kategoriyalar — ko'p tovarli do'konda kerakli guruhni tez topish uchun */}
-        {categories.length > 0 && (
+        {filter !== 'proba' && categories.length > 0 && (
           <div className="chip-row">
             <button className={`chip ${category === '' ? 'on' : ''}`} onClick={() => setCategory('')}>
               {t('categoryAll')} <span className="chip-n">{base.filter((p) => probaOk(p) && sizeOk(p)).length}</span>
@@ -274,6 +303,9 @@ export default function Inventory({ onBack }: { onBack: () => void }) {
           </div>
         )}
 
+        {filter === 'proba' && <ProbaWeights rows={base} costHidden={costHidden} />}
+
+        {filter !== 'proba' && (
         <div className="list-group">
           {filtered.map((p) => {
             const expDays = p.expiry_date ? daysTo(p.expiry_date) : null;
@@ -323,6 +355,7 @@ export default function Inventory({ onBack }: { onBack: () => void }) {
             );
           })}
         </div>
+        )}
         {/* Srogi yaqinlar ro'yxati ochilganda — bir bosishda hammasiga
             chegirma. Bosh sahifadagi bilan bir xil oyna. */}
         {filter === 'expiry' && filtered.length > 0 && (
@@ -339,13 +372,86 @@ export default function Inventory({ onBack }: { onBack: () => void }) {
           />
         )}
 
-        {filtered.length === 0 && (
+        {filter !== 'proba' && filtered.length === 0 && (
           <EmptyState
             icon="boxes"
             title={t('noProducts')}
             sub={query || filter !== 'all' ? t('noProductsFilter') : t('noProductsSub')}
           />
         )}
+      </div>
+    </>
+  );
+}
+
+/* ───────── Probalar bo'yicha og'irlik ─────────
+ *
+ * Zargar do'konida asosiy o'lchov gramm: "585 dan jami necha gramm
+ * bor" degan savol yangi tovar olishdan oldin ham, hisob-kitobda ham,
+ * tekshiruvda ham tug'iladi. Ilgari javob berish uchun buyumlarni
+ * qo'lda qo'shib chiqishga to'g'ri kelardi — 95 ta uzuk uchun bu
+ * jiddiy ish.
+ *
+ * Lom grammda yuritiladi, buyum esa donada — ikkalasi ham shu yerda
+ * bitta grammga keltiriladi (gramsOf).
+ */
+function ProbaWeights({ rows, costHidden }: { rows: Product[]; costHidden: boolean }) {
+  const { t } = useT();
+  const guruh = new Map<string, { dona: number; gram: number; qiymat: number }>();
+  for (const p of rows) {
+    const key = String(p.proba ?? '').trim();
+    const bor = guruh.get(key) ?? { dona: 0, gram: 0, qiymat: 0 };
+    bor.dona += 1;
+    bor.gram += gramsOf(p);
+    bor.qiymat += (Number(p.cost_price) || 0) * (Number(p.stock) || 0);
+    guruh.set(key, bor);
+  }
+  // Tartib standart proba ro'yxati bo'yicha (375, 585, 750 ...),
+  // begonasi va probasizi oxirida
+  const qatorlar = [...guruh.entries()].sort(([a], [b]) => {
+    const i = PROBAS.indexOf(a), j = PROBAS.indexOf(b);
+    return (i < 0 ? 99 : i) - (j < 0 ? 99 : j);
+  });
+  const jami = qatorlar.reduce(
+    (s, [, v]) => ({ dona: s.dona + v.dona, gram: s.gram + v.gram, qiymat: s.qiymat + v.qiymat }),
+    { dona: 0, gram: 0, qiymat: 0 }
+  );
+
+  if (!qatorlar.length) return <EmptyState icon="boxes" title={t('noProducts')} sub={t('probaEmpty')} />;
+
+  return (
+    <>
+      <p className="hint" style={{ margin: '0 4px 10px' }}>{t('probaWeightHint')}</p>
+      <div className="list-group">
+        {qatorlar.map(([proba, v]) => (
+          <div className="list-item" key={proba || '—'}>
+            <div className="lead">
+              <span className="proba-tag">{proba || t('probaNone')}</span>
+              <div>
+                <div className="name">{gramFmt(v.gram)} {t('unit_gramm')}</div>
+                <div className="sub">
+                  {v.dona} {t('unit_dona')}
+                  {/* Kilogrammga o'tgan og'irlik yiroqdan tushunarliroq */}
+                  {v.gram >= 1000 && ` · ${gramFmt(v.gram / 1000)} kg`}
+                </div>
+              </div>
+            </div>
+            {!costHidden && <div className="right-val">{fmt(v.qiymat)}</div>}
+          </div>
+        ))}
+        <div className="list-item proba-jami">
+          <div className="lead">
+            <span className="proba-tag jami">{t('total')}</span>
+            <div>
+              <div className="name">{gramFmt(jami.gram)} {t('unit_gramm')}</div>
+              <div className="sub">
+                {jami.dona} {t('unit_dona')}
+                {jami.gram >= 1000 && ` · ${gramFmt(jami.gram / 1000)} kg`}
+              </div>
+            </div>
+          </div>
+          {!costHidden && <div className="right-val">{fmt(jami.qiymat)}</div>}
+        </div>
       </div>
     </>
   );

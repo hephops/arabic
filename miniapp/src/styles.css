@@ -2612,3 +2612,18 @@ button.link { background: none; color: var(--accent); font-size: 15px; font-weig
   background: var(--accent); display: flex; align-items: center; justify-content: center;
 }
 .search-scan:active { filter: brightness(0.92); }
+
+/* Probalar bo'yicha og'irlik jadvali (zargarlik ombori) */
+.proba-tag {
+  flex-shrink: 0; min-width: 52px; height: 40px; padding: 0 10px;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--fill); border-radius: 11px;
+  font-weight: 800; font-size: 15px; letter-spacing: -0.2px;
+}
+.proba-tag.jami { background: var(--accent); color: #fff; font-size: 13px; }
+.proba-jami { background: rgba(0, 122, 255, 0.06); }
+.proba-jami .name { font-weight: 800; }
+.list-item .right-val { font-weight: 700; font-size: 14px; white-space: nowrap; margin-left: 8px; }
+/* Savatda butun birlik (dona) — maydon torroq va markazda */
+.stepper.whole .st-box { padding: 0 4px; }
+.stepper.whole .st-qty { width: 42px; text-align: center; }

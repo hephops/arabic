@@ -352,7 +352,9 @@ function SaleMode({ onDone, autoScan = 0 }: { onDone: () => void; autoScan?: num
    * ni umuman kiritib bo'lmasdi.
    */
   function typeQty(id: number, text: string, unit: string) {
-    const clean = text.replace(/[^\d.,]/g, '');
+    // Butun birlikda kasr yo'q: "1,5 dona" degani yo'q va nuqta
+    // terilib qolsa raqam jimgina buzilib ketardi
+    const clean = isFractional(unit) ? text.replace(/[^\d.,]/g, '') : text.replace(/\D/g, '');
     setQtyDraft((d) => ({ ...d, [id]: clean }));
     setQty(id, parseQty(clean, unit));
   }
@@ -720,35 +722,38 @@ function SaleMode({ onDone, autoScan = 0 }: { onDone: () => void; autoScan?: num
                       </div>
                     </div>
                   </div>
-                  {/* Kilogramm/litrda miqdor qo'lda yoziladi: xaridor 1,5
-                      yoki 1,3 kg olishi mumkin, buni "+" bilan terib
-                      bo'lmaydi. Maydon ko'rinib turadi — bosish mumkinligi
-                      bilinsin. "+/−" esa yarim birlikdan yuradi. */}
-                  <div className={`stepper ${isFractional(l.product.unit) ? 'frac' : ''}`}>
+                  {/* Miqdor QO'LDA ham yoziladi. Ilgari faqat
+                      kilogramm/litrda shunday edi, donada esa "+" ni
+                      bosaverish kerak edi: 12 dona qo'shish uchun
+                      o'n ikki marta. Endi raqamning ustiga bosib
+                      to'g'ridan-to'g'ri yozib qo'yiladi.
+
+                      "+/−" joyida qoladi — bitta-ikkita qo'shishga u
+                      hamon tez. Kasrli birlikda qadam yarim birlik:
+                      xaridor 1,5 kg ham oladi. */}
+                  <div className={`stepper ${isFractional(l.product.unit) ? 'frac' : 'whole'}`}>
                     <button onClick={() => changeQty(l.product.id!, -1)}>−</button>
-                    {isFractional(l.product.unit) ? (
-                      <label className="st-box">
-                        <input
-                          className="st-qty"
-                          value={qtyDraft[l.product.id!] ?? qtyText(l.qty)}
-                          inputMode="decimal"
-                          // Har bosilganda eski raqam belgilanadi — yangisi
-                          // uning ustiga qo'shilib "21,4" bo'lib ketmasin.
-                          // onFocus yetmaydi: maydon allaqachon fokusda
-                          // bo'lsa qayta bosilganda u umuman ishlamaydi.
-                          onFocus={(e) => e.currentTarget.select()}
-                          onClick={(e) => e.currentTarget.select()}
-                          onChange={(e) => typeQty(l.product.id!, e.target.value, l.product.unit)}
-                          onBlur={() =>
-                            setQtyDraft((d) => { const n = { ...d }; delete n[l.product.id!]; return n; })
-                          }
-                          aria-label={l.product.name}
-                        />
-                        <span className="st-unit">{l.product.unit}</span>
-                      </label>
-                    ) : (
-                      <span>{l.qty}</span>
-                    )}
+                    <label className="st-box">
+                      <input
+                        className="st-qty"
+                        value={qtyDraft[l.product.id!] ?? qtyText(l.qty)}
+                        inputMode={isFractional(l.product.unit) ? 'decimal' : 'numeric'}
+                        // Har bosilganda eski raqam belgilanadi — yangisi
+                        // uning ustiga qo'shilib "21,4" bo'lib ketmasin.
+                        // onFocus yetmaydi: maydon allaqachon fokusda
+                        // bo'lsa qayta bosilganda u umuman ishlamaydi.
+                        onFocus={(e) => e.currentTarget.select()}
+                        onClick={(e) => e.currentTarget.select()}
+                        onChange={(e) => typeQty(l.product.id!, e.target.value, l.product.unit)}
+                        onBlur={() =>
+                          setQtyDraft((d) => { const n = { ...d }; delete n[l.product.id!]; return n; })
+                        }
+                        aria-label={l.product.name}
+                      />
+                      {/* Birlik faqat kasrli tovarda: "dona" yozuvi
+                          qatorni behuda kengaytiradi */}
+                      {isFractional(l.product.unit) && <span className="st-unit">{l.product.unit}</span>}
+                    </label>
                     <button onClick={() => changeQty(l.product.id!, 1)}>+</button>
                   </div>
                 </div>
