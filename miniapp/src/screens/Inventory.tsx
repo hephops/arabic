@@ -104,6 +104,13 @@ export default function Inventory({ onBack }: { onBack: () => void }) {
       return;
     }
     scanFail();
+    // Yakka buyumli do'konda sotilgan buyum ro'yxatdan chiqib ketadi.
+    // Quruq "topilmadi" degani chalkashtirardi: birka qo'lda turibdi-ku.
+    // Sababini aniq aytamiz.
+    if (res?.product && profile().unique) {
+      toast.info(t('invScanSold'), res.product.name);
+      return;
+    }
     setQuery(code);
     toast.info(t('invScanNotFound'), code);
   }

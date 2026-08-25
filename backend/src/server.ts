@@ -1635,6 +1635,24 @@ app.get<{ Querystring: { q?: string; barcode?: string; category?: string } }>(
   }
   const where = ['p.shop_id = ?'];
   const params: any[] = [req.shopId];
+
+  // ── Sotilgan yakka buyum OMBORDAN CHIQADI.
+  //
+  // Zargarlik va telefon do'konida har kartochka BITTA buyum: o'sha
+  // uzuk sotilsa u boshqa qaytib kelmaydi. Ilgari kartochka "0 dona"
+  // bo'lib ro'yxatda osilib turardi — do'konchi 95 ta buyum ko'rardi,
+  // aslida 80 tasi qolgan bo'lsa ham. Ombor qiymati ham, probalar
+  // bo'yicha gramm hisobi ham shu qatorlar bilan chalkashardi.
+  //
+  // Oddiy do'konda esa aksincha: tugagan tovar RO'YXATDA QOLISHI
+  // kerak — u qayta keladi, "kam qolgan" ro'yxati va ta'minotchiga
+  // buyurtma aynan shunga tayanadi.
+  //
+  // Buyum qaytarilsa qoldiq yana 1 bo'ladi va kartochka o'zi
+  // ro'yxatga qaytadi — alohida "tiklash" kerak emas.
+  const turRow = db.prepare('SELECT shop_type FROM shops WHERE id = ?').get(req.shopId) as any;
+  if (shopProfile(turRow).unique) where.push('p.stock > 0');
+
   if (q) {
     where.push('p.name LIKE ?');
     params.push(`%${q}%`);
