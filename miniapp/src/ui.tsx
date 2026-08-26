@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { AppIcon, Glyph } from './icons';
+import { openPhoto } from './photoView';
 import { BASE } from './api';
 import { useT, translate } from './i18n';
 import { toggleSide } from './sidebar';
@@ -131,7 +132,13 @@ export function Segmented<T extends string>({
 
 /** Mahsulot rasmi — rasm bo'lmasa quti ikonkasi.
  *  Kassa, Ombor va bosh sahifadagi ro'yxatlar shu bittasidan foydalanadi,
- *  shunda ro'yxatlar bir xil ko'rinadi. */
+ *  shunda ro'yxatlar bir xil ko'rinadi.
+ *
+ *  Rasm BOSILSA butun ekranga ochiladi: ro'yxatdagi 44 piksellik
+ *  kvadratdan uzukning ko'zini ham, kiyimning naqshini ham ajratib
+ *  bo'lmaydi. Bosish qatorning o'ziga o'tmaydi (stopPropagation) —
+ *  aks holda Omborda rasm bosilganda tahrirlash oynasi ochilib
+ *  ketardi. */
 export function ProductThumb({
   product,
   size = 44,
@@ -142,8 +149,13 @@ export function ProductThumb({
   if (product.image_url) {
     return (
       <img
+        className="thumb-zoom"
         src={`${BASE}${product.image_url}`}
         alt={product.name}
+        onClick={(e) => {
+          e.stopPropagation();
+          openPhoto(product.image_url, product.name);
+        }}
         style={{ width: size, height: size, borderRadius: 10, objectFit: 'cover', flexShrink: 0 }}
       />
     );

@@ -20,6 +20,7 @@ import Ai from './screens/Ai';
 import QuickActions from './QuickActions';
 import InstallPrompt from './InstallPrompt';
 import { ToastHost } from './toast';
+import { PhotoViewer } from './photoView';
 import { Glyph } from './icons';
 import { translate } from './i18n';
 import { useT } from './i18n';
@@ -150,6 +151,8 @@ export default function App() {
         </div>
       ))}
       <ToastHost />
+      {/* Rasm bosilganda butun ekranga ochiladi — istalgan ekrandan */}
+      <PhotoViewer />
       <InstallPrompt />
 
       {/* Balans ogohlantirishi — har qanday ekranda ko'rinadi.

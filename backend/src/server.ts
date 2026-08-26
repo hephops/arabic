@@ -2594,7 +2594,13 @@ app.get<{ Querystring: { limit?: string; q?: string } }>('/sales', { preHandler:
                                THEN CAST(CAST(si.qty AS INTEGER) AS TEXT)
                                ELSE CAST(si.qty AS TEXT) END, ', ')
                FROM sale_items si JOIN products p ON p.id = si.product_id WHERE si.sale_id = s.id) AS items,
-              (SELECT COALESCE(SUM(r.total), 0) FROM returns r WHERE r.sale_id = s.id) AS returned
+              (SELECT COALESCE(SUM(r.total), 0) FROM returns r WHERE r.sale_id = s.id) AS returned,
+              -- Chekdagi birinchi rasmli tovarning surati. Zargarlikda
+              -- nomlar bir xil ("Uzik 585") va ro'yxatda qaysi buyum
+              -- sotilgani faqat rasmdan bilinadi.
+              (SELECT p.image_url FROM sale_items si JOIN products p ON p.id = si.product_id
+               WHERE si.sale_id = s.id AND p.image_url IS NOT NULL AND p.image_url <> ''
+               ORDER BY si.id LIMIT 1) AS image_url
        FROM sales s LEFT JOIN customers c ON c.id = s.customer_id
        WHERE ${where.join(' AND ')} ORDER BY s.created_at DESC, s.id DESC LIMIT ?`
     )
@@ -2606,7 +2612,10 @@ app.get<{ Params: { id: string } }>('/sales/:id', { preHandler: requirePerm('pos
   if (!sale) return reply.code(404).send({ error: 'not_found' });
   const items = db
     .prepare(
-      `SELECT si.*, p.name, p.unit FROM sale_items si JOIN products p ON p.id = si.product_id WHERE si.sale_id = ?`
+      // Rasm ham keladi: chekda "qaysi uzuk sotilgan" degan savolga
+      // nom javob bera olmaydi — zargarlikda hammasi "Uzik 585"
+      `SELECT si.*, p.name, p.unit, p.image_url, p.proba, p.weight_g, p.size, p.stone
+         FROM sale_items si JOIN products p ON p.id = si.product_id WHERE si.sale_id = ?`
     )
     .all(sale.id);
   const customer = sale.customer_id

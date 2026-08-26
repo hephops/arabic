@@ -21,6 +21,7 @@ import {
   PROBAS, CLOTHING_SIZES,
 } from '../shopTypes';
 import { useEscape } from '../useEscape';
+import { openPhoto } from '../photoView';
 import { labelCount, setLabelCount, labelPrice, setLabelPrice } from '../labelPrefs';
 
 /* ─────────── Zargarlik: og'irlik hisobi ───────────
@@ -63,8 +64,12 @@ function Thumb({ p, size = 42 }: { p: Product; size?: number }) {
   if (p.image_url) {
     return (
       <img
+        className="thumb-zoom"
         src={`${BASE}${p.image_url}`}
-        alt=""
+        alt={p.name}
+        // Rasm bosilsa butun ekranga ochiladi. Qator bosilishi
+        // to'xtatiladi — aks holda tahrirlash oynasi ham ochilib ketardi
+        onClick={(e) => { e.stopPropagation(); openPhoto(p.image_url, p.name); }}
         style={{ width: size, height: size, borderRadius: 10, objectFit: 'cover', flexShrink: 0 }}
       />
     );

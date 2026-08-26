@@ -950,6 +950,8 @@ export interface SaleRow {
   items: string | null;
   /** shu sotuvdan qaytarilgan summa */
   returned: number;
+  /** chekdagi birinchi rasmli tovarning surati (ro'yxatda ko'rinadi) */
+  image_url?: string | null;
 }
 
 export interface SaleDetail {
@@ -958,7 +960,15 @@ export interface SaleDetail {
   payment_type: string;
   created_at: string;
   /** returned_qty — shu satrdan qancha tovar qaytarilgan */
-  items: { id: number; name: string; unit: string; qty: number; price: number; returned_qty: number }[];
+  items: {
+    id: number; name: string; unit: string; qty: number; price: number; returned_qty: number;
+    /** tovarning surati va belgilari — chekda qaysi buyum ekani ko'rinsin */
+    image_url?: string | null;
+    proba?: string | null;
+    weight_g?: number | null;
+    size?: string | null;
+    stone?: string | null;
+  }[];
   customer: { name: string; phone: string | null } | null;
   /** chek chop etish uchun do'kon rekvizitlari */
   shop: { name: string; phone: string | null; address: string | null; card_number: string | null } | null;

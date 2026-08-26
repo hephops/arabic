@@ -7,8 +7,9 @@ import { useT } from '../i18n';
 import { fmtDateTime, fmtWhen, formatPhoneSoft } from '../format';
 import { toast, loadFailed } from '../toast';
 import { PrintSheet, Receipt } from '../print';
-import { EmptyState, Summary } from '../ui';
+import { EmptyState, Summary, ProductThumb } from '../ui';
 import { useEscape } from '../useEscape';
+import { itemLine } from '../shopTypes';
 
 // Sotuvlar tarixi, cheklar va qaytarish.
 //
@@ -127,16 +128,23 @@ export function HistoryMode({ autoScan = false }: { autoScan?: boolean }) {
               const back = i.returned_qty ?? 0;
               return (
                 <div className="list-item" key={i.id}>
-                  <div>
-                    <div className="name">{i.name}</div>
-                    <div className="sub">
-                      {i.qty} {i.unit} × {fmt(i.price)}
-                      {back > 0 && (
-                        <span style={{ color: 'var(--red)' }}>
-                          {' · '}
-                          {t('returned')} {back}
-                        </span>
-                      )}
+                  {/* Rasm chekda ham kerak: zargarlikda hamma satr
+                      "Uzik 585" deb yoziladi va qaysi buyum sotilgani
+                      faqat suratdan bilinadi. Bosilsa kattalashadi. */}
+                  <div className="lead">
+                    <ProductThumb product={{ name: i.name, image_url: i.image_url }} size={40} />
+                    <div style={{ minWidth: 0 }}>
+                      <div className="name">{i.name}</div>
+                      {itemLine(i) && <div className="sub">{itemLine(i)}</div>}
+                      <div className="sub">
+                        {i.qty} {i.unit} × {fmt(i.price)}
+                        {back > 0 && (
+                          <span style={{ color: 'var(--red)' }}>
+                            {' · '}
+                            {t('returned')} {back}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
                   <div className="amount">{fmt(i.qty * i.price)}</div>
@@ -312,11 +320,19 @@ export function HistoryMode({ autoScan = false }: { autoScan?: boolean }) {
         {sales.map((s) => (
           <div className="list-item" key={s.id} onClick={async () => setDetail(await api.sale(s.id))}>
             <div className="lead">
-              <AppIcon
-                glyph={s.payment_type === 'debt' ? 'note' : s.payment_type === 'card' ? 'card' : 'banknote'}
-                color={s.payment_type === 'debt' ? 'yellow' : s.payment_type === 'card' ? 'indigo' : 'green'}
-                size={29}
-              />
+              {/* Rasm bo'lsa o'sha ko'rinadi: qaysi buyum sotilgani
+                  nomdan emas, suratdan bilinadi (zargarlikda hamma
+                  chek "Uzik 585"). To'lov turi pastdagi satrda yozib
+                  turgani uchun ikonka yo'qolsa ma'lumot kamaymaydi. */}
+              {s.image_url ? (
+                <ProductThumb product={{ name: s.items ?? '', image_url: s.image_url }} size={40} />
+              ) : (
+                <AppIcon
+                  glyph={s.payment_type === 'debt' ? 'note' : s.payment_type === 'card' ? 'card' : 'banknote'}
+                  color={s.payment_type === 'debt' ? 'yellow' : s.payment_type === 'card' ? 'indigo' : 'green'}
+                  size={29}
+                />
+              )}
               <div style={{ minWidth: 0 }}>
                 <div className="name" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {s.items ?? '—'}
