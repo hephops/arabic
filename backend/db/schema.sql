@@ -586,3 +586,24 @@ CREATE TABLE IF NOT EXISTS agent_payouts (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_payouts_agent ON agent_payouts(agent_id, id);
+
+-- Inventarizatsiya seansi: qaysi tovar TEKSHIRILGAN.
+--
+-- Zargarlik do'konida 200 ta buyum bo'lishi mumkin va ularning ikki-
+-- uchtasi sotilib ketgani hisobda ko'rinmay qolishi mumkin. Buni topish
+-- uchun har buyumni birkasidan skanerlab chiqish kerak — bu esa bir
+-- o'tirishda tugamaydi.
+--
+-- Shuning uchun tekshirilganlar SHU YERDA saqlanadi, ilovada emas:
+-- do'konchi ekrandan chiqib ketsa ham, boshqa telefondan kirsa ham
+-- qayeridan to'xtagan bo'lsa o'sha yerdan davom etadi.
+--
+-- Seans "Yakunlash" bosilganda yoki qaytadan boshlanganda tozalanadi.
+CREATE TABLE IF NOT EXISTS inventory_marks (
+  shop_id INTEGER NOT NULL REFERENCES shops(id),
+  product_id INTEGER NOT NULL REFERENCES products(id),
+  actual REAL NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (shop_id, product_id)
+);
+CREATE INDEX IF NOT EXISTS idx_inv_marks_shop ON inventory_marks(shop_id);

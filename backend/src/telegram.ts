@@ -209,6 +209,24 @@ export async function sendLoginCode(phone: string, code: string): Promise<boolea
   return !!res?.ok;
 }
 
+/**
+ * Inventarizatsiyani qaytadan boshlash kodi.
+ *
+ * Bu KIRISH kodi emas va shu sabab alohida xabar bilan ketadi:
+ * do'konchi "kirish kodi" degan yozuvni ko'rib o'ylamasdan kiritib
+ * yuborishi mumkin, natijada bir necha soatlik sanoq yo'qolardi.
+ * Xabarda nima o'chishi va nechta buyum belgisi yo'qolishi aniq
+ * yoziladi.
+ */
+export async function sendInventoryResetCode(phone: string, code: string, marked: number): Promise<boolean> {
+  const chatId = chatForPhone(phone);
+  if (!chatId) return false;
+  const lang = langForPhone(phone);
+  const text = `${bt(lang, 'invResetTitle')}\n\n${bt(lang, 'invResetHint', { code, n: String(marked) })}`;
+  const res: any = await sendMessage(chatId, text);
+  return !!res?.ok;
+}
+
 export function escapeHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }

@@ -16,6 +16,7 @@ import {
 import { ean13Svg, isEan13, scaleBarcode } from '../ean13';
 import { qrSvg } from '../qr';
 import { scanFail } from '../beep';
+import { haptic } from '../telegram';
 import {
   goldShop, goldPrice, goldFieldPrice, goldLine, itemLine, shopInfo, profile,
   PROBAS, CLOTHING_SIZES,
@@ -1071,44 +1072,150 @@ function ProductEdit({ product, onBack, onSaved }: { product: Product; onBack: (
   );
 }
 
-/* ───────── Inventarizatsiya ───────── */
+/* ───────── Inventarizatsiya ─────────
+ *
+ * Maqsad: javondagi tovarni hisobdagi bilan solishtirish. Zargarlik
+ * do'konida bu 200 ta buyumni birkasidan skanerlab chiqish demak —
+ * bir o'tirishda tugamaydi va do'konchi ekrandan chiqib ketadi.
+ *
+ * Shuning uchun "tekshirildi" belgisi SERVERDA saqlanadi: qaytib
+ * kirilganda sanoq qayeridan to'xtagan bo'lsa o'sha yerdan davom
+ * etadi. Ekran ikkiga bo'lingan — tekshirilmaganlar va
+ * tekshirilganlar; skanerlangan buyum birinchisidan ikkinchisiga
+ * o'tadi. Oxirida "Tekshirilmagan" da qolganlar — javonda topilmagan
+ * tovarlar, ya'ni aynan izlanayotgan narsa.
+ */
 
 function Stocktake({ products, onBack }: { products: Product[]; onBack: () => void }) {
   const { t } = useT();
-  const [counts, setCounts] = useState<Record<number, string>>({});
+  /** product_id → javonda topilgan son */
+  const [marks, setMarks] = useState<Record<number, number>>({});
+  const [total, setTotal] = useState(0);
+  const [tab, setTab] = useState<'left' | 'done'>('left');
   const [result, setResult] = useState<StocktakeRow[] | null>(null);
   const [scanning, setScanning] = useState(false);
   const [query, setQuery] = useState('');
+  const [qty, setQty] = useState<Record<number, string>>({});
+  // Qaytadan boshlash oynasi: ogohlantirish va Telegramdan kelgan kod
+  const [restart, setRestart] = useState(false);
+  useEscape(() => setRestart(false), restart);
+  const [code, setCode] = useState('');
+  const [codeSent, setCodeSent] = useState(false);
+  const [busy, setBusy] = useState(false);
 
-  function onScan(code: string) {
-    setScanning(false);
-    const p = products.find((x) => x.barcode === code);
-    if (p?.id) {
-      // skaner qilingan mahsulot sonini bittaga oshiramiz
-      setCounts((prev) => ({ ...prev, [p.id!]: String((parseFloat(prev[p.id!] ?? '0') || 0) + 1) }));
-      setQuery(p.name);
-    } else {
-      // Bu kod omborda yo'q — ilgari hech narsa bo'lmasdi va sanoqchi
-      // buni sezmay o'tib ketardi
-      scanFail();
-      toast.error(t('toastNotFound'), code);
+  useEffect(() => {
+    api
+      .invSession()
+      .then((s) => {
+        setMarks(Object.fromEntries(s.marks.map((m) => [m.product_id, m.actual])));
+        setTotal(s.total);
+      })
+      .catch(loadFailed);
+  }, []);
+
+  /** Tovarni tekshirilgan deb belgilash. Son berilmasa — hisobdagidek. */
+  async function mark(p: Product, actual?: number) {
+    try {
+      const r = await api.invMark(p.id!, actual);
+      setMarks((m) => ({ ...m, [r.product_id]: r.actual }));
+      haptic.success();
+      return true;
+    } catch (e: any) {
+      toast.error(p.name, e.message);
+      return false;
     }
   }
 
-  async function apply() {
-    const items = Object.entries(counts)
-      .filter(([, v]) => v !== '')
-      .map(([id, v]) => ({ product_id: Number(id), actual: parseFloat(v) || 0 }));
-    if (!items.length) return;
-    const res = await api.stocktake(items);
-    setResult(res.items.filter((r) => r.diff !== 0));
+  async function unmark(id: number) {
+    try {
+      await api.invUnmark(id);
+      setMarks((m) => { const n = { ...m }; delete n[id]; return n; });
+      haptic.tap();
+    } catch (e: any) {
+      toast.error(t('error'), e.message);
+    }
   }
 
-  const list = products.filter((p) => {
+  /** Skanerdan kelgan kod. Skaner YOPILMAYDI: sanoqchi buyumlarni
+   *  ketma-ket o'tkazadi, har biriga qayta ochib o'tirmaydi. */
+  async function onScan(kod: string) {
+    const p = products.find(
+      (x) => String(x.barcode ?? '') === kod || String(x.barcode ?? '').replace(/^0+/, '') === kod.replace(/^0+/, '')
+    );
+    if (!p?.id) {
+      // Bu kod omborda yo'q — sanoqchi buni sezmay o'tib ketmasin
+      scanFail();
+      toast.error(t('toastNotFound'), kod);
+      return;
+    }
+    if (marks[p.id] !== undefined) {
+      toast.info(p.name, t('invMarked'));
+      return;
+    }
+    if (await mark(p)) toast.success(p.name, t('invMarked'));
+  }
+
+  async function apply() {
+    const items = Object.entries(marks).map(([id, actual]) => ({ product_id: Number(id), actual }));
+    if (!items.length) return;
+    setBusy(true);
+    try {
+      const res = await api.stocktake(items);
+      setResult(res.items.filter((r) => r.diff !== 0));
+      setMarks({});
+    } catch (e: any) {
+      toast.error(t('error'), e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /* ── Qaytadan boshlash ──
+   *
+   * Bu bir necha soatlik ishni o'chiradi, shuning uchun tasdiq kodi
+   * do'kon EGASINING Telegramiga boradi. Xodim ham, tasodifiy bosish
+   * ham buni bajara olmaydi. */
+  async function getCode() {
+    setBusy(true);
+    try {
+      const r = await api.invResetCode();
+      setCodeSent(true);
+      if (r.via === 'telegram') toast.success(t('invRestartCode'));
+      else toast.error(t('invRestartNoTg'));
+      if (r.dev_hint) setCode(r.dev_hint);
+    } catch (e: any) {
+      toast.error(e.message === 'forbidden' ? t('invOwnerOnly') : t('error'), e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function doReset() {
+    setBusy(true);
+    try {
+      await api.invReset(code.trim());
+      setMarks({});
+      setRestart(false);
+      setCode('');
+      setCodeSent(false);
+      toast.success(t('invRestartDone'));
+    } catch (e: any) {
+      toast.error(e.message === 'code_expired' ? t('invCodeExpired') : t('invBadCode'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const mos = (p: Product) => {
     const q = query.toLowerCase().trim();
     if (!q) return true;
     return p.name.toLowerCase().includes(q) || String(p.barcode ?? '').toLowerCase().includes(q);
-  });
+  };
+  const qolgan = products.filter((p) => marks[p.id!] === undefined);
+  const tekshirilgan = products.filter((p) => marks[p.id!] !== undefined);
+  const list = (tab === 'left' ? qolgan : tekshirilgan).filter(mos);
+  const jami = total || products.length;
+  const done = Object.keys(marks).length;
 
   if (result) {
     return (
@@ -1147,61 +1254,164 @@ function Stocktake({ products, onBack }: { products: Product[]; onBack: () => vo
     <>
       <NavBar title={t('stocktake')} onBack={onBack} />
       <div className="screen">
-        <p className="hint" style={{ margin: '0 4px 10px' }}>
-          {t('stocktakeHint')}
-        </p>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t('search')} style={{ flex: 1 }} />
-          <button className="chip" style={{ height: 44, marginBottom: 8 }} onClick={() => setScanning(true)}>
-            <Glyph name="scan" size={19} /> {t('scanner')}
+        <p className="hint" style={{ margin: '0 4px 10px' }}>{t('invScanHelp')}</p>
+
+        {/* Qancha bajarilgani doim ko'rinib tursin — 200 ta buyumni
+            sanayotgan odam "yana qancha qoldi" deb o'ylaydi */}
+        <div className="inv-progress">
+          <div className="inv-bar"><i style={{ width: `${jami ? (done / jami) * 100 : 0}%` }} /></div>
+          <b>{t('invProgress', { done: String(done), all: String(jami) })}</b>
+        </div>
+
+        <div className="search-row">
+          <div className="search-field">
+            <Glyph name="search" size={17} color="#8a8a8e" />
+            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t('search')} />
+            {query && (
+              <button className="search-clear" onClick={() => setQuery('')}>
+                <Glyph name="close" size={15} color="#8a8a8e" />
+              </button>
+            )}
+          </div>
+          <button className="search-scan" onClick={() => setScanning(true)} aria-label={t('scanner')}>
+            <Glyph name="scan" size={20} color="#fff" />
           </button>
         </div>
-        {scanning && <Scanner onScan={onScan} onClose={() => setScanning(false)} />}
+
+        {/* Skaner UZLUKSIZ: buyumlar ketma-ket o'tkaziladi, har biriga
+            skanerni qayta ochish 200 ta buyumda chidab bo'lmas ish */}
+        {scanning && (
+          <Scanner
+            continuous
+            status={t('invProgress', { done: String(done), all: String(jami) })}
+            onScan={onScan}
+            onClose={() => setScanning(false)}
+          />
+        )}
+
+        <Segmented
+          value={tab}
+          onChange={setTab}
+          items={[
+            { id: 'left', label: `${t('invTabLeft')} (${qolgan.length})` },
+            { id: 'done', label: `${t('invTabDone')} (${tekshirilgan.length})` },
+          ]}
+        />
 
         <div className="list-group">
           {list.map((p) => {
-            const val = counts[p.id!] ?? '';
-            const diff = val === '' ? null : (parseFloat(val) || 0) - p.stock;
+            const bor = marks[p.id!];
+            const farq = bor === undefined ? null : bor - p.stock;
             return (
               <div className="list-item" key={p.id}>
                 <div className="lead">
                   <Thumb p={p} size={36} />
-                  <div>
-                    {/* Razmersiz sanoq kiyim do'konida ishlamaydi: bir
-                        xil nomli beshta qator ko'rinardi va sanoqchi
-                        qaysi biriga yozishni bilmasdi */}
+                  <div style={{ minWidth: 0 }}>
+                    {/* Razmer va proba bo'lmasa kiyim yoki zargarlik
+                        do'konida bir xil nomli beshta qator ko'rinardi
+                        va sanoqchi qaysi biriga yozishni bilmasdi */}
                     <div className="name">
                       {p.name}
                       {itemLine(p) && <i className="nm-belgi">{itemLine(p)}</i>}
                     </div>
                     <div className="sub">
                       {t('stock')}: {p.stock} {p.unit}
-                      {diff !== null && diff !== 0 && (
-                        <span style={{ color: diff < 0 ? 'var(--red)' : 'var(--green)' }}>
-                          {' '}
-                          · {t('diff')}: {diff > 0 ? '+' : ''}
-                          {diff}
+                      {farq !== null && farq !== 0 && (
+                        <span style={{ color: farq < 0 ? 'var(--red)' : 'var(--green)' }}>
+                          {' '}· {t('diff')}: {farq > 0 ? '+' : ''}{farq}
                         </span>
                       )}
                     </div>
                   </div>
                 </div>
-                <input
-                  value={val}
-                  onChange={(e) => setCounts({ ...counts, [p.id!]: e.target.value })}
-                  inputMode="decimal"
-                  placeholder={t('actualQty')}
-                  style={{ width: 92, marginBottom: 0, textAlign: 'center', background: 'var(--fill)' }}
-                />
+                {tab === 'left' ? (
+                  <div className="inv-act">
+                    {/* Son yozilmasa "hisobdagidek" deb belgilanadi:
+                        skanerlab o'tayotgan odam har buyumga raqam
+                        terib o'tirmaydi */}
+                    <input
+                      value={qty[p.id!] ?? ''}
+                      onChange={(e) => setQty({ ...qty, [p.id!]: e.target.value.replace(/[^\d.,]/g, '') })}
+                      inputMode="decimal"
+                      placeholder={String(p.stock)}
+                      aria-label={p.name}
+                    />
+                    <button
+                      className="inv-ok"
+                      aria-label={t('invMarked')}
+                      onClick={() => {
+                        const v = (qty[p.id!] ?? '').replace(',', '.').trim();
+                        mark(p, v === '' ? undefined : Number(v) || 0);
+                      }}
+                    >
+                      <Glyph name="check" size={17} color="#fff" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="inv-act">
+                    <span className="inv-val">{bor}</span>
+                    <button className="inv-undo" aria-label={t('invUndo')} onClick={() => unmark(p.id!)}>
+                      <Glyph name="close" size={16} color="var(--muted)" />
+                    </button>
+                  </div>
+                )}
               </div>
             );
           })}
         </div>
 
-        <button className="btn-primary" onClick={apply} disabled={Object.values(counts).every((v) => v === '')}>
+        {list.length === 0 && (
+          <div className="empty">
+            {tab === 'left' ? (query ? t('noProductsFilter') : t('invNoneLeft')) : query ? t('noProductsFilter') : t('invNoneDone')}
+          </div>
+        )}
+
+        <button className="btn-primary" onClick={apply} disabled={busy || done === 0}>
           <Glyph name="check" size={18} color="#fff" /> {t('applyStocktake')}
         </button>
+        <button className="btn-ghost" style={{ color: 'var(--red)' }} onClick={() => setRestart(true)}>
+          {t('invRestart')}
+        </button>
       </div>
+
+      {/* Qaytadan boshlash — ogohlantirish va Telegramdagi kod */}
+      {restart && (
+        <div className="sheet-wrap" onClick={() => setRestart(false)}>
+          <div className="sheet" onClick={(e) => e.stopPropagation()}>
+            <div className="sheet-grip" />
+            <div className="sheet-title">{t('invRestartTitle')}</div>
+            {/* Ogohlantirish KOD SO'RALADIGAN joyning o'zida turadi:
+                boshqa ekranda qolsa odam uni o'qimasdan o'tib ketardi */}
+            <p className="inv-warn">{t('invRestartWarn', { n: String(done) })}</p>
+            {!codeSent ? (
+              <button className="btn-primary" disabled={busy} onClick={getCode}>
+                {t('invRestartGet')}
+              </button>
+            ) : (
+              <>
+                <input
+                  value={code}
+                  onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 8))}
+                  inputMode="numeric"
+                  placeholder="123456"
+                  className="mono"
+                  style={{ textAlign: 'center', letterSpacing: 4, fontSize: 20 }}
+                  aria-label={t('invRestartGet')}
+                />
+                <button
+                  className="btn-primary"
+                  style={{ background: 'var(--red)' }}
+                  disabled={busy || code.trim().length < 4}
+                  onClick={doReset}
+                >
+                  {t('invRestart')}
+                </button>
+              </>
+            )}
+            <button className="btn-ghost" onClick={() => setRestart(false)}>{t('cancel')}</button>
+          </div>
+        </div>
+      )}
     </>
   );
 }

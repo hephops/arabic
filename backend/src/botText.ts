@@ -52,6 +52,12 @@ const UZ: Dict = {
   supLinked:
     '✅ Ulandi.\n\nEndi <b>{shop}</b> yuboradigan buyurtmalar shu yerga keladi.',
   supOrder: '🧾 <b>{shop}</b> — yangi buyurtma',
+  invResetTitle: '⚠️ Inventarizatsiyani QAYTADAN boshlash kodi',
+  invResetHint:
+    'Kod: <code>{code}</code>\n\n' +
+    '<b>Diqqat.</b> Bu kod kiritilsa <b>{n}</b> ta tekshirilgan buyum belgisi ' +
+    "o'chadi va sanoq noldan boshlanadi. Qilingan ish yo'qoladi.\n\n" +
+    "Agar bu ishni siz boshlamagan bo'lsangiz — kodni hech kimga bermang.",
   staffIn:
     '👤 <b>{name}</b> ishga kirdi\n' +
     '🕒 {time} · {shop}',
@@ -89,6 +95,12 @@ const RU: Dict = {
   supLinked:
     '✅ Подключено.\n\nТеперь заказы от <b>{shop}</b> будут приходить сюда.',
   supOrder: '🧾 <b>{shop}</b> — новый заказ',
+  invResetTitle: '⚠️ Код для сброса инвентаризации',
+  invResetHint:
+    'Код: <code>{code}</code>\n\n' +
+    '<b>Внимание.</b> После ввода этого кода отметки о <b>{n}</b> проверенных ' +
+    'товарах будут удалены, а пересчёт начнётся заново. Проделанная работа пропадёт.\n\n' +
+    'Если это начали не вы — никому не сообщайте код.',
   staffIn:
     '👤 <b>{name}</b> вышел на смену\n' +
     '🕒 {time} · {shop}',
@@ -126,6 +138,12 @@ const UZ_CYRL: Dict = {
   supLinked:
     '✅ Уланди.\n\nЭнди <b>{shop}</b> юборадиган буюртмалар шу ерга келади.',
   supOrder: '🧾 <b>{shop}</b> — янги буюртма',
+  invResetTitle: '⚠️ Инвентаризацияни ҚАЙТАДАН бошлаш коди',
+  invResetHint:
+    'Код: <code>{code}</code>\n\n' +
+    '<b>Диққат.</b> Бу код киритилса <b>{n}</b> та текширилган буюм белгиси ' +
+    "ўчади ва саноқ нолдан бошланади. Қилинган иш йўқолади.\n\n" +
+    "Агар бу ишни сиз бошламаган бўлсангиз — кодни ҳеч кимга берманг.",
   staffIn:
     '👤 <b>{name}</b> ишга кирди\n' +
     '🕒 {time} · {shop}',

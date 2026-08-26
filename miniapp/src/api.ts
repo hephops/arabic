@@ -462,6 +462,28 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ items }),
     }),
+  /* ── Inventarizatsiya seansi ──
+   *  Tekshirilgan tovarlar serverda saqlanadi: ekrandan chiqib ketilsa
+   *  ham, boshqa telefondan kirilsa ham sanoq davom etadi. */
+  invSession: () => request<InventorySession>('/inventory/session'),
+  invMark: (product_id: number, actual?: number) =>
+    request<{ product_id: number; actual: number }>('/inventory/mark', {
+      method: 'POST',
+      body: JSON.stringify({ product_id, actual }),
+    }),
+  invUnmark: (product_id: number) =>
+    request<{ ok: boolean }>(`/inventory/mark/${product_id}`, { method: 'DELETE' }),
+  /** Qaytadan boshlash kodini egasining Telegramiga yuborish */
+  invResetCode: () =>
+    request<{ ok: true; via: string; bot?: string; marked: number; dev_hint?: string }>(
+      '/inventory/reset/code',
+      { method: 'POST', body: '{}' }
+    ),
+  invReset: (code: string) =>
+    request<{ ok: true; cleared: number }>('/inventory/reset', {
+      method: 'POST',
+      body: JSON.stringify({ code }),
+    }),
   sales: (limit = 50, q = '') =>
     request<SaleRow[]>(`/sales?limit=${limit}${q ? `&q=${encodeURIComponent(q)}` : ''}`),
   sale: (id: number) => request<SaleDetail>(`/sales/${id}`),
@@ -938,6 +960,14 @@ export interface StocktakeRow {
   before: number;
   actual: number;
   diff: number;
+}
+
+/** Inventarizatsiya seansi: qaysi tovar tekshirilgan */
+export interface InventorySession {
+  marks: { product_id: number; actual: number; created_at: string }[];
+  /** ombordagi jami tovar soni */
+  total: number;
+  checked: number;
 }
 
 export interface SaleRow {

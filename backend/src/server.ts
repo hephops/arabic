@@ -13,6 +13,7 @@ import { parseDebtText, parseCartText } from './voice.js';
 import { runReminders, startReminderScheduler } from './reminders.js';
 import {
   handleUpdate, verifyInitData, telegramEnabled, setWebhook, sendMessage, sendLoginCode,
+  sendInventoryResetCode,
   botUsername, otpDeepLink, supplierDeepLink, sendOrderToSupplier, chatForPhone,
 } from './telegram.js';
 import { registerAdminRoutes, seedAdmin, requireAdmin } from './admin.js';
@@ -2330,6 +2331,111 @@ app.delete<{ Params: { id: string } }>('/products/:id', { preHandler: requirePer
   return { ok: true };
 });
 
+/* ─────────── Inventarizatsiya seansi ───────────
+ *
+ * Zargarlik do'konida 200 ta buyum bo'lishi mumkin va ularning ikki-
+ * uchtasi hisobda turgani bilan javonda yo'q bo'lishi mumkin. Buni
+ * topishning yagona yo'li — har buyumni birkasidan skanerlab chiqish.
+ * Bu esa bir o'tirishda tugamaydi.
+ *
+ * Shuning uchun "tekshirildi" belgisi SERVERDA saqlanadi: do'konchi
+ * ekrandan chiqib ketsa ham, telefonni almashtirsa ham qayerida
+ * to'xtagan bo'lsa o'sha yerdan davom etadi. Ilovaning xotirasida
+ * saqlansa, sahifa yangilanishi bilan bir necha soatlik ish
+ * yo'qolardi.
+ */
+
+/** Seans holati: qaysi tovar tekshirilgan va nechtasi qolgan */
+app.get('/inventory/session', { preHandler: requirePerm('inventory') }, async (req) => {
+  const marks = db
+    .prepare('SELECT product_id, actual, created_at FROM inventory_marks WHERE shop_id = ? ORDER BY created_at')
+    .all(req.shopId) as any[];
+  // Jami tovar soni ombor ro'yxati bilan bir xil hisoblanadi: yakka
+  // buyumli do'konda sotilgani chiqib ketgan
+  const unique = shopProfile(db.prepare('SELECT shop_type FROM shops WHERE id = ?').get(req.shopId) as any).unique;
+  const total = (db
+    .prepare(`SELECT COUNT(*) AS c FROM products WHERE shop_id = ?${unique ? ' AND stock > 0' : ''}`)
+    .get(req.shopId) as any).c as number;
+  return { marks, total, checked: marks.length };
+});
+
+/** Bitta tovarni tekshirilgan deb belgilash (skaner yoki qo'lda) */
+app.post<{ Body: { product_id: number; actual?: number } }>(
+  '/inventory/mark',
+  { preHandler: requirePerm('inventory') },
+  async (req, reply) => {
+    const p = db
+      .prepare('SELECT id, stock FROM products WHERE id = ? AND shop_id = ?')
+      .get(req.body?.product_id, req.shopId) as any;
+    if (!p) return reply.code(404).send({ error: 'not_found' });
+    // Miqdor berilmasa — javondagi son hisobdagi bilan bir xil degani.
+    // Skanerlab o'tayotgan do'konchi har buyumga raqam terib
+    // o'tirmaydi: birkani ko'rsatadi va keyingisiga o'tadi.
+    //
+    // DIQQAT: "berilmagan" bilan "nol" farqlanadi. Nol — haqiqiy
+    // javob ("javonda yo'q ekan"), bo'sh esa "hisobdagidek".
+    const berilgan = req.body?.actual;
+    const raw = berilgan == null || berilgan === ('' as any) ? NaN : Number(String(berilgan).replace(',', '.'));
+    const actual = Number.isFinite(raw) && raw >= 0 ? raw : Number(p.stock) || 0;
+    db.prepare(
+      `INSERT INTO inventory_marks (shop_id, product_id, actual) VALUES (?, ?, ?)
+       ON CONFLICT(shop_id, product_id) DO UPDATE SET actual = ?, created_at = datetime('now')`
+    ).run(req.shopId, p.id, actual, actual);
+    return { product_id: p.id, actual };
+  }
+);
+
+/** Belgini olib tashlash — noto'g'ri tovar skanerlangan bo'lsa */
+app.delete<{ Params: { id: string } }>(
+  '/inventory/mark/:id',
+  { preHandler: requirePerm('inventory') },
+  async (req) => {
+    db.prepare('DELETE FROM inventory_marks WHERE shop_id = ? AND product_id = ?').run(
+      req.shopId,
+      Number(req.params.id) || 0
+    );
+    return { ok: true };
+  }
+);
+
+/* ─── Qaytadan boshlash ───
+ *
+ * Bu amal QILINGAN ISHNI O'CHIRADI: bir necha soat skanerlab chiqilgan
+ * belgilar yo'qoladi va sanoq noldan boshlanadi. Shuning uchun uni
+ * xodim ham, tasodifiy bosish ham bajara olmaydi — kod do'kon
+ * EGASINING Telegramiga boradi.
+ *
+ * Kod kirish kodidan alohida saqlanadi ('inv:<do'kon>'): kirish kodi
+ * bilan seansni o'chirib bo'lmaydi va aksincha. */
+const invKey = (shopId: number) => `inv:${shopId}`;
+
+app.post('/inventory/reset/code', { preHandler: requireOwner }, async (req, reply) => {
+  const shop = db.prepare('SELECT phone FROM shops WHERE id = ?').get(req.shopId) as any;
+  if (!shop?.phone) return reply.code(400).send({ error: 'no_phone' });
+  const marked = (db
+    .prepare('SELECT COUNT(*) AS c FROM inventory_marks WHERE shop_id = ?')
+    .get(req.shopId) as any).c as number;
+  const code = issueCode(invKey(req.shopId!));
+  const sent = telegramEnabled() ? await sendInventoryResetCode(shop.phone, code, marked) : false;
+  return {
+    ok: true,
+    via: sent ? 'telegram' : 'none',
+    bot: botUsername() || undefined,
+    marked,
+    // Kirish kodidagi kabi: faqat sinov rejimida qaytadi
+    dev_hint: process.env.OTP_DEV_CODE ? code : undefined,
+  };
+});
+
+app.post<{ Body: { code?: string } }>('/inventory/reset', { preHandler: requireOwner }, async (req, reply) => {
+  const code = String(req.body?.code ?? '').trim();
+  const holat = checkCode(invKey(req.shopId!), code);
+  if (holat !== 'ok') return reply.code(400).send({ error: holat === 'expired' ? 'code_expired' : 'bad_code' });
+  clearCode(invKey(req.shopId!));
+  const n = db.prepare('DELETE FROM inventory_marks WHERE shop_id = ?').run(req.shopId).changes;
+  return { ok: true, cleared: Number(n) };
+});
+
 // Inventarizatsiya — haqiqiy qoldiqni kiritish, farqni yozib qo'yish
 app.post<{ Body: { items: { product_id: number; actual: number }[] } }>(
   '/inventory/count',
@@ -2358,6 +2464,10 @@ app.post<{ Body: { items: { product_id: number; actual: number }[] } }>(
       }
     });
     tx();
+    // Sanoq yakunlandi — seans belgilariga endi ehtiyoj yo'q. Qolib
+    // ketsa keyingi inventarizatsiya "yarmi tekshirilgan" holatdan
+    // boshlanardi.
+    db.prepare('DELETE FROM inventory_marks WHERE shop_id = ?').run(req.shopId);
     return { items: result, changed: result.filter((r) => r.diff !== 0).length };
   }
 );

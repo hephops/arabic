@@ -2649,3 +2649,29 @@ button.link { background: none; color: var(--accent); font-size: 15px; font-weig
   background: rgba(255, 255, 255, 0.16);
   display: flex; align-items: center; justify-content: center;
 }
+
+/* Inventarizatsiya seansi */
+.inv-progress { display: flex; align-items: center; gap: 10px; margin: 0 4px 12px; font-size: 13px; }
+.inv-progress b { white-space: nowrap; color: var(--muted); font-weight: 600; }
+.inv-bar { flex: 1; height: 7px; border-radius: 4px; background: var(--fill); overflow: hidden; }
+.inv-bar i { display: block; height: 100%; background: var(--accent); border-radius: 4px; transition: width 0.25s; }
+.inv-act { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.inv-act input {
+  width: 66px; margin-bottom: 0; text-align: center; background: var(--fill);
+  padding: 9px 6px; font-size: 16px;
+}
+.inv-ok {
+  width: 38px; height: 38px; border-radius: 11px; background: var(--green);
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.inv-undo {
+  width: 32px; height: 32px; border-radius: 50%; background: var(--fill);
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.inv-val { font-weight: 700; font-size: 15px; min-width: 26px; text-align: right; }
+/* Qaytadan boshlash ogohlantirishi — kod terish joyining O'ZIDA */
+.inv-warn {
+  background: rgba(255, 59, 48, 0.1); color: var(--red);
+  border-radius: 12px; padding: 12px 14px; margin: 10px 0 14px;
+  font-size: 13.5px; line-height: 1.4; font-weight: 500;
+}
