@@ -132,6 +132,8 @@ export default function Login({ onLogin, notice }: { onLogin: () => void; notice
             <div className="auth-foot">
               <Glyph name="shield" size={14} color="var(--muted)" /> {t('secureLine')}
             </div>
+
+            <GetApp />
           </>
         ) : (
           <CodeStep
@@ -149,6 +151,74 @@ export default function Login({ onLogin, notice }: { onLogin: () => void; notice
         )}
 
         {error && <p className="error center">{error}</p>}
+      </div>
+    </div>
+  );
+}
+
+/* ─────────── Ilovani telefonga yuklash ───────────
+ *
+ * APK fayli `miniapp/public/` papkasiga `buysale.apk` nomi bilan
+ * tashlansa — tugma O'ZI ishlay boshlaydi, kodga tegish shart emas.
+ * Boshqa joyda tursa (masalan Play Market) `.env` ga
+ * VITE_APK_URL=https://... deb yozib qo'yiladi.
+ *
+ * Fayl hali yo'q bo'lsa tugma "Tez orada" holatida turadi — shu
+ * sababli do'konchi hech qachon ochilmaydigan havolani bosmaydi.
+ * Buni build paytida bilib bo'lmaydi (fayl keyin qo'yilishi mumkin),
+ * shuning uchun ekran ochilganda bir marta HEAD so'rovi bilan
+ * tekshiriladi: javob 200 bo'lsa — tugma yonadi.
+ */
+const APK_URL = import.meta.env.VITE_APK_URL || '/buysale.apk';
+
+function GetApp() {
+  const { t } = useT();
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    fetch(APK_URL, { method: 'HEAD' })
+      .then((r) => {
+        // Vite/preview mavjud bo'lmagan yo'lda index.html qaytaradi
+        // (SPA fallback) — shuning uchun 200 ning o'zi yetarli emas,
+        // javob chindan ham fayl ekanini ham tekshiramiz.
+        const type = r.headers.get('content-type') ?? '';
+        if (alive && r.ok && !type.includes('text/html')) setReady(true);
+      })
+      .catch(() => {
+        /* internet yo'q — tugma "Tez orada" holatida qolaveradi */
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  return (
+    <div className="app-get">
+      <div className="app-get-title">{t('getApp')}</div>
+      <div className="app-get-row">
+        {ready ? (
+          <a className="app-get-btn" href={APK_URL} download>
+            <Glyph name="android" size={26} color="#12b24a" />
+            <span className="app-get-name">{t('appAndroid')}</span>
+            <span className="app-get-act">
+              <Glyph name="download" size={12} /> {t('appDownload')}
+            </span>
+          </a>
+        ) : (
+          <div className="app-get-btn is-soon">
+            <Glyph name="android" size={26} color="var(--muted)" />
+            <span className="app-get-name">{t('appAndroid')}</span>
+            <span className="app-get-act">{t('appSoon')}</span>
+          </div>
+        )}
+
+        {/* iOS hali chiqmagan — bosilmaydi, shunchaki xabar beradi */}
+        <div className="app-get-btn is-soon">
+          <Glyph name="apple" size={26} color="var(--muted)" />
+          <span className="app-get-name">{t('appIos')}</span>
+          <span className="app-get-act">{t('appSoon')}</span>
+        </div>
       </div>
     </div>
   );
