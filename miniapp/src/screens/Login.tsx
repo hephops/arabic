@@ -171,6 +171,14 @@ export default function Login({ onLogin, notice }: { onLogin: () => void; notice
  */
 const APK_URL = import.meta.env.VITE_APK_URL || '/buysale.apk';
 
+// Ikonkalar doim o'z brend rangida turadi — "tez orada" holatida ham.
+// Ilgari ular var(--muted) (#8a8a8e) edi va Android roboti oqarib,
+// deyarli ko'rinmay ketgandi. Tugma bosilmasligini kartochkaning
+// xira foni va "Tez orada" yozuvi allaqachon aytib turibdi, buning
+// uchun ikonkani o'chirib qo'yish shart emas.
+const ANDROID_GREEN = '#12b24a';
+const APPLE_BLACK = '#1d1d1f';
+
 function GetApp() {
   const { t } = useT();
   const [ready, setReady] = useState(false);
@@ -199,7 +207,7 @@ function GetApp() {
       <div className="app-get-row">
         {ready ? (
           <a className="app-get-btn" href={APK_URL} download>
-            <Glyph name="android" size={26} color="#12b24a" />
+            <Glyph name="android" size={27} color={ANDROID_GREEN} />
             <span className="app-get-name">{t('appAndroid')}</span>
             <span className="app-get-act">
               <Glyph name="download" size={12} /> {t('appDownload')}
@@ -207,7 +215,7 @@ function GetApp() {
           </a>
         ) : (
           <div className="app-get-btn is-soon">
-            <Glyph name="android" size={26} color="var(--muted)" />
+            <Glyph name="android" size={27} color={ANDROID_GREEN} />
             <span className="app-get-name">{t('appAndroid')}</span>
             <span className="app-get-act">{t('appSoon')}</span>
           </div>
@@ -215,7 +223,7 @@ function GetApp() {
 
         {/* iOS hali chiqmagan — bosilmaydi, shunchaki xabar beradi */}
         <div className="app-get-btn is-soon">
-          <Glyph name="apple" size={26} color="var(--muted)" />
+          <Glyph name="apple" size={25} color={APPLE_BLACK} />
           <span className="app-get-name">{t('appIos')}</span>
           <span className="app-get-act">{t('appSoon')}</span>
         </div>
