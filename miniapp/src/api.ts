@@ -66,6 +66,32 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     const err: any = new Error(msg);
     err.status = res.status;
     err.details = body;          // masalan: qoldig'i yetmagan tovarlar ro'yxati
+    // Sessiya tugadi (token eskirgan yoki server qayta ishga tushgan).
+    //
+    // Ilgari ekranda "unauthorized" degan yozuv chiqib turardi va
+    // do'konchi nima qilishini bilmasdi: ro'yxat bo'sh, tugmalar
+    // ishlamaydi, lekin ilova hamon kirgan holatda ko'rinardi. Yagona
+    // yechim — qo'lda "Chiqish" bosish edi, buni esa hech kim
+    // o'ylab topmaydi.
+    //
+    // Endi eskirgan token o'chiriladi va ilova o'zi kirish ekraniga
+    // qaytadi (App.tsx 'auth:expired' ni eshitadi).
+    //
+    // SHARTLAR muhim:
+    //  - token bo'lgan bo'lsa — ya'ni chindan ham sessiya tugagan.
+    //    Kirish paytidagi 401 (PIN xato) bunga tushmasligi kerak.
+    //  - /auth/ so'rovlari chetda — u yerda 401 "kod noto'g'ri"
+    //    degani, sessiya tugagani emas.
+    if (res.status === 401 && getToken() && !path.startsWith('/auth/')) {
+      err.unauthorized = true;
+      err.message = translate('sessionExpired');
+      logout();
+      try {
+        window.dispatchEvent(new Event('auth:expired'));
+      } catch {
+        /* brauzersiz muhitda (test) window bo'lmasligi mumkin */
+      }
+    }
     // Do'kon bloklangan bo'lsa har so'rov 403 qaytaradi. Ekranda
     // "HTTP 403" degan yozuv do'konchiga hech narsa anglatmaydi va u
     // nima bo'lganini tushunmasdan qolardi — sababini aytib, hisobdan

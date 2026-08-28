@@ -8,7 +8,10 @@
 // navigatsiya so'rovi doim `cache: 'no-store'` bilan, to'g'ridan-to'g'ri
 // tarmoqdan so'raladi.
 
-const CACHE = 'arabic-one-v3';
+// Raqamni oshirsangiz — barcha qurilmadagi eski kesh o'chib, ilova
+// toza holda qaytadan yuklanadi ('activate' boshqa nomli keshlarni
+// o'chiradi). Do'konchilar eski versiyada qotib qolganda shuni oshiring.
+const CACHE = 'arabic-one-v4';
 const SHELL = ['/', '/index.html', '/manifest.webmanifest', '/icon-192.png', '/icon-512.png'];
 
 // Keshlash MUMKIN bo'lgan manzillar — faqat shu ro'yxat.

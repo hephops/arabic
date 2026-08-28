@@ -3400,6 +3400,25 @@ app.get<{ Querystring: { period?: string } }>('/reports/export', { preHandler: r
   return reply.send('\uFEFF' + csv); // BOM — Excel kirillchani to'g'ri ochadi
 });
 
+// QOROVUL — bitta xato butun serverni o'ldirmasin.
+//
+// Node 15 dan beri "ushlanmagan promise xatosi" jarayonni DARHOL
+// to'xtatadi. Bizda fonda ishlaydigan ko'p ish bor (Telegram'ga xabar,
+// kunlik hisobot, balans yechish, rasm yuklash) — ularning birortasida
+// tarmoq uzilsa yoki Telegram javob bermasa, backend jimgina o'chib
+// qolardi: oyna ochiq turadi, lekin 3000-port bo'sh bo'ladi va hamma
+// do'kon "Server javob bermadi" xatosini ko'radi.
+//
+// Do'kon uchun ishlamay qolgan server har qanday xatodan yomonroq,
+// shuning uchun bu yerda xatoni yozib qo'yamiz va ishlashda davom
+// etamiz. Terminalda ko'rinib turadi — sababini keyin tuzatsa bo'ladi.
+process.on('unhandledRejection', (e) => {
+  console.error('[qorovul] ushlanmagan promise xatosi:', e);
+});
+process.on('uncaughtException', (e) => {
+  console.error('[qorovul] ushlanmagan xato:', e);
+});
+
 const port = Number(process.env.PORT ?? 3000);
 app.listen({ port, host: '0.0.0.0' }).then(() => {
   seedAdmin();
@@ -3410,7 +3429,11 @@ app.listen({ port, host: '0.0.0.0' }).then(() => {
   } catch (e) {
     console.error('[katalog]', e);
   }
-  markOverdueDebts();
+  try {
+    markOverdueDebts();
+  } catch (e) {
+    console.error('[qarz] boshlang\'ich tekshiruv:', e);
+  }
   // Muddati o'tgan qarzlar kuniga bir marta ma'noli o'zgaradi —
   // soatiga bir tekshiruv yetarli va so'rovlar yo'lidan chiqadi
   setInterval(() => {
@@ -3434,16 +3457,34 @@ app.listen({ port, host: '0.0.0.0' }).then(() => {
   };
   runBilling();
   setInterval(runBilling, 60 * 60 * 1000).unref?.();
-  runReminders();
-  startReminderScheduler();
-  startDailyReportScheduler();
-  startLowBalanceScheduler();
+  // Fon vazifalari. Biri ishga tushmasa ham server savdoni qabul
+  // qilaverishi kerak — shuning uchun har biri alohida o'ralgan.
+  const fon = (nom: string, ish: () => unknown) => {
+    try {
+      ish();
+    } catch (e) {
+      console.error(`[${nom}] ishga tushmadi:`, e);
+    }
+  };
+  fon('eslatma', runReminders);
+  fon('eslatma-jadval', startReminderScheduler);
+  fon('hisobot', startDailyReportScheduler);
+  fon('balans', startLowBalanceScheduler);
   if (telegramEnabled() && process.env.PUBLIC_URL) {
-    setWebhook(process.env.PUBLIC_URL).then((r: any) =>
-      console.log('[telegram] webhook:', r.ok ? 'ulandi' : r.description ?? r.error)
-    );
+    // .catch() SHART: Telegram javob bermasa (internet uzildi, sayt
+    // bloklandi) bu promise rad etilib, butun backendni yiqitardi.
+    // Webhook ulanmasa faqat bot ishlamaydi — do'kon ishlayveradi.
+    setWebhook(process.env.PUBLIC_URL)
+      .then((r: any) => console.log('[telegram] webhook:', r.ok ? 'ulandi' : r.description ?? r.error))
+      .catch((e: any) => console.error('[telegram] webhook ulanmadi:', e?.message ?? e));
   }
   console.log(`BuySale backend :${port}`);
   // Xavfli sozlamalar ochiq qolgan bo'lsa — ko'zga tashlansin
   xavflarniKorsat();
+}).catch((e) => {
+  // Bu yerga tushish — server umuman ko'tarilmadi degani (masalan
+  // 3000-portni boshqa dastur egallab olgan). Sababi ko'rinib tursin,
+  // aks holda oyna jimgina yopilib ketardi.
+  console.error('[server] ishga tushmadi:', e);
+  process.exit(1);
 });

@@ -2,6 +2,8 @@
 // Ilova Telegram ichida ochilsa — uning tugmalari, mavzusi va tebranishi ishlatiladi.
 // Oddiy brauzerda ochilsa — hammasi jimgina o'tkazib yuboriladi.
 
+import { App as CapApp } from '@capacitor/app';
+
 interface TgWebApp {
   initData: string;
   initDataUnsafe?: { user?: { id: number; first_name?: string } };
@@ -48,15 +50,34 @@ export function initTelegram() {
 let backHandler: (() => void) | null = null;
 
 export function setBackButton(handler: (() => void) | null) {
-  if (!tg?.BackButton) return;
-  if (backHandler) tg.BackButton.offClick(backHandler);
-  backHandler = handler;
-  if (handler) {
-    tg.BackButton.onClick(handler);
-    tg.BackButton.show();
-  } else {
-    tg.BackButton.hide();
+  if (tg?.BackButton) {
+    if (backHandler) tg.BackButton.offClick(backHandler);
+    if (handler) {
+      tg.BackButton.onClick(handler);
+      tg.BackButton.show();
+    } else {
+      tg.BackButton.hide();
+    }
   }
+  // Telegram tashqarisida (native ilova) shu handler android'ning
+  // apparat "orqaga" tugmasi uchun ham ishlatiladi — pastdagi
+  // initNativeBackButton() ga qarang.
+  backHandler = handler;
+}
+
+/**
+ * Android'ning apparat "orqaga" tugmasi.
+ *
+ * Ekran ichida bo'lim ochiq bo'lsa (setBackButton bilan ro'yxatdan
+ * o'tgan bo'lsa) — o'sha yopiladi. Aks holda ilova asosiy ekranda
+ * turibdi, tugma ilovani chiqarib yuboradi (Telegram/brauzerda bu
+ * hech narsa qilmaydi — faqat native ilovada ishlaydi).
+ */
+export function initNativeBackButton() {
+  CapApp.addListener('backButton', () => {
+    if (backHandler) backHandler();
+    else CapApp.exitApp();
+  });
 }
 
 /* ── Asosiy tugma (pastdagi katta tugma) ── */

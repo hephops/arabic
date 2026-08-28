@@ -52,6 +52,24 @@ export default function App() {
   const [catalogPick, setCatalogPick] = useState<CatalogProduct | null>(null);
   const { t, lang, setLang } = useT();
 
+  // Sessiya tugaganda (server 401 qaytarsa) api.ts tokenni o'chirib
+  // shu signalni yuboradi. Ilova o'zi kirish ekraniga qaytadi —
+  // ilgari do'konchi "unauthorized" yozuvi bilan ishlamaydigan
+  // ekranda qolib ketardi va nima qilishni bilmasdi.
+  const [expired, setExpired] = useState(false);
+  useEffect(() => {
+    const onExpired = () => {
+      setShop(null);
+      setAuthed(false);
+      setExpired(true);
+      // Ichki ekranda turgan bo'lsa, qaytib kirgach boshidan boshlansin
+      setSub(null);
+      setTab('home');
+    };
+    window.addEventListener('auth:expired', onExpired);
+    return () => window.removeEventListener('auth:expired', onExpired);
+  }, []);
+
   // Telegram'ning o'z "orqaga" tugmasi ichki ekranlarda ko'rinadi
   useEffect(() => {
     setBackButton(sub ? () => setSub(null) : null);
@@ -92,7 +110,16 @@ export default function App() {
     api.announce().then(setAnnounce).catch(() => {});
   }, [authed]);
 
-  if (!authed) return <Login onLogin={() => setAuthed(true)} />;
+  if (!authed)
+    return (
+      <Login
+        notice={expired ? t('sessionExpired') : ''}
+        onLogin={() => {
+          setExpired(false);
+          setAuthed(true);
+        }}
+      />
+    );
 
   // Xodim sessiyasida narx, hisobot va sozlamalar bo'limlari ko'rinmaydi
   const isEmployee = !!shop?.employee;

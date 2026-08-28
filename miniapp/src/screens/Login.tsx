@@ -9,7 +9,10 @@ import { SHOP_TYPES, type ShopType } from '../shopTypes';
 // Ro'yxatdan o'tish: telefon → SMS-kod → (yangi do'kon bo'lsa) profilni to'ldirish.
 // Har bir bosqich alohida ekran: bitta ish, bitta tugma.
 
-export default function Login({ onLogin }: { onLogin: () => void }) {
+// `notice` — sessiya tugagani sababli bu ekranga QAYTARILGAN bo'lsa
+// shu yerda ko'rinadi. Do'konchi o'zi chiqmagani uchun, sababini
+// aytmasak "nega meni chiqarib yubordi?" degan savol qolib ketardi.
+export default function Login({ onLogin, notice }: { onLogin: () => void; notice?: string }) {
   const [step, setStep] = useState<'phone' | 'code' | 'setup' | 'employee'>('phone');
   // Botga to'g'ridan-to'g'ri havola: bosilsa /start o'zi bosiladi
   const [link, setLink] = useState('');
@@ -96,6 +99,8 @@ export default function Login({ onLogin }: { onLogin: () => void }) {
     <div className="auth">
       <div className="auth-body">
         <Brand />
+
+        {notice && <p className="error center">{notice}</p>}
 
         {step === 'phone' ? (
           <>
