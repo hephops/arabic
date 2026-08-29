@@ -18,6 +18,19 @@ backend/certs/
 *.pem
 *.key
 *.crt
+
+# Android release imzosi. Bu kalit bilan istalgan odam "BuySale"
+# nomidan soxta yangilanish chiqara oladi, shuning uchun u va uning
+# parollari git'ga ASLO tushmasligi kerak. Kalit yo'qolsa Play
+# Market'dagi ilovani boshqa hech qachon yangilab bo'lmaydi —
+# nusxasini xavfsiz joyda saqlang.
+*.jks
+*.keystore
+keystore.properties
+
+# Yig'ilgan ilova fayllari — kod emas, har safar qaytadan yasaladi
+*.apk
+*.aab
 *.p12
 *.pfx
 
@@ -26,3 +39,10 @@ backend/certs/
 !brand/**/*.png
 !miniapp/public/*.png
 !admin/public/*.png
+# Mobil ilova ikonkalari va splash ekranlari — bular sinov surati
+# emas, ilovaning o'zi. Git'da turmasa, boshqa kompyuterda yig'ilgan
+# ilova Capacitor'ning standart logosi bilan chiqib ketardi.
+# (Qayta yasash: cd miniapp && npm run assets)
+!miniapp/assets/*.png
+!miniapp/android/app/src/main/res/**/*.png
+!miniapp/ios/App/App/Assets.xcassets/**/*.png

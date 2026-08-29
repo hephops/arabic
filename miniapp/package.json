@@ -9,9 +9,10 @@
     "preview": "vite preview",
     "dev:https": "cross-env HTTPS=1 vite --host",
     "preview:https": "cross-env HTTPS=1 vite preview --host",
-    "android:add": "cap add android",
     "android:sync": "cap sync android",
     "android:apk": "cd android && gradlew.bat assembleRelease",
+    "ios:sync": "cap sync ios",
+    "assets": "capacitor-assets generate --android --ios",
     "check:proxy": "node scripts/check-proxy.mjs",
     "prebuild": "node scripts/check-proxy.mjs",
     "predev": "node scripts/check-proxy.mjs",
@@ -25,6 +26,7 @@
     "@capacitor/app": "^8.1.1",
     "@capacitor/cli": "^8.5.0",
     "@capacitor/core": "^8.5.0",
+    "@capacitor/ios": "^8.5.0",
     "@capacitor/splash-screen": "^8.0.2",
     "@capacitor/status-bar": "^8.0.3",
     "@zxing/library": "^0.21.3",
@@ -33,6 +35,7 @@
     "react-icons": "^5.7.0"
   },
   "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
     "@vitejs/plugin-basic-ssl": "^2.3.0",
