@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import App from './App';
 import { I18nProvider } from './i18n';
 import ErrorBoundary from './ErrorBoundary';
+import { installDomGuard } from './domGuard';
 import './styles.css';
 
 import { initTelegram, initNativeBackButton } from './telegram';
@@ -26,6 +27,10 @@ import { rememberRef } from './api';
 })();
 
 // Telegram Mini App muhitida ekranni to'liq ochamiz va mavzuga moslashamiz
+// Tarjimon/kengaytma sahifaga aralashsa ham ilova qulamasin.
+// React chizishni boshlashidan OLDIN qo'yilishi shart.
+installDomGuard();
+
 initTelegram();
 // Android native ilovada apparat "orqaga" tugmasini ekran navigatsiyasiga ulaymiz
 initNativeBackButton();

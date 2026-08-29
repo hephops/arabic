@@ -126,6 +126,30 @@ export default function App() {
 
   const refresh = () => setRefreshKey((k) => k + 1);
 
+  // Ekran almashganda ma'lumot QAYTADAN olinadi.
+  //
+  // Ilgari har ekran faqat birinchi ochilganda yuklardi va shundan
+  // keyin xotirasida qolib ketardi. Natijada eng oddiy ish buzilardi:
+  // do'konchi tovar kirimi qiladi, Omborda uni ko'radi, Kassaga
+  // o'tadi — va o'sha tovar sotuvda YO'Q. Faqat sahifani yangilagach
+  // paydo bo'lardi. Do'konchi buni "dastur ishlamayapti" deb tushunardi.
+  //
+  // Endi bo'limga har kirganda ro'yxat serverdan yangilanadi.
+  useEffect(() => {
+    if (authed) refresh();
+  }, [tab, sub]);
+
+  // Ilova fonga tushib qaytganda ham (telefonda tez-tez bo'ladi:
+  // do'konchi Telegramga o'tib qaytadi) ma'lumot yangilanadi —
+  // aks holda ekranda yarim soatlik eski qoldiq turaverardi.
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === 'visible' && authed) refresh();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [authed]);
+
   /* E'lonlar. Bir nechta bo'lishi mumkin: hammaga bitta, do'kon turiga
    * yana bittasi. Server ro'yxat qaytaradi (items); eski javobda esa
    * bitta e'lon bo'lardi — u ham ishlaydi.
@@ -245,6 +269,11 @@ export default function App() {
           autoScan={scanNonce}
           fromCatalog={catalogPick}
           onCatalogUsed={() => setCatalogPick(null)}
+          // key= BERILMAYDI: Kassa qayta yaratilsa ochiq savatlar
+          // yo'qolardi. Shuning uchun raqam oddiy prop sifatida
+          // uzatiladi — ekran o'z holatini saqlab, faqat tovar
+          // ro'yxatini serverdan yangilaydi.
+          dataVersion={refreshKey}
         />
       )}
       {!sub && tab === 'profile' && (

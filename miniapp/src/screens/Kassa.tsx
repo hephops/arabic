@@ -41,10 +41,14 @@ export default function Kassa({
   autoScan = 0,
   fromCatalog = null,
   onCatalogUsed,
+  dataVersion = 0,
 }: {
   onDone: () => void;
   isEmployee?: boolean;
   initialMode?: KassaMode;
+  /** Boshqa joyda ma'lumot o'zgarganda o'sadi (masalan tovar kirimi
+   *  qilindi). Sotuv ekrani shunda ro'yxatini qaytadan so'raydi. */
+  dataVersion?: number;
   /** "+" dan "Sotuv" tanlanganda o'sadi — skaner o'zi ochiladi */
   autoScan?: number;
   /** Markaziy katalogdan tanlangan tovar — kirim maydonlarini to'ldiradi */
@@ -76,7 +80,7 @@ export default function Kassa({
           <Glyph name="clock" size={16} /> {t('modeHistory')}
         </button>
       </div>
-      {mode === 'sale' && <SaleMode onDone={onDone} autoScan={autoScan} />}
+      {mode === 'sale' && <SaleMode onDone={onDone} autoScan={autoScan} dataVersion={dataVersion} />}
       {mode === 'intake' && <IntakeMode onDone={onDone} fromCatalog={fromCatalog} onCatalogUsed={onCatalogUsed} />}
       {mode === 'history' && <HistoryMode />}
     </div>
@@ -84,7 +88,15 @@ export default function Kassa({
 }
 
 
-function SaleMode({ onDone, autoScan = 0 }: { onDone: () => void; autoScan?: number }) {
+function SaleMode({
+  onDone,
+  autoScan = 0,
+  dataVersion = 0,
+}: {
+  onDone: () => void;
+  autoScan?: number;
+  dataVersion?: number;
+}) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<Product[]>([]);
   // Savatda qo'lda yozilayotgan miqdor matni (tovar id -> matn).
@@ -221,6 +233,14 @@ function SaleMode({ onDone, autoScan = 0 }: { onDone: () => void; autoScan?: num
 
   const barcodeTimer = useRef<number>(0);
   useEffect(() => () => window.clearTimeout(barcodeTimer.current), []);
+
+  // Boshqa ekranda tovar kirimi qilingan bo'lsa, ekrandagi ro'yxat
+  // eskirib qoladi: qidiruv matni o'zgarmagani uchun qayta so'ralmaydi
+  // va yangi tovar sotuvda ko'rinmaydi. Shu sababli ma'lumot
+  // o'zgarganda joriy qidiruv qaytadan yuritiladi.
+  useEffect(() => {
+    if (dataVersion && query.trim().length >= 2) search(query);
+  }, [dataVersion]);
 
   async function search(q: string) {
     setQuery(q);
