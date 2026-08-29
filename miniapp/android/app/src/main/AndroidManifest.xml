@@ -32,4 +32,16 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- Shtrix-kod skaneri uchun kamera.
+         Ilova ichidagi skaner brauzerning getUserMedia'si orqali
+         ishlaydi (src/Scanner.tsx). Bu ruxsat manifestda bo'lmasa
+         WebView kamerani umuman bermaydi va skaner jimgina
+         ishlamay qoladi - Ombor qidiruvi, Kassa va Qaytarish
+         ekranlari shunga tayanadi.
+
+         required="false" - kamerasiz planshetlarga ham o'rnatilsin,
+         ular skanersiz ham savdo qila oladi. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
 </manifest>
