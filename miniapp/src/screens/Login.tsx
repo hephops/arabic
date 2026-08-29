@@ -169,7 +169,11 @@ export default function Login({ onLogin, notice }: { onLogin: () => void; notice
  * shuning uchun ekran ochilganda bir marta HEAD so'rovi bilan
  * tekshiriladi: javob 200 bo'lsa — tugma yonadi.
  */
-const APK_URL = import.meta.env.VITE_APK_URL || '/buysale.apk';
+// Manzilga faylning barmoq izi qo'shiladi (vite.config.ts hisoblaydi).
+// Usiz Cloudflare eski keshlangan javobni berib turardi va Android
+// faylni tanimay, o'rnatishni taklif qilmasdi.
+const APK_URL =
+  (import.meta.env.VITE_APK_URL || '/buysale.apk') + (__APK_V__ ? `?v=${__APK_V__}` : '');
 
 // Ikonkalar doim o'z brend rangida turadi — "tez orada" holatida ham.
 // Ilgari ular var(--muted) (#8a8a8e) edi va Android roboti oqarib,

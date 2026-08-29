@@ -1,6 +1,26 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import basicSsl from '@vitejs/plugin-basic-ssl';
+import { createHash } from 'node:crypto';
+import { existsSync, readFileSync } from 'node:fs';
+
+// Yuklab olinadigan APK manzili uchun qisqa barmoq izi.
+//
+// NIMA UCHUN: sayt oldida Cloudflare turadi va u `/buysale.apk` ni
+// keshlab qo'yadi (4 soat). Bir marta shu tufayli do'konchilarga
+// ESKI, sarlavhasi buzuq javob berilgan — Android faylni tanimay,
+// o'rnatishni taklif qilmagan. Yangi APK chiqarilganda ham xuddi
+// shu bo'lardi: yarim kun davomida odamlar eskisini yuklab olardi.
+//
+// Manzilga faylning o'z izini qo'shsak (`?v=a1b2c3d4`), APK
+// o'zgarishi bilan manzil ham o'zgaradi — Cloudflare uni yangi
+// fayl deb biladi va keshdan bermaydi. Qo'lda versiya yozish
+// shart emas, aks holda uni yangilashni unutish oson edi.
+function apkFingerprint(): string {
+  const f = 'public/buysale.apk';
+  if (!existsSync(f)) return '';
+  return createHash('sha1').update(readFileSync(f)).digest('hex').slice(0, 8);
+}
 
 // Telefonda kamerani sinash uchun HTTPS kerak: brauzerlar kamerani faqat
 // xavfsiz manzilda (https:// yoki localhost) ochadi. `npm run dev:https`
@@ -69,6 +89,7 @@ function apkHeaders() {
 }
 
 export default defineConfig({
+  define: { __APK_V__: JSON.stringify(apkFingerprint()) },
   plugins: [react(), apkHeaders(), ...(https ? [basicSsl()] : [])],
   server: { port: 5173, host: true, allowedHosts: true, proxy: apiProxy },
   // Ishlab chiqarishga chiqargan `dist/` ni tekshirish uchun ("npm run preview").
