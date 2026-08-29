@@ -199,6 +199,13 @@ export default function Inventory({ onBack }: { onBack: () => void }) {
     ? null
     : products.reduce((s, p) => s + p.stock * (Number(p.cost_price) || 0), 0);
 
+  // Sotuv narxidagi qiymat — ombordagi tovar to'liq sotilsa qancha
+  // pul kelishi. Kirim narxi bilan yonma-yon turadi: do'konchi
+  // qancha pul kiritgani va qancha kutishi mumkinligini bir qarashda
+  // ko'radi. sell_price hamma xodimga ko'rinadi (narx yashirin emas),
+  // shuning uchun cost_view ruxsatiga bog'liq emas.
+  const sellValue = products.reduce((s, p) => s + p.stock * (Number(p.sell_price) || 0), 0);
+
   return (
     <>
       <NavBar
@@ -211,11 +218,21 @@ export default function Inventory({ onBack }: { onBack: () => void }) {
         }
       />
       <div className="screen">
-        <Summary
-          icon="boxes"
-          label={`${products.length} ${t('productsCount')}`}
-          value={totalValue === null ? '—' : fmt(totalValue)}
-        />
+        {/* Ombordagi pul IKKI narxda ko'rsatiladi.
+            Ilgari faqat kirim narxi turardi va do'konchi "shu tovarni
+            sotsam qancha bo'ladi" degan savolga javob topolmasdi —
+            buning uchun har bir tovarni ochib chiqishi kerak edi. */}
+        <Summary icon="boxes" label={t('invKinds')} value={String(products.length)} />
+        <div className="duo">
+          <div>
+            <div className="k">{t('invCostValue')}</div>
+            <div className="v">{totalValue === null ? '—' : fmt(totalValue)}</div>
+          </div>
+          <div>
+            <div className="k">{t('invSellValue')}</div>
+            <div className="v green">{fmt(sellValue)}</div>
+          </div>
+        </div>
 
         <div className="search-row">
           <div className="search-field">
@@ -1473,8 +1490,15 @@ function Batches({ product }: { product: Product }) {
                       <DateField
                         value={b.expiry_date ?? ''}
                         onChange={async (v) => {
-                          setRows(await api.setBatchExpiry(product.id!, b.id, v || null));
-                          setEditing(null);
+                          try {
+                            setRows(await api.setBatchExpiry(product.id!, b.id, v || null));
+                            setEditing(null);
+                          } catch (e: any) {
+                            // Xato ushlanmasa sana saqlanmagan bo'lsa ham
+                            // maydon yopilib, saqlangandek ko'rinardi —
+                            // keyingi ochilishda eskisi qaytib kelardi
+                            toast.error(t('error'), e.message);
+                          }
                         }}
                         ariaLabel={t('expiry')}
                       />

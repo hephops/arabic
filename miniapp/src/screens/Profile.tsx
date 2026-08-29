@@ -986,7 +986,16 @@ function EmployeeCard({
 
       <button
         className={`btn-primary btn-lg ${employee.is_active ? 'danger' : ''}`}
-        onClick={() => api.updateEmployee(employee.id, { is_active: employee.is_active ? 0 : 1 }).then(onChanged)}
+        // Xato ushlanmasa tugma jimgina ishlamas edi: do'kon egasi
+        // bosadi, hech narsa o'zgarmaydi va nima bo'lganini bilmaydi.
+        onClick={async () => {
+          try {
+            await api.updateEmployee(employee.id, { is_active: employee.is_active ? 0 : 1 });
+            onChanged();
+          } catch (e: any) {
+            toast.error(t('error'), e.message);
+          }
+        }}
       >
         {employee.is_active ? t('block') : t('unblock')}
       </button>
@@ -994,9 +1003,15 @@ function EmployeeCard({
         className="btn-ghost danger"
         onClick={async () => {
           if (!confirm(t('employeeDeleteAsk'))) return;
-          await api.deleteEmployee(employee.id);
-          toast.success(t('employeeDelete'), employee.name);
-          onChanged();
+          try {
+            await api.deleteEmployee(employee.id);
+            toast.success(t('employeeDelete'), employee.name);
+            onChanged();
+          } catch (e: any) {
+            // Aks holda o'chirish muvaffaqiyatsiz bo'lsa ham xodim
+            // ro'yxatdan yo'qolgandek ko'rinardi (keyingi ochilishda qaytardi)
+            toast.error(t('error'), e.message);
+          }
         }}
       >
         {t('employeeDelete')}

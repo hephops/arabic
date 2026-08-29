@@ -463,6 +463,9 @@ const UZ: Record<string, string> = {
 
   // Ombor
   productsCount: 'xil mahsulot · ombor qiymati',
+  invKinds: 'xil mahsulot',
+  invCostValue: 'Kelgan narxda',
+  invSellValue: 'Sotilsa',
   filterAll: 'Hammasi',
   filterLow: 'Kam qolgan',
   filterExpiry: 'Srogi yaqin',
@@ -1435,6 +1438,9 @@ const RU: Record<string, string> = {
   noSalesPeriod: 'За этот период продаж не было',
 
   productsCount: 'видов товара · стоимость склада',
+  invKinds: 'видов товара',
+  invCostValue: 'По закупке',
+  invSellValue: 'При продаже',
   filterAll: 'Все',
   filterLow: 'Заканчивается',
   filterExpiry: 'Срок близко',

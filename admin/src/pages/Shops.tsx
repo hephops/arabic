@@ -158,7 +158,17 @@ export default function Shops() {
           </thead>
           <tbody>
             {shown.map((s) => (
-              <tr key={s.id} className="clickable" onClick={async () => setSelected(await api.shop(s.id))}>
+              <tr
+                  key={s.id}
+                  className="clickable"
+                  onClick={async () => {
+                    try {
+                      setSelected(await api.shop(s.id));
+                    } catch (e: any) {
+                      setXato(e.message);
+                    }
+                  }}
+                >
                 <td>
                   <div className="cell-main">
                     {s.name} <span className="stype-tag">{SHOP_TYPE_LABEL[s.shop_type ?? 'oziq'] ?? s.shop_type}</span>
@@ -214,7 +224,13 @@ export default function Shops() {
                   <button
                     className="icon-btn"
                     title="Ko'rish"
-                    onClick={async () => setSelected(await api.shop(s.id))}
+                    onClick={async () => {
+                      try {
+                        setSelected(await api.shop(s.id));
+                      } catch (e: any) {
+                        setXato(e.message);
+                      }
+                    }}
                   >
                     <Glyph name="eye" size={16} />
                   </button>
@@ -385,6 +401,23 @@ function ShopModal({
   }
   const [amount, setAmount] = useState('');
   const [reason, setReason] = useState('');
+
+  /* Admin amali: bajaradi, natijani aytadi, ro'yxatni yangilaydi.
+   *
+   * Ilgari har tugma xato ushlamasdan yozilgan edi: server rad etsa
+   * (tarmoq uzildi, huquq yetmadi) tugma JIMGINA hech narsa qilmasdi.
+   * Balans tuzatishda bu ayniqsa xavfli — admin "bosilmadi" deb
+   * o'ylab yana bosishi, birinchisi esa aslida o'tib ketgan bo'lishi
+   * mumkin edi. Endi xato ekranda ko'rinadi. */
+  async function amal(ish: () => Promise<unknown>, xabar: string) {
+    try {
+      await ish();
+      setMsg(xabar);
+      await reload();
+    } catch (e: any) {
+      setMsg(`Xatolik: ${e?.message ?? e}`);
+    }
+  }
 
   async function reload() {
     const fresh = await api.shop(shop.id);
@@ -588,11 +621,7 @@ function ShopModal({
             />
             <button
               className="btn sm"
-              onClick={async () => {
-                await api.grantDays(data.id, Number(grantDays) || 30);
-                setMsg("Bepul kun qo'shildi");
-                reload();
-              }}
+              onClick={() => amal(() => api.grantDays(data.id, Number(grantDays) || 30), "Bepul kun qo'shildi")}
             >
               Bepul kun berish
             </button>
@@ -608,12 +637,16 @@ function ShopModal({
             <button
               className="btn sm ghost"
               disabled={!amount}
-              onClick={async () => {
-                await api.adjustBalance(data.id, parseInt(amount.replace(/[^\d-]/g, ''), 10) || 0, 'Admin tuzatishi');
-                setAmount('');
-                setMsg('Balans o‘zgartirildi');
-                reload();
-              }}
+              onClick={() =>
+                amal(async () => {
+                  await api.adjustBalance(
+                    data.id,
+                    parseInt(amount.replace(/[^\d-]/g, ''), 10) || 0,
+                    'Admin tuzatishi'
+                  );
+                  setAmount('');
+                }, 'Balans o‘zgartirildi')
+              }
             >
               Balansga qo'shish
             </button>
@@ -629,11 +662,7 @@ function ShopModal({
               </div>
               <button
                 className="btn sm"
-                onClick={async () => {
-                  await api.blockShop(data.id, false);
-                  setMsg('Blokdan chiqarildi');
-                  reload();
-                }}
+                onClick={() => amal(() => api.blockShop(data.id, false), 'Blokdan chiqarildi')}
               >
                 Blokdan chiqarish
               </button>
@@ -648,11 +677,7 @@ function ShopModal({
               />
               <button
                 className="btn sm danger"
-                onClick={async () => {
-                  await api.blockShop(data.id, true, reason || undefined);
-                  setMsg('Bloklandi');
-                  reload();
-                }}
+                onClick={() => amal(() => api.blockShop(data.id, true, reason || undefined), 'Bloklandi')}
               >
                 Bloklash
               </button>

@@ -318,7 +318,15 @@ export function HistoryMode({ autoScan = false }: { autoScan?: boolean }) {
       <>
       <div className="list-group">
         {sales.map((s) => (
-          <div className="list-item" key={s.id} onClick={async () => setDetail(await api.sale(s.id))}>
+          <div className="list-item" key={s.id} onClick={async () => {
+            // catch shart: aks holda tarmoq uzilganda qator bosilgani
+            // bilinmasdi — do'konchi "ochilmayapti" deb qayta bosaverardi
+            try {
+              setDetail(await api.sale(s.id));
+            } catch (e: any) {
+              toast.error(t('error'), e.message);
+            }
+          }}>
             <div className="lead">
               {/* Rasm bo'lsa o'sha ko'rinadi: qaysi buyum sotilgani
                   nomdan emas, suratdan bilinadi (zargarlikda hamma

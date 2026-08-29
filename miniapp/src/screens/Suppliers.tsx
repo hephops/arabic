@@ -175,7 +175,13 @@ export default function Suppliers({ onBack }: { onBack: () => void }) {
       {suppliers.length > 0 && <div className="section-title">{t('navSuppliers')}</div>}
       <div className="list-group">
         {suppliers.map((s) => (
-          <div className="list-item" key={s.id} onClick={async () => setSelected(await api.supplier(s.id))}>
+          <div className="list-item" key={s.id} onClick={async () => {
+            try {
+              setSelected(await api.supplier(s.id));
+            } catch (e: any) {
+              toast.error(t('error'), e.message);
+            }
+          }}>
             <div className="lead">
               <AppIcon glyph="truck" size={30} />
               <div>
