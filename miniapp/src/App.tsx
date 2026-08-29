@@ -110,6 +110,37 @@ export default function App() {
     api.announce().then(setAnnounce).catch(() => {});
   }, [authed]);
 
+  const refresh = () => setRefreshKey((k) => k + 1);
+
+  // Ekran almashganda ma'lumot QAYTADAN olinadi.
+  //
+  // Ilgari har ekran faqat birinchi ochilganda yuklardi va shundan
+  // keyin xotirasida qolib ketardi. Natijada eng oddiy ish buzilardi:
+  // do'konchi tovar kirimi qiladi, Omborda uni ko'radi, Kassaga
+  // o'tadi — va o'sha tovar sotuvda YO'Q. Faqat sahifani yangilagach
+  // paydo bo'lardi. Do'konchi buni "dastur ishlamayapti" deb tushunardi.
+  //
+  // Endi bo'limga har kirganda ro'yxat serverdan yangilanadi.
+  //
+  // DIQQAT: yuqoridagi ogohlantirish shu ikkoviga ham tegishli —
+  // ular "chiqish" shartidan OLDIN turishi shart. Bir marta pastga
+  // qo'yilgan edi va do'konchi kirmagan holatda React #310 xatosi
+  // bilan butun ilova ochilmay qoldi.
+  useEffect(() => {
+    if (authed) refresh();
+  }, [tab, sub, authed]);
+
+  // Ilova fonga tushib qaytganda ham (telefonda tez-tez bo'ladi:
+  // do'konchi Telegramga o'tib qaytadi) ma'lumot yangilanadi —
+  // aks holda ekranda yarim soatlik eski qoldiq turaverardi.
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === 'visible' && authed) refresh();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [authed]);
+
   if (!authed)
     return (
       <Login
@@ -123,32 +154,6 @@ export default function App() {
 
   // Xodim sessiyasida narx, hisobot va sozlamalar bo'limlari ko'rinmaydi
   const isEmployee = !!shop?.employee;
-
-  const refresh = () => setRefreshKey((k) => k + 1);
-
-  // Ekran almashganda ma'lumot QAYTADAN olinadi.
-  //
-  // Ilgari har ekran faqat birinchi ochilganda yuklardi va shundan
-  // keyin xotirasida qolib ketardi. Natijada eng oddiy ish buzilardi:
-  // do'konchi tovar kirimi qiladi, Omborda uni ko'radi, Kassaga
-  // o'tadi — va o'sha tovar sotuvda YO'Q. Faqat sahifani yangilagach
-  // paydo bo'lardi. Do'konchi buni "dastur ishlamayapti" deb tushunardi.
-  //
-  // Endi bo'limga har kirganda ro'yxat serverdan yangilanadi.
-  useEffect(() => {
-    if (authed) refresh();
-  }, [tab, sub]);
-
-  // Ilova fonga tushib qaytganda ham (telefonda tez-tez bo'ladi:
-  // do'konchi Telegramga o'tib qaytadi) ma'lumot yangilanadi —
-  // aks holda ekranda yarim soatlik eski qoldiq turaverardi.
-  useEffect(() => {
-    const onVisible = () => {
-      if (document.visibilityState === 'visible' && authed) refresh();
-    };
-    document.addEventListener('visibilitychange', onVisible);
-    return () => document.removeEventListener('visibilitychange', onVisible);
-  }, [authed]);
 
   /* E'lonlar. Bir nechta bo'lishi mumkin: hammaga bitta, do'kon turiga
    * yana bittasi. Server ro'yxat qaytaradi (items); eski javobda esa
