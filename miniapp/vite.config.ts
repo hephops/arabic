@@ -30,8 +30,46 @@ const apiProxy = Object.fromEntries(
   API_PREFIXES.map((p) => [`/${p}`, { target: 'http://localhost:3000', changeOrigin: true }])
 );
 
+// Android ilovasini (buysale.apk) to'g'ri sarlavhalar bilan berish.
+//
+// Vite `.apk` kengaytmasini bilmaydi va Content-Type'ni UMUMAN
+// yubormaydi. Bunday javobni telefon brauzeri "noma'lum fayl" deb
+// qabul qilishi va o'rnatishni taklif qilmasligi mumkin —
+// do'konchi faylni yuklab olib, u bilan nima qilishni bilmay
+// qolardi. To'g'ri turi berilsa Android darhol "O'rnatish"
+// oynasini ochadi.
+//
+// Kesh ham o'chiriladi: standart 4 soatlik kesh tufayli yangi
+// versiya chiqarilganda do'konchilar yarim kun eskisini yuklab
+// olishda davom etardi.
+function apkHeaders() {
+  const middleware = (req: any, res: any, next: any) => {
+    if (req.url?.split('?')[0].endsWith('.apk')) {
+      res.setHeader('Content-Type', 'application/vnd.android.package-archive');
+      res.setHeader('Content-Disposition', 'attachment; filename="BuySale.apk"');
+      res.setHeader('Cache-Control', 'no-cache');
+    }
+    next();
+  };
+  // DIQQAT: bu ilgaklar HECH NARSA QAYTARMASLIGI kerak.
+  // `(s) => s.middlewares.use(...)` deb yozilsa, `use()` connect
+  // ilovasini qaytaradi, u esa funksiya — Vite uni "serverdan keyin
+  // chaqiriladigan ilgak" deb o'ylab bo'sh argument bilan chaqiradi
+  // va server "Cannot read properties of undefined (reading 'url')"
+  // bilan umuman ishga tushmay qoladi.
+  return {
+    name: 'apk-headers',
+    configureServer(s: any) {
+      s.middlewares.use(middleware);
+    },
+    configurePreviewServer(s: any) {
+      s.middlewares.use(middleware);
+    },
+  };
+}
+
 export default defineConfig({
-  plugins: [react(), ...(https ? [basicSsl()] : [])],
+  plugins: [react(), apkHeaders(), ...(https ? [basicSsl()] : [])],
   server: { port: 5173, host: true, allowedHosts: true, proxy: apiProxy },
   // Ishlab chiqarishga chiqargan `dist/` ni tekshirish uchun ("npm run preview").
   // MUHIM: haqiqiy do'konchilarga shu orqali xizmat qiling, `vite`/`dev` emas —
